@@ -1,7 +1,12 @@
 # Voxa design
 
-Date: 2026-10-05
+Date: 2026-10-05, revised 2026-10-07
 Status: draft for review
+
+Revision of 2026-10-07: the 3D view becomes the main view and gains direct
+interaction (A8); the roadmap is re-ordered and extended with model-based brain
+labelling and the inner ear, both proven in the earlier prototypes
+(A4); the methods, constraints and risks are updated to match (A5, A7).
 
 Voxa is an open-source medical image viewer written in Rust. It aims to combine
 what today is split across separate tools: one-step opening of a patient's own
@@ -57,8 +62,9 @@ interface crate contains no image mathematics.
 | `voxa-volume` | Interpolation, reslicing maths, histograms, automatic window/level | `voxa-core` |
 | `voxa-filters` | Denoising, bias correction, later skull-stripping | `voxa-volume` |
 | `voxa-register` | Rigid, affine and deformable registration | `voxa-volume` |
-| `voxa-segment` | Atlas regions, label volumes, region statistics, later learned models | `voxa-register` |
-| `voxa-render` | GPU slice renderer and volume ray-caster | `voxa-volume`, `wgpu` |
+| `voxa-models` | ONNX runtime wrapper, model download and checksum verification, quality verdicts | `voxa-volume` |
+| `voxa-segment` | Brain extraction and labelling, inner-ear outline and parts, label volumes, structure statistics | `voxa-models`, `voxa-register` |
+| `voxa-render` | GPU slice renderer, volume ray-caster, label rendering, picking, cut planes | `voxa-volume`, `wgpu` |
 | `voxa-app` | Interface, tools, application state, settings | all of the above, `egui` |
 
 Extension points are small traits with a registry, so a new item is a new file
@@ -77,19 +83,21 @@ so that an upstream API change touches one module.
 
 ### A4. Feature inventory and milestones
 
-Every feature requested or identified in the survey of existing viewers is
-listed here against the milestone that delivers it.
+Every feature requested, built in the earlier prototypes, or
+identified in the survey of existing viewers is listed against the milestone
+that delivers it.
 
 | # | Milestone | Delivers |
 |---|---|---|
-| 1 | Foundation | Workspace, CI, quality gates. Open zip / folder / DICOMDIR. Study and series browser with thumbnails. 2D stack view with zoom, pan, flip, rotate. Window/level by drag, presets and automatic. Orientation labels, scale bar, corner overlay. DICOM tag browser with search. Cine playback. Dark modern theme. |
-| 2 | Three-plane and measurement | Volume assembly in patient space. Linked axial / coronal / sagittal views with crosshairs. Cubic B-spline reslicing. Oblique planes. Reference lines and synced scrolling between series. Ruler, angle, elliptical region statistics. Measurement list, CSV / JSON export. Undo and redo. |
-| 3 | 3D rendering | GPU ray-cast volume rendering, transfer-function presets and editor, cut planes, maximum-intensity projection, screenshot export. |
-| 4 | Image filters | Non-local means denoising for MRI, N4 bias-field correction, as non-destructive derived volumes with progress and cancel. |
-| 5 | Time-point comparison | Rigid registration between studies. Synced side-by-side, swipe, fade, checkerboard, colour overlay and difference map. Saved transforms. |
-| 6 | Brain regions | Skull-stripping. Affine plus deformable registration of a published labelled atlas. Clickable regions in 3D and 2D, region list, per-region volume and intensity statistics. |
-| 7 | Research tools | Segmentation editor (brush, threshold, region growing, interpolation between slices). Learned whole-brain segmentation through an ONNX runtime. DICOM SEG and NIfTI import / export. Scripting and batch processing. |
-| 8 | Workstation | Hanging protocols. DICOMweb and classic PACS query / retrieve. DICOM structured-report export. Multi-monitor layouts. Key images. |
+| 1 | Foundation | Workspace, CI, quality gates. Open zip / folder / DICOMDIR, classic and enhanced DICOM. Study and series browser with thumbnails. Automatic choice of the most useful series on opening, with the reason each other series was passed over. 2D stack view with zoom, pan, flip, rotate. Window/level by drag, presets and automatic. Orientation labels, scale bar, corner overlay. DICOM tag browser with search. Cine playback. Dark modern theme. |
+| 2 | Interactive 3D | The main view. Volume assembly in patient space. GPU ray-cast volume rendering with presets and maximum-intensity projection. Orbit, pan, zoom, saved camera views. A movable cut plane at any angle. The scan's slice planes drawn inside the 3D scene. Snapshot and rotating-video export. Window layout: one large 3D viewport with supporting panels beside it. |
+| 3 | Plane views and measurement | Linked axial / coronal / sagittal panels beside the 3D view, with crosshairs shared with the 3D scene. Cubic B-spline reslicing, oblique planes, reference lines, synced scrolling between series. Ruler, angle and region statistics in the plane views; point-to-point distance and labelled markers in 3D. Measurement list, CSV / JSON export. Undo and redo. |
+| 4 | Models and brain labelling | An ONNX runtime inside the app, with models downloaded on first use and checksum-verified. Brain extraction. Whole-brain labelling into about thirty structures on any contrast. A quality verdict in plain words on every automatic result. Label volumes rendered as coloured solids. The structure list: hover for a name, click to select, show / hide / isolate, opacity per structure, volume per structure. Selection linked between 3D, plane views and the list. |
+| 5 | Inner ear | Locate both inner ears on a fluid-bright scan. Outline each labyrinth. Split it into cochlea, vestibule and the three semicircular canals. Solid and scan-signal views, per-part volumes, left against right. The same structure list and interactions as milestone 4. |
+| 6 | Time-point comparison | Rigid registration between studies, with a local refinement around a chosen structure. Synced side-by-side 3D and plane views, overlay in two colours, swipe, fade, checkerboard, difference map. Saved transforms. Structure volumes compared across time. |
+| 7 | Image enhancement | N4 bias-field correction, denoising, and slice sharpening across thick slices, each as a non-destructive derived volume with progress and cancel, and each stating what it can and cannot recover. |
+| 8 | Research tools | Click-to-outline in 3D with a permissively licensed model. Segmentation editor (brush, threshold, region growing, interpolation between slices). DICOM SEG and NIfTI import / export. Scripting and batch processing. A summary report of volumes and quality verdicts. |
+| 9 | Workstation | Hanging protocols. DICOMweb and classic PACS query / retrieve. DICOM structured-report export. Multi-monitor layouts. Key images. |
 
 Each milestone ends with a tagged release that is usable on its own.
 
@@ -106,6 +114,17 @@ Each milestone ends with a tagged release that is usable on its own.
 | Skull-stripping | Deformable surface model first; learned model later | Smith, HBM 2002; Hoopes et al., NeuroImage 2022 |
 | Contrast-agnostic segmentation | SynthSeg | Billot et al., MedIA 2023 |
 | Volume rendering | GPU ray-casting with early termination and empty-space skipping | Krüger and Westermann, IEEE Vis 2003 |
+| Brain extraction | HD-BET | Isensee et al., Human Brain Mapping 2019 |
+| Brain labelling quality score | SynthSeg 2.0 automated QC, fail below 0.65 | Billot et al., PNAS 2023 |
+| Inner-ear outline | IE-Vnet | Ahmadi et al., Frontiers in Neurology 2022 |
+| Mask interpolation between slices | Shape-based interpolation of signed distance maps | Raya and Udupa, IEEE TMI 1990 |
+| Slice sharpening | SMORE self-supervised super-resolution | Zhao et al., IEEE TMI 2021 |
+
+Brain labelling uses SynthSeg (already listed) as the primary method; registering
+a labelled atlas is kept only as a fallback. The labyrinth is split into its five
+parts by the geometric method written in the prototypes (thick parts by
+morphological opening and watershed, canals by plane fitting), since no published
+model with usable weights does it.
 
 Each method lives in its own module that cites the paper, states which
 equations it implements, and has a test reproducing a known result. Where a
@@ -141,19 +160,71 @@ on public data. Atlas and model licences are checked before either is bundled.
 
 - **Not certifiable as built.** Clinical-style features do not make it a
   diagnostic tool; the disclaimer stays until someone funds certification.
-- **Rust library gaps.** Registration, N4, skull-stripping and segmentation
-  have no mature Rust libraries. They are implemented from the papers and
-  validated against ITK / ANTs output. This is the largest cost in the project.
+- **Models must run inside a Rust app.** SynthSeg (Keras), IE-Vnet and HD-BET
+  (PyTorch) have to be converted to ONNX and reproduce the Python results on
+  the same inputs before milestone 4 or 5 can ship. Milestone 4 starts with a
+  feasibility spike on exactly this. If a model will not convert, the fallback
+  is a small bundled helper process, which costs the single-executable goal.
+- **Licences decide what can ship.** SynthSeg, IE-Vnet and SMORE are Apache 2.0
+  and can be used. The nnInteractive weights (CC BY-NC-SA) and the BM4D package
+  (non-commercial) cannot be bundled in an MIT / Apache application: click-to-
+  outline needs a permissively licensed model, and denoising is implemented
+  from the non-local-means paper. Every model's weights licence is checked
+  before it is added.
+- **Automatic results can look right and be wrong.** In the prototypes a poor
+  scan produced labels as polished as a good one. Every automatic result
+  carries a quality verdict in plain words, and a failed verdict is shown on
+  the result itself, not in a log.
+- **Rust library gaps.** Registration, N4, and the labyrinth split have no
+  mature Rust libraries. They are implemented from the papers and the
+  prototypes and validated against the Python outputs. This is the largest
+  cost in the project.
 - **Input quality limits output.** Thick-slice or partial-coverage scans
-  restrict what 3D rendering,
-  atlas registration and segmentation can achieve. The interface must say so
-  plainly instead of showing confident-looking results.
-- **Atlas registration on non-T1 contrast** is less reliable; milestone 6
-  begins with a feasibility spike on a real scan and public T2 data.
+  restrict what 3D rendering, labelling and comparison can achieve. In the
+  prototypes, denoising did nothing and sharpening gained about a quarter in
+  edge strength on a scan limited by slice thickness and metal artefact. The
+  interface says so plainly instead of showing confident-looking results.
+- **A 3D-first interface needs a capable GPU path.** Ray-casting, label
+  rendering and picking run every frame. Milestone 2 sets a frame-rate target
+  on integrated graphics and a reduced-quality mode while the camera moves.
 - **`egui` text and layout** are weaker than a web interface. Custom theming
   and fonts are needed from milestone 1 to avoid a developer-tool look.
-- **Scope.** Eight milestones is a multi-month programme. Each is planned and
+- **Scope.** Nine milestones is a multi-month programme. Each is planned and
   shipped separately; later ones may be re-ordered once earlier ones are used.
+
+### A8. The 3D view
+
+The 3D viewport is the main view, not a fourth panel. From milestone 2 the
+window is one large 3D viewport with supporting panels in a column beside it
+(the plane views from milestone 3, the structure list from milestone 4). Any
+panel can be enlarged to fill the window and restored.
+
+Everything in the scene is an object the user can act on directly:
+
+- **Camera.** Drag to orbit, middle-drag or Shift-drag to pan, scroll to zoom
+  towards the cursor, double-click a surface to centre on it. Named views
+  (front, back, left, right, top, bottom) and user-saved views.
+- **Hover and select.** Hovering a labelled structure shows its name beside the
+  cursor. Clicking selects it: it is outlined in 3D, tinted in the plane views,
+  and highlighted in the structure list. Clicking empty space clears the
+  selection.
+- **Show, hide, fade.** Each structure has a visibility toggle and an opacity
+  slider in the list. "Isolate" shows one structure alone; "Show all" restores.
+  Opacity presets peel the outer layers to reveal what is inside.
+- **Cut plane.** A plane that can be dragged along its normal and rotated by a
+  handle. One side of it is removed. The cut face shows the scan signal or the
+  label colours, chosen by the user. Up to three cut planes.
+- **Slice planes in the scene.** The axial, coronal and sagittal slices
+  currently shown in the plane views are drawn in place inside the 3D scene and
+  move as the user scrolls. Dragging one in 3D scrolls its plane view.
+- **Measure and annotate.** Click two points on any surface for a straight-line
+  distance in millimetres. Place labelled markers. Both are listed with the
+  plane-view measurements, exported with them, and undoable.
+
+Picking is done by rendering structure identifiers to an off-screen target, so
+hover and click cost one texture read and stay exact at any zoom. While the
+camera moves the renderer may drop resolution, and it returns to full quality
+when the camera rests.
 
 ---
 
@@ -175,12 +246,16 @@ gate in A6 running from the first commit.
    contributor guide, first ADRs (stack, coordinate conventions, error policy).
 3. Sources: a folder, a `.zip`, or a `DICOMDIR`, by drag-and-drop, file dialog
    or command-line argument. Zips are read in place without extracting to disk.
+   Classic DICOM (one file per slice) and enhanced DICOM (a series in one
+   multi-frame file) are both read.
 4. Indexing reads headers only and groups instances into studies and series,
    ordered by position along the slice normal with instance number as fallback.
 5. Pixel decoding for uncompressed, RLE, JPEG baseline and lossless, and JPEG
    2000 transfer syntaxes; rescale slope / intercept; MONOCHROME1 inversion.
 6. Study browser: studies by date, series cards with thumbnail, description,
-   slice count and slice thickness.
+   slice count and slice thickness. On opening, the most useful series (the
+   one covering the most anatomy with the thinnest slices, among those without
+   problems) is selected automatically; each other card says why it was not.
 7. Stack viewport: scroll through slices, zoom, pan, flip, rotate by 90°, fit.
 8. Window/level: right-drag, numeric entry, presets, and automatic windowing
    from robust histogram percentiles (default 1st to 99.5th).
@@ -190,14 +265,16 @@ gate in A6 running from the first commit.
 10. Radiological display convention by default, with a labelled toggle.
 11. DICOM tag browser for the current instance with search.
 12. Cine playback with adjustable frame rate and loop.
-13. Layouts: 1×1, 1×2, 2×2 of independent stack viewports.
+13. Layouts: 1×1, 1×2, 2×2 of independent stack viewports. The window is
+    built as one main area with a side column, so that the 3D viewport of
+    milestone 2 takes the main area without rearranging the interface.
 14. Theme: dark, custom typography and icon set, keyboard shortcuts with an
     in-app reference.
 
 ### B3. Out of scope for milestone 1
 
-Reslicing and three-plane views, measurements, 3D, filters, registration,
-regions, segmentation, any network access, editing or anonymising DICOM,
+3D rendering, reslicing and three-plane views, measurements, filters,
+registration, model-based labelling, the inner ear, segmentation, any network access, editing or anonymising DICOM,
 colour and multi-frame ultrasound cine, macOS packaging.
 
 ### B4. Data flow
