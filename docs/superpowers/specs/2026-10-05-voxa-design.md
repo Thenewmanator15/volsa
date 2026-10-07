@@ -253,9 +253,10 @@ gate in A6 running from the first commit.
 5. Pixel decoding for uncompressed, RLE, JPEG baseline and lossless, and JPEG
    2000 transfer syntaxes; rescale slope / intercept; MONOCHROME1 inversion.
 6. Study browser: studies by date, series cards with thumbnail, description,
-   slice count and slice thickness. On opening, the most useful series (the
-   one covering the most anatomy with the thinnest slices, among those without
-   problems) is selected automatically; each other card says why it was not.
+   slice count and slice thickness. On opening, the most detailed series (the
+   one with the most voxels among those with at least ten slices and no
+   problems) is selected automatically; a series with problems says what they
+   are on its card.
 7. Stack viewport: scroll through slices, zoom, pan, flip, rotate by 90°, fit.
 8. Window/level: right-drag, numeric entry, presets, and automatic windowing
    from robust histogram percentiles (default 1st to 99.5th).
