@@ -234,6 +234,35 @@ hover and click cost one texture read and stay exact at any zoom. While the
 camera moves the renderer may drop resolution, and it returns to full quality
 when the camera rests.
 
+### A9. Additions from the prototypes, 2026-10-08
+
+Features built and tried in the prototype web viewer after the revision above. Each is
+assigned to the milestone that should deliver it; none changes milestone 1.
+
+| Feature | What the prototype showed | Milestone |
+|---|---|---|
+| Whole-head parts: cortical areas, eyes, bone, air spaces, soft tissue | Works as one grouped, searchable list of about ninety parts. The parts outside the brain came from a GPL tool and brightness rules, so Voxa needs its own method or a permissively licensed model. | 4, with the outside-the-brain parts as a stretch goal |
+| Check on scan: labels outlined over the scan in three planes | The fastest way for a person to judge a label. Belongs beside every automatic result. | 4 |
+| Trust marker per part (model, rule, unchecked, corrected by hand) | Users need to see how each part was made, in the list and in the report. | 4 |
+| Hand corrections: rename, merge, mark wrong, with a note | Kept apart from the automatic result and applied on top of it, so a re-run does not lose them. | 4 |
+| Outline editing by painting | Paint to add or remove, applied to the labels with a backup. Part of the segmentation editor. | 8, brought forward if milestone 4 users need it |
+| Two label sets for one scan, switchable and side by side | Needed to compare routes (for example labels made on a super-resolved scan against labels made on the original). | 6 |
+| Predicted 1 mm scan from thick slices (SynthSR, Apache 2.0) | Raises the labelling model's own quality scores and left-right consistency; cannot be shown to be more correct. Must be captioned as a prediction wherever it appears. | 7 |
+| Left against right table; year against year table | Cheap once volumes exist; both need a plain statement of how much difference is noise. | 4 and 6 |
+| Shape measurements of the inner ear; cortical thickness from surfaces | The ear measurements are simple geometry on the parts. Thickness needs real surfaces, not the label-count estimate used in the prototype. | 5 and 8 |
+| Saved views, notes pinned to points, peel slider, hover names | Small interaction features of the 3D view; hover and click must report nothing over empty space. | 2 and 3 |
+| Turntable video, STL export, printable report | Export features. The report states how each number was made and carries the not-for-diagnosis notice. | 2 (video), 8 (STL, report) |
+| Click to outline (promptable model) | Works well through a local service. The model tried has non-commercial weights; a permissively licensed one is required. | 8 |
+| Fine detail from a second, high-resolution series placed in the same scene | Surfaces from a 0.2-0.4 mm series shown inside the whole-head scene, fetched only when shown. Requires handling two series with different grids as one scene. | 5 |
+
+Lessons that apply across milestones:
+
+- Surfaces and volumes must be loaded lazily; loading every part up front made the prototype slow.
+- A rule-based result must never be presented with the same confidence as a model's; names picked
+  by position are shown as "probable".
+- Every automatic method needs a stated failure case in the interface (for example, eyeballs are
+  not found on scans where fluid is not bright).
+
 ---
 
 ## Part B: milestone 1 specification (Foundation)
