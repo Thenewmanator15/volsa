@@ -35,8 +35,12 @@ egui-wgpu = "0.36"
 rfd = "0.17"
 
 # DICOM and archives.
-dicom = "0.10"
-dicom-pixeldata = "0.10"
+# The dicom-rs crates are taken one by one, not through the `dicom` umbrella crate, which would
+# also bring in its network protocol code.
+dicom-core = "0.10"
+dicom-object = "0.10"
+dicom-dictionary-std = "0.10"
+dicom-pixeldata = { version = "0.10", default-features = false, features = ["native", "openjp2", "rayon"] }
 # Stored and deflated entries cover scan exports; the other compressors would only add code to audit.
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 

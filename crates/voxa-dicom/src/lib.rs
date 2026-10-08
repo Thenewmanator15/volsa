@@ -12,7 +12,14 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod geometry;
+mod header;
+mod index;
 mod source;
+#[cfg(any(test, feature = "testkit"))]
+pub mod testkit;
 
+pub use geometry::{StackGeometry, stack_geometry};
+pub use index::{Index, IndexedSeries, SliceRef, best_series, index};
 pub use source::{Entry, SeriesSource, open_source};
 pub use voxa_core::VoxaError;

@@ -3,6 +3,12 @@
 [advisories]
 version = 2
 yanked = "deny"
+ignore = [
+    # The DICOM library reads the text encodings of names and descriptions with the `encoding`
+    # crate and offers no other choice. The notice says the crate is no longer maintained, not
+    # that it has a known flaw. Remove this once dicom-encoding moves to `encoding_rs`.
+    { id = "RUSTSEC-2021-0153", reason = "required by dicom-encoding 0.10; unmaintained, no known vulnerability" },
+]
 
 [licenses]
 version = 2
@@ -15,6 +21,8 @@ allow = [
     "Zlib",
     "Unicode-3.0",
     "MPL-2.0",
+    # A public-domain dedication; the text-encoding tables under the DICOM library use it.
+    "CC0-1.0",
 ]
 
 [bans]

@@ -2,7 +2,8 @@
 
 use crate::space::{Affine, Patient, Voxel};
 
-/// Identifier of a series (its DICOM `SeriesInstanceUID`).
+/// Identifier of a series: its DICOM `SeriesInstanceUID`, followed by the file's own identifier
+/// when one file holds the whole series.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct SeriesId(pub String);
 
@@ -31,6 +32,9 @@ pub enum SeriesProblem {
         "Several slices share the same position (a series of repeated volumes), so this is shown as a plain stack."
     )]
     RepeatedPositions,
+    /// The slices lie in different planes, as in a set of locating images.
+    #[error("The slices do not all face the same way, so this is shown as a plain stack.")]
+    MixedOrientations,
     /// Position, orientation or pixel spacing is absent.
     #[error("The files do not say where the slices are, so orientation and scale are unavailable.")]
     MissingGeometry,
@@ -150,6 +154,10 @@ mod tests {
         assert_eq!(
             SeriesProblem::MissingGeometry.to_string(),
             "The files do not say where the slices are, so orientation and scale are unavailable."
+        );
+        assert_eq!(
+            SeriesProblem::MixedOrientations.to_string(),
+            "The slices do not all face the same way, so this is shown as a plain stack."
         );
     }
 
