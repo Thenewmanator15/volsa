@@ -1749,6 +1749,10 @@ version = "0.1.0"
 [[package]]
 name = "voxa-volume"
 version = "0.1.0"
+dependencies = [
+ "proptest",
+ "voxa-core",
+]
 
 [[package]]
 name = "wait-timeout"
