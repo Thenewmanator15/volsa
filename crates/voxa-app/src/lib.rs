@@ -10,12 +10,20 @@
         clippy::indexing_slicing
     )
 )]
+#![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
-/// Name of this crate, as shown in logs and the About window.
-pub const CRATE_NAME: &str = "voxa-app";
-
+mod action;
+mod cache;
+mod reducer;
+mod state;
 #[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_builds() {}
-}
+mod testing;
+mod worker;
+
+pub use action::{Action, Effect};
+pub use cache::FrameCache;
+pub use reducer::reduce;
+pub use state::{
+    AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
+};
+pub use worker::Workers;

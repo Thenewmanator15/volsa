@@ -8,6 +8,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+voxa-core.workspace = true
+voxa-dicom.workspace = true
+voxa-volume.workspace = true
+voxa-render.workspace = true
+rayon.workspace = true
+
+[dev-dependencies]
+voxa-dicom = { workspace = true, features = ["testkit"] }
+tempfile.workspace = true
 
 [lints]
 workspace = true
