@@ -10,12 +10,9 @@
         clippy::indexing_slicing
     )
 )]
+#![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
-/// Name of this crate, as shown in logs and the About window.
-pub const CRATE_NAME: &str = "voxa-dicom";
+mod source;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_builds() {}
-}
+pub use source::{Entry, SeriesSource, open_source};
+pub use voxa_core::VoxaError;

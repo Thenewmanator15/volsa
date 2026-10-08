@@ -37,6 +37,8 @@ rfd = "0.17"
 # DICOM and archives.
 dicom = "0.10"
 dicom-pixeldata = "0.10"
+# Stored and deflated entries cover scan exports; the other compressors would only add code to audit.
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 # Tests and benchmarks.
 proptest = "1.11"

@@ -20,6 +20,8 @@ allow = [
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+# Crates in this workspace depend on each other by path and are never published.
+allow-wildcard-paths = true
 # A second copy of wgpu would mean two GPU devices that cannot share textures.
 deny = [{ crate = "wgpu", deny-multiple-versions = true }]
 
