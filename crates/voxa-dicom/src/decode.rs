@@ -37,36 +37,69 @@ pub struct Frame {
 /// source's own error when the entry cannot be read from it.
 pub fn decode_slice(source: &mut dyn SeriesSource, slice: &SliceRef) -> Result<Frame, VoxaError> {
     let bytes = source.read(&slice.entry)?;
-    guarded(|| decode_bytes(&bytes, slice.frame.unwrap_or(0)))
+    ImageFile::open(&bytes)?.decode(slice.frame)
 }
 
-fn decode_bytes(bytes: &[u8], frame: u32) -> Result<Frame, VoxaError> {
-    let file = open(bytes)?;
-    if let Some(name) = unreadable(file.meta().transfer_syntax()) {
-        return Err(VoxaError::UnsupportedTransferSyntax(name));
+/// One file opened for decoding. The file is parsed once; any of its frames can then be
+/// decoded without reading it again, which matters for a file that holds a whole series.
+pub struct ImageFile {
+    file: DefaultDicomObject,
+}
+
+impl ImageFile {
+    /// Parse a file and check that its images are of a kind Voxa can decode.
+    ///
+    /// # Errors
+    ///
+    /// [`VoxaError::NotDicom`] when the bytes are not a DICOM file,
+    /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
+    /// it, and [`VoxaError::Decode`] when the file is damaged or its images are in colour.
+    pub fn open(bytes: &[u8]) -> Result<Self, VoxaError> {
+        guarded(|| {
+            let file = open(bytes)?;
+            if let Some(name) = unreadable(file.meta().transfer_syntax()) {
+                return Err(VoxaError::UnsupportedTransferSyntax(name));
+            }
+            let samples = file
+                .get(tags::SAMPLES_PER_PIXEL)
+                .and_then(|element| element.to_int::<u16>().ok());
+            if samples.is_some_and(|per_pixel| per_pixel != 1) {
+                return Err(VoxaError::Decode(
+                    "colour images are not supported yet".to_owned(),
+                ));
+            }
+            Ok(Self { file })
+        })
     }
-    let samples = file
-        .get(tags::SAMPLES_PER_PIXEL)
-        .and_then(|element| element.to_int::<u16>().ok());
-    if samples.is_some_and(|per_pixel| per_pixel != 1) {
-        return Err(VoxaError::Decode(
-            "colour images are not supported yet".to_owned(),
-        ));
+
+    /// Decode one frame, numbered as in [`SliceRef::frame`]: `None` for a file holding a
+    /// single slice. The values are as [`decode_slice`] describes.
+    ///
+    /// # Errors
+    ///
+    /// [`VoxaError::Decode`] when the pixel data are damaged or cut short, or the file has no
+    /// such frame.
+    pub fn decode(&self, frame: Option<u32>) -> Result<Frame, VoxaError> {
+        guarded(|| self.values_of(frame.unwrap_or(0)))
     }
-    let decoded = file
-        .decode_pixel_data_frame(frame)
-        .map_err(|error| damaged(&error))?;
-    let mut values: Vec<f32> = decoded.to_vec_frame(0).map_err(|error| damaged(&error))?;
-    let (rows, cols) = (decoded.rows(), decoded.columns());
-    if values.len() != rows as usize * cols as usize {
-        return Err(VoxaError::Decode(
-            "the pixel data do not match the image size".to_owned(),
-        ));
+
+    fn values_of(&self, frame: u32) -> Result<Frame, VoxaError> {
+        let decoded = self
+            .file
+            .decode_pixel_data_frame(frame)
+            .map_err(|error| damaged(&error))?;
+        let mut values: Vec<f32> = decoded.to_vec_frame(0).map_err(|error| damaged(&error))?;
+        let (rows, cols) = (decoded.rows(), decoded.columns());
+        if values.len() != rows as usize * cols as usize {
+            return Err(VoxaError::Decode(
+                "the pixel data do not match the image size".to_owned(),
+            ));
+        }
+        if *decoded.photometric_interpretation() == PhotometricInterpretation::Monochrome1 {
+            invert(&mut values);
+        }
+        Ok(Frame { rows, cols, values })
     }
-    if *decoded.photometric_interpretation() == PhotometricInterpretation::Monochrome1 {
-        invert(&mut values);
-    }
-    Ok(Frame { rows, cols, values })
 }
 
 /// Parse a whole file, naming the compression when that is what stops it being read.

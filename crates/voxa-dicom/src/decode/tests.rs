@@ -255,6 +255,43 @@ fn unreadable_names_only_what_cannot_be_decoded() {
     assert_eq!(unreadable("1.2.3.4"), Some("1.2.3.4".to_owned()));
 }
 
+#[test]
+fn an_opened_file_gives_any_of_its_frames_without_being_read_again() {
+    let frames: Vec<EnhancedFrame> = (0..4u16)
+        .map(|i| EnhancedFrame {
+            stored: vec![i * 10; 16],
+            ..EnhancedFrame::at([0.0, 0.0, f64::from(i)])
+        })
+        .collect();
+    let bytes = enhanced_series(&EnhancedOptions {
+        common: SliceOptions::default(),
+        frames,
+    });
+    let file = ImageFile::open(&bytes).expect("opens");
+    for i in [3u16, 0, 2] {
+        let frame = file.decode(Some(u32::from(i))).expect("decodes");
+        assert_eq!(frame.values, vec![f32::from(i * 10); 16]);
+    }
+    assert!(matches!(file.decode(Some(4)), Err(VoxaError::Decode(_))));
+}
+
+#[test]
+fn opening_a_file_says_what_stops_it_being_decoded() {
+    assert!(matches!(
+        ImageFile::open(b"%PDF-1.7"),
+        Err(VoxaError::NotDicom)
+    ));
+    let jpeg_ls = SliceOptions {
+        transfer_syntax: JPEG_LS_LOSSLESS.to_owned(),
+        ..SliceOptions::default()
+    };
+    let result = ImageFile::open(&classic_slice(&jpeg_ls));
+    assert!(matches!(
+        result,
+        Err(VoxaError::UnsupportedTransferSyntax(_))
+    ));
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(64))]
 
