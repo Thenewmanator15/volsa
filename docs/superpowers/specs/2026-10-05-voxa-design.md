@@ -114,7 +114,7 @@ Each milestone ends with a tagged release that is usable on its own.
 | Skull-stripping | Deformable surface model first; learned model later | Smith, HBM 2002; Hoopes et al., NeuroImage 2022 |
 | Contrast-agnostic segmentation | SynthSeg | Billot et al., MedIA 2023 |
 | Volume rendering | GPU ray-casting with early termination and empty-space skipping | Krüger and Westermann, IEEE Vis 2003 |
-| Brain extraction | HD-BET | Isensee et al., Human Brain Mapping 2019 |
+| Brain extraction | The union of SynthSeg's labels (HD-BET's weights are CC BY-NC 4.0 and cannot ship) | Billot et al., Medical Image Analysis 2023 |
 | Brain labelling quality score | SynthSeg 2.0 automated QC, fail below 0.65 | Billot et al., PNAS 2023 |
 | Inner-ear outline | IE-Vnet | Ahmadi et al., Frontiers in Neurology 2022 |
 | Mask interpolation between slices | Shape-based interpolation of signed distance maps | Raya and Udupa, IEEE TMI 1990 |
@@ -160,17 +160,25 @@ on public data. Atlas and model licences are checked before either is bundled.
 
 - **Not certifiable as built.** Clinical-style features do not make it a
   diagnostic tool; the disclaimer stays until someone funds certification.
-- **Models must run inside a Rust app.** SynthSeg (Keras), IE-Vnet and HD-BET
+- **Models must run inside a Rust app.** SynthSeg (Keras) and IE-Vnet
   (PyTorch) have to be converted to ONNX and reproduce the Python results on
   the same inputs before milestone 4 or 5 can ship. Milestone 4 starts with a
   feasibility spike on exactly this. If a model will not convert, the fallback
   is a small bundled helper process, which costs the single-executable goal.
-- **Licences decide what can ship.** SynthSeg, IE-Vnet and SMORE are Apache 2.0
-  and can be used. The nnInteractive weights (CC BY-NC-SA) and the BM4D package
-  (non-commercial) cannot be bundled in an MIT / Apache application: click-to-
-  outline needs a permissively licensed model, and denoising is implemented
-  from the non-local-means paper. Every model's weights licence is checked
-  before it is added.
+- **Licences decide what can ship** (checked 2026-10-08 against each project's
+  own licence files and pages). SynthSeg, SynthSR, IE-Vnet and SMORE are Apache
+  2.0 code and can be used; the SynthSeg 2.0 weights carry no licence statement
+  of their own and are distributed with FreeSurfer, whose licence allows use and
+  redistribution with its terms attached and advises against clinical use, so
+  they are downloaded by the user, not bundled, until that is settled. These
+  cannot be bundled in an MIT / Apache application: the nnInteractive weights
+  (CC BY-NC-SA 4.0), the HD-BET weights (CC BY-NC 4.0, although its code is
+  Apache 2.0), the BM4D package (non-commercial), SimNIBS charm (GPL 3) and the
+  Ultralytics package used to run SAM in the prototypes (AGPL 3; SAM 2 itself is
+  Apache 2.0 from Meta). So click-to-outline needs a permissively licensed
+  model, denoising is implemented from the non-local-means paper, and the
+  tissues outside the brain need a method that is not charm. Every model's
+  weights licence is checked before it is added.
 - **Automatic results can look right and be wrong.** In the prototypes a poor
   scan produced labels as polished as a good one. Every automatic result
   carries a quality verdict in plain words, and a failed verdict is shown on
