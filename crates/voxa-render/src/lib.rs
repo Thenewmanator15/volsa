@@ -10,12 +10,12 @@
         clippy::indexing_slicing
     )
 )]
+#![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
-/// Name of this crate, as shown in logs and the About window.
-pub const CRATE_NAME: &str = "voxa-render";
+mod offscreen;
+mod slice_pipeline;
+mod view;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn crate_builds() {}
-}
+pub use offscreen::{Headless, render_to_rgba};
+pub use slice_pipeline::{RenderError, SlicePipeline};
+pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
