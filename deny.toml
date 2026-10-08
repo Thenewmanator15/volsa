@@ -1,0 +1,28 @@
+# Checked by `cargo deny check` (part of `cargo xtask check`).
+
+[advisories]
+version = 2
+yanked = "deny"
+
+[licenses]
+version = 2
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "Unicode-3.0",
+    "MPL-2.0",
+]
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# A second copy of wgpu would mean two GPU devices that cannot share textures.
+deny = [{ crate = "wgpu", deny-multiple-versions = true }]
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

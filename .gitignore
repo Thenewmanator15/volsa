@@ -1,0 +1,7 @@
+/target
+/.superpowers
+# Scan data never enters the repository.
+*.dcm
+*.zip
+/data
+/scans

@@ -1,0 +1,57 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/voxa-core",
+    "crates/voxa-dicom",
+    "crates/voxa-volume",
+    "crates/voxa-render",
+    "crates/voxa-app",
+    "xtask",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.99"
+license = "MIT OR Apache-2.0"
+publish = false
+
+# One place for every version. A crate opts in with `name.workspace = true`.
+[workspace.dependencies]
+voxa-core = { path = "crates/voxa-core" }
+voxa-dicom = { path = "crates/voxa-dicom" }
+voxa-volume = { path = "crates/voxa-volume" }
+voxa-render = { path = "crates/voxa-render" }
+
+thiserror = "2"
+tracing = "0.1"
+rayon = "1.12"
+bytemuck = { version = "1.25", features = ["derive"] }
+
+# Interface. The only wgpu in the tree is the one egui-wgpu re-exports.
+eframe = { version = "0.36", default-features = false }
+egui = "0.36"
+egui-wgpu = "0.36"
+rfd = "0.17"
+
+# DICOM and archives.
+dicom = "0.10"
+dicom-pixeldata = "0.10"
+
+# Tests and benchmarks.
+proptest = "1.11"
+tempfile = "3.27"
+image = { version = "0.25", default-features = false, features = ["png"] }
+criterion = "0.8"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+too_many_lines = "deny"
+# Pedantic lints switched off, each for a stated reason:
+module_name_repetitions = "allow" # `voxa_dicom::DicomSource`-style names read better at the call site
+must_use_candidate = "allow"      # would put #[must_use] on nearly every getter
+cast_precision_loss = "allow"     # counts and indices become f64 for geometry; values stay far below 2^52
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
