@@ -29,6 +29,8 @@ pub(crate) struct Header {
     pub slice_thickness: Option<f64>,
     /// True for a file that holds many frames: a whole series in one file.
     pub multi_frame: bool,
+    /// The transfer syntax named in the file header: how the pixels are stored.
+    pub transfer_syntax: String,
     /// `ImagePositionPatient` of each frame; one entry for a single-frame file.
     pub positions: Vec<Option<[f64; 3]>>,
 }
@@ -69,6 +71,7 @@ pub(crate) fn read_header(bytes: &[u8]) -> Option<Header> {
         slice_thickness: of_the_plane(obj, tags::PIXEL_MEASURES_SEQUENCE, tags::SLICE_THICKNESS)
             .and_then(|v| v.first().copied()),
         multi_frame,
+        transfer_syntax: file.meta().transfer_syntax().to_owned(),
         positions: if multi_frame {
             frame_positions(obj, frames)
         } else {

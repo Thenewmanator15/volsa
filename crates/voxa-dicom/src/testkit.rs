@@ -69,7 +69,7 @@ pub struct SliceOptions {
     /// Write `MONOCHROME1` (bright stored values are dark) instead of `MONOCHROME2`.
     pub monochrome1: bool,
     /// Transfer syntax named in the file header. The data are always written as explicit VR
-    /// little endian; any other value of the same length only relabels the file, which is how a
+    /// little endian; any other value only relabels the file, which is how a
     /// test makes a file claiming a syntax Voxa cannot read.
     pub transfer_syntax: String,
     /// Leave this many values off the end of the pixel data, as a truncated file would.

@@ -45,3 +45,20 @@ coordinates are pixels in a viewport. They are distinct types; see
 ## Errors
 
 Nothing a file contains may crash the application; see [adr/0003-errors.md](adr/0003-errors.md).
+
+## Decoding and what the tests cover
+
+`decode_slice` reads images stored uncompressed, with run-length encoding (RLE), as JPEG
+(baseline, extended and lossless) and as JPEG 2000 (lossless and lossy). Any other compression is
+named on the series card when the scan is indexed, and decoding it returns
+`UnsupportedTransferSyntax` with the same name. Colour images are declined.
+
+The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
+with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
+error for that one slice.
+
+Tests build their files in memory with the `testkit` feature of `voxa-dicom`. They cover
+uncompressed pixels (unsigned, signed, 8-bit, `MONOCHROME1`, per-frame rescale in a multi-frame
+file) and RLE, for which the test writes the compressed frame by hand. No JPEG or JPEG 2000
+encoder is among the development dependencies, so those two are not covered by an automated test;
+they are checked by hand against real exports in the acceptance test at the end of milestone 1.

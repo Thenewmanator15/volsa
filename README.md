@@ -58,3 +58,7 @@ repository: tests build synthetic images.
 
 Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 [MIT license](LICENSE-MIT) at your option. Contributions are accepted under the same terms.
+
+Voxa is built on other people's libraries, each under its own licence; `cargo deny check` holds
+them to the permissive licences listed in [deny.toml](deny.toml). This software is based in part
+on the work of the Independent JPEG Group.

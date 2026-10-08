@@ -82,3 +82,27 @@ fn index_treats_directions_that_are_not_directions_as_missing_geometry() {
         vec![SeriesProblem::MissingGeometry]
     );
 }
+
+#[test]
+fn index_flags_a_series_compressed_in_a_way_voxa_cannot_read() {
+    // The header reads normally; it is the pixels that could not be decoded.
+    let jpeg_ls = SliceOptions {
+        transfer_syntax: "1.2.840.10008.1.2.4.80".to_owned(),
+        ..SliceOptions::default()
+    };
+    let index = indexed(stack(12, 5.0, &jpeg_ls));
+    let problems = &index.series[0].info.problems;
+    assert!(
+        matches!(problems.as_slice(), [SeriesProblem::UnsupportedTransferSyntax(name)] if name.contains("JPEG-LS")),
+        "{problems:?}"
+    );
+    assert!(
+        index.series[0].info.has_geometry(),
+        "where the slices are is still known"
+    );
+    assert_eq!(
+        crate::best_series(&index),
+        None,
+        "never the series opened automatically"
+    );
+}

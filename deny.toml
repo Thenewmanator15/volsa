@@ -23,6 +23,9 @@ allow = [
     "MPL-2.0",
     # A public-domain dedication; the text-encoding tables under the DICOM library use it.
     "CC0-1.0",
+    # The Independent JPEG Group's licence, on the JPEG code under the DICOM library. It asks
+    # that documentation shipped with a program say so; the README carries the sentence.
+    "IJG",
 ]
 
 [bans]

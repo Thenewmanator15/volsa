@@ -4,6 +4,7 @@ use std::collections::BTreeMap;
 
 use voxa_core::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VoxaError};
 
+use crate::decode::unreadable;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
@@ -238,6 +239,10 @@ fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
         problems.push(SeriesProblem::MixedSizes);
         voxel_to_patient = None;
     }
+    let unreadable = images
+        .iter()
+        .find_map(|image| unreadable(&image.header.transfer_syntax));
+    problems.extend(unreadable.map(SeriesProblem::UnsupportedTransferSyntax));
     let [between_rows, between_cols] = first.pixel_spacing.unwrap_or([1.0, 1.0]);
     let between_slices = step
         .or(first.slice_thickness.filter(|mm| *mm > 0.0))

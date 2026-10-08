@@ -189,37 +189,28 @@ fn ramp(count: usize) -> Vec<u16> {
         .collect()
 }
 
-/// Serialise with a file header, then relabel the transfer syntax if the options ask for one.
+/// Serialise as a file. The data are always explicit VR little endian; when the options name
+/// another transfer syntax, only the file header says so.
 fn write(obj: InMemDicomObject, opts: &SliceOptions) -> Vec<u8> {
-    let meta = FileMetaTableBuilder::new()
-        .transfer_syntax(EXPLICIT_VR_LITTLE_ENDIAN)
-        .implementation_class_uid(IMPLEMENTATION_CLASS);
-    let file = obj
-        .with_meta(meta)
+    let header = |syntax: &str| {
+        FileMetaTableBuilder::new()
+            .transfer_syntax(syntax)
+            .implementation_class_uid(IMPLEMENTATION_CLASS)
+    };
+    let labelled = obj
+        .clone()
+        .with_meta(header(&opts.transfer_syntax))
         .expect("the synthetic object has its identifiers");
-    let mut bytes = Vec::new();
-    file.write_all(&mut bytes)
+    let honest = obj
+        .with_meta(header(EXPLICIT_VR_LITTLE_ENDIAN))
+        .expect("the synthetic object has its identifiers");
+    let mut bytes = vec![0u8; 128];
+    bytes.extend_from_slice(b"DICM");
+    labelled
+        .write_meta(&mut bytes)
         .expect("writing to memory does not fail");
-    if opts.transfer_syntax != EXPLICIT_VR_LITTLE_ENDIAN {
-        relabel(&mut bytes, opts.transfer_syntax.as_bytes());
-    }
+    honest
+        .write_dataset(&mut bytes)
+        .expect("writing to memory does not fail");
     bytes
-}
-
-/// Overwrite the transfer syntax named in the header with another of the same length.
-fn relabel(bytes: &mut [u8], new: &[u8]) {
-    let old = EXPLICIT_VR_LITTLE_ENDIAN.as_bytes();
-    assert_eq!(
-        old.len(),
-        new.len(),
-        "the replacement transfer syntax must be {} characters",
-        old.len()
-    );
-    let at = bytes
-        .windows(old.len())
-        .position(|window| window == old)
-        .expect("the header names the transfer syntax");
-    for (slot, byte) in bytes.iter_mut().skip(at).zip(new) {
-        *slot = *byte;
-    }
 }
