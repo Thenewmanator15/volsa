@@ -135,7 +135,13 @@ fn window(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     }
 }
 
-/// The display convention and whether the patient's details are shown.
+/// What the Link switch says when pointed at.
+pub const LINK_SAYS: &str = "Keep the slices of this study on the planes' position, and the position on \
+                             the slice scrolled to. Linked views take it that the patient did not \
+                             move between series.";
+
+/// The display convention, whether the patient's details are shown, and whether the slice
+/// views follow the planes' position.
 fn switches(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let convention = "On: the patient's left is on the right of the screen, as a radiologist reads it.\n\
                       Off: neurological, the patient's left on the left.";
@@ -153,6 +159,11 @@ fn switches(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         .clicked()
     {
         actions.push(Action::TogglePatient);
+    }
+    let linked = state.planes.linked;
+    let link = ui.selectable_label(linked, "Link");
+    if link.on_hover_text(LINK_SAYS).clicked() {
+        actions.push(Action::SetLinked(!linked));
     }
 }
 
@@ -269,6 +280,7 @@ mod tests {
             preset(2),
             Action::ToggleRadiological,
             Action::TogglePatient,
+            Action::SetLinked(false),
             Action::CineToggle { viewport: 0 },
             Action::CineSet {
                 viewport: 0,
@@ -290,6 +302,16 @@ mod tests {
                 measure: true
             }
         );
+    }
+
+    #[test]
+    fn the_link_says_what_it_takes_for_granted() {
+        let taken = "Linked views take it that the patient did not move between series.";
+        assert!(LINK_SAYS.ends_with(taken), "{LINK_SAYS}");
+        let mut state = AppState::default();
+        state.planes.linked = false;
+        let (actions, _) = sweep(&state);
+        assert!(actions.contains(&Action::SetLinked(true)), "{actions:?}");
     }
 
     #[test]
