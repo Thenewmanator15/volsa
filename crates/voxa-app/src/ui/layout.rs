@@ -45,8 +45,15 @@ pub fn header_and_rest(side: Rect) -> (Rect, Rect) {
 }
 
 /// Draw the strip along the top of the column: what the column shows, and a button that gives
-/// it the large part of the window. `large` is what has the large part now.
-pub fn header(ui: &mut Ui, strip: Rect, large: MainPanel, actions: &mut Vec<Action>) {
+/// it the large part of the window. `large` is what has the large part now. Without a 3D view
+/// (`there_is_3d` false) the button cannot give the 3D scene the large part.
+pub fn header(
+    ui: &mut Ui,
+    strip: Rect,
+    large: MainPanel,
+    there_is_3d: bool,
+    actions: &mut Vec<Action>,
+) {
     let (shows, enlarged) = match large {
         MainPanel::Scene => ("Slices", MainPanel::Stack),
         MainPanel::Stack => ("3D", MainPanel::Scene),
@@ -54,7 +61,9 @@ pub fn header(ui: &mut Ui, strip: Rect, large: MainPanel, actions: &mut Vec<Acti
     let inside = strip.shrink2(vec2(4.0, 0.0));
     let mut strip = ui.new_child(UiBuilder::new().max_rect(inside));
     strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        let enlarge = ui.small_button("Enlarge");
+        let can = there_is_3d || large == MainPanel::Scene;
+        let enlarge = ui.add_enabled(can, egui::Button::new("Enlarge").small());
+        let enlarge = enlarge.on_disabled_hover_text("This series has no 3D view to enlarge");
         if enlarge
             .on_hover_text("Give this the large part of the window")
             .clicked()
@@ -108,7 +117,7 @@ mod tests {
     }
 
     /// Click all the way along the strip and gather what was asked for.
-    fn sweep(large: MainPanel) -> Vec<Action> {
+    fn sweep(large: MainPanel, there_is_3d: bool) -> Vec<Action> {
         let ctx = egui::Context::default();
         let strip = Rect::from_min_size(pos2(0.0, 0.0), vec2(360.0, 24.0));
         let mut asked = Vec::new();
@@ -117,7 +126,9 @@ mod tests {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| header(ui, strip, large, &mut asked));
+            let mut output = ctx.run_ui(input, |ui| {
+                header(ui, strip, large, there_is_3d, &mut asked);
+            });
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         };
@@ -139,7 +150,18 @@ mod tests {
 
     #[test]
     fn the_button_on_the_column_gives_what_it_shows_the_large_part() {
-        assert_eq!(sweep(MainPanel::Scene), [Action::SetMain(MainPanel::Stack)]);
-        assert_eq!(sweep(MainPanel::Stack), [Action::SetMain(MainPanel::Scene)]);
+        assert_eq!(
+            sweep(MainPanel::Scene, true),
+            [Action::SetMain(MainPanel::Stack)]
+        );
+        assert_eq!(
+            sweep(MainPanel::Stack, true),
+            [Action::SetMain(MainPanel::Scene)]
+        );
+    }
+
+    #[test]
+    fn with_no_3d_view_there_is_nothing_for_the_button_to_enlarge() {
+        assert_eq!(sweep(MainPanel::Stack, false), []);
     }
 }

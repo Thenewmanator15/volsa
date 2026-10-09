@@ -14,6 +14,19 @@ pub enum MainPanel {
     Stack,
 }
 
+impl MainPanel {
+    /// What has the large part of the window: what was asked for, except that a series with
+    /// no 3D view has its slices there, as there is nothing else of it to see.
+    #[must_use]
+    pub fn given(self, status: &SceneStatus) -> Self {
+        if matches!(status, SceneStatus::Unavailable(_)) {
+            Self::Stack
+        } else {
+            self
+        }
+    }
+}
+
 /// How far the volume the scene shows has got.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SceneStatus {
@@ -76,6 +89,30 @@ impl Default for Scene {
             look: Look::Surface,
             cuts: Vec::new(),
             slice_shown: false,
+        }
+    }
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_series_with_no_3d_view_has_its_slices_in_the_large_part() {
+        let no_view = SceneStatus::Unavailable(vec!["why".to_owned()]);
+        assert_eq!(MainPanel::Scene.given(&no_view), MainPanel::Stack);
+        assert_eq!(MainPanel::Stack.given(&no_view), MainPanel::Stack);
+        let building = SceneStatus::Building { done: 1, of: 2 };
+        for status in [SceneStatus::Empty, building, SceneStatus::Ready] {
+            assert_eq!(
+                MainPanel::Scene.given(&status),
+                MainPanel::Scene,
+                "{status:?}"
+            );
+            assert_eq!(
+                MainPanel::Stack.given(&status),
+                MainPanel::Stack,
+                "what was asked for stands"
+            );
         }
     }
 }

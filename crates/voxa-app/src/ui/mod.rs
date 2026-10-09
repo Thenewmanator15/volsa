@@ -180,8 +180,11 @@ impl VoxaApp {
         let whole = ui.available_rect_before_wrap();
         let layout::Panels { main, side } = layout::panels(whole);
         let (strip, side) = layout::header_and_rest(side);
-        layout::header(ui, strip, state.main, actions);
-        let (for_scene, for_slices) = match state.main {
+        // A series with no 3D view has its slices in the large part: they are all there is.
+        let large = state.main.given(&state.scene.status);
+        let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
+        layout::header(ui, strip, large, there_is_3d, actions);
+        let (for_scene, for_slices) = match large {
             MainPanel::Scene => (main, side),
             MainPanel::Stack => (side, main),
         };
@@ -327,7 +330,11 @@ impl eframe::App for VoxaApp {
         let ready = self.gpus.first().is_some_and(viewport::Gpu::has_picture)
             && (no_volume_to_come || self.scene.has_picture());
         if let Some(capture) = &mut self.capture {
-            capture.step(ui.ctx(), ready);
+            let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
+            capture.step(ui.ctx(), ready && pick.is_none());
+            if let Some(pick) = pick {
+                self.session.dispatch(pick);
+            }
         }
     }
 }

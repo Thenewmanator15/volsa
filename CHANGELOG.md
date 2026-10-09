@@ -16,6 +16,10 @@ All notable changes to Voxa are recorded here. The format follows
   window shows, and the empty blocks at its ends are stepped over. 512 x 512 x 64 in a
   1280 x 800 picture on integrated graphics: 85 ms to 51 ms still, 15.6 ms to 9.9 ms moving.
 
+- A series with no 3D view has its slices in the large part of the window, with the reason in
+  the column beside them. Before, the large part stayed black with the reason written in it,
+  while the pictures were small at the side. Each reason is now said once, and what is done
+  about it ("It is shown as a plain stack.") once after them.
 - VR leaves out what is fainter than a tenth of the window, as Surface does. A scan's air is
   never quite empty, and in VR its faint noise dimmed everything seen through it: in a test,
   40 mm of haze at 8% of the window took about an eighth of the light from what lay
@@ -46,6 +50,9 @@ All notable changes to Voxa are recorded here. The format follows
 
 ### Fixed
 
+- A debug build stopped the moment it decoded a JPEG 2000 picture: the decoder frees a null
+  pointer as it tidies up, and a build with debug checks stops the program for that. The
+  checks are off for that one crate. Release builds were not affected.
 - The message shown when the reader stops part-way through a series being built for 3D had a
   long run of spaces in the middle of it.
 - Putting a second large volume on the graphics device could find it with no room, and the

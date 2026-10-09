@@ -66,6 +66,14 @@ module_name_repetitions = "allow" # `voxa_dicom::DicomSource`-style names read b
 must_use_candidate = "allow"      # would put #[must_use] on nearly every getter
 cast_precision_loss = "allow"     # counts and indices become f64 for geometry; values stay far below 2^52
 
+# The JPEG 2000 decoder frees a null pointer as it tidies up after a picture. A build with
+# debug checks stops the whole program for that, so a debug build could not open a JPEG 2000
+# scan at all. The checks are off for that one crate, which is also built for speed: decoding
+# is most of the wait when a scan is opened.
+[profile.dev.package.openjp2]
+debug-assertions = false
+opt-level = 3
+
 [profile.release]
 lto = "thin"
 codegen-units = 4

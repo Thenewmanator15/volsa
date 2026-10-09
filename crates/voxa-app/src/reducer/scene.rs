@@ -1,6 +1,6 @@
 //! Actions about the 3D scene, and keeping the scene on the series the active viewport shows.
 
-use voxa_core::SeriesId;
+use voxa_core::{SeriesId, SeriesProblem};
 use voxa_render::{Camera, CutPlane, MAX_CUTS, NamedView};
 use voxa_volume::can_be_volume;
 
@@ -97,6 +97,9 @@ fn shown_in_the_active_viewport(state: &AppState) -> Option<SeriesId> {
         .and_then(|viewport| viewport.series.clone())
 }
 
+/// What is said last of a series with no 3D view.
+const AS_A_STACK: &str = "It is shown as a plain stack.";
+
 /// An empty scene for `series`: building, if it can be a volume, and otherwise saying in
 /// plain words why it cannot. Only the size of the picture is kept.
 fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
@@ -127,8 +130,10 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
             (building, vec![volume, views])
         }
         Err(why) => {
-            let problems = info.problems.iter().map(ToString::to_string);
-            let lines = std::iter::once(why.to_string()).chain(problems).collect();
+            // Why, each reason once, and then what is done about it, once.
+            let problems = info.problems.iter().map(SeriesProblem::what);
+            let said = std::iter::once(why.to_string()).chain(problems);
+            let lines = said.chain([AS_A_STACK.to_owned()]).collect();
             (SceneStatus::Unavailable(lines), Vec::new())
         }
     };

@@ -43,6 +43,21 @@ pub enum SeriesProblem {
     UnsupportedTransferSyntax(String),
 }
 
+/// How the sentence of a problem that leaves a series a plain stack ends.
+const SO_A_STACK: &str = ", so this is shown as a plain stack.";
+
+impl SeriesProblem {
+    /// The problem alone, without what follows from it: for a place that lists several
+    /// problems and says once what follows from them all.
+    pub fn what(&self) -> String {
+        let whole = self.to_string();
+        match whole.strip_suffix(SO_A_STACK) {
+            Some(alone) => format!("{alone}."),
+            None => whole,
+        }
+    }
+}
+
 /// One series of images.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SeriesInfo {
@@ -156,6 +171,33 @@ mod tests {
     #[test]
     fn voxel_count_multiplies_the_three_sizes() {
         assert_eq!(series(true).voxel_count(), 480 * 400 * 30);
+    }
+
+    #[test]
+    fn a_problem_can_be_said_without_what_follows_from_it() {
+        let alone = |problem: SeriesProblem| problem.what();
+        assert_eq!(
+            alone(SeriesProblem::MixedOrientations),
+            "The slices do not all face the same way."
+        );
+        assert_eq!(
+            alone(SeriesProblem::MixedSizes),
+            "The slices are not all the same size."
+        );
+        assert_eq!(
+            alone(SeriesProblem::UnevenSpacing),
+            "The slices are not evenly spaced."
+        );
+        assert_eq!(
+            alone(SeriesProblem::RepeatedPositions),
+            "Several slices share the same position (a series of repeated volumes)."
+        );
+        let few = SeriesProblem::TooFewSlices(1);
+        assert_eq!(
+            few.what(),
+            few.to_string(),
+            "the others are whole as they are"
+        );
     }
 
     #[test]

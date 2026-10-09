@@ -1,6 +1,6 @@
 //! The 3D scene in the state: which series it shows, its camera, its cuts.
 
-use voxa_core::{Patient, Point, SeriesProblem};
+use voxa_core::{Patient, Point};
 use voxa_render::{Camera, Look, NamedView};
 
 use super::tests::{frames_around, loaded, showing};
@@ -167,9 +167,11 @@ fn a_set_of_locating_images_says_why_it_has_no_3d_view() {
         frames_around(LOCALISER, 1),
         "the 2D viewport carries on"
     );
+    // Why, said once each, and then what is done about it, said once.
     let expected = vec![
         "This series cannot be shown in 3D.".to_owned(),
-        SeriesProblem::MixedOrientations.to_string(),
+        "The slices do not all face the same way.".to_owned(),
+        "It is shown as a plain stack.".to_owned(),
     ];
     assert_eq!(state.scene.status, SceneStatus::Unavailable(expected));
     assert_eq!(state.scene.series, Some(id(LOCALISER)));
@@ -185,6 +187,13 @@ fn a_single_slice_says_that_3d_needs_more() {
     };
     let needs_two = "A 3D view needs at least two slices; this series has 1.";
     assert_eq!(lines.first().map(String::as_str), Some(needs_two));
+    let stack = "It is shown as a plain stack.";
+    assert_eq!(lines.last().map(String::as_str), Some(stack));
+    let said_twice = lines
+        .iter()
+        .filter(|line| line.contains("plain stack"))
+        .count();
+    assert_eq!(said_twice, 1, "{lines:?}");
 }
 
 #[test]

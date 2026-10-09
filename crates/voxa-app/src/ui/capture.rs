@@ -8,15 +8,17 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use voxa_core::SeriesId;
 use voxa_render::Look;
 
 use crate::action::Action;
+use crate::state::AppState;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
-/// windows `tags`, `keys` and `about`, and for the 3D scene `vr` or `mip`, `turned`, `cut`
-/// and `slice`.
+/// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
+/// `slice`, and `first` for the first series listed in place of the one Voxa opens itself.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving the size of the window for the picture, in points, as
 /// width `x` height: `900x600`.
@@ -48,12 +50,24 @@ pub fn pose(wanted: &str) -> Vec<Action> {
     wanted.map(|(_, action)| action).collect()
 }
 
+/// For a picture that asks for the first series listed, whatever Voxa would have opened: what
+/// shows it. `None` until the index is finished, which is when that series' thumbnail is there.
+pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool) -> Option<Action> {
+    let series = state.index.as_ref()?.series.first()?.info.id.clone();
+    has_thumbnail(&series).then_some(Action::SelectSeries {
+        viewport: 0,
+        series,
+    })
+}
+
 /// A capture that has been asked for and not yet finished.
 pub struct Capture {
     path: PathBuf,
     started: Instant,
     settled: u32,
     asked: bool,
+    /// Whether the first series listed has still to be shown for the picture.
+    first: bool,
 }
 
 impl Capture {
@@ -65,7 +79,15 @@ impl Capture {
             started: Instant::now(),
             settled: 0,
             asked: false,
+            first: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("first")),
         })
+    }
+
+    /// What shows the series the picture asks for, when it asks for one: given once.
+    pub fn pick(&mut self, state: &AppState, has: impl Fn(&SeriesId) -> bool) -> Option<Action> {
+        let pick = first_listed(state, has).filter(|_| self.first)?;
+        self.first = false;
+        Some(pick)
     }
 
     /// Call once a frame. `ready` says whether the window shows what is wanted.
@@ -119,6 +141,26 @@ mod tests {
             "in an order that does not depend on how they were asked"
         );
         assert_eq!(pose("vr"), [Action::SceneLook(Look::Vr)]);
+    }
+
+    #[test]
+    fn a_picture_can_ask_for_the_first_series_listed_once_the_index_is_finished() {
+        let mut state = AppState::default();
+        assert_eq!(
+            first_listed(&state, |_| true),
+            None,
+            "nothing is listed yet"
+        );
+        state.index = Some(crate::testing::with_odd_series());
+        let listed = state.index.as_ref().and_then(|index| index.series.first());
+        let series = listed.map(|listed| listed.info.id.clone()).expect("listed");
+        let unfinished = first_listed(&state, |_| false);
+        assert_eq!(
+            unfinished, None,
+            "its thumbnail comes once the index is finished"
+        );
+        let (viewport, shown) = (0, first_listed(&state, |_| true));
+        assert_eq!(shown, Some(Action::SelectSeries { viewport, series }));
     }
 
     #[test]
