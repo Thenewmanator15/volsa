@@ -1,27 +1,33 @@
-//! The grid of viewports and what each one draws.
+//! The grid of viewports: what each one draws, what is written over it, and its mouse.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
-use voxa_core::SeriesId;
-use voxa_render::SlicePipeline;
+use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
+use voxa_render::{SlicePipeline, ViewTransform};
 
+use super::overlay;
 use super::theme;
 use crate::action::Action;
 use crate::cache::FrameCache;
 use crate::state::{AppState, Layout};
+
+mod annotate;
+mod mouse;
 
 /// Space between neighbouring viewports, in points.
 pub const GAP: f32 = 4.0;
 /// Thickness of the line round the active viewport, in points.
 const ACTIVE_BORDER: f32 = 2.0;
 
-/// What one viewport keeps on the graphics device.
+/// What one viewport keeps between frames.
 pub struct Gpu {
     pipeline: Arc<Mutex<SlicePipeline>>,
     /// The slice that is uploaded now, so it is uploaded once and not every frame.
     uploaded: Option<(SeriesId, usize)>,
+    /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
+    part_notch: f32,
 }
 
 impl Gpu {
@@ -31,6 +37,7 @@ impl Gpu {
         Self {
             pipeline: Arc::new(Mutex::new(pipeline)),
             uploaded: None,
+            part_notch: 0.0,
         }
     }
 
@@ -54,6 +61,28 @@ impl CallbackTrait for DrawSlice {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .draw(pass);
+    }
+}
+
+/// One viewport being drawn this frame.
+struct Pane<'a> {
+    state: &'a AppState,
+    at: usize,
+    cell: Rect,
+    /// The view the slice is drawn with: the person's own, mirrored if the convention asks.
+    shown: ViewTransform,
+}
+
+impl Pane<'_> {
+    /// The series this viewport shows and the study it belongs to.
+    fn series(&self) -> Option<(&SeriesInfo, &StudyInfo)> {
+        let id = self.state.viewports.get(self.at)?.series.as_ref()?;
+        let index = self.state.index.as_ref()?;
+        let study = index
+            .studies
+            .iter()
+            .find(|study| study.series.iter().any(|s| s.id == *id))?;
+        Some((study.series.iter().find(|series| series.id == *id)?, study))
     }
 }
 
@@ -111,14 +140,14 @@ pub fn pixel_aspect(state: &AppState, viewport: usize) -> f32 {
 
 #[expect(
     clippy::cast_possible_truncation,
-    reason = "a ratio of two pixel spacings is a small number"
+    reason = "ratios and screen lengths are small numbers"
 )]
 fn narrowed(value: f64) -> f32 {
     value as f32
 }
 
-/// Draw the viewports of the current layout into what is left of `ui`. Clicking one makes it
-/// the active viewport.
+/// Draw the viewports of the current layout into what is left of `ui`, and turn what the
+/// mouse does over each into actions.
 pub fn show(
     ui: &mut Ui,
     state: &AppState,
@@ -129,15 +158,32 @@ pub fn show(
 ) {
     let area = ui.available_rect_before_wrap();
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
-        let response = ui.interact(cell, ui.id().with(("viewport", at)), Sense::click());
-        if response.clicked() {
-            actions.push(Action::SetActive(at));
-        }
+        let Some(viewport) = state.viewports.get(at) else {
+            continue;
+        };
+        let response = ui.interact(
+            cell,
+            ui.id().with(("viewport", at)),
+            Sense::click_and_drag(),
+        );
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
-        let drawn = match (gpus.get_mut(at), render) {
-            (Some(gpu), Some(render)) => slice(ui, state, cache, gpu, render, at, cell),
+        let placement = viewport.series.as_ref().and_then(|id| state.series(id));
+        let placement = placement.and_then(|series| series.info.voxel_to_patient.as_ref());
+        let shown = overlay::display_view(placement, &viewport.view, state.radiological);
+        let pane = Pane {
+            state,
+            at,
+            cell,
+            shown,
+        };
+        let mut gpu = gpus.get_mut(at);
+        let drawn = match (gpu.as_deref_mut(), render) {
+            (Some(gpu), Some(render)) => slice(ui, &pane, cache, gpu, render),
             _ => false,
         };
+        if drawn {
+            annotate::overlays(ui, &pane);
+        }
         if let Some(text) = message(state, at, drawn) {
             let font = egui::TextStyle::Body.resolve(ui.style());
             ui.painter().text(
@@ -152,6 +198,10 @@ pub fn show(
             let line = Stroke::new(ACTIVE_BORDER, theme::ACCENT);
             ui.painter().rect_stroke(cell, 0, line, StrokeKind::Inside);
         }
+        let mut unused = 0.0;
+        let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
+        let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
+        actions.extend(overlay::input_to_actions(at, &input));
     }
     ui.allocate_rect(area, Sense::hover());
 }
@@ -160,14 +210,12 @@ pub fn show(
 /// view, and queue the drawing. False when the slice is not in the cache or cannot be shown.
 fn slice(
     ui: &Ui,
-    state: &AppState,
+    pane: &Pane<'_>,
     cache: &Mutex<FrameCache>,
     gpu: &mut Gpu,
     render: &RenderState,
-    at: usize,
-    cell: Rect,
 ) -> bool {
-    let Some(viewport) = state.viewports.get(at) else {
+    let Some(viewport) = pane.state.viewports.get(pane.at) else {
         return false;
     };
     let Some(series) = &viewport.series else {
@@ -193,127 +241,14 @@ fn slice(
         }
         gpu.uploaded = Some(wanted);
     }
-    let size = [cell.width(), cell.height()];
-    pipeline.set_params(
-        &render.queue,
-        viewport.wl,
-        &viewport.view,
-        size,
-        pixel_aspect(state, at),
-    );
+    let size = [pane.cell.width(), pane.cell.height()];
+    let aspect = pixel_aspect(pane.state, pane.at);
+    pipeline.set_params(&render.queue, viewport.wl, &pane.shown, size, aspect);
     let draw = DrawSlice(Arc::clone(&gpu.pipeline));
     ui.painter()
-        .add(egui_wgpu::Callback::new_paint_callback(cell, draw));
+        .add(egui_wgpu::Callback::new_paint_callback(pane.cell, draw));
     true
 }
 
 #[cfg(test)]
-mod tests {
-    use egui::{Rect, pos2};
-
-    use super::*;
-    use crate::action::Action;
-    use crate::reducer::reduce;
-    use crate::state::{AppState, Layout};
-    use crate::testing::{THICK_SCAN, id, three_series};
-
-    fn area() -> Rect {
-        Rect::from_min_max(pos2(240.0, 40.0), pos2(1040.0, 640.0))
-    }
-
-    #[test]
-    fn one_viewport_takes_the_whole_area() {
-        assert_eq!(grid(area(), Layout::One), vec![area()]);
-    }
-
-    #[test]
-    fn two_viewports_sit_side_by_side_with_a_gap_between() {
-        let cells = grid(area(), Layout::TwoAcross);
-        assert_eq!(cells.len(), 2);
-        assert_eq!((cells[0].min, cells[1].max), (area().min, area().max));
-        assert_eq!(cells[0].width(), cells[1].width());
-        assert_eq!(cells[1].min.x - cells[0].max.x, GAP);
-        assert_eq!(cells[0].height(), area().height());
-    }
-
-    #[test]
-    fn four_viewports_make_two_rows_of_two() {
-        let cells = grid(area(), Layout::TwoByTwo);
-        assert_eq!(cells.len(), 4);
-        assert_eq!((cells[0].min, cells[3].max), (area().min, area().max));
-        assert_eq!(cells[0].size(), cells[3].size());
-        assert_eq!(cells[2].min.y - cells[0].max.y, GAP);
-        assert_eq!(
-            (cells[1].min.y, cells[2].min.x),
-            (cells[0].min.y, cells[0].min.x)
-        );
-    }
-
-    fn showing() -> AppState {
-        let mut state = AppState::default();
-        reduce(&mut state, Action::IndexProgress(three_series()));
-        reduce(
-            &mut state,
-            Action::SelectSeries {
-                viewport: 0,
-                series: id(THICK_SCAN),
-            },
-        );
-        state
-    }
-
-    #[test]
-    fn a_viewport_says_what_it_is_waiting_for() {
-        let state = showing();
-        assert_eq!(message(&state, 0, false).as_deref(), Some("Loading…"));
-        assert_eq!(
-            message(&state, 0, true),
-            None,
-            "the slice is there to be drawn"
-        );
-        assert_eq!(
-            message(&state, 1, false).as_deref(),
-            Some("No series is shown here")
-        );
-        assert_eq!(message(&state, 9, false), None, "there is no such viewport");
-    }
-
-    #[test]
-    fn a_slice_that_failed_says_so_with_the_reason() {
-        let mut state = showing();
-        let failed = Action::FrameFailed {
-            series: id(THICK_SCAN),
-            slice: 15,
-            reason: "The image could not be decoded: the file is damaged or cut short.".to_owned(),
-        };
-        reduce(&mut state, failed);
-        assert_eq!(
-            message(&state, 0, false).as_deref(),
-            Some(
-                "This slice could not be decoded\n\
-                 The image could not be decoded: the file is damaged or cut short."
-            )
-        );
-    }
-
-    #[test]
-    fn the_pixels_of_a_series_are_as_tall_as_its_rows_are_apart() {
-        let mut state = showing();
-        assert_eq!(pixel_aspect(&state, 0), 1.0);
-        let index = state.index.as_mut().expect("indexed");
-        index.series[0].info.spacing_mm = [0.5, 1.5, 5.0];
-        assert_eq!(pixel_aspect(&state, 0), 3.0);
-        index_spacing(&mut state, [0.0, 1.0, 1.0]);
-        assert_eq!(
-            pixel_aspect(&state, 0),
-            1.0,
-            "a spacing of nothing is not believed"
-        );
-        assert_eq!(pixel_aspect(&state, 3), 1.0, "nothing shown");
-    }
-
-    fn index_spacing(state: &mut AppState, spacing: [f64; 3]) {
-        let index = state.index.as_mut().expect("indexed");
-        index.series[0].info.spacing_mm = spacing;
-    }
-}
+mod tests;

@@ -113,7 +113,7 @@ pub fn study_title(study: &StudyInfo) -> String {
 }
 
 /// `20190412` as `12 April 2019`; `None` when the text is not a date written that way.
-fn date_in_words(yyyymmdd: &str) -> Option<String> {
+pub(super) fn date_in_words(yyyymmdd: &str) -> Option<String> {
     if yyyymmdd.len() != 8 || !yyyymmdd.is_ascii() {
         return None;
     }

@@ -15,6 +15,8 @@ use crate::worker::Workers;
 mod about;
 mod browser;
 mod capture;
+mod help;
+mod overlay;
 mod theme;
 mod toolbar;
 mod viewport;
@@ -36,6 +38,7 @@ pub struct VoxaApp {
     gpus: Vec<viewport::Gpu>,
     thumbnails: browser::Thumbnails,
     about_open: bool,
+    help_open: bool,
     capture: Option<capture::Capture>,
 }
 
@@ -68,6 +71,7 @@ impl VoxaApp {
             gpus: gpus.unwrap_or_default(),
             thumbnails: browser::Thumbnails::default(),
             about_open: false,
+            help_open: false,
             capture: capture::Capture::from_environment(),
         };
         if let Some(path) = initial {
@@ -136,6 +140,36 @@ impl VoxaApp {
     }
 }
 
+impl VoxaApp {
+    /// Turn the keys pressed this frame into actions, unless the person is typing in a field.
+    fn keys(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
+        if ctx.egui_wants_keyboard_input() {
+            return;
+        }
+        let pressed: Vec<(egui::Key, bool)> = ctx.input(|input| {
+            let down = |event: &egui::Event| match event {
+                egui::Event::Key {
+                    key,
+                    pressed: true,
+                    repeat: false,
+                    modifiers,
+                    ..
+                } => Some((*key, modifiers.shift)),
+                _ => None,
+            };
+            input.events.iter().filter_map(down).collect()
+        });
+        for (key, shift) in pressed {
+            // A question mark is its own key on some keyboards and Shift with slash on others.
+            if key == egui::Key::Questionmark || (key == egui::Key::Slash && shift) {
+                self.help_open = !self.help_open;
+            } else if let Some(action) = overlay::shortcut_action(key, self.state.active) {
+                actions.push(action);
+            }
+        }
+    }
+}
+
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         while let Ok(report) = self.reports.try_recv() {
@@ -151,6 +185,7 @@ impl eframe::App for VoxaApp {
             .show(ui, |ui| toolbar::show(ui, &self.state, &mut actions))
             .inner;
         self.about_open |= asked.about;
+        self.help_open |= asked.shortcuts;
         egui::Panel::bottom("status").show(ui, |ui| self.status(ui, &mut actions));
         let column = egui::Panel::left("browser")
             .exact_size(browser::WIDTH)
@@ -173,6 +208,8 @@ impl eframe::App for VoxaApp {
             );
         });
         about::show(ui.ctx(), &mut self.about_open);
+        help::show(ui.ctx(), &mut self.help_open);
+        self.keys(ui.ctx(), &mut actions);
         for action in actions {
             self.dispatch(action);
         }
@@ -192,7 +229,7 @@ pub fn run(initial: Option<PathBuf>) -> eframe::Result {
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
         .with_inner_size([1280.0, 800.0])
-        .with_min_inner_size([800.0, 500.0]);
+        .with_min_inner_size([1100.0, 600.0]);
     let options = eframe::NativeOptions {
         viewport,
         ..Default::default()
