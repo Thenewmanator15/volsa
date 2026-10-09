@@ -11,6 +11,11 @@ pub const FINE_SCAN: &str = "1.2.3.2";
 /// Three 4 × 4 slices, series number 3.
 pub const SCOUT: &str = "1.2.3.3";
 
+/// Three 4 x 4 locating images, one in each plane, series number 4.
+pub const LOCALISER: &str = "1.2.3.4";
+/// A single 4 x 4 slice, series number 5.
+pub const SINGLE: &str = "1.2.3.5";
+
 pub fn id(text: &str) -> SeriesId {
     SeriesId(text.to_owned())
 }
@@ -49,6 +54,34 @@ pub fn three_series_files() -> Vec<(String, Vec<u8>)> {
 
 pub fn indexed(files: Vec<(String, Vec<u8>)>) -> Index {
     index(&mut MemorySource::new(files), &mut |_| {}).expect("indexes")
+}
+
+/// The files of the three series, of a set of locating images, and of a series of one slice.
+pub fn odd_series_files() -> Vec<(String, Vec<u8>)> {
+    let planes = [
+        [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+        [0.0, 1.0, 0.0, 0.0, 0.0, -1.0],
+    ];
+    let locating = (0..3).zip(planes).map(|(place, plane)| {
+        let options = SliceOptions {
+            orientation: Some(plane),
+            position: Some([0.0, 0.0, 0.0]),
+            ..slice_options(LOCALISER, 4, place, 4)
+        };
+        (format!("S4/I{place:04}.dcm"), classic_slice(&options))
+    });
+    let files = [
+        three_series_files(),
+        locating.collect(),
+        series_files(SINGLE, 5, 1, 4),
+    ];
+    files.concat()
+}
+
+/// The three series, a set of locating images, and a series of one slice.
+pub fn with_odd_series() -> Index {
+    indexed(odd_series_files())
 }
 
 pub fn three_series() -> Index {

@@ -19,36 +19,39 @@ const PATIENCE: Duration = Duration::from_secs(60);
 /// Long enough for a worker that was going to say something to have said it.
 const QUIET: Duration = Duration::from_millis(400);
 
-struct Bench {
-    workers: Workers,
+pub(super) struct Bench {
+    pub(super) workers: Workers,
     reports: Receiver<Action>,
     cache: Arc<Mutex<FrameCache>>,
+    pub(super) volumes: Arc<Mutex<VolumeStore>>,
 }
 
 impl Bench {
-    fn with_budget(budget: usize) -> Self {
+    pub(super) fn with_budget(budget: usize) -> Self {
         let (sender, reports) = channel();
         let cache = Arc::new(Mutex::new(FrameCache::new(budget)));
-        let workers = Workers::new(sender, Arc::clone(&cache));
+        let volumes = Arc::new(Mutex::new(VolumeStore::default()));
+        let workers = Workers::new(sender, Arc::clone(&cache), Arc::clone(&volumes));
         Self {
             workers,
             reports,
             cache,
+            volumes,
         }
     }
 
-    fn next(&self) -> Action {
+    pub(super) fn next(&self) -> Action {
         self.reports
             .recv_timeout(PATIENCE)
             .expect("a worker reports")
     }
 
-    fn is_quiet(&self) -> bool {
+    pub(super) fn is_quiet(&self) -> bool {
         self.reports.recv_timeout(QUIET).is_err()
     }
 
     /// Index a path to the end; the finished index, or the message it failed with.
-    fn index(&self, path: &Path) -> Result<Index, String> {
+    pub(super) fn index(&self, path: &Path) -> Result<Index, String> {
         self.workers.run(Effect::StartIndex(path.to_owned()), None);
         let mut latest = None;
         loop {
@@ -62,7 +65,13 @@ impl Bench {
     }
 
     /// Ask for a series' frames and collect `expected` reports.
-    fn frames(&self, index: &Index, series: &str, around: usize, expected: usize) -> Vec<Action> {
+    pub(super) fn frames(
+        &self,
+        index: &Index,
+        series: &str,
+        around: usize,
+        expected: usize,
+    ) -> Vec<Action> {
         let wanted = Effect::RequestFrames {
             series: id(series),
             around,
@@ -79,7 +88,7 @@ impl Bench {
     }
 }
 
-fn folder_of(files: &[(String, Vec<u8>)]) -> TempDir {
+pub(super) fn folder_of(files: &[(String, Vec<u8>)]) -> TempDir {
     let folder = tempfile::tempdir().expect("a temporary folder");
     for (name, bytes) in files {
         let path = folder.path().join(name);

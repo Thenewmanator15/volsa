@@ -7,6 +7,8 @@ use voxa_dicom::{Index, IndexedSeries};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
+use crate::scene::{MainPanel, Scene};
+
 /// How many viewports the window can show at once.
 pub const VIEWPORTS: usize = 4;
 
@@ -153,6 +155,10 @@ pub struct AppState {
     pub windows: HashMap<(SeriesId, usize), PresetWindows>,
     /// Slices that could not be decoded, each with the reason.
     pub failed: HashMap<(SeriesId, usize), String>,
+    /// The 3D scene, which shows the series of the active viewport.
+    pub scene: Scene,
+    /// Whether the 3D scene or the 2D viewports have the large part of the window.
+    pub main: MainPanel,
 }
 
 impl Default for AppState {
@@ -168,6 +174,8 @@ impl Default for AppState {
             notices: Vec::new(),
             windows: HashMap::new(),
             failed: HashMap::new(),
+            scene: Scene::default(),
+            main: MainPanel::default(),
         }
     }
 }

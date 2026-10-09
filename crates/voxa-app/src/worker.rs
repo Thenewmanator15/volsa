@@ -1,4 +1,5 @@
-//! Work done off the interface's thread: indexing a source and decoding its slices.
+//! Work done off the interface's thread: indexing a source, decoding its slices, and
+//! building the volume of a series.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -14,6 +15,9 @@ use voxa_volume::PRESETS;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
+use crate::volume_store::VolumeStore;
+
+mod volume;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
 /// with further [`Action`]s. Nothing here writes to a log, so nothing a file contains can end
@@ -35,6 +39,10 @@ struct Shared {
     /// The newest request for each series. Work begun for an earlier request stops.
     newest: Mutex<HashMap<SeriesId, u64>>,
     requests: AtomicU64,
+    /// The volume the 3D scene shows.
+    volumes: Arc<Mutex<VolumeStore>>,
+    /// How many volumes have been asked for. One being built for an earlier request stops.
+    builds: AtomicU64,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -55,8 +63,13 @@ struct Request {
 }
 
 impl Workers {
-    /// Workers that report through `reports` and keep decoded slices in `cache`.
-    pub fn new(reports: Sender<Action>, cache: Arc<Mutex<FrameCache>>) -> Self {
+    /// Workers that report through `reports`, keep decoded slices in `cache`, and keep the
+    /// volume they build in `volumes`.
+    pub fn new(
+        reports: Sender<Action>,
+        cache: Arc<Mutex<FrameCache>>,
+        volumes: Arc<Mutex<VolumeStore>>,
+    ) -> Self {
         let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
         let shared = Shared {
             reports,
@@ -65,6 +78,8 @@ impl Workers {
             opened: AtomicU64::new(0),
             newest: Mutex::new(HashMap::new()),
             requests: AtomicU64::new(0),
+            volumes,
+            builds: AtomicU64::new(0),
         };
         Self {
             pool: named.build().ok(),
@@ -89,6 +104,13 @@ impl Workers {
                     self.request_frames(listed, listed.slices.len() / 2, 1);
                 }
             }
+            Effect::BuildVolume { series } => {
+                let listed =
+                    index.and_then(|index| index.series.iter().find(|s| s.info.id == series));
+                if let Some(listed) = listed {
+                    self.build_volume(listed);
+                }
+            }
             Effect::None => {}
         }
     }
@@ -100,6 +122,7 @@ impl Workers {
         *lock(&self.shared.source) = None;
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
+        lock(&self.shared.volumes).clear();
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             let finished = shielded(|| shared.index_source(&path, opened));
@@ -153,6 +176,23 @@ impl Workers {
                 let (shared, request) = (Arc::clone(&shared), Arc::clone(&request));
                 rayon::spawn_fifo(move || {
                     shielded(|| shared.decode(&batch, &request));
+                });
+            }
+        });
+    }
+
+    /// Build the volume of a series for the 3D scene, in place of any being built.
+    fn build_volume(&self, listed: &IndexedSeries) {
+        let build = self.shared.next_build();
+        let (shared, listed) = (Arc::clone(&self.shared), listed.clone());
+        self.spawn(move || {
+            let finished = shielded(|| shared.build_volume(&listed, &build));
+            if !finished && shared.building(&build) {
+                // Without this the scene would say it was building for ever.
+                let reason = "This series could not be read for a 3D view: the reader stopped                               on one of its files";
+                shared.report(Action::VolumeFailed {
+                    series: listed.info.id.clone(),
+                    reason: reason.to_owned(),
                 });
             }
         });
@@ -328,3 +368,5 @@ fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod volume_tests;

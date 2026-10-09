@@ -2,9 +2,11 @@
 
 use std::path::PathBuf;
 
-use voxa_core::{SeriesId, WindowLevel};
+use voxa_core::{Patient, Point, SeriesId, WindowLevel};
 use voxa_dicom::Index;
+use voxa_render::{Look, NamedView};
 
+use crate::scene::MainPanel;
 use crate::state::{Layout, PresetWindows};
 
 /// One thing that happened: something the person did, or something a worker finished.
@@ -145,6 +147,87 @@ pub enum Action {
     },
     /// Remove a notice, by its place in the list.
     DismissNotice(usize),
+    /// Give the 3D scene or the 2D viewports the large part of the window.
+    SetMain(MainPanel),
+    /// The scene's picture has a new size.
+    SceneResized {
+        /// Its width and height, in pixels.
+        viewport: [f32; 2],
+    },
+    /// Turn the scene with the pointer.
+    SceneOrbit {
+        /// How far the pointer was dragged, in pixels across and down.
+        by: [f32; 2],
+    },
+    /// Shift the scene with the pointer.
+    ScenePan {
+        /// How far the pointer was dragged, in pixels across and down.
+        by: [f32; 2],
+    },
+    /// Magnify the scene by `factor`, keeping still what lies under `about`.
+    SceneZoom {
+        /// How many times larger; below 1 shrinks.
+        factor: f32,
+        /// The point to keep still, in pixels from the middle of the scene.
+        about: [f32; 2],
+    },
+    /// See the whole volume from one side of the patient.
+    SceneView(NamedView),
+    /// Put this point of the patient in the middle of the scene.
+    SceneCentre(Point<Patient>),
+    /// Change how the volume is turned into a picture.
+    SceneLook(Look),
+    /// The volume is on the graphics device.
+    SceneUploaded {
+        /// How many times it had to be halved, each way, to fit.
+        halved: u32,
+    },
+    /// Cut the volume open straight across the view, through the middle of the scene.
+    CutAdd,
+    /// Move a cut along its own direction.
+    CutMove {
+        /// Which cut, by its place in the list.
+        cut: usize,
+        /// How far, in millimetres; a positive distance removes more.
+        by_mm: f64,
+    },
+    /// Turn a cut with the pointer.
+    CutTurn {
+        /// Which cut, by its place in the list.
+        cut: usize,
+        /// How far the pointer was dragged, in pixels across and down.
+        by: [f32; 2],
+    },
+    /// Take a cut away.
+    CutRemove {
+        /// Which cut, by its place in the list.
+        cut: usize,
+    },
+    /// Draw the slice shown in the 2D viewport inside the scene, or stop drawing it.
+    ShowSliceInScene(bool),
+    /// More slices of a volume have been decoded.
+    VolumeProgress {
+        /// The series the volume is built from.
+        series: SeriesId,
+        /// Slices decoded so far.
+        done: usize,
+        /// Slices in the series.
+        of: usize,
+    },
+    /// A volume has been built and is in the volume store.
+    VolumeReady {
+        /// The series it was built from.
+        series: SeriesId,
+        /// Its eight outer corners in the patient.
+        corners: [Point<Patient>; 8],
+    },
+    /// A volume could not be built.
+    VolumeFailed {
+        /// The series it was to be built from.
+        series: SeriesId,
+        /// Why, in plain words.
+        reason: String,
+    },
 }
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
@@ -161,6 +244,11 @@ pub enum Effect {
     },
     /// Decode the middle slice of every series, for the pictures in the browser.
     RequestThumbnails,
+    /// Decode every slice of a series and stack them into a volume for the 3D scene.
+    BuildVolume {
+        /// The series wanted.
+        series: SeriesId,
+    },
     /// Nothing to do.
     None,
 }

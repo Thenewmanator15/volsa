@@ -8,8 +8,13 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 use super::*;
+use voxa_render::{Camera, NamedView};
+
+use crate::scene::{Scene, SceneStatus};
 use crate::state::NoticeKind;
-use crate::testing::{FINE_SCAN, THICK_SCAN, id, series_files, three_series_files};
+use crate::testing::{
+    FINE_SCAN, LOCALISER, THICK_SCAN, id, odd_series_files, series_files, three_series_files,
+};
 
 /// Long enough for any worker on any machine; a test that waits this long has failed.
 const PATIENCE: Duration = Duration::from_secs(60);
@@ -163,4 +168,79 @@ fn opening_a_second_export_replaces_the_first() {
         session.cached(&id(THICK_SCAN), 6).is_none(),
         "nothing of the first is kept"
     );
+}
+
+/// Whether the scene shows this series with its volume built.
+fn ready_in_3d(session: &Session, series: &str) -> bool {
+    let scene = &session.state().scene;
+    scene.series == Some(id(series)) && scene.status == SceneStatus::Ready
+}
+
+#[test]
+fn opening_a_zip_ends_with_the_most_detailed_series_ready_in_3d() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&three_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    let volume = session.volume(&id(FINE_SCAN)).expect("its volume is kept");
+    assert_eq!(volume.dims(), [8, 8, 64]);
+    let scene = &session.state().scene;
+    assert_eq!(scene.corners, Some(volume.corners()));
+    let fitted = Camera::fitted(
+        NamedView::Anterior,
+        &volume.corners(),
+        Scene::FIRST_VIEWPORT,
+    );
+    assert_eq!(scene.camera, fitted, "seen whole, from the front");
+}
+
+#[test]
+fn choosing_another_series_puts_its_volume_in_place_of_the_first() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&three_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    let (viewport, series) = (0, id(THICK_SCAN));
+    session.dispatch(Action::SelectSeries { viewport, series });
+    let started = Instant::now();
+    while !ready_in_3d(&session, THICK_SCAN) {
+        assert!(
+            started.elapsed() < PATIENCE,
+            "{:?}",
+            session.state().scene.status
+        );
+        session.wait(Duration::from_millis(100));
+    }
+    assert!(session.volume(&id(FINE_SCAN)).is_none());
+    let dims = session.volume(&id(THICK_SCAN)).map(|volume| volume.dims());
+    assert_eq!(dims, Some([4, 4, 30]));
+}
+
+#[test]
+fn a_series_with_no_3d_view_says_so_and_its_slices_are_still_shown() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&odd_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    let (viewport, series) = (0, id(LOCALISER));
+    session.dispatch(Action::SelectSeries { viewport, series });
+    let SceneStatus::Unavailable(lines) = &session.state().scene.status else {
+        panic!("{:?}", session.state().scene.status);
+    };
+    assert_eq!(
+        lines.first().map(String::as_str),
+        Some("This series cannot be shown in 3D.")
+    );
+    assert!(
+        session.volume(&id(FINE_SCAN)).is_some(),
+        "nothing new was built"
+    );
+    let started = Instant::now();
+    while !first_viewport_has_its_slice(&session) {
+        assert!(started.elapsed() < PATIENCE, "the 2D viewport carries on");
+        session.wait(Duration::from_millis(100));
+    }
 }

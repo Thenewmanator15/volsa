@@ -89,6 +89,9 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     // Thumbnails are asked for first, so the request for the whole series is the newer one.
     let mut expected = vec![Effect::RequestThumbnails];
     expected.extend(frames_around(FINE_SCAN, 32));
+    expected.push(Effect::BuildVolume {
+        series: id(FINE_SCAN),
+    });
     assert_eq!(effects, expected);
     assert_eq!(state.viewports[0].series, Some(id(FINE_SCAN)));
 
@@ -100,7 +103,12 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
         },
     );
     let again = reduce(&mut state, Action::IndexDone);
-    assert_eq!(again, vec![Effect::RequestThumbnails]);
+    // No other series is opened; the volume of the one shown is built again, in case
+    // indexing added slices to it after it was chosen.
+    let rebuilt = Effect::BuildVolume {
+        series: id(THICK_SCAN),
+    };
+    assert_eq!(again, vec![Effect::RequestThumbnails, rebuilt]);
     assert_eq!(
         state.viewports[0].series,
         Some(id(THICK_SCAN)),

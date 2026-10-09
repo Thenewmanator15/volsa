@@ -20,7 +20,14 @@ fn selecting_a_series_shows_its_middle_slice_fitted_and_asks_for_frames() {
             series: id(THICK_SCAN),
         },
     );
-    assert_eq!(effects, frames_around(THICK_SCAN, 15));
+    let mut expected = frames_around(THICK_SCAN, 15);
+    expected.push(Effect::BuildVolume {
+        series: id(THICK_SCAN),
+    });
+    assert_eq!(
+        effects, expected,
+        "its frames, and its volume for the 3D scene"
+    );
     let viewport = &state.viewports[1];
     assert_eq!(viewport.series, Some(id(THICK_SCAN)));
     assert_eq!((viewport.slice, viewport.view), (15, ViewTransform::fit()));

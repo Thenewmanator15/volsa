@@ -6,8 +6,10 @@ use voxa_core::SeriesId;
 use voxa_dicom::best_series;
 
 use crate::action::{Action, Effect};
+use crate::scene::Scene;
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
+mod scene;
 mod viewport;
 
 /// The key of the notice that counts skipped files.
@@ -19,8 +21,21 @@ const OPENING: &str = "opening";
 ///
 /// This is the only code that changes [`AppState`], and it does nothing else: no files, no
 /// threads, no clock. Whatever an action refers to that is not there (a viewport, a series, a
-/// preset, a notice) is ignored.
+/// preset, a notice, a cut) is ignored. After every action the 3D scene is kept on the series
+/// the active viewport shows.
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
+    // Indexing may have added slices to a series chosen before it ended.
+    let rebuild = action == Action::IndexDone;
+    let mut effects = act(state, action);
+    effects.extend(if rebuild {
+        scene::rebuild(state)
+    } else {
+        scene::follow(state)
+    });
+    effects
+}
+
+fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
         Action::OpenPath(_)
         | Action::IndexProgress(_)
@@ -33,8 +48,28 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::ToggleRadiological
         | Action::TogglePatient
         | Action::SetTagFilter(_)
-        | Action::DismissNotice(_) => {
+        | Action::DismissNotice(_)
+        | Action::SetMain(_) => {
             window(state, action);
+            Vec::new()
+        }
+        Action::SceneResized { .. }
+        | Action::SceneOrbit { .. }
+        | Action::ScenePan { .. }
+        | Action::SceneZoom { .. }
+        | Action::SceneView(_)
+        | Action::SceneCentre(_)
+        | Action::SceneLook(_)
+        | Action::SceneUploaded { .. }
+        | Action::CutAdd
+        | Action::CutMove { .. }
+        | Action::CutTurn { .. }
+        | Action::CutRemove { .. }
+        | Action::ShowSliceInScene(_)
+        | Action::VolumeProgress { .. }
+        | Action::VolumeReady { .. }
+        | Action::VolumeFailed { .. } => {
+            scene::reduce(state, action);
             Vec::new()
         }
         about_a_viewport => viewport::reduce(state, about_a_viewport),
@@ -50,6 +85,11 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
                 active: state.active,
                 radiological: state.radiological,
                 show_patient: state.show_patient,
+                main: state.main,
+                scene: Scene {
+                    viewport: state.scene.viewport,
+                    ..Scene::default()
+                },
                 ..AppState::default()
             };
             return vec![Effect::StartIndex(path)];
@@ -111,6 +151,7 @@ fn window(state: &mut AppState, action: Action) {
         Action::ToggleRadiological => state.radiological = !state.radiological,
         Action::TogglePatient => state.show_patient = !state.show_patient,
         Action::SetTagFilter(filter) => state.tag_filter = filter,
+        Action::SetMain(panel) => state.main = panel,
         Action::DismissNotice(at) if at < state.notices.len() => {
             state.notices.remove(at);
         }
@@ -181,6 +222,10 @@ fn settle_window(
     }
 }
 
+#[cfg(test)]
+mod scene_camera_tests;
+#[cfg(test)]
+mod scene_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

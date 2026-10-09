@@ -16,20 +16,24 @@ mod action;
 mod args;
 mod cache;
 mod reducer;
+mod scene;
 mod session;
 mod state;
 #[cfg(test)]
 mod testing;
 mod ui;
+mod volume_store;
 mod worker;
 
 pub use action::{Action, Effect};
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use reducer::reduce;
+pub use scene::{MainPanel, Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
 pub use ui::{VoxaApp, run, thumbnail};
+pub use volume_store::VolumeStore;
 pub use worker::Workers;

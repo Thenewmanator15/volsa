@@ -4,16 +4,17 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use voxa_core::SeriesId;
+use voxa_core::{SeriesId, Volume};
 use voxa_dicom::Frame;
 
 use crate::action::Action;
 use crate::cache::FrameCache;
 use crate::reducer::reduce;
 use crate::state::AppState;
+use crate::volume_store::VolumeStore;
 use crate::worker::Workers;
 
-/// The state, the workers and the frame cache, joined up: an action goes in, the state
+/// The state, the workers, the frame cache and the volume store, joined up: an action goes in, the state
 /// changes, and the work it calls for is handed to the workers, whose reports come back as
 /// further actions. The window is a view of this; the tests drive it with no window at all.
 pub struct Session {
@@ -21,6 +22,7 @@ pub struct Session {
     workers: Workers,
     reports: Receiver<Action>,
     cache: Arc<Mutex<FrameCache>>,
+    volumes: Arc<Mutex<VolumeStore>>,
 }
 
 impl Session {
@@ -30,12 +32,14 @@ impl Session {
     /// most `cache_bytes` of pixel values.
     pub fn new(to_reports: Sender<Action>, reports: Receiver<Action>, cache_bytes: usize) -> Self {
         let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
-        let workers = Workers::new(to_reports, Arc::clone(&cache));
+        let volumes = Arc::new(Mutex::new(VolumeStore::default()));
+        let workers = Workers::new(to_reports, Arc::clone(&cache), Arc::clone(&volumes));
         Self {
             state: AppState::default(),
             workers,
             reports,
             cache,
+            volumes,
         }
     }
 
@@ -60,6 +64,14 @@ impl Session {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(series, slice)
+    }
+
+    /// The volume built for a series, if it is the one kept for the 3D scene.
+    pub fn volume(&self, series: &SeriesId) -> Option<Arc<Volume>> {
+        self.volumes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(series)
     }
 
     /// Apply an action and hand the work it calls for to the workers.
