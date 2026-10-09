@@ -4,7 +4,8 @@
 //!
 //! The volume is a made-up head: 256 x 256 voxels in 64 slices, a ball with a brighter core.
 //! The picture is 1280 x 800, the size of a large viewport. A second set draws a 512 x 512 x
-//! 64 head as the window does, moving and still, against the target of 30 pictures a second.
+//! 64 head as the window does, moving and still, against the target of 30 pictures a second,
+//! and still from above, along its slices.
 
 use std::hint::black_box;
 use std::time::Duration;
@@ -135,11 +136,19 @@ fn as_the_window_draws(c: &mut Criterion) {
         let moving = SceneParams {
             camera: still.camera.zoomed_about(0.5, [0.0, 0.0]),
             quality: 0.5,
-            ..still
+            ..still.clone()
         };
         let half = PICTURE.map(|side| side / 2);
         c.bench_function(&format!("512 x 512 x 64, {name}, moving"), |b| {
             b.iter(|| black_box(gpu.render(&moving, half).expect("renders")));
+        });
+        // Along the slices, which are six times as far apart as the voxels within them.
+        let above = SceneParams {
+            camera: Camera::fitted(NamedView::Superior, &volume.corners(), viewport),
+            ..still
+        };
+        c.bench_function(&format!("512 x 512 x 64, {name}, still, from above"), |b| {
+            b.iter(|| black_box(gpu.render(&above, PICTURE).expect("renders")));
         });
     }
 }

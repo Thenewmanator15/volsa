@@ -16,6 +16,13 @@ All notable changes to Voxa are recorded here. The format follows
   window shows, and the empty blocks at its ends are stepped over. 512 x 512 x 64 in a
   1280 x 800 picture on integrated graphics: 85 ms to 51 ms still, 15.6 ms to 9.9 ms moving.
 
+- VR and MIP follow each line of sight in steps of half a voxel along whichever axis of the
+  volume the line crosses fastest. Before, a step was half the least distance between voxels
+  from every side, so a view along slices that are far apart took many more steps than there
+  were voxels to see. A made-up head of 512 x 512 voxels of 0.5 mm in 64 slices 3 mm apart,
+  seen from above in a 1280 x 800 picture on integrated graphics: VR 33 ms to 14 ms, MIP 30 ms
+  to 13 ms. Seen at a slant about a tenth is saved, and across the slices nothing. The
+  surface look keeps its short step and draws exactly as before.
 - A series opened with the 3D scene in view is decoded once. Before, its slices could be
   decoded twice, once for the 2D viewport and once for the volume. They are now decoded for
   the volume, and the viewport reads them out of it; only the slice on show is also decoded
