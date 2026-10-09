@@ -15,9 +15,11 @@
 mod error;
 mod model;
 mod space;
+mod volume;
 mod window;
 
 pub use error::VoxaError;
 pub use model::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo};
 pub use space::{Affine, Patient, Point, Screen, Voxel};
+pub use volume::Volume;
 pub use window::WindowLevel;

@@ -12,8 +12,10 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod assemble;
 mod auto_window;
 mod histogram;
 
+pub use assemble::{VolumeError, assemble, can_be_volume, value_range};
 pub use auto_window::{PRESETS, Preset, auto_window};
 pub use histogram::Histogram;
