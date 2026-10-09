@@ -9,8 +9,11 @@ use std::time::{Duration, Instant};
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
+/// The environment variable naming windows to have open in the picture: any of `tags`,
+/// `keys` and `about`, separated by commas.
+pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// Frames drawn with a picture showing before it is captured, so everything has settled.
-const SETTLE_FRAMES: u32 = 10;
+const SETTLE_FRAMES: u32 = 30;
 /// How long to wait for a picture before capturing whatever is there.
 const PATIENCE: Duration = Duration::from_secs(20);
 

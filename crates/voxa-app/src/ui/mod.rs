@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex, PoisonError};
+use std::time::Instant;
 
 use egui::RichText;
 
@@ -15,8 +16,10 @@ use crate::worker::Workers;
 mod about;
 mod browser;
 mod capture;
+mod cine;
 mod help;
 mod overlay;
+mod tags;
 mod theme;
 mod toolbar;
 mod viewport;
@@ -39,6 +42,9 @@ pub struct VoxaApp {
     thumbnails: browser::Thumbnails,
     about_open: bool,
     help_open: bool,
+    tags: tags::Panel,
+    /// When playback in each viewport last moved on.
+    clocks: [cine::Clock; VIEWPORTS],
     capture: Option<capture::Capture>,
 }
 
@@ -72,8 +78,17 @@ impl VoxaApp {
             thumbnails: browser::Thumbnails::default(),
             about_open: false,
             help_open: false,
+            tags: tags::Panel::default(),
+            clocks: [cine::Clock::default(); VIEWPORTS],
             capture: capture::Capture::from_environment(),
         };
+        if app.capture.is_some() {
+            // A picture for the documentation may want one of the windows open in it.
+            let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
+            app.tags.open = wanted.contains("tags");
+            app.help_open = wanted.contains("keys");
+            app.about_open = wanted.contains("about");
+        }
         if let Some(path) = initial {
             app.dispatch(Action::OpenPath(path));
         }
@@ -141,6 +156,31 @@ impl VoxaApp {
 }
 
 impl VoxaApp {
+    /// Move playback on in every viewport where it is running, and ask to be woken when the
+    /// next slice is due, so nothing is redrawn in between.
+    fn play(&mut self, ctx: &egui::Context) {
+        let now = Instant::now();
+        for viewport in 0..VIEWPORTS {
+            let cine = self
+                .state
+                .viewports
+                .get(viewport)
+                .and_then(|shown| shown.cine);
+            let Some(clock) = self.clocks.get_mut(viewport) else {
+                continue;
+            };
+            let Some(cine) = cine.filter(|cine| cine.playing) else {
+                clock.stop();
+                continue;
+            };
+            let (ticks, wait) = clock.advance(now, cine.fps);
+            for _ in 0..ticks {
+                self.dispatch(Action::CineTick { viewport });
+            }
+            ctx.request_repaint_after(wait);
+        }
+    }
+
     /// Turn the keys pressed this frame into actions, unless the person is typing in a field.
     fn keys(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
         if ctx.egui_wants_keyboard_input() {
@@ -175,7 +215,9 @@ impl eframe::App for VoxaApp {
         while let Ok(report) = self.reports.try_recv() {
             self.dispatch(report);
         }
+        self.play(ctx);
         self.make_thumbnails(ctx);
+        self.tags.refresh(&self.state, &self.workers, ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -186,6 +228,7 @@ impl eframe::App for VoxaApp {
             .inner;
         self.about_open |= asked.about;
         self.help_open |= asked.shortcuts;
+        self.tags.open ^= asked.tags;
         egui::Panel::bottom("status").show(ui, |ui| self.status(ui, &mut actions));
         let column = egui::Panel::left("browser")
             .exact_size(browser::WIDTH)
@@ -209,6 +252,7 @@ impl eframe::App for VoxaApp {
         });
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
+        self.tags.show(ui.ctx(), &self.state, &mut actions);
         self.keys(ui.ctx(), &mut actions);
         for action in actions {
             self.dispatch(action);
@@ -229,7 +273,7 @@ pub fn run(initial: Option<PathBuf>) -> eframe::Result {
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
         .with_inner_size([1280.0, 800.0])
-        .with_min_inner_size([1100.0, 600.0]);
+        .with_min_inner_size([1280.0, 600.0]);
     let options = eframe::NativeOptions {
         viewport,
         ..Default::default()

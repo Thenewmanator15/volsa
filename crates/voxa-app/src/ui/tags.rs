@@ -1,0 +1,265 @@
+//! The tag browser: every element of the file behind the slice being shown.
+
+use std::sync::mpsc::{Receiver, Sender, channel};
+
+use egui::RichText;
+use voxa_core::SeriesId;
+use voxa_dicom::{TagRow, is_patient_identifying};
+
+use super::theme;
+use crate::action::Action;
+use crate::state::AppState;
+use crate::worker::Workers;
+
+/// What stands in for the value of an element that describes the patient.
+pub const HIDDEN: &str = "hidden";
+
+/// The rows of a file, or why they could not be listed.
+pub type Listing = Result<Vec<TagRow>, String>;
+
+/// One element as the tag browser shows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ShownTag<'a> {
+    /// The element's number, as `(0010,0010)`.
+    pub tag: &'a str,
+    /// Its name in the DICOM standard.
+    pub keyword: &'a str,
+    /// Its value representation.
+    pub vr: &'a str,
+    /// Its value, or [`HIDDEN`] for an element that describes the patient.
+    pub value: &'a str,
+}
+
+/// The rows to show: those whose number, name or value contains `query`, whatever its case.
+/// An element that describes the patient shows [`HIDDEN`] in place of its value unless
+/// `show_patient` is true, and it is that stand-in the search sees, so a name cannot be found
+/// by typing it.
+pub fn filter_tags<'a>(rows: &'a [TagRow], query: &str, show_patient: bool) -> Vec<ShownTag<'a>> {
+    let wanted = query.trim().to_lowercase();
+    let shown = rows.iter().map(|row| {
+        let private = !show_patient && is_patient_identifying(&row.tag);
+        let value = if private { HIDDEN } else { row.value.as_str() };
+        ShownTag {
+            tag: &row.tag,
+            keyword: &row.keyword,
+            vr: &row.vr,
+            value,
+        }
+    });
+    let matches = |tag: &ShownTag<'_>| {
+        let within = |text: &str| text.to_lowercase().contains(&wanted);
+        wanted.is_empty() || within(tag.tag) || within(tag.keyword) || within(tag.value)
+    };
+    shown.filter(matches).collect()
+}
+
+/// The tag browser's window and the listing it shows. The rows hold the patient's details,
+/// so they are kept here and never put into the application state or an action.
+pub struct Panel {
+    /// Whether the window is open.
+    pub open: bool,
+    /// The slice whose file was last asked for.
+    asked: Option<(SeriesId, usize)>,
+    listing: Listing,
+    send: Sender<((SeriesId, usize), Listing)>,
+    replies: Receiver<((SeriesId, usize), Listing)>,
+}
+
+impl Default for Panel {
+    fn default() -> Self {
+        let (send, replies) = channel();
+        Self {
+            open: false,
+            asked: None,
+            listing: Ok(Vec::new()),
+            send,
+            replies,
+        }
+    }
+}
+
+impl Panel {
+    /// While the window is open, ask a worker for the tags of the file behind the slice the
+    /// active viewport shows whenever that slice changes, and take in any answer.
+    pub fn refresh(&mut self, state: &AppState, workers: &Workers, ctx: &egui::Context) {
+        if !self.open {
+            self.asked = None;
+            return;
+        }
+        let viewport = state.viewports.get(state.active);
+        let wanted = viewport.and_then(|v| v.series.clone().map(|series| (series, v.slice)));
+        if wanted != self.asked {
+            self.asked.clone_from(&wanted);
+            self.listing = Ok(Vec::new());
+            let listed = wanted.as_ref().and_then(|(series, _)| state.series(series));
+            if let (Some(listed), Some(key)) = (listed, wanted) {
+                let (send, ctx, slice) = (self.send.clone(), ctx.clone(), key.1);
+                workers.list_tags(listed, slice, move |rows| {
+                    // If the window has gone there is no one left to tell.
+                    let _ = send.send((key, rows));
+                    ctx.request_repaint();
+                });
+            }
+        }
+        while let Ok((key, rows)) = self.replies.try_recv() {
+            if self.asked.as_ref() == Some(&key) {
+                self.listing = rows;
+            }
+        }
+    }
+
+    /// Draw the window if it is open.
+    pub fn show(&mut self, ctx: &egui::Context, state: &AppState, actions: &mut Vec<Action>) {
+        show(ctx, &mut self.open, state, &self.listing, actions);
+    }
+}
+
+/// The tag browser window: a search field, then the rows that match it.
+pub fn show(
+    ctx: &egui::Context,
+    open: &mut bool,
+    state: &AppState,
+    listing: &Listing,
+    actions: &mut Vec<Action>,
+) {
+    egui::Window::new("DICOM tags").open(open).default_size([620.0, 440.0]).show(ctx, |ui| {
+        let mut filter = state.tag_filter.clone();
+        ui.horizontal(|ui| {
+            ui.label("Search");
+            if ui.text_edit_singleline(&mut filter).changed() {
+                actions.push(Action::SetTagFilter(filter.clone()));
+            }
+        });
+        if !state.show_patient {
+            let note = "The patient's details are hidden. \"Patient details\" in the toolbar shows them.";
+            ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+        }
+        match listing {
+            Err(why) => {
+                ui.label(RichText::new(why).color(theme::WARNING));
+            }
+            Ok(rows) if rows.is_empty() => {
+                ui.label("Show a series to see the tags of the file behind the slice.");
+            }
+            Ok(rows) => table(ui, &filter_tags(rows, &state.tag_filter, state.show_patient)),
+        }
+    });
+}
+
+fn table(ui: &mut egui::Ui, shown: &[ShownTag<'_>]) {
+    egui::ScrollArea::vertical()
+        .auto_shrink(false)
+        .show(ui, |ui| {
+            egui::Grid::new("tags")
+                .num_columns(4)
+                .striped(true)
+                .spacing([16.0, 4.0])
+                .show(ui, |ui| {
+                    for tag in shown {
+                        ui.label(RichText::new(tag.tag).monospace());
+                        ui.label(tag.keyword);
+                        ui.label(RichText::new(tag.vr).monospace().color(theme::QUIET_TEXT));
+                        ui.label(tag.value);
+                        ui.end_row();
+                    }
+                });
+        });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(tag: &str, keyword: &str, vr: &str, value: &str) -> TagRow {
+        TagRow {
+            tag: tag.to_owned(),
+            keyword: keyword.to_owned(),
+            vr: vr.to_owned(),
+            value: value.to_owned(),
+        }
+    }
+
+    fn rows() -> Vec<TagRow> {
+        vec![
+            row("(0008,0060)", "Modality", "CS", "MR"),
+            row("(0008,103E)", "SeriesDescription", "LO", "made-up axial"),
+            row("(0010,0010)", "PatientName", "PN", "Phantom^Test"),
+            row("(0010,0020)", "PatientID", "LO", "PHANTOM-001"),
+            row("(0028,0010)", "Rows", "US", "512"),
+        ]
+    }
+
+    fn keywords(shown: &[ShownTag<'_>]) -> Vec<String> {
+        shown.iter().map(|tag| tag.keyword.to_owned()).collect()
+    }
+
+    #[test]
+    fn a_search_matches_the_keyword_whatever_its_case() {
+        let rows = rows();
+        assert_eq!(keywords(&filter_tags(&rows, "modal", false)), ["Modality"]);
+        assert_eq!(keywords(&filter_tags(&rows, "  ROWS ", false)), ["Rows"]);
+    }
+
+    #[test]
+    fn a_search_matches_the_tag_number_and_the_value_too() {
+        let rows = rows();
+        assert_eq!(keywords(&filter_tags(&rows, "0028,", false)), ["Rows"]);
+        assert_eq!(
+            keywords(&filter_tags(&rows, "AXIAL", false)),
+            ["SeriesDescription"]
+        );
+    }
+
+    #[test]
+    fn no_search_lists_every_element_in_order() {
+        let rows = rows();
+        let shown = filter_tags(&rows, "", false);
+        assert_eq!(shown.len(), 5);
+        assert_eq!(shown[0].tag, "(0008,0060)");
+        assert_eq!((shown[4].vr, shown[4].value), ("US", "512"));
+    }
+
+    #[test]
+    fn the_patients_details_are_hidden_and_cannot_be_searched_for_unless_shown() {
+        let rows = rows();
+        let shown = filter_tags(&rows, "", false);
+        let name = shown
+            .iter()
+            .find(|tag| tag.keyword == "PatientName")
+            .expect("listed");
+        assert_eq!(name.value, HIDDEN);
+        assert_eq!(HIDDEN, "hidden");
+        assert_eq!(
+            filter_tags(&rows, "phantom", false).len(),
+            0,
+            "the real name finds nothing"
+        );
+        assert_eq!(
+            keywords(&filter_tags(&rows, "hidden", false)),
+            ["PatientName", "PatientID"]
+        );
+
+        let open = filter_tags(&rows, "phantom", true);
+        assert_eq!(keywords(&open), ["PatientName", "PatientID"]);
+        assert_eq!(open[0].value, "Phantom^Test");
+    }
+
+    #[test]
+    fn the_window_draws_with_rows_without_rows_and_with_an_error() {
+        let ctx = egui::Context::default();
+        let state = crate::state::AppState::default();
+        for listing in [
+            Ok(rows()),
+            Ok(Vec::new()),
+            Err("No scan is open.".to_owned()),
+        ] {
+            let (mut open, mut actions) = (true, Vec::new());
+            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+                show(ui.ctx(), &mut open, &state, &listing, &mut actions);
+            });
+            // No renderer is behind this pass to take the font texture.
+            output.textures_delta.clear();
+            assert!(open && actions.is_empty());
+        }
+    }
+}

@@ -5,10 +5,14 @@ use voxa_core::WindowLevel;
 use voxa_volume::PRESETS;
 
 use crate::action::Action;
-use crate::state::{AppState, Layout};
+use crate::state::{AppState, Cine, Layout};
 
 /// What the person asked for that is not a change of state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one for each button, and any may be pressed"
+)]
 pub struct Asked {
     /// To choose a scan to open.
     pub open: bool,
@@ -16,6 +20,8 @@ pub struct Asked {
     pub about: bool,
     /// To see the list of keys and what the mouse does.
     pub shortcuts: bool,
+    /// To open or close the tag browser.
+    pub tags: bool,
 }
 
 /// The layouts offered, with the label and hover text of each button.
@@ -26,7 +32,7 @@ const LAYOUTS: [(Layout, &str, &str); 3] = [
 ];
 
 /// Draw the toolbar: open, the layouts, the window of the active viewport, the display
-/// switches, and at the far end the list of keys and About.
+/// switches, playback, and at the far end the tag browser, the list of keys and About.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
     let mut asked = Asked::default();
     ui.horizontal(|ui| {
@@ -51,9 +57,15 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
         window(ui, state, actions);
         ui.separator();
         switches(ui, state, actions);
+        ui.separator();
+        playback(ui, state, actions);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             asked.about = ui.button("About").clicked();
             asked.shortcuts = ui.button("?").on_hover_text("Keys and mouse").clicked();
+            let tags = ui.button("Tags");
+            asked.tags = tags
+                .on_hover_text("Every element of the file behind the slice shown")
+                .clicked();
         });
     });
     asked
@@ -120,6 +132,42 @@ fn switches(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     }
 }
 
+/// Film-like playback through the slices of the active viewport.
+fn playback(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+    let viewport = state.active;
+    let cine = state.viewports.get(viewport).and_then(|shown| shown.cine);
+    let cine = cine.unwrap_or(Cine::new(Cine::DEFAULT_FPS, true, false));
+    let label = if cine.playing { "Pause" } else { "Play" };
+    if ui
+        .button(label)
+        .on_hover_text("Play through the slices (Space)")
+        .clicked()
+    {
+        actions.push(Action::CineToggle { viewport });
+    }
+    let (mut fps, mut looping) = (cine.fps, cine.looping);
+    let speed = egui::DragValue::new(&mut fps)
+        .speed(0.5)
+        .range(Cine::MIN_FPS..=Cine::MAX_FPS)
+        .suffix(" /s");
+    let speed_changed = ui
+        .add(speed)
+        .on_hover_text("Slices shown each second")
+        .changed();
+    let loop_hint = "Start again from the first slice after the last";
+    let loop_changed = ui
+        .checkbox(&mut looping, "Loop")
+        .on_hover_text(loop_hint)
+        .changed();
+    if speed_changed || loop_changed {
+        actions.push(Action::CineSet {
+            viewport,
+            fps,
+            looping,
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
@@ -129,7 +177,7 @@ mod tests {
     fn pass(ctx: &egui::Context, state: &AppState, events: Vec<Event>) -> (Vec<Action>, Asked) {
         let mut actions = Vec::new();
         let mut asked = Asked::default();
-        let screen = Rect::from_min_size(Pos2::ZERO, vec2(1400.0, 600.0));
+        let screen = Rect::from_min_size(Pos2::ZERO, vec2(1700.0, 600.0));
         let input = RawInput {
             screen_rect: Some(screen),
             events,
@@ -158,7 +206,7 @@ mod tests {
         let ctx = egui::Context::default();
         let _ = pass(&ctx, state, Vec::new());
         let (mut actions, mut all) = (Vec::new(), Asked::default());
-        for x in (3..1400u16).step_by(5) {
+        for x in (3..1700u16).step_by(5) {
             let (asked_for, asked) = click(&ctx, state, pos2(f32::from(x), 12.0));
             for action in asked_for {
                 if !actions.contains(&action) {
@@ -168,6 +216,7 @@ mod tests {
             all.open |= asked.open;
             all.about |= asked.about;
             all.shortcuts |= asked.shortcuts;
+            all.tags |= asked.tags;
         }
         (actions, all)
     }
@@ -187,6 +236,12 @@ mod tests {
             preset(2),
             Action::ToggleRadiological,
             Action::TogglePatient,
+            Action::CineToggle { viewport: 0 },
+            Action::CineSet {
+                viewport: 0,
+                fps: Cine::DEFAULT_FPS,
+                looping: false,
+            },
         ];
         assert_eq!(
             actions, expected,
@@ -197,7 +252,8 @@ mod tests {
             Asked {
                 open: true,
                 about: true,
-                shortcuts: true
+                shortcuts: true,
+                tags: true
             }
         );
     }

@@ -275,6 +275,38 @@ fn thumbnails_decode_the_middle_slice_of_every_series_and_no_other() {
 }
 
 #[test]
+fn the_elements_of_a_slices_file_are_listed_on_request() {
+    let folder = folder_of(&series_files(THICK_SCAN, 1, 3, 4));
+    let bench = Bench::with_budget(100 * ONE);
+    let index = bench.index(folder.path()).expect("indexes");
+    let (send, listed) = channel();
+    let reply = move |rows| send.send(rows).expect("the test is waiting");
+    bench.workers.list_tags(&index.series[0], 1, reply.clone());
+    let rows = listed
+        .recv_timeout(PATIENCE)
+        .expect("answers")
+        .expect("lists");
+    let modality = rows
+        .iter()
+        .find(|row| row.keyword == "Modality")
+        .expect("listed");
+    assert_eq!(modality.value, "MR");
+    let number = rows
+        .iter()
+        .find(|row| row.keyword == "InstanceNumber")
+        .expect("listed");
+    assert_eq!(number.value, "2", "the file of the second slice");
+
+    bench.workers.list_tags(&index.series[0], 99, reply);
+    let missing = listed.recv_timeout(PATIENCE).expect("answers");
+    assert_eq!(missing, Err("There is no such slice.".to_owned()));
+    assert!(
+        bench.is_quiet(),
+        "listing tags is not announced as an action"
+    );
+}
+
+#[test]
 fn asking_for_nothing_or_for_a_series_that_is_not_there_does_nothing() {
     let folder = folder_of(&series_files(THICK_SCAN, 1, 3, 4));
     let bench = Bench::with_budget(100 * ONE);
