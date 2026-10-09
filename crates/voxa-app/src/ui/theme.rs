@@ -14,6 +14,13 @@ pub const PANEL: Color32 = Color32::from_rgb(24, 27, 33);
 pub const RAISED: Color32 = Color32::from_rgb(38, 43, 52);
 /// Marks something the person should look at.
 pub const WARNING: Color32 = Color32::from_rgb(240, 180, 60);
+/// The axial plane, in the colour 3D Slicer gives it, which most people who have seen plane
+/// views will know: red.
+pub const AXIAL: Color32 = Color32::from_rgb(235, 80, 80);
+/// The sagittal plane: yellow.
+pub const SAGITTAL: Color32 = Color32::from_rgb(235, 205, 70);
+/// The coronal plane: green.
+pub const CORONAL: Color32 = Color32::from_rgb(110, 190, 90);
 /// Text that matters less.
 pub const QUIET_TEXT: Color32 = Color32::from_rgb(150, 158, 170);
 

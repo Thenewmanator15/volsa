@@ -5,10 +5,9 @@ use std::sync::mpsc::channel;
 use std::time::Instant;
 
 use egui::RichText;
-use egui_wgpu::RenderState;
 
 use crate::action::Action;
-use crate::scene::{MainPanel, SceneStatus};
+use crate::scene::SceneStatus;
 use crate::session::Session;
 use crate::settings;
 use crate::state::{NoticeKind, VIEWPORTS};
@@ -21,6 +20,8 @@ mod help;
 mod layout;
 mod overlay;
 mod pen;
+mod pictures;
+mod planes;
 mod saving;
 mod scene;
 mod scene_bar;
@@ -42,6 +43,7 @@ pub struct VoxaApp {
     /// One for each viewport; empty when the window has no graphics device to draw slices.
     gpus: Vec<viewport::Gpu>,
     scene: scene::SceneView,
+    planes: planes::PlanesView,
     thumbnails: browser::Thumbnails,
     about_open: bool,
     help_open: bool,
@@ -79,6 +81,7 @@ impl VoxaApp {
             session: Session::new(from_workers, reports, CACHE_BYTES, settings::folder()),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
+            planes: planes::PlanesView::new(render),
             thumbnails: browser::Thumbnails::default(),
             about_open: false,
             help_open: false,
@@ -168,51 +171,6 @@ impl VoxaApp {
 }
 
 impl VoxaApp {
-    /// Draw the 3D scene and the 2D viewports in what is left of the window: one has the
-    /// large part, the other a column beside it under a strip with a button that swaps them.
-    fn pictures(
-        &mut self,
-        ui: &mut egui::Ui,
-        render: Option<&RenderState>,
-        actions: &mut Vec<Action>,
-    ) {
-        let state = self.session.state();
-        let whole = ui.available_rect_before_wrap();
-        let layout::Panels { main, side } = layout::panels(whole);
-        let (strip, side) = layout::header_and_rest(side);
-        // A series with no 3D view has its slices in the large part: they are all there is.
-        let large = state.main.given(&state.scene.status);
-        let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
-        layout::header(ui, strip, large, there_is_3d, actions);
-        let (for_scene, for_slices) = match large {
-            MainPanel::Scene | MainPanel::Planes => (main, side),
-            MainPanel::Stack => (side, main),
-        };
-        let shown = state.scene.series.as_ref();
-        let volume = shown.and_then(|series| self.session.volume(series));
-        // If it has still to go on the graphics device, take what a worker made ready of it.
-        let waiting = volume
-            .as_ref()
-            .is_some_and(|volume| self.scene.needs(volume));
-        let ready = shown.filter(|_| waiting);
-        self.scene
-            .offer(ready.and_then(|series| self.session.take_prepared(series)));
-        let scene = &mut self.scene;
-        scene::show(
-            ui,
-            for_scene,
-            state,
-            volume.as_ref(),
-            scene,
-            render,
-            actions,
-        );
-        let (session, gpus) = (&self.session, &mut self.gpus);
-        let frames = |series: &_, slice| session.cached(series, slice);
-        viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
-        ui.allocate_rect(whole, egui::Sense::hover());
-    }
-
     /// Move playback on in every viewport where it is running, and ask to be woken when the
     /// next slice is due, so nothing is redrawn in between.
     fn play(&mut self, ctx: &egui::Context) {
@@ -327,7 +285,8 @@ impl eframe::App for VoxaApp {
             self.session.state().scene.status,
             SceneStatus::Building { .. } | SceneStatus::Ready
         );
-        let ready = self.gpus.first().is_some_and(viewport::Gpu::has_picture)
+        let ready = (self.slices_hidden()
+            || self.gpus.first().is_some_and(viewport::Gpu::has_picture))
             && (no_volume_to_come || self.scene.has_picture());
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));

@@ -12,13 +12,15 @@ use voxa_core::SeriesId;
 use voxa_render::Look;
 
 use crate::action::Action;
+use crate::planes::ColumnShows;
+use crate::scene::MainPanel;
 use crate::state::AppState;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
-/// `slice`, and `first` for the first series listed in place of the one Voxa opens itself.
+/// `slice`, `planes` for the plane views in the column or `quad` for them large, and `first` for the first series listed in place of the one Voxa opens itself.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving the size of the window for the picture, in points, as
 /// width `x` height: `900x600`.
@@ -45,6 +47,8 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("turned", Action::SceneOrbit { by: [70.0, 35.0] }),
         ("cut", Action::CutAdd),
         ("slice", Action::ShowSliceInScene(true)),
+        ("planes", Action::SetColumn(ColumnShows::Planes)),
+        ("quad", Action::SetMain(MainPanel::Planes)),
     ];
     let wanted = poses.into_iter().filter(|(word, _)| asked(word));
     wanted.map(|(_, action)| action).collect()

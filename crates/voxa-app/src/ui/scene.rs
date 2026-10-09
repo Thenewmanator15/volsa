@@ -7,7 +7,7 @@ use std::time::Instant;
 use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
 use voxa_core::{Patient, Point, Volume};
-use voxa_render::{Prepared, RenderError, SceneParams, pick};
+use voxa_render::{Prepared, RenderError, SceneParams, VolumePipeline, pick};
 
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
@@ -28,7 +28,8 @@ pub use captions::{
 pub use input::{SceneInput, scene_input_to_actions};
 
 /// What to say when the volume is ready and this computer cannot draw it.
-const CANNOT_DRAW: &str = "The 3D view cannot be drawn on this computer's graphics device.";
+pub(super) const CANNOT_DRAW: &str =
+    "The 3D view cannot be drawn on this computer's graphics device.";
 
 /// What the 3D viewport keeps between frames.
 pub struct SceneView {
@@ -74,6 +75,12 @@ impl SceneView {
     /// Whether a picture of a volume has been drawn, so there is something to see.
     pub fn has_picture(&self) -> bool {
         self.gpu.as_ref().is_some_and(gpu::SceneGpu::has_picture)
+    }
+
+    /// The pipeline that holds the scene's volume on the graphics device, for what else
+    /// draws from the same volume.
+    pub fn volume_pipeline(&self) -> Option<&VolumePipeline> {
+        self.gpu.as_ref().map(gpu::SceneGpu::volume_pipeline)
     }
 
     /// Draw the scene into a picture for saving: `pixels` wide and high, laid out as at

@@ -52,6 +52,11 @@ impl SceneGpu {
         self.pipeline.has_volume()
     }
 
+    /// The pipeline that holds the volume.
+    pub fn volume_pipeline(&self) -> &VolumePipeline {
+        &self.pipeline
+    }
+
     /// Put a volume on the graphics device, unless it is the one already given. `ready` is
     /// the volume as a worker made it ready, if it did: handing that over is quick. Without
     /// it, or if it does not fit this device, the volume is made ready here. Says how many

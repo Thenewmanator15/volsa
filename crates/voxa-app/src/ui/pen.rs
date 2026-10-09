@@ -83,6 +83,35 @@ impl Pen {
         }
     }
 
+    /// Write one line in a colour of its own from its top left corner `at`, cut short if it
+    /// is longer than `width`, and say where a line beneath it would begin.
+    pub fn write_in(&self, at: Pos2, text: &str, colour: Color32, width: f32) -> Pos2 {
+        let words = self.line(text, colour, width);
+        let beneath = at + vec2(0.0, words.size().y);
+        let shadow = self.line(text, Color32::BLACK, width);
+        self.painter
+            .galley(at + vec2(1.0, 1.0), shadow, Color32::BLACK);
+        self.painter.galley(at, words, colour);
+        beneath
+    }
+
+    /// Write some words upwards from the bottom left corner `at`, broken into lines no
+    /// longer than `width`, and say how high they stand.
+    pub fn write_wrapped_up(&self, at: Pos2, text: &str, width: f32) -> f32 {
+        let laid_out = |colour| {
+            let (text, font) = (text.to_owned(), self.small.clone());
+            self.painter.layout(text, font, colour, width)
+        };
+        let words = laid_out(INK);
+        let high = words.size().y;
+        let top_left = at - vec2(0.0, high);
+        let shadow = laid_out(Color32::BLACK);
+        self.painter
+            .galley(top_left + vec2(1.0, 1.0), shadow, Color32::BLACK);
+        self.painter.galley(top_left, words, INK);
+        high
+    }
+
     /// Write some words downwards from the top left corner `at`, broken into lines no longer
     /// than `width`.
     pub fn write_wrapped(&self, at: Pos2, text: &str, width: f32) {
@@ -125,6 +154,21 @@ pub fn bar(pen: &Pen, inside: Rect, length: f32, label: &str) {
     pen.write(
         middle - vec2(0.0, 4.0),
         Align2::CENTER_BOTTOM,
+        label,
+        &pen.small,
+    );
+}
+
+/// Draw a scale bar `length` points long, with its label above it, in the bottom right corner
+/// of a picture: for a picture whose middle is taken up by something else.
+pub fn bar_in_corner(pen: &Pen, inside: Rect, length: f32, label: &str) {
+    let right = inside.right_bottom() - vec2(0.0, 4.0);
+    let left = right - vec2(length, 0.0);
+    pen.painter
+        .line_segment([left, right], Stroke::new(2.0, INK));
+    pen.write(
+        right - vec2(0.0, 4.0),
+        Align2::RIGHT_BOTTOM,
         label,
         &pen.small,
     );
