@@ -7,6 +7,7 @@ use voxa_dicom::{Index, IndexedSeries};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
+use crate::annotations::{Annotations, Tool};
 use crate::planes::Planes;
 use crate::scene::{MainPanel, Scene};
 use crate::views::SavedView;
@@ -165,6 +166,10 @@ pub struct AppState {
     pub views: Vec<SavedView>,
     /// The axial, coronal and sagittal planes through one point of the scene's volume.
     pub planes: Planes,
+    /// The measurements and markers made on the scene's series.
+    pub annotations: Annotations,
+    /// What the main button does in the plane views and the 3D scene.
+    pub tool: Tool,
 }
 
 impl Default for AppState {
@@ -184,6 +189,8 @@ impl Default for AppState {
             main: MainPanel::default(),
             views: Vec::new(),
             planes: Planes::default(),
+            annotations: Annotations::default(),
+            tool: Tool::default(),
         }
     }
 }

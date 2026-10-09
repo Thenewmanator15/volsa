@@ -13,6 +13,7 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod action;
+mod annotations;
 mod args;
 mod cache;
 mod export;
@@ -30,6 +31,10 @@ mod volume_store;
 mod worker;
 
 pub use action::{Action, Effect};
+pub use annotations::{
+    Annotation, Annotations, MAX_ANNOTATIONS, MAX_HISTORY, MAX_LABEL, Measured, Shape, Tool,
+    measured,
+};
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};

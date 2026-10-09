@@ -12,6 +12,19 @@ use crate::state::AppState;
 /// millimetres: far past any scan, and still a number that can be worked with.
 const FARTHEST_MM: f64 = 1.0e4;
 
+/// Whether an action is about the plane views.
+pub(super) fn concerns(action: &Action) -> bool {
+    matches!(
+        action,
+        Action::SetPosition(_)
+            | Action::PlaneScroll { .. }
+            | Action::PlaneZoom { .. }
+            | Action::PlanePan { .. }
+            | Action::PlaneFit(_)
+            | Action::SetColumn(_)
+    )
+}
+
 pub(super) fn reduce(state: &mut AppState, action: &Action) {
     match *action {
         Action::SetPosition(point) => set_position(state, point),

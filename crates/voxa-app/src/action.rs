@@ -7,6 +7,7 @@ use voxa_dicom::Index;
 use voxa_render::{Look, NamedView};
 use voxa_volume::PlaneKind;
 
+use crate::annotations::{Shape, Tool};
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::state::{Layout, Notice, PresetWindows};
@@ -286,6 +287,25 @@ pub enum Action {
     PlaneFit(PlaneKind),
     /// Choose what the column beside the 3D scene shows.
     SetColumn(ColumnShows),
+    /// Choose what the main button does in the plane views and the 3D scene.
+    SetTool(Tool),
+    /// Add a measurement or a marker to the scene's series.
+    AnnotationAdd(Shape),
+    /// Remove the annotation with this number.
+    AnnotationRemove(u64),
+    /// Give an annotation a name; an empty one gives it back its own.
+    AnnotationRename {
+        /// Its number.
+        id: u64,
+        /// The name.
+        label: String,
+    },
+    /// Remove every annotation of the scene's series.
+    AnnotationsClear,
+    /// Put the annotations back as they were before the last change to them.
+    Undo,
+    /// Do again the change last undone.
+    Redo,
 }
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
