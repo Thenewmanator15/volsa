@@ -147,13 +147,12 @@ fn invert(values: &mut [f32]) {
     }
 }
 
-/// Run a decoder, turning a panic inside it into an error. The decoders for compressed images
-/// are other people's code, fed whatever the file holds; one bad slice must not stop the
-/// program.
-fn guarded<T>(work: impl FnOnce() -> Result<T, VoxaError>) -> Result<T, VoxaError> {
+/// Run a reader or decoder, turning a panic inside it into an error. They are other people's
+/// code, fed whatever the file holds; one bad file must not stop the program.
+pub(crate) fn guarded<T>(work: impl FnOnce() -> Result<T, VoxaError>) -> Result<T, VoxaError> {
     catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|_| {
         Err(VoxaError::Decode(
-            "the decoder failed on this image".to_owned(),
+            "the reader failed on this file".to_owned(),
         ))
     })
 }

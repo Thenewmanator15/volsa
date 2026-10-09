@@ -12,7 +12,7 @@ that was missed or not measured is listed as such.
 | Gate | Result |
 |---|---|
 | `cargo xtask check` (formatting, lints as errors, 400-line limit, tests, licences and advisories, documentation) | passes |
-| Tests in the workspace | 240, all passing |
+| Tests in the workspace | 243, all passing |
 | `cargo xtask coverage` (line coverage, floor 80%) | `voxa-core` 91.4%, `voxa-dicom` 98.4%, `voxa-volume` 100% |
 
 ## Benchmarks

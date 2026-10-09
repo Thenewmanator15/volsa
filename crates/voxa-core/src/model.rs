@@ -87,7 +87,7 @@ impl SeriesInfo {
 }
 
 /// One visit to the scanner: a set of series.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct StudyInfo {
     /// The study identifier.
     pub id: StudyId,
@@ -103,6 +103,23 @@ pub struct StudyInfo {
     pub patient_id: Option<String>,
     /// The series in this study, ordered by series number.
     pub series: Vec<SeriesInfo>,
+}
+
+impl std::fmt::Debug for StudyInfo {
+    /// Prints everything but the patient's name and identifier, of which it says only whether
+    /// they are there. A study can then appear in a log or a failed test, alone or inside
+    /// something larger, without naming anyone.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let hidden = |field: &Option<String>| field.as_ref().map(|_| "<hidden>");
+        f.debug_struct("StudyInfo")
+            .field("id", &self.id)
+            .field("date", &self.date)
+            .field("description", &self.description)
+            .field("patient_name", &hidden(&self.patient_name))
+            .field("patient_id", &hidden(&self.patient_id))
+            .field("series", &self.series)
+            .finish()
+    }
 }
 
 #[cfg(test)]
@@ -159,6 +176,32 @@ mod tests {
             SeriesProblem::MixedOrientations.to_string(),
             "The slices do not all face the same way, so this is shown as a plain stack."
         );
+    }
+
+    #[test]
+    fn printing_a_study_does_not_name_the_patient() {
+        let study = StudyInfo {
+            id: StudyId("1.2".to_owned()),
+            date: Some("20210830".to_owned()),
+            description: "Head".to_owned(),
+            patient_name: Some("Phantom^Test".to_owned()),
+            patient_id: Some("PHANTOM-001".to_owned()),
+            series: Vec::new(),
+        };
+        let printed = format!("{study:?}");
+        assert!(
+            !printed.contains("Phantom") && !printed.contains("PHANTOM-001"),
+            "{printed}"
+        );
+        assert!(
+            printed.contains("20210830") && printed.contains("<hidden>"),
+            "{printed}"
+        );
+        let nameless = StudyInfo {
+            patient_name: None,
+            ..study
+        };
+        assert!(format!("{nameless:?}").contains("patient_name: None"));
     }
 
     #[test]

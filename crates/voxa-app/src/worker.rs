@@ -101,7 +101,14 @@ impl Workers {
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         let shared = Arc::clone(&self.shared);
-        self.spawn(move || shared.index_source(&path, opened));
+        self.spawn(move || {
+            let finished = shielded(|| shared.index_source(&path, opened));
+            if !finished && shared.opened.load(Ordering::SeqCst) == opened {
+                // Without this the window would wait for ever for the index.
+                let why = "This scan could not be read: the reader stopped on one of its files";
+                shared.report(Action::IndexFailed(why.to_owned()));
+            }
+        });
     }
 
     /// Decode the slices of a series that are not yet in the cache, those nearest `around`
@@ -144,7 +151,9 @@ impl Workers {
             shared.decode(&first, &request);
             for batch in batches {
                 let (shared, request) = (Arc::clone(&shared), Arc::clone(&request));
-                rayon::spawn_fifo(move || shared.decode(&batch, &request));
+                rayon::spawn_fifo(move || {
+                    shielded(|| shared.decode(&batch, &request));
+                });
             }
         });
     }
@@ -173,6 +182,9 @@ impl Workers {
     }
 
     fn spawn(&self, work: impl FnOnce() + Send + 'static) {
+        let work = move || {
+            shielded(work);
+        };
         match &self.pool {
             Some(pool) => pool.spawn(work),
             None => rayon::spawn(work),
@@ -266,6 +278,14 @@ impl Shared {
         // If the application has gone there is no one left to tell.
         let _ = self.reports.send(action);
     }
+}
+
+/// Run a piece of background work so that a panic inside it ends that piece of work and
+/// nothing else; false when it panicked. Left alone, a panic on a worker thread would stop
+/// the whole program, and the readers and decoders are other people's code fed whatever a
+/// file holds.
+fn shielded(work: impl FnOnce()) -> bool {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).is_ok()
 }
 
 /// Group slices by the file that holds them, keeping the order they were asked for in: a

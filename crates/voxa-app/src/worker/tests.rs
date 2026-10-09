@@ -307,6 +307,15 @@ fn the_elements_of_a_slices_file_are_listed_on_request() {
 }
 
 #[test]
+fn a_task_that_panics_takes_neither_the_workers_nor_the_program_down() {
+    let folder = folder_of(&series_files(THICK_SCAN, 1, 3, 4));
+    let bench = Bench::with_budget(100 * ONE);
+    bench.workers.spawn(|| panic!("a reader gave up on a file"));
+    let index = bench.index(folder.path()).expect("the workers still work");
+    assert_eq!(index.series.len(), 1);
+}
+
+#[test]
 fn asking_for_nothing_or_for_a_series_that_is_not_there_does_nothing() {
     let folder = folder_of(&series_files(THICK_SCAN, 1, 3, 4));
     let bench = Bench::with_budget(100 * ONE);

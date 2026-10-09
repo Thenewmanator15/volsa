@@ -6,7 +6,7 @@ use dicom_core::{DataElement, VR};
 use dicom_dictionary_std::StandardDataDictionary;
 use voxa_core::VoxaError;
 
-use crate::decode::open;
+use crate::decode::{guarded, open};
 use crate::index::SliceRef;
 use crate::source::SeriesSource;
 
@@ -14,7 +14,7 @@ use crate::source::SeriesSource;
 const MAX_VALUE_CHARS: usize = 256;
 
 /// One element of a file, as text.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct TagRow {
     /// The element's number, as `(0010,0010)`.
     pub tag: String,
@@ -41,14 +41,35 @@ pub fn list_tags(
     slice: &SliceRef,
 ) -> Result<Vec<TagRow>, VoxaError> {
     let bytes = source.read(&slice.entry)?;
-    let file = open(&bytes)?;
-    let mut rows: Vec<TagRow> = file
-        .meta()
-        .to_element_iter()
-        .map(|element| row(&element))
-        .collect();
-    rows.extend(file.iter().map(row));
-    Ok(rows)
+    guarded(|| {
+        let file = open(&bytes)?;
+        let mut rows: Vec<TagRow> = file
+            .meta()
+            .to_element_iter()
+            .map(|element| row(&element))
+            .collect();
+        rows.extend(file.iter().map(row));
+        Ok(rows)
+    })
+}
+
+impl std::fmt::Debug for TagRow {
+    /// Prints the row with the value of an element that describes the patient replaced, so
+    /// that rows can appear in a log or a failed test without naming anyone.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let private = is_patient_identifying(&self.tag);
+        let value = if private {
+            "<hidden>"
+        } else {
+            self.value.as_str()
+        };
+        f.debug_struct("TagRow")
+            .field("tag", &self.tag)
+            .field("keyword", &self.keyword)
+            .field("vr", &self.vr)
+            .field("value", &value)
+            .finish()
+    }
 }
 
 /// Whether a tag written as `(gggg,eeee)` describes the patient: every element of group 0010.
@@ -210,6 +231,18 @@ mod tests {
         };
         let result = list_tags(&mut source, &slice);
         assert!(matches!(result, Err(VoxaError::NotDicom)), "{result:?}");
+    }
+
+    #[test]
+    fn printing_rows_does_not_show_what_describes_the_patient() {
+        let rows = rows_of(classic_slice(&SliceOptions::default()));
+        let printed = format!("{rows:?}");
+        assert!(
+            !printed.contains("Phantom") && !printed.contains("PHANTOM-001"),
+            "{printed}"
+        );
+        assert!(printed.contains("Modality") && printed.contains("\"MR\""));
+        assert!(printed.contains("PatientName") && printed.contains("<hidden>"));
     }
 
     #[test]

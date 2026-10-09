@@ -36,8 +36,13 @@ pub(crate) struct Header {
 }
 
 /// Parse the header of one file. `None` when the bytes are not a DICOM image: not DICOM at
-/// all, or DICOM without the identifiers and size every image has.
+/// all, or DICOM without the identifiers and size every image has. A file the DICOM library
+/// panics on is `None` too, and is skipped like any other file that cannot be read.
 pub(crate) fn read_header(bytes: &[u8]) -> Option<Header> {
+    std::panic::catch_unwind(|| parse(bytes)).ok().flatten()
+}
+
+fn parse(bytes: &[u8]) -> Option<Header> {
     let file = OpenFileOptions::new()
         .read_until(tags::PIXEL_DATA)
         .from_reader(Cursor::new(bytes))
