@@ -220,3 +220,28 @@ fn a_plane_is_had_only_of_a_volume_that_is_ready_and_faces_as_radiological_says(
         "the plane holds the position: {across}, {down}, {off}"
     );
 }
+
+#[test]
+fn the_planes_are_in_sight_in_the_column_or_with_the_large_part() {
+    use crate::planes::in_sight;
+    let mut state = ready();
+    assert!(!in_sight(&state), "the column shows the slices");
+    reduce(&mut state, Action::SetColumn(ColumnShows::Planes));
+    assert!(in_sight(&state));
+    reduce(&mut state, Action::SetMain(MainPanel::Stack));
+    assert!(
+        !in_sight(&state),
+        "the slices are large and the column holds the 3D scene"
+    );
+    reduce(&mut state, Action::SetMain(MainPanel::Planes));
+    reduce(&mut state, Action::SetColumn(ColumnShows::Slices));
+    assert!(
+        in_sight(&state),
+        "they have the large part whatever the column held"
+    );
+    state.scene.status = SceneStatus::Unavailable(vec!["why".to_owned()]);
+    assert!(
+        !in_sight(&state),
+        "with no 3D view the slices have the large part"
+    );
+}

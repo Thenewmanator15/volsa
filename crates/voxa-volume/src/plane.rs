@@ -210,6 +210,25 @@ pub fn scrolled(
     Some(placement.apply(moved))
 }
 
+/// Whether the voxel numbers rise the way `normal` points, along whichever of the volume's
+/// axes is nearest it. `None` for a normal of no length or a placement that cannot be turned
+/// round.
+pub fn rises_along(placement: &Affine<Voxel, Patient>, normal: [f64; 3]) -> Option<bool> {
+    placement.inverse()?;
+    let normal = unit(normal)?;
+    let along = placement
+        .columns()
+        .map(|axis| unit(axis).map_or(0.0, |axis| dot(axis, normal)));
+    let nearest = along.into_iter().fold(0.0_f64, |nearest, axis| {
+        if axis.abs() > nearest.abs() {
+            axis
+        } else {
+            nearest
+        }
+    });
+    Some(nearest > 0.0)
+}
+
 /// Which slice of a stack of `slices` a point is nearest, counting from 0 and stopping at
 /// either end.
 pub fn nearest_slice(

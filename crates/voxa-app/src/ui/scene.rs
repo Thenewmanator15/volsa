@@ -41,8 +41,8 @@ pub struct SceneView {
     changed: Instant,
     /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
     part_notch: f32,
-    /// How far the slice's handle has been dragged short of a whole slice, in millimetres.
-    carried: f64,
+    /// What has been dragged on a handle short of a whole step.
+    carried: handles::Carried,
     /// The scene's volume as a worker made it ready for the device, until it is handed over.
     ready: Option<Prepared>,
 }
@@ -55,7 +55,7 @@ impl SceneView {
             shown: None,
             changed: Instant::now(),
             part_notch: 0.0,
-            carried: 0.0,
+            carried: handles::Carried::default(),
             ready: None,
         }
     }
@@ -185,24 +185,22 @@ pub fn show(
         // Drawn after the scene itself, so a press on a handle takes hold of the handle.
         handles::show(ui, area, state, &mut view.carried, actions);
     }
-    // A double-click on something drawn puts that point in the middle.
-    let pointed_at = response.double_clicked().then(|| {
+    // A click on something drawn moves the planes' position there, and a double-click puts
+    // that point in the middle as well.
+    let pointed_at = response.clicked().then(|| {
         let at = response.interact_pointer_pos()? - area.min;
         pick(volume?, &scene_params(state, 1.0)?, size, [at.x, at.y])
     });
+    let pointed_at = pointed_at.flatten();
+    let twice = pointed_at.filter(|_| response.double_clicked());
     let window_width = state
         .viewports
         .get(state.active)
         .map_or(1.0, |shown| shown.wl.width);
-    let input = gather(
-        ui,
-        &response,
-        area,
-        pointed_at.flatten(),
-        &mut view.part_notch,
-    );
+    let input = gather(ui, &response, area, twice, &mut view.part_notch);
     let input = SceneInput {
         window_width,
+        clicked_surface: pointed_at,
         ..input
     };
     actions.extend(scene_input_to_actions(state.active, &input));

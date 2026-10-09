@@ -22,6 +22,7 @@ mod plane_pipeline;
 mod plane_view;
 mod prepared;
 mod scene;
+mod section;
 mod slice_pipeline;
 #[cfg(test)]
 mod testing;
@@ -42,6 +43,7 @@ pub use plane_pipeline::PlanePipeline;
 pub use plane_view::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM, PlaneView};
 pub use prepared::{MAX_VOLUME_BYTES, Prepared};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
+pub use section::{box_section, position_cross};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
 pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

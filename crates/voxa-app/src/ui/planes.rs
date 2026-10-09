@@ -27,11 +27,11 @@ pub use overlay::{
 const LINE: f32 = 1.0;
 const BAR: f32 = 2.0;
 /// The room the cross leaves at the edges of a panel: for the letters at the sides and the
-/// top, and for the scale bar and a line of small type at the bottom.
+/// top, and for the scale bar and two lines of small type at the bottom.
 const ROOM: Room = Room {
     sides: 26.0,
     top: 26.0,
-    bottom: 34.0,
+    bottom: 48.0,
 };
 /// How much of a panel's width a note at its bottom left may take, leaving the corner beside
 /// it to the scale bar.
@@ -165,7 +165,8 @@ fn written_over(ui: &Ui, cell: Rect, state: &AppState, kind: PlaneKind, view: &P
         interpolated_note(spacing, pitch(view.plane.across)?, pitch(view.plane.down)?)
     });
     if let Some(note) = note {
-        pen.write_wrapped_up(inside.left_bottom(), &note, inside.width() * NOTE_SHARE);
+        // Kept to its own side of the letter in the middle of the bottom edge.
+        pen.write_wrapped_up(inside.left_bottom(), &note, room);
     }
 }
 

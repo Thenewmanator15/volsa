@@ -5,7 +5,6 @@ use egui_wgpu::RenderState;
 
 use super::{VoxaApp, layout, planes, scene, viewport};
 use crate::action::Action;
-use crate::planes::ColumnShows;
 use crate::scene::{MainPanel, SceneStatus};
 
 impl VoxaApp {
@@ -58,6 +57,6 @@ impl VoxaApp {
     pub(super) fn slices_hidden(&self) -> bool {
         let state = self.session.state();
         let large = state.main.given(&state.scene.status);
-        large == MainPanel::Scene && state.planes.column == ColumnShows::Planes
+        large == MainPanel::Scene && crate::planes::in_sight(state)
     }
 }

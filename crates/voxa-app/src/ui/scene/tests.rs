@@ -157,3 +157,81 @@ fn dragging_the_slices_handle_moves_through_the_slices() {
         "no slice, no handle"
     );
 }
+
+/// The 30-slice series ready in the scene, seen from the patient's left at half a millimetre
+/// a point with the position in the middle of the scene, which is at (410, 320) in the
+/// window. Up the screen is up the stack, and the back of the head is to the right.
+fn with_planes(column: crate::planes::ColumnShows) -> AppState {
+    use voxa_core::Point;
+    use voxa_render::{Camera, NamedView};
+
+    use crate::reducer::reduce;
+    use crate::testing::{THICK_SCAN, id, three_series};
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(three_series()));
+    let (viewport, series) = (0, id(THICK_SCAN));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    let info = &state.series(&id(THICK_SCAN)).expect("listed").info;
+    let placement = info.voxel_to_patient.expect("placed");
+    let end = |i: usize, bit: usize, count: f64| if i & bit == 0 { -0.5 } else { count - 0.5 };
+    let corners = std::array::from_fn(|i| {
+        placement.apply(Point::new(end(i, 1, 4.0), end(i, 2, 4.0), end(i, 4, 30.0)))
+    });
+    let series = id(THICK_SCAN);
+    reduce(&mut state, Action::VolumeReady { series, corners });
+    reduce(&mut state, Action::SetColumn(column));
+    let position = state.planes.position.expect("the volume is ready");
+    state.scene.camera = Camera::looking(NamedView::Left, position, 0.5);
+    state
+}
+
+#[test]
+fn dragging_the_end_of_an_arm_of_the_cross_moves_that_plane_through_its_layers() {
+    use voxa_volume::PlaneKind;
+
+    use crate::planes::ColumnShows;
+    let state = with_planes(ColumnShows::Planes);
+    // The arm along the axial plane's normal stands 28 points up from the position. Slices
+    // are 5 mm apart: 10 points.
+    let (grip, half_way, a_layer) = ([410.0, 292.0], [410.0, 287.0], [410.0, 282.0]);
+    assert_eq!(
+        after(&state, drag(grip, half_way)),
+        [],
+        "half a layer is not a layer yet"
+    );
+    let further = vec![egui::Event::PointerMoved(pos2(410.0, 282.0))];
+    let asked = after(&state, [drag(grip, half_way), vec![further]].concat());
+    let (kind, steps) = (PlaneKind::Axial, 1);
+    assert_eq!(
+        asked,
+        [Action::PlaneScroll { kind, steps }],
+        "up the stack is on to later slices"
+    );
+    let asked = after(&state, drag(grip, [410.0, 322.0]));
+    let steps = -3;
+    assert_eq!(
+        asked,
+        [Action::PlaneScroll { kind, steps }],
+        "30 points down is three back"
+    );
+    // The coronal plane's arm lies across the screen, to the back of the head.
+    let asked = after(&state, drag([438.0, 320.0], [448.0, 320.0]));
+    assert!(
+        matches!(
+            asked[..],
+            [Action::PlaneScroll {
+                kind: PlaneKind::Coronal,
+                ..
+            }]
+        ),
+        "{asked:?}"
+    );
+    let _ = a_layer;
+}
+
+#[test]
+fn with_the_planes_out_of_sight_there_is_no_cross_to_take_hold_of() {
+    let state = with_planes(crate::planes::ColumnShows::Slices);
+    let asked = after(&state, drag([410.0, 292.0], [410.0, 282.0]));
+    assert_eq!(asked, [Action::SceneOrbit { by: [0.0, -10.0] }]);
+}

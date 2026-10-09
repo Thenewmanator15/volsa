@@ -223,6 +223,23 @@ fn scrolling_goes_layer_by_layer_the_way_voxel_numbers_rise_and_stops_at_the_end
 }
 
 #[test]
+fn voxel_numbers_rise_one_way_along_each_axis_of_a_volume() {
+    let straight = grid([1.0; 3]);
+    assert_eq!(rises_along(&straight, [0.0, 0.0, 1.0]), Some(true));
+    assert_eq!(rises_along(&straight, [0.0, 0.0, -2.0]), Some(false));
+    assert_eq!(
+        rises_along(&straight, [0.9, 0.1, 0.0]),
+        Some(true),
+        "the nearest axis"
+    );
+    // A stack whose later slices are lower in the patient.
+    let head_first =
+        Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, -1.0], [0.0; 3]);
+    assert_eq!(rises_along(&head_first, [0.0, 0.0, 1.0]), Some(false));
+    assert_eq!(rises_along(&straight, [0.0; 3]), None);
+}
+
+#[test]
 fn a_plane_is_read_out_of_a_volume_with_what_lies_outside_marked() {
     let volume = ball();
     let middle = Point::new(10.0, 10.0, 10.0);

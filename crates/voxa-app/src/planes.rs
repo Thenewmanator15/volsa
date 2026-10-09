@@ -4,7 +4,7 @@
 use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_volume::{Plane, PlaneKind, plane_of};
 
-use crate::scene::SceneStatus;
+use crate::scene::{MainPanel, SceneStatus};
 use crate::state::AppState;
 
 /// How one plane's panel is zoomed and moved.
@@ -83,6 +83,16 @@ impl Planes {
             PlaneKind::Coronal => coronal,
             PlaneKind::Sagittal => sagittal,
         }
+    }
+}
+
+/// Whether the plane views are on the screen: in the column beside the 3D scene, or with the
+/// large part of the window.
+pub fn in_sight(state: &AppState) -> bool {
+    match state.main.given(&state.scene.status) {
+        MainPanel::Planes => true,
+        MainPanel::Scene => state.planes.column == ColumnShows::Planes,
+        MainPanel::Stack => false,
     }
 }
 

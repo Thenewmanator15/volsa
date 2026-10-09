@@ -30,7 +30,7 @@ pub use histogram::Histogram;
 pub use measure::{RegionStats, angle_degrees, distance_mm, ellipse_stats};
 pub use plane::{
     Plane, PlaneKind, central_voxel, clamped_into, nearest_slice, pitch_along, plane_of, reslice,
-    scrolled,
+    rises_along, scrolled,
 };
 pub use ray::{Ray, enter_and_leave, first_hit};
 pub use reduce::{block_maxima, halved, halvings_needed};
