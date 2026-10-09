@@ -7,6 +7,7 @@ use egui_wgpu::wgpu;
 use voxa_core::WindowLevel;
 
 use crate::plane_view::PlaneView;
+use crate::smoothed::SmoothedTexture;
 use crate::volume_params::{MIN_WINDOW, texture_rows};
 use crate::volume_pipeline::VolumePipeline;
 
@@ -21,6 +22,7 @@ struct Params {
     to_v: [f32; 4],
     to_w: [f32; 4],
     view: [f32; 4],
+    grid: [f32; 4],
 }
 
 /// The volume a plane is drawn from now.
@@ -28,6 +30,10 @@ struct Shown {
     bind_group: wgpu::BindGroup,
     /// Which upload of the volume pipeline's this is, so that a newer one is noticed.
     upload: u64,
+    /// Which curve the planes are drawn from, if they are drawn smooth.
+    curve: Option<u64>,
+    /// Columns, rows and slices of the volume as the device holds it.
+    dims: [u32; 3],
     rows: [[f32; 4]; 3],
     /// The scan value stored as 0, and the span from it to the one stored as 1.
     smallest: f32,
@@ -40,6 +46,10 @@ pub struct PlanePipeline {
     layout: wgpu::BindGroupLayout,
     params: wgpu::Buffer,
     blended: wgpu::Sampler,
+    /// Reads beyond a face what lies as far inside it, as the curve's coefficients suppose.
+    mirrored: wgpu::Sampler,
+    /// The curve through the volume, when planes are to be drawn smooth.
+    curve: Option<SmoothedTexture>,
     shown: Option<Shown>,
 }
 
@@ -80,36 +90,50 @@ impl PlanePipeline {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
-        let blended = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("voxa plane"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            ..Default::default()
-        });
         Self {
             pipeline,
             layout,
             params,
-            blended,
+            blended: sampler(device, wgpu::AddressMode::ClampToEdge),
+            mirrored: sampler(device, wgpu::AddressMode::MirrorRepeat),
+            curve: None,
             shown: None,
         }
     }
 
+    /// Draw planes from the curve through the volume, or, with `None`, from the volume's own
+    /// values blended. The curve is used only while it is the size of the volume shown: it
+    /// must be the curve through that very volume, and be taken away when the volume changes.
+    pub fn smooth(&mut self, with: Option<&SmoothedTexture>) {
+        self.curve = with.cloned();
+    }
+
+    /// Whether planes are drawn from the curve now. True only after [`PlanePipeline::show`]
+    /// has taken up a curve given to [`PlanePipeline::smooth`].
+    pub fn is_smooth(&self) -> bool {
+        self.shown
+            .as_ref()
+            .is_some_and(|shown| shown.curve.is_some())
+    }
+
     /// Draw from the volume `volume` holds now, or draw nothing if it holds none. Call it
-    /// before every picture: it does its work only when that volume has changed. A plane
-    /// must never be drawn from a volume that has since been replaced, whose texture is gone.
+    /// before every picture: it does its work only when that volume, or the curve to draw
+    /// it from, has changed. A plane must never be drawn from a volume that has since been
+    /// replaced, whose texture is gone.
     pub fn show(&mut self, device: &wgpu::Device, volume: &VolumePipeline) {
         let Some((placed, upload)) = volume.placed() else {
             self.shown = None;
             return;
         };
-        if self
-            .shown
-            .as_ref()
-            .is_some_and(|shown| shown.upload == upload)
-        {
+        let curve = self.curve.as_ref();
+        let curve = curve.filter(|curve| curve.dims() == placed.dims);
+        let wanted = curve.map(SmoothedTexture::number);
+        let as_it_is = |shown: &Shown| shown.upload == upload && shown.curve == wanted;
+        if self.shown.as_ref().is_some_and(as_it_is) {
             return;
         }
+        // With no curve the shader is still given something to read there, and does not.
+        let coefficients = curve.map_or(&placed.view, SmoothedTexture::view);
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("voxa plane"),
             layout: &self.layout,
@@ -126,11 +150,21 @@ impl PlanePipeline {
                     binding: 2,
                     resource: wgpu::BindingResource::Sampler(&self.blended),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(coefficients),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Sampler(&self.mirrored),
+                },
             ],
         });
         self.shown = Some(Shown {
             bind_group,
             upload,
+            curve: wanted,
+            dims: placed.dims,
             rows: texture_rows(placed),
             smallest: placed.smallest,
             span: placed.span,
@@ -160,6 +194,8 @@ impl PlanePipeline {
         let [wide, high] = viewport;
         let black = (window.low() - shown.smallest) / shown.span;
         let black_to_white = (window.width / shown.span).max(MIN_WINDOW);
+        let [cols, rows, slices] = shown.dims;
+        let smooth = if shown.curve.is_some() { 1.0 } else { 0.0 };
         let params = Params {
             across: per_pixel(view.plane.across),
             down: per_pixel(view.plane.down),
@@ -168,6 +204,7 @@ impl PlanePipeline {
             to_v,
             to_w,
             view: [wide, high, black, black_to_white],
+            grid: [cols as f32, rows as f32, slices as f32, smooth],
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
     }
@@ -184,8 +221,21 @@ impl PlanePipeline {
     }
 }
 
-/// What the shader is given: the parameters, the volume as a texture, and the way values
-/// between its voxels are blended.
+/// A sampler that blends the values round a place, reading beyond a face as `beyond` says.
+fn sampler(device: &wgpu::Device, beyond: wgpu::AddressMode) -> wgpu::Sampler {
+    device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("voxa plane"),
+        address_mode_u: beyond,
+        address_mode_v: beyond,
+        address_mode_w: beyond,
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        ..Default::default()
+    })
+}
+
+/// What the shader is given: the parameters, the volume as a texture and the way values
+/// between its voxels are blended, then the curve through it and the way that is read.
 fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
         binding,
@@ -206,7 +256,13 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let blended = wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering);
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("voxa plane"),
-        entries: &[entry(0, parameters), entry(1, volume), entry(2, blended)],
+        entries: &[
+            entry(0, parameters),
+            entry(1, volume),
+            entry(2, blended),
+            entry(3, volume),
+            entry(4, blended),
+        ],
     })
 }
 

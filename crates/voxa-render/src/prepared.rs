@@ -118,17 +118,25 @@ fn range_of(values: &[f32]) -> Option<(f32, f32)> {
     (smallest <= largest).then_some((smallest, largest))
 }
 
-/// The values of a volume as 16-bit floating-point numbers from 0, its smallest value, to 1,
-/// its largest; then that smallest value and the span from it to the largest. A value that
-/// is not a number is stored as 0. A volume all of one value is stored as zeros, with a span
-/// of 1.
-pub(crate) fn as_halves(volume: &Volume) -> (Vec<u16>, f32, f32) {
+/// The scan value a volume's values are stored from, as 0, and the span from it to the one
+/// stored as 1: its smallest value that is a number, and how far its largest is above that.
+/// A volume all of one value has a span of 1.
+pub(crate) fn stored_range(volume: &Volume) -> (f32, f32) {
     let (smallest, largest) = range_of(volume.values()).unwrap_or((0.0, 0.0));
     let span = if largest > smallest {
         largest - smallest
     } else {
         1.0
     };
+    (smallest, span)
+}
+
+/// The values of a volume as 16-bit floating-point numbers from 0, its smallest value, to 1,
+/// its largest; then that smallest value and the span from it to the largest. A value that
+/// is not a number is stored as 0. A volume all of one value is stored as zeros, with a span
+/// of 1.
+pub(crate) fn as_halves(volume: &Volume) -> (Vec<u16>, f32, f32) {
+    let (smallest, span) = stored_range(volume);
     let stored = |value: &f32| as_half(*value, smallest, span);
     (
         volume.values().par_iter().map(stored).collect(),

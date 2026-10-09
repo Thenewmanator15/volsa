@@ -39,6 +39,13 @@ impl VoxaApp {
         let scene = &mut self.scene;
         let volume = volume.as_ref();
         scene::show(ui, areas.scene, state, volume, scene, render, actions);
+        // In sight or not: a curve that is no longer wanted is given up at once.
+        let session = &self.session;
+        let smoothed = volume.filter(|_| state.planes.smooth);
+        let take = || shown.and_then(|series| session.take_smoothed(series));
+        if self.planes.smooth(render, smoothed, take) {
+            actions.push(Action::Post(planes::no_room_to_smooth()));
+        }
         if let Some(cells) = areas.planes {
             // After the scene, which is what puts the volume on the graphics device.
             let held = self.scene.volume_pipeline();

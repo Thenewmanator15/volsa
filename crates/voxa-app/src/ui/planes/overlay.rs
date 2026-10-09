@@ -108,6 +108,21 @@ pub fn crosshair(
     }
 }
 
+/// What a panel says when its picture is drawn from a curve through the measured values and
+/// nothing else needs saying of it.
+pub const SMOOTHED: &str = "Smoothed: a curve, not more detail";
+
+/// What a panel says of how its picture was worked out: `interpolated`, the note that it
+/// runs across coarse layers, if it does, and, when it is drawn `smooth`, that too. It is
+/// kept short, as it is written over the picture; the Smooth switch says it in full.
+pub fn panel_note(interpolated: Option<String>, smooth: bool) -> Option<String> {
+    match (interpolated, smooth) {
+        (Some(note), true) => Some(note.replacen("Interpolated:", "Interpolated and smoothed:", 1)),
+        (None, true) => Some(SMOOTHED.to_owned()),
+        (note, false) => note,
+    }
+}
+
 /// What a panel says when its picture runs across layers of voxels much farther apart than
 /// the finest: what is between them is worked out, not measured. It is short, as it is
 /// written over the picture; the 3D scene beside it says the same in full. `pitch_across`

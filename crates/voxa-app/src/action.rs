@@ -289,6 +289,14 @@ pub enum Action {
     SetColumn(ColumnShows),
     /// Link the stack viewports to the planes' position, or let them go.
     SetLinked(bool),
+    /// Draw the plane views from a curve through the measured values, or plainly.
+    SetSmooth(bool),
+    /// The curve through a series' volume has been worked out and is kept with the volume.
+    /// Nothing in the state changes: the window finds it there at its next frame.
+    SmoothReady {
+        /// The series whose volume it runs through.
+        series: SeriesId,
+    },
     /// Choose what the main button does in the plane views and the 3D scene.
     SetTool(Tool),
     /// Add a measurement or a marker to the scene's series.
@@ -365,6 +373,13 @@ pub enum Effect {
         /// The series wanted.
         series: SeriesId,
     },
+    /// Work out the curve through the volume kept for a series, for planes drawn smooth.
+    BuildSmooth {
+        /// The series whose volume it is to run through.
+        series: SeriesId,
+    },
+    /// Give up the curve, and any being worked out.
+    DropSmooth,
     /// Nothing to do.
     None,
 }

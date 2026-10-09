@@ -2,9 +2,11 @@
 //! position, each lettered, captioned and crossed by the other two.
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui};
+use std::sync::Arc;
+
 use egui_wgpu::RenderState;
 use voxa_core::{Volume, WindowLevel};
-use voxa_render::{PlaneView, VolumePipeline};
+use voxa_render::{PlaneView, Smoothed, SmoothedTexture, VolumePipeline};
 use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
 
 use super::pen::{self, Pen};
@@ -13,7 +15,7 @@ use super::{overlay as slice_overlay, theme};
 use crate::action::Action;
 use crate::annotations::{Shape, Tool, measured};
 use crate::planes::{grid, plane};
-use crate::state::AppState;
+use crate::state::{AppState, Notice, NoticeKind};
 
 mod gpu;
 mod mouse;
@@ -23,7 +25,8 @@ mod tools;
 
 pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
-    Room, crosshair, crossing, interpolated_note, plane_caption, plane_colour, plane_letters,
+    Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_colour,
+    plane_letters,
 };
 pub use shapes::{Drawn, beside, paint};
 
@@ -50,6 +53,9 @@ pub struct PlanesView {
     part_notch: [f32; 3],
     /// The annotation being drawn, if one has been begun.
     drawing: tools::Drawing,
+    /// The curve the planes are drawn from when they are drawn smooth, on the graphics
+    /// device, with the volume it runs through.
+    curve: Option<(Arc<Volume>, SmoothedTexture)>,
 }
 
 impl PlanesView {
@@ -59,7 +65,62 @@ impl PlanesView {
             gpus: render.map(|render| PlaneKind::ALL.map(|_| gpu::PlaneGpu::new(render))),
             part_notch: [0.0; 3],
             drawing: tools::Drawing::default(),
+            curve: None,
         }
+    }
+
+    /// Draw the planes smooth, from the curve through `volume`, or plainly with `None`.
+    /// `take` hands over that curve once a worker has made it; it is asked each frame until
+    /// then, and the planes are drawn plainly meanwhile. A curve of another volume is given
+    /// up. True when the curve was there and the graphics device had no room for it.
+    pub fn smooth(
+        &mut self,
+        render: Option<&RenderState>,
+        volume: Option<&Arc<Volume>>,
+        take: impl FnOnce() -> Option<Smoothed>,
+    ) -> bool {
+        let its_own = |(of, _): &(Arc<Volume>, SmoothedTexture)| {
+            volume.is_some_and(|volume| Arc::ptr_eq(of, volume))
+        };
+        if self.curve.as_ref().is_some_and(|held| !its_own(held)) {
+            self.set_curve(None);
+        }
+        let (Some(volume), None) = (volume, &self.curve) else {
+            return false;
+        };
+        let Some((curve, render)) = take().zip(render) else {
+            return false;
+        };
+        let placed = curve.on(&render.device, &render.queue);
+        let no_room = placed.is_none();
+        self.set_curve(placed.map(|placed| (Arc::clone(volume), placed)));
+        no_room
+    }
+
+    /// Whether the planes are drawn smooth now.
+    pub fn is_smooth(&self) -> bool {
+        self.curve.is_some()
+    }
+
+    /// Hold a curve, or none, and have every panel draw from it.
+    fn set_curve(&mut self, curve: Option<(Arc<Volume>, SmoothedTexture)>) {
+        self.curve = curve;
+        let placed = self.curve.as_ref().map(|(_, placed)| placed);
+        for gpu in self.gpus.iter().flatten() {
+            gpu.smooth(placed);
+        }
+    }
+}
+
+/// What is said when the graphics device has no room for the curve the planes would be drawn
+/// smooth from.
+pub fn no_room_to_smooth() -> Notice {
+    let text = "The graphics device has no room to smooth the planes: they are drawn as before.";
+    Notice {
+        kind: NoticeKind::Warning,
+        text: text.to_owned(),
+        details: Vec::new(),
+        key: Some("smoothing"),
     }
 }
 
@@ -125,8 +186,9 @@ fn panel(
         let (gpu, (volume, render)) = device;
         gpu.draw(ui, cell, render, volume, view, window(state))
     });
+    let smooth = on_device.is_some_and(|(gpu, _)| gpu.is_smooth());
     match &shown {
-        Some(view) if drawn => written_over(ui, cell, state, (kind, view), drawing),
+        Some(view) if drawn => written_over(ui, cell, state, (kind, view, smooth), drawing),
         _ => {
             let none = || super::scene::CANNOT_DRAW.to_owned();
             let why = status_text(&state.scene).unwrap_or_else(none);
@@ -200,12 +262,13 @@ fn measured_on(shape: Shape, plane: &Plane, scan: Option<&Volume>) -> Shape {
 }
 
 /// Write over a plane's picture: the cross through the position, a letter at each edge, a
-/// scale bar, the plane's name and place, and what the picture cannot show.
+/// scale bar, the plane's name and place, and what the picture cannot show. `smooth` is
+/// whether the picture was drawn from the curve through the values.
 fn written_over(
     ui: &Ui,
     cell: Rect,
     state: &AppState,
-    (kind, view): (PlaneKind, &PlaneView),
+    (kind, view, smooth): (PlaneKind, &PlaneView, bool),
     drawing: &tools::Drawing,
 ) {
     let pen = Pen::over(ui, cell);
@@ -241,7 +304,7 @@ fn written_over(
         let spacing = state.series(state.scene.series.as_ref()?)?.info.spacing_mm;
         interpolated_note(spacing, pitch(view.plane.across)?, pitch(view.plane.down)?)
     });
-    if let Some(note) = note {
+    if let Some(note) = panel_note(note, smooth) {
         // Kept to its own side of the letter in the middle of the bottom edge.
         pen.write_wrapped_up(inside.left_bottom(), &note, room);
     }

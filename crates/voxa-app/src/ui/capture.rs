@@ -62,6 +62,7 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("slice", Action::ShowSliceInScene(true)),
         ("planes", Action::SetColumn(ColumnShows::Planes)),
         ("quad", Action::SetMain(MainPanel::Planes)),
+        ("smooth", Action::SetSmooth(true)),
     ];
     let wanted = poses.into_iter().filter(|(word, _)| asked(word));
     wanted.map(|(_, action)| action).collect()
@@ -217,7 +218,9 @@ impl VoxaApp {
             SceneStatus::Building { .. } | SceneStatus::Ready
         );
         let slices = self.slices_hidden() || self.gpus.first().is_some_and(Gpu::has_picture);
-        let ready = slices && (no_volume_to_come || self.scene.has_picture());
+        // And, if the planes are to be drawn smooth, for the curve they are drawn from.
+        let curve = !self.session.state().planes.smooth || self.planes.is_smooth();
+        let ready = slices && (no_volume_to_come || self.scene.has_picture() && curve);
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
             capture.step(ctx, ready && pick.is_none());
@@ -249,6 +252,7 @@ mod tests {
             "in an order that does not depend on how they were asked"
         );
         assert_eq!(pose("vr"), [Action::SceneLook(Look::Vr)]);
+        assert_eq!(pose("smooth"), [Action::SetSmooth(true)]);
     }
 
     #[test]

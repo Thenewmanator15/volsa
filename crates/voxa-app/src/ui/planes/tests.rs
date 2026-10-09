@@ -5,7 +5,9 @@ use voxa_render::PlaneView;
 use voxa_volume::{Plane, PlaneKind, plane_of};
 
 use super::mouse::{PlaneInput, plane_input_to_actions};
-use super::overlay::{Room, crosshair, crossing, interpolated_note, plane_caption, plane_letters};
+use super::overlay::{
+    Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_letters,
+};
 use crate::action::Action;
 
 /// Voxels of 1 mm along the patient's x, y and z, 20 by 30 by 40 of them.
@@ -250,4 +252,45 @@ fn the_other_buttons_move_the_picture_and_change_the_window() {
         ..quiet()
     };
     assert_eq!(asked(&twice), [Action::PlaneFit(kind)]);
+}
+
+#[test]
+fn a_smoothed_picture_says_so_in_few_words() {
+    let coarse = interpolated_note([0.5, 0.5, 3.0], 0.5, 3.0);
+    assert_eq!(
+        panel_note(coarse.clone(), false),
+        coarse,
+        "plain, it is as it was"
+    );
+    let both = panel_note(coarse, true);
+    let said = "Interpolated and smoothed: layers 3.0 mm apart";
+    assert_eq!(both.as_deref(), Some(said));
+    let smooth_alone = panel_note(None, true);
+    assert_eq!(
+        smooth_alone.as_deref(),
+        Some("Smoothed: a curve, not more detail")
+    );
+    assert_eq!(panel_note(None, false), None);
+}
+
+#[test]
+fn the_curve_is_asked_for_only_while_smoothing_is_wanted() {
+    use std::cell::Cell;
+    use std::sync::Arc;
+
+    use voxa_core::Volume;
+
+    let mut view = super::PlanesView::new(None);
+    let volume = Volume::new([1, 1, 2], vec![1.0; 2], Affine::identity()).expect("adds up");
+    let volume = Arc::new(volume);
+    let asked = Cell::new(0);
+    let take = || {
+        asked.set(asked.get() + 1);
+        None
+    };
+    assert!(!view.smooth(None, None, take), "nothing was refused room");
+    assert_eq!(asked.get(), 0, "not wanted, not asked for");
+    assert!(!view.smooth(None, Some(&volume), take));
+    assert!(!view.smooth(None, Some(&volume), take));
+    assert_eq!(asked.get(), 2, "looked for each frame until it is there");
 }

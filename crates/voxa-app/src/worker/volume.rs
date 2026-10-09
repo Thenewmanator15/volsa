@@ -8,7 +8,7 @@ use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use voxa_core::{SeriesId, Volume};
 use voxa_dicom::{Frame, ImageFile, IndexedSeries};
-use voxa_render::{MAX_VOLUME_BYTES, Prepared};
+use voxa_render::{MAX_VOLUME_BYTES, Prepared, Smoothed};
 use voxa_volume::{PRESETS, assemble};
 
 use super::{Batch, Shared, Workers, batches, lock, shielded};
@@ -39,6 +39,29 @@ impl Workers {
     }
 
     /// Build the volume of a series for the 3D scene, in place of any being built.
+    /// Work out, on a worker, the curve through the volume kept for a series, keep it with
+    /// the volume and say it is ready. Nothing is done when that series' volume is not the
+    /// one kept, and nothing is kept or said if the volume has given way meanwhile, or the
+    /// curve is no longer wanted.
+    pub(super) fn build_smooth(&self, series: SeriesId) {
+        let mut store = lock(&self.shared.volumes);
+        store.want_smoothed(true);
+        let Some(volume) = store.get(&series) else {
+            return;
+        };
+        drop(store);
+        let shared = Arc::clone(&self.shared);
+        self.spawn(move || {
+            shielded(|| {
+                let side = shared.volume_side.load(Ordering::SeqCst);
+                let curve = Smoothed::of(&volume, side, MAX_VOLUME_BYTES);
+                if lock(&shared.volumes).put_smoothed(&series, &volume, curve) {
+                    shared.report(Action::SmoothReady { series });
+                }
+            });
+        });
+    }
+
     pub(super) fn build_volume(&self, listed: &IndexedSeries) {
         // Said at once, before the work starts, so that frames asked for next are left to it.
         let build = self.shared.wants(&listed.info.id);

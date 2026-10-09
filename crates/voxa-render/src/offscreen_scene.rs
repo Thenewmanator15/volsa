@@ -10,6 +10,7 @@ use crate::plane_view::PlaneView;
 use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
+use crate::smoothed::Smoothed;
 use crate::volume_pipeline::VolumePipeline;
 
 /// A graphics device with no window, holding one [`VolumePipeline`].
@@ -45,6 +46,7 @@ impl HeadlessScene {
     ///
     /// As [`VolumePipeline::upload`].
     pub fn upload(&mut self, volume: &Volume) -> Result<u32, RenderError> {
+        self.plane.smooth(None);
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, volume)
     }
@@ -56,6 +58,7 @@ impl HeadlessScene {
     ///
     /// As [`VolumePipeline::upload_prepared`].
     pub fn upload_prepared(&mut self, ready: &Prepared) -> Result<u32, RenderError> {
+        self.plane.smooth(None);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.upload_prepared(device, queue, ready)
     }
@@ -73,6 +76,17 @@ impl HeadlessScene {
         let viewport = size.map(|side| side as f32);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.picture(device, queue, params, viewport, size)
+    }
+
+    /// Draw planes from the curve through the uploaded volume, which `with` must be, or with
+    /// `None` from the volume's own values again. Whether there is now a curve on the device
+    /// to draw from: false with `None`, and when the device has no room for it. Uploading a
+    /// volume takes the curve away, as it is another volume's.
+    pub fn smooth_planes(&mut self, with: Option<&Smoothed>) -> bool {
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        let placed = with.and_then(|curve| curve.on(device, queue));
+        self.plane.smooth(placed.as_ref());
+        placed.is_some()
     }
 
     /// Draw a plane through the uploaded volume into a picture `size` (width, height) pixels
@@ -105,6 +119,8 @@ mod haze_tests;
 mod plane_tests;
 #[cfg(test)]
 mod skip_tests;
+#[cfg(test)]
+mod smooth_tests;
 #[cfg(test)]
 mod solid_tests;
 #[cfg(test)]

@@ -271,3 +271,44 @@ fn a_volume_is_made_ready_for_the_device_the_window_has() {
         "nor is it another series'"
     );
 }
+
+#[test]
+fn the_curve_through_the_volume_kept_is_worked_out_on_a_worker_and_kept_with_it() {
+    let bench = Bench::with_budget(1 << 20);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    let series = id(THICK_SCAN);
+    let ask = Effect::BuildSmooth {
+        series: series.clone(),
+    };
+    bench.workers.run(ask.clone(), Some(&index));
+    let ready = Action::SmoothReady {
+        series: series.clone(),
+    };
+    assert_eq!(bench.drain().last(), Some(&ready));
+    let taken = || lock(&bench.volumes).take_smoothed(&series);
+    assert_eq!(taken().expect("kept").dims(), [4, 4, 30]);
+    // Given up, a curve that arrives late is not kept.
+    bench.workers.run(ask, Some(&index));
+    assert_eq!(bench.next(), ready);
+    bench.workers.run(Effect::DropSmooth, Some(&index));
+    assert!(taken().is_none());
+}
+
+#[test]
+fn no_curve_is_worked_out_for_a_series_whose_volume_is_not_the_one_kept() {
+    let bench = Bench::with_budget(1 << 20);
+    let folder = folder_of(&counted(THICK_SCAN, 4, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    let ask = |series: &str| Effect::BuildSmooth { series: id(series) };
+    bench.workers.run(ask(THICK_SCAN), Some(&index));
+    assert!(bench.is_quiet(), "there is no volume yet");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    bench.drain();
+    bench.workers.run(ask(FINE_SCAN), Some(&index));
+    assert!(bench.is_quiet());
+    assert!(lock(&bench.volumes).take_smoothed(&id(FINE_SCAN)).is_none());
+}

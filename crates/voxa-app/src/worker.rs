@@ -139,6 +139,8 @@ impl Workers {
                     self.build_volume(listed);
                 }
             }
+            Effect::BuildSmooth { series } => self.build_smooth(series),
+            Effect::DropSmooth => lock(&self.shared.volumes).want_smoothed(false),
             Effect::LoadViews { series } => self.load_views(series),
             Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::LoadAnnotations { series } => self.load_annotations(series),

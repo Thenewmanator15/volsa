@@ -97,7 +97,7 @@ impl Drop for Placed {
 }
 
 /// A 3D texture of 16-bit floating-point numbers, `dims` texels each way.
-fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgpu::Texture {
+pub(crate) fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgpu::Texture {
     let [width, height, depth_or_array_layers] = dims;
     device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
@@ -118,7 +118,7 @@ fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgpu::Texture 
 /// Hand the values to the device a slab of whole slices at a time, sending each on its way
 /// before the next, so that the device never holds more than one slab waiting to be copied.
 /// Values beyond the last whole slice, if there are any, are left out.
-fn write(
+pub(crate) fn write(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     texture: &wgpu::Texture,

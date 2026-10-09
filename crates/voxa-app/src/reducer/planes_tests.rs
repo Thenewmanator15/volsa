@@ -245,3 +245,64 @@ fn the_planes_are_in_sight_in_the_column_or_with_the_large_part() {
         "with no 3D view the slices have the large part"
     );
 }
+
+#[test]
+fn smoothing_asks_for_the_curve_through_the_volume_in_the_scene() {
+    let mut state = ready();
+    assert!(!state.planes.smooth, "off from the start");
+    let build = Effect::BuildSmooth {
+        series: id(THICK_SCAN),
+    };
+    assert_eq!(reduce(&mut state, Action::SetSmooth(true)), [build]);
+    assert!(state.planes.smooth);
+    assert_eq!(reduce(&mut state, Action::SetSmooth(true)), [], "once");
+    let drop = reduce(&mut state, Action::SetSmooth(false));
+    assert_eq!(
+        drop,
+        [Effect::DropSmooth],
+        "and it is given up when turned off"
+    );
+    assert!(!state.planes.smooth);
+    assert_eq!(reduce(&mut state, Action::SetSmooth(false)), []);
+}
+
+#[test]
+fn smoothing_chosen_before_there_is_a_volume_asks_for_the_curve_when_there_is_one() {
+    let mut state = showing(THICK_SCAN);
+    let chosen = reduce(&mut state, Action::SetSmooth(true));
+    assert_eq!(
+        chosen,
+        [],
+        "while the volume is built only the choice is kept"
+    );
+    assert!(state.planes.smooth);
+    let (series, corners) = (id(THICK_SCAN), super::scene_tests::corners());
+    let effects = reduce(&mut state, Action::VolumeReady { series, corners });
+    let build = Effect::BuildSmooth {
+        series: id(THICK_SCAN),
+    };
+    assert_eq!(effects, [build]);
+    // That the curve is ready changes nothing in the state: the window finds it kept.
+    let before = state.clone();
+    let series = id(THICK_SCAN);
+    assert_eq!(reduce(&mut state, Action::SmoothReady { series }), []);
+    assert_eq!(state, before);
+}
+
+#[test]
+fn another_series_in_the_scene_has_its_own_curve_asked_for_once_its_volume_is_ready() {
+    let mut state = ready();
+    reduce(&mut state, Action::SetSmooth(true));
+    let effects = select(&mut state, 0, FINE_SCAN);
+    let about_a_curve = |effect: &Effect| matches!(effect, Effect::BuildSmooth { .. });
+    assert!(
+        !effects.iter().any(about_a_curve),
+        "not before there is a volume"
+    );
+    let (series, corners) = (id(FINE_SCAN), super::scene_tests::corners());
+    let effects = reduce(&mut state, Action::VolumeReady { series, corners });
+    let build = Effect::BuildSmooth {
+        series: id(FINE_SCAN),
+    };
+    assert_eq!(effects, [build]);
+}

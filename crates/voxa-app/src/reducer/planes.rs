@@ -1,10 +1,10 @@
 //! Actions about the plane views, and keeping their position inside the scene's volume.
 
-use voxa_core::{Affine, Patient, Point, Voxel};
+use voxa_core::{Affine, Patient, Point, SeriesId, Voxel};
 use voxa_render::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM};
 use voxa_volume::{PlaneKind, central_voxel, clamped_into, scrolled};
 
-use crate::action::Action;
+use crate::action::{Action, Effect};
 use crate::planes::{PlanePanel, grid, plane};
 use crate::state::AppState;
 
@@ -23,6 +23,8 @@ pub(super) fn concerns(action: &Action) -> bool {
             | Action::PlaneFit(_)
             | Action::SetColumn(_)
             | Action::SetLinked(_)
+            | Action::SetSmooth(_)
+            | Action::SmoothReady { .. }
     )
 }
 
@@ -39,6 +41,7 @@ pub(super) fn reduce(state: &mut AppState, action: &Action) {
         Action::PlaneFit(kind) => *state.planes.panel_mut(kind) = PlanePanel::default(),
         Action::SetColumn(column) => state.planes.column = column,
         Action::SetLinked(linked) => state.planes.linked = linked,
+        Action::SetSmooth(smooth) => state.planes.smooth = smooth,
         _ => {}
     }
 }
@@ -53,6 +56,29 @@ pub(super) fn settle(state: &mut AppState) {
     } else {
         state.planes.position = None;
         state.planes.panels = [PlanePanel::default(); 3];
+    }
+}
+
+/// Whether smoothing is chosen, and the series whose volume is ready to be smoothed.
+pub(super) type Smoothing = (bool, Option<SeriesId>);
+
+/// What there is to smooth now.
+pub(super) fn smoothing(state: &AppState) -> Smoothing {
+    let ready = grid(state).and_then(|_| state.scene.series.clone());
+    (state.planes.smooth, ready)
+}
+
+/// Keep the curve with what is to be smoothed: ask for it when smoothing is chosen with a
+/// volume ready, and when a volume becomes ready while it is chosen; give it up when
+/// smoothing is turned off. `before` is how things stood before the action.
+pub(super) fn keep_curve(state: &AppState, before: &Smoothing) -> Vec<Effect> {
+    let now = smoothing(state);
+    match (before, now) {
+        ((true, _), (false, _)) => vec![Effect::DropSmooth],
+        (was, (true, Some(series))) if *was != (true, Some(series.clone())) => {
+            vec![Effect::BuildSmooth { series }]
+        }
+        _ => Vec::new(),
     }
 }
 

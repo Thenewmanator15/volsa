@@ -176,9 +176,19 @@ fn put_a_large_volume_on_the_device(c: &mut Criterion) {
     });
 }
 
+/// What turning Smooth on waits for, on a worker: the coefficients of the curve through a
+/// volume of 512 x 512 voxels in 64 slices.
+fn work_out_the_curve(c: &mut Criterion) {
+    let volume = made_up_head(512, 64);
+    c.bench_function("512 x 512 x 64 curve coefficients", |b| {
+        b.iter(|| black_box(voxa_volume::coefficients(&volume)));
+    });
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(20).measurement_time(Duration::from_secs(4));
-    targets = draw_a_head, as_the_window_draws, put_a_large_volume_on_the_device
+    targets = draw_a_head, as_the_window_draws, put_a_large_volume_on_the_device,
+        work_out_the_curve
 }
 criterion_main!(benches);

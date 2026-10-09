@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use egui::{Rect, Ui};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use voxa_core::WindowLevel;
-use voxa_render::{PlanePipeline, PlaneView, VolumePipeline};
+use voxa_render::{PlanePipeline, PlaneView, SmoothedTexture, VolumePipeline};
 
 /// What one plane's panel keeps on the graphics device between frames.
 pub struct PlaneGpu {
@@ -19,6 +19,18 @@ impl PlaneGpu {
         Self {
             pipeline: Arc::new(Mutex::new(pipeline)),
         }
+    }
+
+    /// Draw from the curve through the scene's volume from now on, or plainly with `None`.
+    pub fn smooth(&self, with: Option<&SmoothedTexture>) {
+        let mut pipeline = self.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
+        pipeline.smooth(with);
+    }
+
+    /// Whether the plane last queued is drawn from the curve.
+    pub fn is_smooth(&self) -> bool {
+        let pipeline = self.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
+        pipeline.is_smooth()
     }
 
     /// Queue the drawing of a plane into `cell`, from the volume the scene holds, through

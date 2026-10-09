@@ -24,6 +24,7 @@ mod prepared;
 mod scene;
 mod section;
 mod slice_pipeline;
+mod smoothed;
 #[cfg(test)]
 mod testing;
 mod vector;
@@ -45,5 +46,6 @@ pub use prepared::{MAX_VOLUME_BYTES, Prepared};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use section::{box_section, position_cross};
 pub use slice_pipeline::{RenderError, SlicePipeline};
+pub use smoothed::{Smoothed, SmoothedTexture};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
 pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

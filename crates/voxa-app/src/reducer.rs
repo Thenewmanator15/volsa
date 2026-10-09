@@ -37,6 +37,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let fit = matches!(action, Action::Fit { .. });
     let was = state.scene.series.clone();
     let before = link::Before::of(state, &action);
+    let smoothed = planes::smoothing(state);
     let mut effects = act(state, action);
     if fit && state.main == MainPanel::Scene {
         // The key that shows the whole slice again shows the whole volume again too.
@@ -50,6 +51,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     planes::settle(state);
     annotations::settle(state, was.as_ref());
     effects.extend(link::keep(state, &before));
+    effects.extend(planes::keep_curve(state, &smoothed));
     effects
 }
 

@@ -140,8 +140,14 @@ pub const LINK_SAYS: &str = "Keep the slices of this study on the planes' positi
                              the slice scrolled to. Linked views take it that the patient did not \
                              move between series.";
 
-/// The display convention, whether the patient's details are shown, and whether the slice
-/// views follow the planes' position.
+/// What the Smooth switch says when pointed at.
+pub const SMOOTH_SAYS: &str = "Draw the three planes from a curve through the scan's values, not a blend \
+                               of the nearest. Beside a sharp edge the curve overshoots a little, \
+                               which shows as a faint rim that is not in the scan. Smoothed: a curve \
+                               through the measured values, not more detail.";
+
+/// The display convention, whether the patient's details are shown, whether the slice views
+/// follow the planes' position, and whether the planes are drawn smooth.
 fn switches(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let convention = "On: the patient's left is on the right of the screen, as a radiologist reads it.\n\
                       Off: neurological, the patient's left on the left.";
@@ -164,6 +170,11 @@ fn switches(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let link = ui.selectable_label(linked, "Link");
     if link.on_hover_text(LINK_SAYS).clicked() {
         actions.push(Action::SetLinked(!linked));
+    }
+    let smooth = state.planes.smooth;
+    let curve = ui.selectable_label(smooth, "Smooth");
+    if curve.on_hover_text(SMOOTH_SAYS).clicked() {
+        actions.push(Action::SetSmooth(!smooth));
     }
 }
 
@@ -281,6 +292,7 @@ mod tests {
             Action::ToggleRadiological,
             Action::TogglePatient,
             Action::SetLinked(false),
+            Action::SetSmooth(true),
             Action::CineToggle { viewport: 0 },
             Action::CineSet {
                 viewport: 0,
@@ -312,6 +324,16 @@ mod tests {
         state.planes.linked = false;
         let (actions, _) = sweep(&state);
         assert!(actions.contains(&Action::SetLinked(true)), "{actions:?}");
+    }
+
+    #[test]
+    fn the_smooth_switch_says_that_it_adds_no_detail() {
+        let honest = "Smoothed: a curve through the measured values, not more detail.";
+        assert!(SMOOTH_SAYS.ends_with(honest), "{SMOOTH_SAYS}");
+        let mut state = AppState::default();
+        state.planes.smooth = true;
+        let (actions, _) = sweep(&state);
+        assert!(actions.contains(&Action::SetSmooth(false)), "{actions:?}");
     }
 
     #[test]
