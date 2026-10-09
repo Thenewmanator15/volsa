@@ -46,6 +46,8 @@ The 3D scene follows the series of the active viewport:
    keeping the brightest (MIP). Cut planes shorten the line; the 2D slice is an opaque sheet.
    In VR and MIP a step is half a voxel along the axis the line crosses fastest; in Surface it
    is half the least distance between voxels from every side.
+   Surface and VR draw nothing fainter than a tenth of the window, so the noise in the air
+   about a patient is neither shown nor allowed to dim what is behind it.
 4. The picture is drawn off the screen, at half size and half quality while the camera moves,
    and shown by `egui` as an image. The same path draws the pictures that are saved; a
    turntable's pictures are put together into its file on a worker.

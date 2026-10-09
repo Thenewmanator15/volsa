@@ -152,7 +152,8 @@ fn total(rgba: &[u8]) -> u64 {
 }
 
 /// The ball put on the device with every block marked, whatever it holds, as holding
-/// nothing above `largest`; and a scene of it through a window whose low end is `low`.
+/// nothing above `largest`; and a scene of it in the see-through look through a window 300
+/// wide whose low end is `low`, so that tissue begins 30 above `low`.
 fn ball_marked(gpu: &mut HeadlessScene, largest: f32, low: f32) -> SceneParams {
     let volume = ball();
     let blocks = volume.dims().map(|count| count.div_ceil(BLOCK));
@@ -168,11 +169,11 @@ fn ball_marked(gpu: &mut HeadlessScene, largest: f32, low: f32) -> SceneParams {
 }
 
 #[test]
-fn skipping_steps_over_a_block_whose_largest_value_is_at_the_bottom_of_the_window() {
+fn skipping_steps_over_a_block_whose_largest_value_is_just_short_of_where_tissue_begins() {
     let Some(mut gpu) = headless_scene() else {
         return;
     };
-    let plain = ball_marked(&mut gpu, 100.0, 100.0);
+    let plain = ball_marked(&mut gpu, 100.0, 71.0);
     let skipped = SceneParams {
         skip_empty: true,
         ..plain.clone()
@@ -186,11 +187,11 @@ fn skipping_steps_over_a_block_whose_largest_value_is_at_the_bottom_of_the_windo
 }
 
 #[test]
-fn skipping_keeps_a_block_whose_largest_value_is_just_inside_the_window() {
+fn skipping_keeps_a_block_whose_largest_value_is_just_past_where_tissue_begins() {
     let Some(mut gpu) = headless_scene() else {
         return;
     };
-    let plain = ball_marked(&mut gpu, 100.0, 99.0);
+    let plain = ball_marked(&mut gpu, 100.0, 69.0);
     let skipped = SceneParams {
         skip_empty: true,
         ..plain.clone()

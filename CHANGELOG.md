@@ -16,6 +16,14 @@ All notable changes to Voxa are recorded here. The format follows
   window shows, and the empty blocks at its ends are stepped over. 512 x 512 x 64 in a
   1280 x 800 picture on integrated graphics: 85 ms to 51 ms still, 15.6 ms to 9.9 ms moving.
 
+- VR leaves out what is fainter than a tenth of the window, as Surface does. A scan's air is
+  never quite empty, and in VR its faint noise dimmed everything seen through it: in a test,
+  40 mm of haze at 8% of the window took about an eighth of the light from what lay
+  behind. It also
+  kept every block of the air from being stepped over. Pictures are a little clearer and draw
+  faster, by how much depending on how noisy the air is; tissue fainter than a tenth of the
+  window is no longer drawn in VR. From there tissue becomes more solid up to the top of the
+  window, as before.
 - VR and MIP follow each line of sight in steps of half a voxel along whichever axis of the
   volume the line crosses fastest. Before, a step was half the least distance between voxels
   from every side, so a view along slices that are far apart took many more steps than there

@@ -17,9 +17,13 @@ const SURFACE_STOPPED_PER_MM: f32 = 1.0;
 /// its low end. A scan's air is never quite empty; what is fainter than this is left out, so
 /// that the air is not drawn as a fog in front of the patient.
 pub(crate) const SURFACE_BEGINS: f32 = 0.1;
-/// The share of the window over which tissue then becomes solid in the surface look. In the
-/// see-through look tissue begins at the window's low end and takes the whole window.
+/// The share of the window over which tissue then becomes solid in the surface look.
 pub(crate) const SURFACE_RAMP: f32 = 0.1;
+/// Where tissue begins to stop light in the see-through look: where it does in the surface
+/// look, and for the same reason. Left in, the faint noise in the air about a patient dims
+/// everything seen through it, and no block of the air can be stepped over. From there
+/// tissue becomes more solid all the way to the top of the window.
+const VR_BEGINS: f32 = SURFACE_BEGINS;
 /// The longest step in the see-through look, in millimetres: a quarter of the 20 mm over
 /// which the brightest tissue stops two thirds of the light, so that no one step stops much.
 const VR_LONGEST_STEP_MM: f64 = 5.0;
@@ -70,13 +74,7 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
     };
     let step = step_along(&to_voxel, towards, placed.finest_mm, scene.look);
     let step_mm = single(step) / quality.clamp(MIN_QUALITY, 1.0);
-    // The look as the shader knows it, how much light a millimetre stops, and where in the
-    // window tissue begins to stop it and over how much it becomes solid.
-    let (look, stopped_per_mm, ramp) = match scene.look {
-        Look::Vr => (0.0, VR_STOPPED_PER_MM, [0.0, 1.0]),
-        Look::Mip => (1.0, 0.0, [0.0, 1.0]),
-        Look::Surface => (2.0, SURFACE_STOPPED_PER_MM, [SURFACE_BEGINS, SURFACE_RAMP]),
-    };
+    let (look, stopped_per_mm, ramp) = drawn_as(scene.look);
     let [begins, becomes_solid_over] = ramp;
     let (cuts, cuts_used) = cuts_in_use(scene);
     let sheet = scene
@@ -105,6 +103,17 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
         sheet: sheet.unwrap_or_default(),
         planes: [cuts_used, flag(sheet.is_some()), flag(skipping), 0.0],
         grid: [cols as f32, rows as f32, slices as f32, 0.0].map(|count| count / BLOCK as f32),
+    }
+}
+
+/// A look as the shader knows it: its number there, how much of the light a millimetre of
+/// solid tissue stops, and where in the window tissue begins to stop light and over how much
+/// of it tissue becomes solid, each as a share of the window up from its low end.
+fn drawn_as(look: Look) -> (f32, f32, [f32; 2]) {
+    match look {
+        Look::Vr => (0.0, VR_STOPPED_PER_MM, [VR_BEGINS, 1.0 - VR_BEGINS]),
+        Look::Mip => (1.0, 0.0, [0.0, 1.0]),
+        Look::Surface => (2.0, SURFACE_STOPPED_PER_MM, [SURFACE_BEGINS, SURFACE_RAMP]),
     }
 }
 
@@ -204,6 +213,30 @@ mod tests {
             [0.0, 0.0, 1.0 / between],
             [0.0; 3],
         )
+    }
+
+    #[test]
+    fn tissue_begins_a_tenth_of_the_way_up_the_window_in_both_looks_that_add_light_up() {
+        let (_, stopped, [begins, over]) = drawn_as(Look::Surface);
+        assert_eq!(
+            (stopped, begins, over),
+            (1.0, 0.1, 0.1),
+            "solid a fifth of the way up"
+        );
+        let (_, stopped, [begins, over]) = drawn_as(Look::Vr);
+        assert_eq!((stopped, begins), (0.05, 0.1));
+        assert!(
+            (begins + over - 1.0).abs() < 1.0e-6,
+            "solid at the top of the window"
+        );
+        let (_, stopped, ramp) = drawn_as(Look::Mip);
+        assert_eq!(
+            (stopped, ramp),
+            (0.0, [0.0, 1.0]),
+            "the brightest value leaves nothing out"
+        );
+        let looks = [Look::Vr, Look::Mip, Look::Surface].map(|look| drawn_as(look).0);
+        assert_eq!(looks, [0.0, 1.0, 2.0], "as the shader numbers them");
     }
 
     #[test]
