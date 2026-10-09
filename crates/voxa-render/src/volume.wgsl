@@ -17,9 +17,8 @@ struct Scene {
     // Picture width and height in pixels, the step along a line of sight in millimetres, and
     // the look: 0 see-through, 1 brightest value, 2 a lit surface.
     view: vec4<f32>,
-    // The texture value shown as black; the span of texture values from black to white; how
-    // much of the light a millimetre of solid tissue stops; and the share of the window, up
-    // from black, over which tissue goes from stopping no light to being solid.
+    // The texture value shown as black; the span of texture values from black to white; and
+    // how much of the light a millimetre of solid tissue stops.
     window: vec4<f32>,
     // One voxel along the volume's columns, rows and slices, as a step through the texture.
     voxel: vec4<f32>,
@@ -34,6 +33,10 @@ struct Scene {
     // How many blocks the volume is along its columns, rows and slices, counting a part
     // block as a part.
     grid: vec4<f32>,
+    // Where tissue begins to stop light and over how much it becomes solid, each as a share
+    // of the window up from black. Below the first nothing is drawn: in a scan the air is
+    // never quite empty, and what is in it must not be taken for tissue.
+    ramp: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> scene: Scene;
@@ -105,7 +108,8 @@ fn windowed(value: f32) -> f32 {
 
 // How solid a texture value is, from 0, which stops no light, to 1.
 fn solidity(value: f32) -> f32 {
-    return clamp((value - scene.window.x) / (scene.window.y * scene.window.w), 0.0, 1.0);
+    let begins = scene.window.x + scene.ramp.x * scene.window.y;
+    return clamp((value - begins) / (scene.ramp.y * scene.window.y), 0.0, 1.0);
 }
 
 fn value_at(at: vec3<f32>) -> f32 {
@@ -162,7 +166,7 @@ fn past_the_empty(
         }
         let here = block_start + (begin + way * (gone + nudge)) * block_step;
         let block = clamp(vec3<i32>(floor(here)), vec3<i32>(0, 0, 0), last_block);
-        if textureLoad(maxima, block, 0).r > scene.window.x {
+        if textureLoad(maxima, block, 0).r > scene.window.x + scene.ramp.x * scene.window.y {
             break;
         }
         gone += leaves_after(here - vec3<f32>(block), block_step * way) + 2.0 * nudge;

@@ -5,15 +5,15 @@ use voxa_volume::{Ray, first_hit};
 
 use crate::scene::{MAX_CUTS, SceneParams};
 use crate::vector::{dot, unit};
-use crate::volume_pipeline::SURFACE_RAMP;
+use crate::volume_pipeline::{SURFACE_BEGINS, SURFACE_RAMP};
 
 /// The least a line of sight must lean towards a plane to be taken as meeting it.
 const ALONGSIDE: f64 = 1.0e-6;
 
-/// The value at which tissue counts as a surface: a tenth of the way up the window, where it
-/// becomes solid in the Surface look.
+/// The value at which tissue counts as a surface: half way through becoming solid in the
+/// Surface look, which is 15% of the way up the window.
 pub fn surface_threshold(window: WindowLevel) -> f32 {
-    window.low() + window.width * SURFACE_RAMP
+    window.low() + window.width * (SURFACE_BEGINS + SURFACE_RAMP / 2.0)
 }
 
 /// The point of the patient shown at `at`, in pixels from the top left corner of a picture
@@ -104,18 +104,18 @@ mod tests {
     }
 
     #[test]
-    fn the_surface_is_a_tenth_of_the_way_up_the_window() {
-        assert_eq!(surface_threshold(WindowLevel::new(200.0, 400.0)), 40.0);
-        assert_eq!(surface_threshold(WindowLevel::new(300.0, 200.0)), 220.0);
+    fn the_surface_is_where_tissue_is_half_way_to_solid() {
+        assert!((surface_threshold(WindowLevel::new(200.0, 400.0)) - 60.0).abs() < 1e-3);
+        assert!((surface_threshold(WindowLevel::new(300.0, 200.0)) - 230.0).abs() < 1e-3);
     }
 
     #[test]
     fn pointing_at_the_ball_finds_its_surface_nearest_the_viewer() {
         let (volume, scene) = from_the_front(|_| {});
         let hit = pick(&volume, &scene, PICTURE, MIDDLE).expect("the ball is there");
-        // The shell's value climbs from 0 at 16.5 mm out to 100 at 15.5 mm, and passes 40
-        // at 16.1 mm.
-        assert!((hit.y + 16.1).abs() < 0.05, "{hit:?}");
+        // The shell's value climbs from 0 at 16.5 mm out to 100 at 15.5 mm, and passes 60
+        // at 15.9 mm.
+        assert!((hit.y + 15.9).abs() < 0.05, "{hit:?}");
         assert!(hit.x.abs() < 1e-6 && hit.z.abs() < 1e-6, "{hit:?}");
         assert_eq!(
             pick(&volume, &scene, PICTURE, [2.0, 2.0]),
@@ -172,6 +172,6 @@ mod tests {
         // Behind the ball's front surface, the surface is found first.
         let (volume, scene) = from_the_front(|scene| scene.slice = Some(sheet(0.0)));
         let hit = pick(&volume, &scene, PICTURE, MIDDLE).expect("the ball is in front");
-        assert!((hit.y + 16.1).abs() < 0.05, "{hit:?}");
+        assert!((hit.y + 15.9).abs() < 0.05, "{hit:?}");
     }
 }
