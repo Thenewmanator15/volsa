@@ -31,7 +31,7 @@ impl Bench {
         let (sender, reports) = channel();
         let cache = Arc::new(Mutex::new(FrameCache::new(budget)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
-        let workers = Workers::new(sender, Arc::clone(&cache), Arc::clone(&volumes));
+        let workers = Workers::new(sender, Arc::clone(&cache), Arc::clone(&volumes), None);
         Self {
             workers,
             reports,

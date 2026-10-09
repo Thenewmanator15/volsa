@@ -19,6 +19,7 @@ mod captions;
 mod gpu;
 mod handles;
 mod input;
+pub mod views;
 
 pub use captions::{
     captions, edge_letters, quality, scene_params, status_text, until_full_quality,

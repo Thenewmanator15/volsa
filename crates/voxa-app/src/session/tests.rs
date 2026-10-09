@@ -21,7 +21,22 @@ const PATIENCE: Duration = Duration::from_secs(60);
 
 fn session() -> Session {
     let (sender, reports) = channel();
-    Session::new(sender, reports, 1 << 24)
+    Session::new(sender, reports, 1 << 24, None)
+}
+
+/// A session that keeps its settings in `folder`.
+fn session_keeping(folder: &Path) -> Session {
+    let (sender, reports) = channel();
+    Session::new(sender, reports, 1 << 24, Some(folder.to_owned()))
+}
+
+/// Take in what the workers report until `done` holds.
+fn until(session: &mut Session, done: impl Fn(&Session) -> bool) {
+    let started = Instant::now();
+    while !done(session) {
+        assert!(started.elapsed() < PATIENCE, "still waiting");
+        session.wait(Duration::from_millis(50));
+    }
 }
 
 /// A zip of the files, in a temporary folder that lasts as long as the first value returned.
@@ -243,4 +258,96 @@ fn a_series_with_no_3d_view_says_so_and_its_slices_are_still_shown() {
         assert!(started.elapsed() < PATIENCE, "the 2D viewport carries on");
         session.wait(Duration::from_millis(100));
     }
+}
+
+#[test]
+fn a_saved_view_is_there_the_next_time_the_scan_is_opened_and_names_nothing_of_it() {
+    let kept = tempfile::tempdir().expect("a temporary folder");
+    let (_folder, path) = zip_of(&three_series_files());
+    let file = kept.path().join("views.json");
+    let mut session = session_keeping(kept.path());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    session.dispatch(Action::SceneOrbit { by: [40.0, 10.0] });
+    let name = "Turned a little".to_owned();
+    session.dispatch(Action::ViewSave { name });
+    let saved_from = session.state().scene.camera;
+    until(&mut session, |_| file.exists());
+
+    let text = std::fs::read_to_string(&file).expect("reads");
+    assert!(text.contains("Turned a little"), "{text}");
+    let index = session.state().index.as_ref().expect("indexed");
+    let study = &index.studies[0];
+    let private = [
+        Some(FINE_SCAN.to_owned()),
+        Some(study.id.0.clone()),
+        Some(study.description.clone()),
+        study.date.clone(),
+        study.patient_name.clone(),
+        study.patient_id.clone(),
+    ];
+    for word in private.iter().flatten().filter(|word| !word.is_empty()) {
+        assert!(!text.contains(word.as_str()), "the file names {word}");
+    }
+    drop(session);
+
+    let mut again = session_keeping(kept.path());
+    open_until(&mut again, &path, |session| {
+        !session.state().views.is_empty()
+    });
+    let views = &again.state().views;
+    assert_eq!(
+        (views.len(), views[0].name.as_str()),
+        (1, "Turned a little")
+    );
+    assert_eq!(views[0].camera(), saved_from);
+}
+
+#[test]
+fn with_nowhere_to_keep_them_views_last_as_long_as_the_window() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&three_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    session.dispatch(Action::ViewSave {
+        name: String::new(),
+    });
+    assert_eq!(session.state().views.len(), 1);
+    session.wait(Duration::from_millis(300));
+    assert!(
+        session.state().notices.is_empty(),
+        "{:?}",
+        session.state().notices
+    );
+}
+
+#[test]
+fn views_that_cannot_be_written_are_said_to_be_lost_next_time() {
+    // The settings folder is given as something that is a file, so nothing can be put in it.
+    let kept = tempfile::tempdir().expect("a temporary folder");
+    let not_a_folder = kept.path().join("in the way");
+    std::fs::write(&not_a_folder, "a file").expect("writes");
+    let (_folder, path) = zip_of(&three_series_files());
+    let mut session = session_keeping(&not_a_folder);
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    session.dispatch(Action::ViewSave {
+        name: String::new(),
+    });
+    until(&mut session, |session| !session.state().notices.is_empty());
+    let notice = &session.state().notices[0];
+    assert_eq!(notice.kind, NoticeKind::Warning);
+    assert!(
+        notice.text.starts_with("Saved views could not be written"),
+        "{}",
+        notice.text
+    );
+    assert_eq!(
+        session.state().views.len(),
+        1,
+        "the view is still there for now"
+    );
 }

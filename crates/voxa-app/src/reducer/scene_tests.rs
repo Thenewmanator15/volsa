@@ -14,6 +14,13 @@ pub(super) fn select(state: &mut AppState, viewport: usize, series: &str) -> Vec
     reduce(state, Action::SelectSeries { viewport, series })
 }
 
+/// What starting the scene afresh for a series asks for: its volume, and the views saved
+/// of it.
+pub(super) fn started(series: &str) -> Vec<Effect> {
+    let series = id(series);
+    vec![build(&series.0), Effect::LoadViews { series }]
+}
+
 pub(super) fn build(series: &str) -> Effect {
     Effect::BuildVolume { series: id(series) }
 }
@@ -58,7 +65,7 @@ fn selecting_a_series_starts_building_its_volume() {
     let effects = select(&mut state, 0, THICK_SCAN);
     assert_eq!(
         effects,
-        [frames_around(THICK_SCAN, 15), vec![build(THICK_SCAN)]].concat()
+        [frames_around(THICK_SCAN, 15), started(THICK_SCAN)].concat()
     );
     assert_eq!(state.scene.series, Some(id(THICK_SCAN)));
     assert_eq!(
@@ -71,7 +78,7 @@ fn selecting_a_series_starts_building_its_volume() {
 fn the_best_series_opened_when_indexing_ends_is_built_too() {
     let mut state = loaded();
     let effects = reduce(&mut state, Action::IndexDone);
-    assert_eq!(effects.last(), Some(&build(FINE_SCAN)));
+    assert!(effects.ends_with(&started(FINE_SCAN)), "{effects:?}");
     assert_eq!(
         state.scene.status,
         SceneStatus::Building { done: 0, of: 64 }
@@ -95,21 +102,18 @@ fn a_series_chosen_while_indexing_is_built_again_when_indexing_ends() {
 fn the_scene_follows_the_active_viewport() {
     let mut state = showing(THICK_SCAN);
     reduce(&mut state, Action::SetLayout(Layout::TwoAcross));
-    assert_eq!(
-        select(&mut state, 1, FINE_SCAN).last(),
-        Some(&build(FINE_SCAN))
-    );
+    assert!(select(&mut state, 1, FINE_SCAN).ends_with(&started(FINE_SCAN)));
     assert_eq!(state.scene.series, Some(id(FINE_SCAN)));
     assert_eq!(
         reduce(&mut state, Action::SetActive(0)),
-        [build(THICK_SCAN)]
+        started(THICK_SCAN)
     );
     assert_eq!(state.scene.series, Some(id(THICK_SCAN)));
     // The second viewport goes with a single layout; the scene stays with the first.
     reduce(&mut state, Action::SetActive(1));
     assert_eq!(
         reduce(&mut state, Action::SetLayout(Layout::One)),
-        [build(THICK_SCAN)]
+        started(THICK_SCAN)
     );
 }
 

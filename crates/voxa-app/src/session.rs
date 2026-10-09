@@ -1,5 +1,6 @@
 //! One open scan and everything working on it, with or without a window.
 
+use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
@@ -29,11 +30,18 @@ impl Session {
     /// A session with nothing open. The workers report through `to_reports`, and `reports` is
     /// where those reports are read from: the two ends of one channel, or of two channels
     /// with something in between, as the window has to wake itself up. The cache holds at
-    /// most `cache_bytes` of pixel values.
-    pub fn new(to_reports: Sender<Action>, reports: Receiver<Action>, cache_bytes: usize) -> Self {
+    /// most `cache_bytes` of pixel values. Saved views are kept in the folder `settings`; with
+    /// `None` they last only as long as the session.
+    pub fn new(
+        to_reports: Sender<Action>,
+        reports: Receiver<Action>,
+        cache_bytes: usize,
+        settings: Option<PathBuf>,
+    ) -> Self {
         let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
-        let workers = Workers::new(to_reports, Arc::clone(&cache), Arc::clone(&volumes));
+        let (kept, built) = (Arc::clone(&cache), Arc::clone(&volumes));
+        let workers = Workers::new(to_reports, kept, built, settings);
         Self {
             state: AppState::default(),
             workers,

@@ -8,6 +8,7 @@ use voxa_render::{Look, NamedView};
 
 use crate::scene::MainPanel;
 use crate::state::{Layout, PresetWindows};
+use crate::views::SavedView;
 
 /// One thing that happened: something the person did, or something a worker finished.
 /// [`reduce`](crate::reduce) is the only code that acts on these.
@@ -221,6 +222,27 @@ pub enum Action {
         /// Its eight outer corners in the patient.
         corners: [Point<Patient>; 8],
     },
+    /// Save the scene as it is now, under a name; with no name it is numbered.
+    ViewSave {
+        /// What to call it.
+        name: String,
+    },
+    /// Put the scene back as a saved view has it, by the view's place in the list.
+    ViewApply(usize),
+    /// Forget a saved view, by its place in the list.
+    ViewDelete(usize),
+    /// The views kept for a series from before have been read.
+    ViewsLoaded {
+        /// The series they are of.
+        series: SeriesId,
+        /// The views, oldest first.
+        views: Vec<SavedView>,
+    },
+    /// The saved views could not be written to their file.
+    ViewsNotStored {
+        /// Why, in plain words.
+        reason: String,
+    },
     /// A volume could not be built.
     VolumeFailed {
         /// The series it was to be built from.
@@ -244,6 +266,18 @@ pub enum Effect {
     },
     /// Decode the middle slice of every series, for the pictures in the browser.
     RequestThumbnails,
+    /// Read the views kept for a series from before.
+    LoadViews {
+        /// The series wanted.
+        series: SeriesId,
+    },
+    /// Write the views of a series to the file they are kept in.
+    StoreViews {
+        /// The series they are of.
+        series: SeriesId,
+        /// All of its views, oldest first.
+        views: Vec<SavedView>,
+    },
     /// Decode every slice of a series and stack them into a volume for the 3D scene.
     BuildVolume {
         /// The series wanted.

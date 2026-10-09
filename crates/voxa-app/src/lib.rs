@@ -18,10 +18,12 @@ mod cache;
 mod reducer;
 mod scene;
 mod session;
+mod settings;
 mod state;
 #[cfg(test)]
 mod testing;
 mod ui;
+mod views;
 mod volume_store;
 mod worker;
 
@@ -35,5 +37,6 @@ pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
 pub use ui::{VoxaApp, run, thumbnail};
+pub use views::{MAX_VIEWS, SavedView, series_key};
 pub use volume_store::VolumeStore;
 pub use worker::Workers;

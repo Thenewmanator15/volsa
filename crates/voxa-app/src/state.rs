@@ -8,6 +8,7 @@ use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
 use crate::scene::{MainPanel, Scene};
+use crate::views::SavedView;
 
 /// How many viewports the window can show at once.
 pub const VIEWPORTS: usize = 4;
@@ -159,6 +160,8 @@ pub struct AppState {
     pub scene: Scene,
     /// Whether the 3D scene or the 2D viewports have the large part of the window.
     pub main: MainPanel,
+    /// The views saved of the scene's series, oldest first.
+    pub views: Vec<SavedView>,
 }
 
 impl Default for AppState {
@@ -176,6 +179,7 @@ impl Default for AppState {
             failed: HashMap::new(),
             scene: Scene::default(),
             main: MainPanel::default(),
+            views: Vec::new(),
         }
     }
 }

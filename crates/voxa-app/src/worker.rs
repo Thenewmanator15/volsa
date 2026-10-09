@@ -17,6 +17,7 @@ use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
+mod views;
 mod volume;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
@@ -43,6 +44,12 @@ struct Shared {
     volumes: Arc<Mutex<VolumeStore>>,
     /// How many volumes have been asked for. One being built for an earlier request stops.
     builds: AtomicU64,
+    /// The folder settings are kept in, if there is one.
+    settings: Option<PathBuf>,
+    /// How many times the saved views have been asked to be written, and the newest of
+    /// those requests that has been.
+    stores: AtomicU64,
+    stored: Mutex<u64>,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -63,12 +70,13 @@ struct Request {
 }
 
 impl Workers {
-    /// Workers that report through `reports`, keep decoded slices in `cache`, and keep the
-    /// volume they build in `volumes`.
+    /// Workers that report through `reports`, keep decoded slices in `cache`, keep the volume
+    /// they build in `volumes`, and keep saved views in the folder `settings`, if one is given.
     pub fn new(
         reports: Sender<Action>,
         cache: Arc<Mutex<FrameCache>>,
         volumes: Arc<Mutex<VolumeStore>>,
+        settings: Option<PathBuf>,
     ) -> Self {
         let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
         let shared = Shared {
@@ -80,6 +88,9 @@ impl Workers {
             requests: AtomicU64::new(0),
             volumes,
             builds: AtomicU64::new(0),
+            settings,
+            stores: AtomicU64::new(0),
+            stored: Mutex::new(0),
         };
         Self {
             pool: named.build().ok(),
@@ -111,6 +122,8 @@ impl Workers {
                     self.build_volume(listed);
                 }
             }
+            Effect::LoadViews { series } => self.load_views(series),
+            Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::None => {}
         }
     }

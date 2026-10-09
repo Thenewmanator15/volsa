@@ -104,6 +104,8 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
         viewport: state.scene.viewport,
         ..Scene::default()
     };
+    // The views saved of the series before are not this one's.
+    state.views.clear();
     let listed = series.as_ref().and_then(|id| state.series(id));
     let info = listed.map(|listed| listed.info.clone());
     let Some((series, info)) = series.zip(info) else {
@@ -116,12 +118,13 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
                 done: 0,
                 of: info.slices,
             };
-            (
-                building,
-                vec![Effect::BuildVolume {
-                    series: series.clone(),
-                }],
-            )
+            let volume = Effect::BuildVolume {
+                series: series.clone(),
+            };
+            let views = Effect::LoadViews {
+                series: series.clone(),
+            };
+            (building, vec![volume, views])
         }
         Err(why) => {
             let problems = info.problems.iter().map(ToString::to_string);

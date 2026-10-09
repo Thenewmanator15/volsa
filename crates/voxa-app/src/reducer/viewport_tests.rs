@@ -24,6 +24,9 @@ fn selecting_a_series_shows_its_middle_slice_fitted_and_asks_for_frames() {
     expected.push(Effect::BuildVolume {
         series: id(THICK_SCAN),
     });
+    expected.push(Effect::LoadViews {
+        series: id(THICK_SCAN),
+    });
     assert_eq!(
         effects, expected,
         "its frames, and its volume for the 3D scene"

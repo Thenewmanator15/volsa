@@ -3,6 +3,7 @@
 use egui::Ui;
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
+use super::scene::views;
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -37,7 +38,7 @@ pub const VIEWS: [(NamedView, &str, &str); 6] = [
 ];
 
 /// Draw the scene's line of the bar: the looks, the sides to see the patient from, the cuts,
-/// and whether the slice shown in 2D is drawn in the scene.
+/// whether the slice shown in 2D is drawn in the scene, and the saved views.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let scene = &state.scene;
     ui.horizontal_wrapped(|ui| {
@@ -89,6 +90,8 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         {
             actions.push(Action::ShowSliceInScene(!shown));
         }
+        ui.separator();
+        views::menu(ui, state, actions);
     });
 }
 

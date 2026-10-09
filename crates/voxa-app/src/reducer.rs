@@ -11,11 +11,14 @@ use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod scene;
 mod viewport;
+mod views;
 
 /// The key of the notice that counts skipped files.
 const SKIPPED: &str = "skipped";
 /// The key of the notice that says a source could not be opened.
 const OPENING: &str = "opening";
+/// The key of the notice that says saved views could not be written.
+const VIEWS: &str = "views";
 
 /// Apply one action to the state and say what work it calls for.
 ///
@@ -77,6 +80,11 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             scene::reduce(state, action);
             Vec::new()
         }
+        Action::ViewSave { .. }
+        | Action::ViewApply(_)
+        | Action::ViewDelete(_)
+        | Action::ViewsLoaded { .. }
+        | Action::ViewsNotStored { .. } => views::reduce(state, action),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
 }
@@ -235,5 +243,7 @@ mod scene_tests;
 mod tests;
 #[cfg(test)]
 mod viewport_tests;
+#[cfg(test)]
+mod views_tests;
 #[cfg(test)]
 mod window_tests;

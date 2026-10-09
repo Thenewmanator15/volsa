@@ -11,6 +11,7 @@ use egui_wgpu::RenderState;
 use crate::action::Action;
 use crate::scene::{MainPanel, SceneStatus};
 use crate::session::Session;
+use crate::settings;
 use crate::state::{NoticeKind, VIEWPORTS};
 
 mod about;
@@ -73,7 +74,7 @@ impl VoxaApp {
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let mut app = Self {
-            session: Session::new(from_workers, reports, CACHE_BYTES),
+            session: Session::new(from_workers, reports, CACHE_BYTES, settings::folder()),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
             thumbnails: browser::Thumbnails::default(),
