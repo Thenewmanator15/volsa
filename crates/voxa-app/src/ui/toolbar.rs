@@ -19,6 +19,10 @@ pub enum Pick {
 
 /// What the person asked for that is not a change of state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one for each window a button of the bar opens"
+)]
 pub struct Asked {
     /// To choose a scan to open, and which kind.
     pub open: Option<Pick>,
@@ -28,6 +32,8 @@ pub struct Asked {
     pub shortcuts: bool,
     /// To open or close the tag browser.
     pub tags: bool,
+    /// To open or close the measurements window.
+    pub measure: bool,
 }
 
 /// The layouts offered, with the label and hover text of each button.
@@ -38,7 +44,7 @@ const LAYOUTS: [(Layout, &str, &str); 3] = [
 ];
 
 /// Draw the toolbar: open, the layouts, the window of the active viewport, the display
-/// switches, playback, the tag browser, the list of keys and About. In a narrow window the
+/// switches, playback, the measurements, the tag browser, the list of keys and About. In a narrow window the
 /// bar wraps onto a second line.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
     let mut asked = Asked::default();
@@ -75,6 +81,10 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
         ui.separator();
         playback(ui, state, actions);
         ui.separator();
+        let measure = ui.button("Measure");
+        asked.measure = measure
+            .on_hover_text("Rulers, angles, regions and markers, and the list of them (M)")
+            .clicked();
         let tags = ui.button("Tags");
         asked.tags = tags
             .on_hover_text("Every element of the file behind the slice shown")
@@ -238,6 +248,7 @@ mod tests {
             all.about |= asked.about;
             all.shortcuts |= asked.shortcuts;
             all.tags |= asked.tags;
+            all.measure |= asked.measure;
         }
         (actions, all, picks)
     }
@@ -275,7 +286,8 @@ mod tests {
                 open: Some(Pick::Folder),
                 about: true,
                 shortcuts: true,
-                tags: true
+                tags: true,
+                measure: true
             }
         );
     }

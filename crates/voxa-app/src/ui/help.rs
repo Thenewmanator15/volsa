@@ -6,7 +6,7 @@ use super::overlay::SHORTCUTS;
 use super::theme;
 
 /// What the mouse does over a viewport, for the same window.
-pub const MOUSE: [(&str, &str); 9] = [
+pub const MOUSE: [(&str, &str); 11] = [
     ("Wheel", "Move through the slices"),
     ("Ctrl + wheel", "Zoom about the pointer"),
     ("Middle drag", "Move the picture"),
@@ -15,6 +15,14 @@ pub const MOUSE: [(&str, &str); 9] = [
         "Change the window: across for width, down for centre",
     ),
     ("Double-click", "Fit the whole picture in the viewport"),
+    (
+        "Click or drag, in a plane view",
+        "Move the position, or draw with the tool in hand",
+    ),
+    (
+        "Click, in 3D",
+        "Move the position to that surface, or measure with the tool in hand",
+    ),
     ("Drag, in 3D", "Turn the scene"),
     ("Shift + drag, or middle drag, in 3D", "Move the scene"),
     ("Wheel, in 3D", "Zoom about the pointer"),
@@ -53,11 +61,11 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 19);
+        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 24);
         let in_3d = MOUSE
             .iter()
             .filter(|(input, _)| input.ends_with("in 3D"))
             .count();
-        assert_eq!(in_3d, 4, "what the mouse does in the 3D view is listed too");
+        assert_eq!(in_3d, 5, "what the mouse does in the 3D view is listed too");
     }
 }

@@ -5,9 +5,9 @@ use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_render::PlaneView;
 use voxa_volume::{Plane, PlaneKind, plane_of};
 
-use super::shapes::{Drawn, drawn, shown_on};
+use super::shapes::{Drawn, beside, drawn, shown_on};
 use super::tools::{Draft, Pointer, drafted, preview};
-use crate::annotations::{Shape, Tool};
+use crate::annotations::{Annotation, Shape, Tool};
 
 /// The axial plane through (5, 6, 7) of voxels of 1 mm along the patient's x, y and z.
 fn axial() -> Plane {
@@ -299,4 +299,28 @@ fn an_annotation_is_drawn_where_its_points_fall_in_the_panel() {
         at: xyz(at(-5.0, 0.0)),
     };
     assert_eq!(drawn(&marker, &view, panel), Drawn::Dot([90.0, 50.0]));
+}
+
+#[test]
+fn beside_a_marker_is_its_name_and_beside_the_rest_the_name_and_what_was_measured() {
+    let named = |label: &str, shape| Annotation {
+        id: 1,
+        label: label.to_owned(),
+        shape,
+    };
+    let marker = named(
+        "Marker 4",
+        Shape::Marker {
+            at: [1.0, 2.0, 3.0],
+        },
+    );
+    assert_eq!(beside(&marker, "L 1.0, P 2.0, S 3.0 mm"), "Marker 4");
+    let ruler = Shape::Ruler {
+        a: [0.0; 3],
+        b: [3.0, 4.0, 0.0],
+    };
+    assert_eq!(
+        beside(&named("Ruler 1", ruler), "5.0 mm"),
+        "Ruler 1: 5.0 mm"
+    );
 }

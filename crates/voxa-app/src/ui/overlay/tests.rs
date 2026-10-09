@@ -367,7 +367,9 @@ fn each_key_does_what_the_reference_says() {
         "the reference window is not a change of state"
     );
     let listed: Vec<&str> = SHORTCUTS.iter().map(|(key, _)| *key).collect();
-    let expected = ["H", "V", "R", "F", "1", "2", "4", "Space", "Esc", "?"];
+    let expected = [
+        "H", "V", "R", "F", "1", "2", "4", "Space", "M", "Ctrl+Z", "Ctrl+Y", "Esc", "?",
+    ];
     assert_eq!(listed, expected);
 }
 

@@ -62,7 +62,7 @@ pub fn save_picture(path: &Path, rgba: &[u8], size: [u32; 2]) -> Notice {
 }
 
 /// What to tell the person once a file has been saved, or has not.
-fn said(path: &Path, outcome: Result<(), ExportError>) -> Notice {
+pub fn said(path: &Path, outcome: Result<(), ExportError>) -> Notice {
     match outcome {
         Ok(()) => about(NoticeKind::Info, format!("Saved {}", name_of(path))),
         Err(why) => about(NoticeKind::Error, why.to_string()),

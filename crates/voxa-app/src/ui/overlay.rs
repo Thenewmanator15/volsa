@@ -19,7 +19,7 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 10] = [
+pub const SHORTCUTS: [(&str, &str); 13] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -31,7 +31,13 @@ pub const SHORTCUTS: [(&str, &str); 10] = [
     ("2", "Two viewports side by side"),
     ("4", "Four viewports"),
     ("Space", "Play or pause through the slices"),
-    ("Esc", "Give the 3D view the large part of the window"),
+    ("M", "Open or close the measurements"),
+    ("Ctrl+Z", "Take back the last change to the measurements"),
+    ("Ctrl+Y", "Do it again (Ctrl+Shift+Z too)"),
+    (
+        "Esc",
+        "Put the tool down; with none in hand, give 3D the large part of the window",
+    ),
     ("?", "Show this list"),
 ];
 

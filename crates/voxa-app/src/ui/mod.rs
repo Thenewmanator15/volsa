@@ -16,7 +16,9 @@ mod browser;
 mod capture;
 mod cine;
 mod help;
+mod keys;
 mod layout;
+mod measure;
 mod overlay;
 mod pen;
 mod pictures;
@@ -47,6 +49,7 @@ pub struct VoxaApp {
     about_open: bool,
     help_open: bool,
     tags: tags::Panel,
+    measure: measure::Panel,
     /// When playback in each viewport last moved on.
     clocks: [cine::Clock; VIEWPORTS],
     capture: Option<capture::Capture>,
@@ -87,6 +90,7 @@ impl VoxaApp {
             about_open: false,
             help_open: false,
             tags: tags::Panel::default(),
+            measure: measure::Panel::default(),
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture,
             pose: Vec::new(),
@@ -101,6 +105,7 @@ impl VoxaApp {
             // A picture for the documentation may want one of the windows open in it.
             let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
             app.tags.open = wanted.contains("tags");
+            app.measure.open = wanted.contains("list");
             app.help_open = wanted.contains("keys");
             app.about_open = wanted.contains("about");
             app.pose = capture::pose(&wanted);
@@ -197,35 +202,6 @@ impl VoxaApp {
             ctx.request_repaint_after(wait);
         }
     }
-
-    /// Turn the keys pressed this frame into actions, unless the person is typing in a field.
-    fn keys(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
-        if ctx.egui_wants_keyboard_input() {
-            return;
-        }
-        let pressed: Vec<(egui::Key, bool)> = ctx.input(|input| {
-            let down = |event: &egui::Event| match event {
-                egui::Event::Key {
-                    key,
-                    pressed: true,
-                    repeat: false,
-                    modifiers,
-                    ..
-                } => Some((*key, modifiers.shift)),
-                _ => None,
-            };
-            input.events.iter().filter_map(down).collect()
-        });
-        for (key, shift) in pressed {
-            // A question mark is its own key on some keyboards and Shift with slash on others.
-            if key == egui::Key::Questionmark || (key == egui::Key::Slash && shift) {
-                self.help_open = !self.help_open;
-            } else if let Some(action) = overlay::shortcut_action(key, self.session.state().active)
-            {
-                actions.push(action);
-            }
-        }
-    }
 }
 
 impl eframe::App for VoxaApp {
@@ -252,6 +228,7 @@ impl eframe::App for VoxaApp {
         self.about_open |= asked.about;
         self.help_open |= asked.shortcuts;
         self.tags.open ^= asked.tags;
+        self.measure.open ^= asked.measure;
         if let Some(path) = chosen(ui.ctx(), asked.open) {
             actions.push(Action::OpenPath(path));
         }
@@ -271,6 +248,10 @@ impl eframe::App for VoxaApp {
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
+        let state = self.session.state();
+        let save = self.measure.show(ui.ctx(), state, &mut actions);
+        let saved = save.and_then(|kind| measure::save(kind, state));
+        actions.extend(saved.map(Action::Post));
         self.keys(ui.ctx(), &mut actions);
         self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
         for action in actions {

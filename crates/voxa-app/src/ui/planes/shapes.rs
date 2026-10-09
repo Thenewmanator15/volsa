@@ -7,7 +7,7 @@ use voxa_render::PlaneView;
 use voxa_volume::Plane;
 
 use super::super::pen::Pen;
-use crate::annotations::Shape;
+use crate::annotations::{Annotation, Shape};
 
 /// How nearly a region's own plane must face the way a panel's plane does for the region to
 /// be shown there: the cosine of the angle between them.
@@ -95,6 +95,16 @@ impl Drawn {
                 radii: [_, high],
             } => [x, y - high - 2.0 * DOT],
         }
+    }
+}
+
+/// The words written beside an annotation on a picture: its name and what it measures. A
+/// marker measures nothing, and where it is can be read in the measurements window, so its
+/// name stands alone.
+pub fn beside(item: &Annotation, value: &str) -> String {
+    match item.shape {
+        Shape::Marker { .. } => item.label.clone(),
+        _ => format!("{}: {value}", item.label),
     }
 }
 

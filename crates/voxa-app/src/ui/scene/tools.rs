@@ -7,7 +7,7 @@ use voxa_render::{Camera, on_screen};
 use voxa_volume::distance_mm;
 
 use super::super::pen::Pen;
-use super::super::planes::{Drawn, paint};
+use super::super::planes::{Drawn, beside, paint};
 use super::super::theme;
 use crate::action::Action;
 use crate::annotations::{Shape, Tool, measured};
@@ -125,7 +125,7 @@ pub fn draw(ui: &Ui, area: Rect, state: &AppState, begun: Option<Point<Patient>>
     let placement = grid(state).map(|(placement, _)| placement);
     for item in &state.annotations.items {
         let value = measured(&item.shape, placement.as_ref()).value;
-        let words = format!("{}: {value}", item.label);
+        let words = beside(item, &value);
         let drawn = scene_drawn(&item.shape, camera, viewport);
         paint(&pen, area, &drawn, theme::ACCENT, &words);
     }

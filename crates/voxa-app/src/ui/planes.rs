@@ -25,7 +25,7 @@ pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
     Room, crosshair, crossing, interpolated_note, plane_caption, plane_colour, plane_letters,
 };
-pub use shapes::{Drawn, paint};
+pub use shapes::{Drawn, beside, paint};
 
 /// How thick the lines of the cross and the bar along the top of a panel are, in points.
 const LINE: f32 = 1.0;
@@ -259,7 +259,7 @@ fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far
     let value = |shape: &Shape| measured(shape, placement.as_ref()).value;
     for item in &state.annotations.items {
         if shapes::shown_on(&item.shape, &view.plane, half_layer) {
-            let words = format!("{}: {}", item.label, value(&item.shape));
+            let words = shapes::beside(item, &value(&item.shape));
             let drawn = shapes::drawn(&item.shape, view, size);
             shapes::paint(pen, cell, &drawn, theme::ACCENT, &words);
         }

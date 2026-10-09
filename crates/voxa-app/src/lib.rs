@@ -17,6 +17,7 @@ mod annotations;
 mod args;
 mod cache;
 mod export;
+mod measurements;
 mod planes;
 mod reducer;
 mod scene;
@@ -38,6 +39,7 @@ pub use annotations::{
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};
+pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
 pub use reducer::reduce;
 pub use scene::{MainPanel, Scene, SceneStatus};
