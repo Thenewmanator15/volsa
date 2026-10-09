@@ -3,7 +3,8 @@
 
 use voxa_core::{Patient, Point, WindowLevel};
 
-use crate::camera::Camera;
+use crate::camera::{Camera, ORBIT_DEGREES_PER_PX};
+use crate::vector::{moved, turned_about, unit};
 
 /// The most cut planes a scene can have.
 pub const MAX_CUTS: usize = 3;
@@ -28,6 +29,56 @@ pub struct CutPlane {
     pub point: Point<Patient>,
     /// The direction, of length 1, towards the part that is removed.
     pub normal: [f64; 3],
+}
+
+impl CutPlane {
+    /// A cut straight across the view, through the camera's target: the half of the volume
+    /// nearer the viewer is removed.
+    pub fn facing(camera: &Camera) -> Self {
+        let [_, _, forward] = camera.axes();
+        Self {
+            point: camera.target,
+            normal: forward.map(|part| -part),
+        }
+    }
+
+    /// The cut moved along its normal by this many millimetres: a positive distance removes
+    /// more of the volume, a negative one puts some back.
+    #[must_use]
+    pub fn moved(self, by_mm: f64) -> Self {
+        let Some(normal) = unit(self.normal).filter(|_| by_mm.is_finite()) else {
+            return self;
+        };
+        let [x, y, z] = moved([self.point.x, self.point.y, self.point.z], -by_mm, normal);
+        Self {
+            point: Point::new(x, y, z),
+            ..self
+        }
+    }
+
+    /// The cut turned about its own point as the pointer is dragged this many pixels across
+    /// and down: the tip of its normal follows the pointer, [`ORBIT_DEGREES_PER_PX`] to the
+    /// pixel. The normal is left with a length of 1.
+    #[must_use]
+    pub fn turned(self, camera: &Camera, by_px: [f32; 2]) -> Self {
+        let [across, down] = by_px.map(f64::from);
+        let dragged = across.is_finite() && down.is_finite();
+        let Some(normal) = unit(self.normal).filter(|_| dragged) else {
+            return self;
+        };
+        let [right, below, _] = camera.axes();
+        let above = below.map(|part| -part);
+        let turn = ORBIT_DEGREES_PER_PX.to_radians();
+        let normal = turned_about(
+            turned_about(normal, above, across * turn),
+            right,
+            down * turn,
+        );
+        Self {
+            normal: unit(normal).unwrap_or(normal),
+            ..self
+        }
+    }
 }
 
 /// The plane of the slice shown in the 2D viewport, drawn inside the scene.
@@ -57,4 +108,108 @@ pub struct SceneParams {
     pub quality: f32,
     /// Whether parts of the volume with nothing in them to draw are stepped over.
     pub skip_empty: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::camera::NamedView;
+
+    fn close(found: [f64; 3], expected: [f64; 3]) -> bool {
+        found
+            .into_iter()
+            .zip(expected)
+            .all(|(found, expected)| (found - expected).abs() < 1e-9)
+    }
+
+    fn from_the_front() -> Camera {
+        Camera::looking(NamedView::Anterior, Point::new(1.0, 2.0, 3.0), 1.0)
+    }
+
+    #[test]
+    fn a_cut_facing_the_camera_removes_the_half_nearer_the_viewer() {
+        let cut = CutPlane::facing(&from_the_front());
+        assert_eq!(cut.point, Point::new(1.0, 2.0, 3.0), "through the target");
+        assert!(close(cut.normal, [0.0, -1.0, 0.0]), "{:?}", cut.normal);
+        let from_above = Camera::looking(NamedView::Superior, Point::new(0.0, 0.0, 0.0), 1.0);
+        assert!(close(CutPlane::facing(&from_above).normal, [0.0, 0.0, 1.0]));
+    }
+
+    #[test]
+    fn moving_a_cut_by_a_positive_distance_removes_more() {
+        let cut = CutPlane::facing(&from_the_front());
+        let deeper = cut.moved(5.0);
+        assert_eq!(
+            deeper.point,
+            Point::new(1.0, 7.0, 3.0),
+            "5 mm against its normal"
+        );
+        assert_eq!(deeper.normal, cut.normal);
+        assert_eq!(
+            cut.moved(-5.0).point,
+            Point::new(1.0, -3.0, 3.0),
+            "and back out"
+        );
+        assert_eq!(cut.moved(f64::NAN), cut);
+        let long = CutPlane {
+            normal: [0.0, -4.0, 0.0],
+            ..cut
+        };
+        assert_eq!(
+            long.moved(5.0).point,
+            deeper.point,
+            "millimetres, whatever the length"
+        );
+    }
+
+    #[test]
+    fn turning_a_cut_takes_the_tip_of_its_normal_with_the_pointer() {
+        let camera = from_the_front();
+        let cut = CutPlane::facing(&camera);
+        let to_the_right = cut.turned(&camera, [180.0, 0.0]);
+        assert!(
+            close(to_the_right.normal, [1.0, 0.0, 0.0]),
+            "{:?}",
+            to_the_right.normal
+        );
+        let downwards = cut.turned(&camera, [0.0, 180.0]);
+        assert!(
+            close(downwards.normal, [0.0, 0.0, -1.0]),
+            "{:?}",
+            downwards.normal
+        );
+        assert_eq!(
+            to_the_right.point, cut.point,
+            "it turns about its own point"
+        );
+        assert_eq!(cut.turned(&camera, [f32::NAN, 0.0]), cut);
+    }
+
+    #[test]
+    fn a_turned_cut_keeps_a_normal_of_length_one() {
+        let camera = from_the_front().orbited([40.0, -25.0]);
+        let mut cut = CutPlane {
+            normal: [0.0, -3.0, 0.0],
+            ..CutPlane::facing(&camera)
+        };
+        for _ in 0..200 {
+            cut = cut.turned(&camera, [7.0, -3.0]);
+        }
+        let [x, y, z] = cut.normal;
+        assert!(
+            ((x * x + y * y + z * z).sqrt() - 1.0).abs() < 1e-9,
+            "{:?}",
+            cut.normal
+        );
+    }
+
+    #[test]
+    fn a_cut_with_no_direction_is_left_as_it_is() {
+        let flat = CutPlane {
+            point: Point::new(0.0, 0.0, 0.0),
+            normal: [0.0; 3],
+        };
+        assert_eq!(flat.moved(5.0), flat);
+        assert_eq!(flat.turned(&from_the_front(), [10.0, 10.0]), flat);
+    }
 }

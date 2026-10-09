@@ -12,10 +12,10 @@ use crate::testing::{
 
 /// The grey of the shell, the core and the bead through the ball's window.
 pub(super) const SHELL: u8 = 64;
-const CORE: u8 = 191;
+pub(super) const CORE: u8 = 191;
 const BEAD: u8 = 255;
 /// A pixel 14 mm to the left of the middle of a fitted picture: in the shell, clear of the core.
-const IN_THE_SHELL: (u32, u32) = (23, 48);
+pub(super) const IN_THE_SHELL: (u32, u32) = (23, 48);
 pub(super) const MIDDLE: (u32, u32) = (48, 48);
 
 pub(super) fn drawn(gpu: &mut HeadlessScene, params: &SceneParams) -> Vec<u8> {

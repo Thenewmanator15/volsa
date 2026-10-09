@@ -3,11 +3,12 @@
 
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
-use voxa_core::Volume;
+use voxa_core::{Patient, Point, Volume};
 use voxa_volume::halvings_needed;
 
-use crate::scene::{Look, SceneParams};
+use crate::scene::{Look, MAX_CUTS, SceneParams};
 use crate::slice_pipeline::RenderError;
+use crate::vector::{dot, unit};
 use crate::volume_texture::{Placed, placed_by_halving};
 
 /// The most a volume may take on the graphics device. A device does not say how much room it
@@ -41,6 +42,9 @@ struct Params {
     view: [f32; 4],
     window: [f32; 4],
     voxel: [f32; 4],
+    cuts: [[f32; 4]; MAX_CUTS],
+    sheet: [f32; 4],
+    planes: [f32; 4],
 }
 
 /// The volume now on the graphics device.
@@ -225,6 +229,10 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
         Look::Mip => (1.0, 0.0, 1.0),
         Look::Surface => (2.0, SURFACE_STOPPED_PER_MM, SURFACE_RAMP),
     };
+    let (cuts, cuts_used) = cuts_in_use(scene);
+    let sheet = scene
+        .slice
+        .and_then(|slice| plane(slice.point, slice.normal));
     let [wide, high] = viewport;
     let black = (scene.window.low() - placed.smallest) / placed.span;
     let black_to_white = (scene.window.width / placed.span).max(MIN_WINDOW);
@@ -238,12 +246,10 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
         to_w: along_axis(|[_, _, slice]| slice, slices),
         view: [wide, high, step_mm, look],
         window: [black, black_to_white, stopped_per_mm, ramp],
-        voxel: [
-            1.0 / cols as f32,
-            1.0 / rows as f32,
-            1.0 / slices as f32,
-            0.0,
-        ],
+        voxel: [cols, rows, slices, 1].map(|count| 1.0 / count as f32),
+        cuts,
+        sheet: sheet.unwrap_or_default(),
+        planes: [cuts_used, if sheet.is_some() { 1.0 } else { 0.0 }, 0.0, 0.0],
     }
 }
 
@@ -271,6 +277,30 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         label: Some("voxa volume"),
         entries: &[entry(0, parameters), entry(1, volume), entry(2, blended)],
     })
+}
+
+/// The cut planes as the shader keeps them, and how many there are. Only the first few
+/// count, and of those only the ones that have a direction.
+fn cuts_in_use(scene: &SceneParams) -> ([[f32; 4]; MAX_CUTS], f32) {
+    let mut cuts = [[0.0; 4]; MAX_CUTS];
+    let mut used = 0.0;
+    let given = scene.cuts.iter().take(MAX_CUTS);
+    let usable = given.filter_map(|cut| plane(cut.point, cut.normal));
+    for (kept, cut) in cuts.iter_mut().zip(usable) {
+        *kept = cut;
+        used += 1.0;
+    }
+    (cuts, used)
+}
+
+/// A plane as the shader keeps it: its direction with a length of 1, then how far along that
+/// direction the plane lies from the patient origin. `None` for a plane with no direction.
+fn plane(point: Point<Patient>, normal: [f64; 3]) -> Option<[f32; 4]> {
+    let [x, y, z] = unit(normal)?;
+    let from_origin = dot([x, y, z], [point.x, point.y, point.z]);
+    from_origin
+        .is_finite()
+        .then(|| [x, y, z, from_origin].map(single))
 }
 
 /// Three numbers as the four the shader keeps them in.

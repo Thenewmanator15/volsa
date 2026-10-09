@@ -23,6 +23,13 @@ struct Scene {
     window: vec4<f32>,
     // One voxel along the volume's columns, rows and slices, as a step through the texture.
     voxel: vec4<f32>,
+    // Planes in the patient, each as a direction of length 1 and how far along it the plane
+    // lies from the patient origin. A cut removes everything on the side its direction
+    // points to; the sheet is the 2D slice, drawn in the scene.
+    cuts: array<vec4<f32>, 3>,
+    sheet: vec4<f32>,
+    // How many of the cuts are in use, and 1 if there is a sheet.
+    planes: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> scene: Scene;
@@ -39,6 +46,8 @@ const SHADOW: f32 = 0.35;
 // with a direction to it.
 const LEAST_SLOPE: f32 = 0.01;
 const FAR: f32 = 1.0e30;
+// The least a line of sight must lean towards a plane to be taken as meeting it.
+const ALONGSIDE: f32 = 1.0e-6;
 
 struct Corner {
     @builtin(position) position: vec4<f32>,
@@ -128,15 +137,58 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let columns = between_faces(start.x, step.x);
     let rows = between_faces(start.y, step.y);
     let slices = between_faces(start.z, step.z);
-    let enter = max(max(columns.x, rows.x), slices.x);
-    let leave = min(min(columns.y, rows.y), slices.y);
+    var enter = max(max(columns.x, rows.x), slices.x);
+    var leave = min(min(columns.y, rows.y), slices.y);
+
+    // The line starts where it comes out of the removed side of the last cut it crosses.
+    var on_a_cut = false;
+    for (var c = 0; c < i32(scene.planes.x); c++) {
+        let cut = scene.cuts[c];
+        let removed_by = dot(cut.xyz, on_plane) - cut.w;
+        let leaning = dot(cut.xyz, scene.forward.xyz);
+        if abs(leaning) < ALONGSIDE {
+            if removed_by > 0.0 {
+                return black;
+            }
+            continue;
+        }
+        let meets = -removed_by / leaning;
+        if leaning > 0.0 {
+            leave = min(leave, meets);
+        } else if meets > enter {
+            enter = meets;
+            on_a_cut = true;
+        }
+    }
     if leave <= enter {
         return black;
+    }
+    let brightest_value = scene.view.w > 0.5 && scene.view.w < 1.5;
+    if on_a_cut && !brightest_value {
+        // A cut through tissue shows the scan on its face, as a 2D slice would: unlit, and
+        // hiding what is behind it.
+        let value = value_at(start + enter * step);
+        if solidity(value) > 0.0 {
+            let face = windowed(value);
+            return vec4<f32>(face, face, face, 1.0);
+        }
+    }
+
+    // The 2D slice is an opaque sheet: the line of sight ends on it.
+    var on_the_sheet = false;
+    var sheet_value = 0.0;
+    let leaning = dot(scene.sheet.xyz, scene.forward.xyz);
+    if scene.planes.y > 0.5 && abs(leaning) >= ALONGSIDE {
+        let meets = -(dot(scene.sheet.xyz, on_plane) - scene.sheet.w) / leaning;
+        if meets >= enter && meets <= leave {
+            leave = meets;
+            on_the_sheet = true;
+            sheet_value = value_at(start + meets * step);
+        }
     }
 
     let stride = max(scene.view.z, (leave - enter) / MAX_STEPS);
     let steps = i32(ceil((leave - enter) / stride));
-    let brightest_value = scene.view.w > 0.5 && scene.view.w < 1.5;
     let lit = scene.view.w > 1.5;
     let first = scattered(pixel);
     var brightest = 0.0;
@@ -174,7 +226,13 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
         }
     }
     if brightest_value {
+        if on_the_sheet {
+            brightest = max(brightest, sheet_value);
+        }
         light = windowed(brightest);
+    } else if on_the_sheet {
+        // What was in front of the sheet is drawn over it.
+        light += (1.0 - stopped) * windowed(sheet_value);
     }
     return vec4<f32>(light, light, light, 1.0);
 }

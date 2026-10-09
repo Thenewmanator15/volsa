@@ -20,6 +20,7 @@ mod scene;
 mod slice_pipeline;
 #[cfg(test)]
 mod testing;
+mod vector;
 mod view;
 mod volume_pipeline;
 mod volume_texture;

@@ -6,6 +6,7 @@ use std::f64::consts::{FRAC_PI_2, PI, TAU};
 use voxa_core::{Affine, Patient, Point, Screen};
 use voxa_volume::Ray;
 
+use crate::vector::{dot, moved};
 use crate::view::{finite_or, positive_or};
 
 /// How far the view turns for each screen pixel the pointer is dragged, in degrees.
@@ -242,16 +243,6 @@ impl Camera {
 
 fn xyz(point: Point<Patient>) -> [f64; 3] {
     [point.x, point.y, point.z]
-}
-
-fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
-    a.into_iter().zip(b).map(|(a, b)| a * b).sum()
-}
-
-/// `from` moved `by` times along `step`.
-fn moved(from: [f64; 3], by: f64, step: [f64; 3]) -> [f64; 3] {
-    let ([x, y, z], [dx, dy, dz]) = (from, step);
-    [x + by * dx, y + by * dy, z + by * dz]
 }
 
 #[cfg(test)]
