@@ -31,6 +31,7 @@ mod worker;
 pub use action::{Action, Effect};
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
+pub use export::{ExportError, SUGGESTED_NAME, gif, png};
 pub use reducer::reduce;
 pub use scene::{MainPanel, Scene, SceneStatus};
 pub use session::Session;

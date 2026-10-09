@@ -28,11 +28,28 @@ where it can be tested without a window.
 5. The app draws overlays (orientation letters, scale bar, corner text) with `egui` above the GPU
    viewport.
 
+The 3D scene follows the series of the active viewport:
+
+1. A worker decodes every slice of the series, taking those already in the frame cache, and
+   `voxa-volume` stacks them into a `Volume`: the values, and the transform that places each
+   voxel in the patient. The one volume in use is kept in a store shared with the window.
+2. `voxa-render` uploads it once as a 3D texture of 16-bit values from 0 at the smallest to 1 at
+   the largest, halving it first if the device cannot hold it, with a small second texture of
+   the largest value in each block of voxels.
+3. For every pixel a fragment shader builds the line of sight from the camera, clips it to the
+   volume's box in texture space (so a tilted stack needs no resampling), steps past the blocks
+   with nothing to draw, and walks the rest: adding up lit, windowed values (Surface, VR) or
+   keeping the brightest (MIP). Cut planes shorten the line; the 2D slice is an opaque sheet.
+4. The picture is drawn off the screen, at half size and half quality while the camera moves,
+   and shown by `egui` as an image. The same path draws the pictures that are saved.
+5. The camera has no perspective and lives in patient space, so nothing is mirrored, a scale bar
+   holds across the picture, and the letters at the edges come from the same rule as in 2D.
+
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled
 by one pure function, `reduce`, which returns the `Effect`s to run (start indexing, request
-frames). Workers report back by sending further `Action`s. This makes every interaction testable
+frames, build a volume, read and write saved views). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
 
 ## Coordinates

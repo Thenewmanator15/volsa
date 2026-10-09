@@ -2,17 +2,19 @@
 
 Voxa is a desktop viewer for MRI scan exports, written in Rust. It opens a folder, a zip or a
 `DICOMDIR`, lists the studies and series inside, and shows any series as a stack of slices with
-correct orientation, contrast controls, overlays, tag inspection and cine playback.
+correct orientation, contrast controls, overlays, tag inspection and cine playback, and shows
+the series being looked at as a 3D volume that can be turned, cut open and saved as a picture.
 
 **Voxa is not a medical device and is not for diagnostic use.**
 
-![Voxa showing a made-up test study: a ball with a bead near the front](docs/images/voxa-phantom.png)
+![Voxa showing a made-up test study in 3D, cut open, with the slice shown beside it](docs/images/voxa-phantom-3d.png)
 
-The picture shows a made-up study that Voxa's own example writes, not a scan of anyone.
+The picture shows a made-up study that Voxa's own example writes, not a scan of anyone: a ball,
+turned and cut open in the 3D scene, with the slice through its middle beside it.
 
-Status: version 0.1.0, the first milestone (Foundation). What it does and what it does not yet do
+Status: version 0.2.0, the second milestone (Interactive 3D). What it does and what it does not yet do
 are in the [changelog](CHANGELOG.md); how it was checked is in
-[docs/acceptance-0.1.0.md](docs/acceptance-0.1.0.md). The design and the plan for every
+[docs/acceptance-0.2.0.md](docs/acceptance-0.2.0.md). The design and the plan for every
 milestone are in [docs/superpowers](docs/superpowers).
 
 ## Build and run
