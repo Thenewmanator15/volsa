@@ -3,20 +3,23 @@
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, Ui};
 use egui_wgpu::RenderState;
-use voxa_core::WindowLevel;
+use voxa_core::{Volume, WindowLevel};
 use voxa_render::{PlaneView, VolumePipeline};
-use voxa_volume::{PlaneKind, pitch_along};
+use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
 
 use super::pen::{self, Pen};
 use super::scene::status_text;
 use super::{overlay as slice_overlay, theme};
 use crate::action::Action;
+use crate::annotations::{Shape, Tool, measured};
 use crate::planes::{grid, plane};
 use crate::state::AppState;
 
 mod gpu;
 mod mouse;
 mod overlay;
+mod shapes;
+mod tools;
 
 pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
@@ -44,6 +47,8 @@ pub struct PlanesView {
     gpus: Option<[gpu::PlaneGpu; 3]>,
     /// Part of a wheel notch scrolled on a touchpad over each panel and not yet acted on.
     part_notch: [f32; 3],
+    /// The annotation being drawn, if one has been begun.
+    drawing: tools::Drawing,
 }
 
 impl PlanesView {
@@ -52,44 +57,60 @@ impl PlanesView {
         Self {
             gpus: render.map(|render| PlaneKind::ALL.map(|_| gpu::PlaneGpu::new(render))),
             part_notch: [0.0; 3],
+            drawing: tools::Drawing::default(),
         }
     }
 }
 
-/// Draw the three planes into `cells`, in the order of [`PlaneKind::ALL`], from the volume
-/// the scene's pipeline holds, and turn what the mouse does over each into actions.
+/// What the panels are drawn from: the scene's volume on the graphics device, with the
+/// window's device, and the same volume on the processor, for measuring.
+pub type Drawn<'a> = (
+    Option<(&'a VolumePipeline, &'a RenderState)>,
+    Option<&'a Volume>,
+);
+
+/// Draw the three planes into `cells`, in the order of [`PlaneKind::ALL`], and turn what the
+/// mouse does over each into actions: moving the position and the panel, or drawing with the
+/// tool in hand.
 pub fn show(
     ui: &mut Ui,
     cells: [Rect; 3],
     state: &AppState,
-    volume: Option<&VolumePipeline>,
+    (on_device, scan): Drawn<'_>,
     view: &mut PlanesView,
-    render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) {
+    let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    let series = state.scene.series.as_ref();
+    view.drawing.keep_up(state.tool, series, cancel);
     let gpus = view.gpus.as_ref().map(<[gpu::PlaneGpu; 3]>::each_ref);
     let [first, second, third] = gpus.map_or([None; 3], |gpus| gpus.map(Some));
     let [a, b, c] = &mut view.part_notch;
     let panels = [(first, a), (second, b), (third, c)];
     for ((kind, cell), (gpu, part_notch)) in PlaneKind::ALL.into_iter().zip(cells).zip(panels) {
-        let on_device = gpu.zip(render).zip(volume);
-        panel(ui, (kind, cell), state, on_device, part_notch, actions);
+        let on_device = gpu.zip(on_device);
+        let shown = panel(ui, (kind, cell), state, on_device, &view.drawing);
+        if let Some((response, shown)) = shown {
+            let input = mouse::gather(ui, &response, cell, &shown, part_notch);
+            let drawn = handled(state, kind, &input, (&shown.plane, scan), &mut view.drawing);
+            actions.extend(drawn);
+        }
     }
 }
 
-/// What a panel is drawn with on the graphics device: its own pipeline, the window's device,
-/// and the scene's volume.
-type OnDevice<'a> = ((&'a gpu::PlaneGpu, &'a RenderState), &'a VolumePipeline);
+/// What a panel is drawn with on the graphics device: its own pipeline, and the scene's
+/// volume with the window's device.
+type OnDevice<'a> = (&'a gpu::PlaneGpu, (&'a VolumePipeline, &'a RenderState));
 
-/// Draw one plane's panel and gather what the mouse does over it.
+/// Draw one plane's panel. Gives what the mouse does over it and what it shows, when it has
+/// a plane to show.
 fn panel(
     ui: &mut Ui,
     (kind, cell): (PlaneKind, Rect),
     state: &AppState,
     on_device: Option<OnDevice<'_>>,
-    part_notch: &mut f32,
-    actions: &mut Vec<Action>,
-) {
+    drawing: &tools::Drawing,
+) -> Option<(egui::Response, PlaneView)> {
     let response = ui.interact(cell, ui.id().with(("plane", kind)), Sense::click_and_drag());
     ui.painter().rect_filled(cell, 0, Color32::BLACK);
     let size = [cell.width(), cell.height()];
@@ -99,17 +120,15 @@ fn panel(
             let panel = state.planes.panel(kind);
             PlaneView::showing(plane, &corners, size, panel.zoom, panel.offset_mm)
         });
-    let active = state.viewports.get(state.active);
-    let window = active.map_or(WindowLevel::new(0.5, 1.0), |shown| shown.wl);
     let drawn = shown.as_ref().zip(on_device).is_some_and(|(view, device)| {
-        let ((gpu, render), volume) = device;
-        gpu.draw(ui, cell, render, volume, view, window)
+        let (gpu, (volume, render)) = device;
+        gpu.draw(ui, cell, render, volume, view, window(state))
     });
     match &shown {
-        Some(view) if drawn => written_over(ui, cell, state, kind, view),
+        Some(view) if drawn => written_over(ui, cell, state, (kind, view), drawing),
         _ => {
-            let why =
-                status_text(&state.scene).unwrap_or_else(|| super::scene::CANNOT_DRAW.to_owned());
+            let none = || super::scene::CANNOT_DRAW.to_owned();
+            let why = status_text(&state.scene).unwrap_or_else(none);
             let font = egui::TextStyle::Body.resolve(ui.style());
             let middle = Align2::CENTER_CENTER;
             ui.painter()
@@ -118,19 +137,76 @@ fn panel(
     }
     let top = Rect::from_min_max(cell.min, egui::pos2(cell.right(), cell.top() + BAR));
     ui.painter().rect_filled(top, 0, plane_colour(kind));
-    if let Some(view) = &shown {
-        let input = mouse::gather(ui, &response, cell, view, part_notch);
-        let input = PlaneInput {
-            window_width: window.width,
-            ..input
-        };
-        actions.extend(plane_input_to_actions(kind, state.active, &input));
+    shown.map(|shown| (response, shown))
+}
+
+/// The window the planes are shown through: the active viewport's.
+fn window(state: &AppState) -> WindowLevel {
+    let active = state.viewports.get(state.active);
+    active.map_or(WindowLevel::new(0.5, 1.0), |shown| shown.wl)
+}
+
+/// Turn what the mouse did over a panel into actions. With the navigating tool the main
+/// button moves the position; with any other it draws, and a finished annotation is added,
+/// a region with what the scan holds inside it.
+fn handled(
+    state: &AppState,
+    kind: PlaneKind,
+    input: &PlaneInput,
+    (plane, scan): (&Plane, Option<&Volume>),
+    drawing: &mut tools::Drawing,
+) -> Vec<Action> {
+    let navigating = state.tool == Tool::Navigate;
+    let made = if navigating {
+        None
+    } else {
+        drawing.step(kind, input, plane)
+    };
+    let input = PlaneInput {
+        window_width: window(state).width,
+        held_at: input.held_at.filter(|_| navigating),
+        ..input.clone()
+    };
+    let mut actions = plane_input_to_actions(kind, state.active, &input);
+    actions.extend(made.map(|shape| Action::AnnotationAdd(measured_on(shape, plane, scan))));
+    actions
+}
+
+/// A region with what the scan holds inside it worked out, if there is a scan to read; any
+/// other annotation as it is.
+fn measured_on(shape: Shape, plane: &Plane, scan: Option<&Volume>) -> Shape {
+    match shape {
+        Shape::Region {
+            centre,
+            across,
+            down,
+            radii_mm,
+            stats: None,
+        } => {
+            let [x, y, z] = centre;
+            let (on_plane, _) = plane.of(voxa_core::Point::new(x, y, z));
+            let stats = scan.and_then(|scan| ellipse_stats(scan, plane, on_plane, radii_mm));
+            Shape::Region {
+                centre,
+                across,
+                down,
+                radii_mm,
+                stats,
+            }
+        }
+        other => other,
     }
 }
 
 /// Write over a plane's picture: the cross through the position, a letter at each edge, a
 /// scale bar, the plane's name and place, and what the picture cannot show.
-fn written_over(ui: &Ui, cell: Rect, state: &AppState, kind: PlaneKind, view: &PlaneView) {
+fn written_over(
+    ui: &Ui,
+    cell: Rect,
+    state: &AppState,
+    (kind, view): (PlaneKind, &PlaneView),
+    drawing: &tools::Drawing,
+) {
     let pen = Pen::over(ui, cell);
     let size = [cell.width(), cell.height()];
     let on_screen = |[x, y]: [f32; 2]| egui::pos2(cell.left() + x, cell.top() + y);
@@ -168,6 +244,29 @@ fn written_over(ui: &Ui, cell: Rect, state: &AppState, kind: PlaneKind, view: &P
         // Kept to its own side of the letter in the middle of the bottom edge.
         pen.write_wrapped_up(inside.left_bottom(), &note, room);
     }
+    annotations(&pen, cell, state, view, drawing.so_far(kind, &view.plane));
+}
+
+/// Draw the annotations that lie in the layer a panel shows, each with its name and what it
+/// measures, and then the one being drawn, with what it would measure if finished now.
+fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far: Option<Shape>) {
+    let size = [cell.width(), cell.height()];
+    let placement = grid(state).map(|(placement, _)| placement);
+    let pitch = placement.and_then(|placement| pitch_along(&placement, view.plane.normal()));
+    // Half a layer either side, and a hair more for what lies exactly between two.
+    let half_layer = pitch.map_or(0.5, |pitch| pitch / 2.0) + 1.0e-6;
+    let value = |shape: &Shape| measured(shape, placement.as_ref()).value;
+    for item in &state.annotations.items {
+        if shapes::shown_on(&item.shape, &view.plane, half_layer) {
+            let words = format!("{}: {}", item.label, value(&item.shape));
+            let drawn = shapes::drawn(&item.shape, view, size);
+            shapes::paint(pen, cell, &drawn, theme::ACCENT, &words);
+        }
+    }
+    if let Some(shape) = so_far {
+        let drawn = shapes::drawn(&shape, view, size);
+        shapes::paint(pen, cell, &drawn, theme::WARNING, &value(&shape));
+    }
 }
 
 #[expect(
@@ -180,3 +279,5 @@ fn narrowed(value: f64) -> f32 {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tools_tests;

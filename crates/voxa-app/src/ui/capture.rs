@@ -8,19 +8,25 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use voxa_core::SeriesId;
+use voxa_core::{Patient, Point, SeriesId, Volume};
 use voxa_render::Look;
+use voxa_volume::{PlaneKind, ellipse_stats};
 
+use super::VoxaApp;
+use super::viewport::Gpu;
 use crate::action::Action;
-use crate::planes::ColumnShows;
+use crate::annotations::Shape;
+use crate::planes::{ColumnShows, plane};
 use crate::scene::MainPanel;
+use crate::scene::SceneStatus;
 use crate::state::AppState;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
-/// `slice`, `planes` for the plane views in the column or `quad` for them large, and `first` for the first series listed in place of the one Voxa opens itself.
+/// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
+/// for one of each kind of annotation in the axial plane, and `first` for the first series listed in place of the one Voxa opens itself.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving the size of the window for the picture, in points, as
 /// width `x` height: `900x600`.
@@ -64,6 +70,48 @@ pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool)
     })
 }
 
+/// For a picture that asks for it with the word `measured`: a ruler, an angle, a region and
+/// a marker in the axial plane through the position, as the tools would have made them from
+/// `scan`, the scene's volume. Nothing while there is no volume ready.
+pub fn sample_annotations(state: &AppState, scan: &Volume) -> Vec<Action> {
+    let Some((axial, corners)) = plane(state, PlaneKind::Axial).zip(state.scene.corners) else {
+        return Vec::new();
+    };
+    // A fifth of how far the volume reaches from the middle of the plane, as the unit.
+    let reach = corners.iter().fold(0.0_f64, |reach, corner| {
+        let ([across, down], _) = axial.of(*corner);
+        reach.max(across.abs()).max(down.abs())
+    });
+    let unit = reach / 5.0;
+    let at = |across: f64, down: f64| xyz(axial.at([across * unit, down * unit]));
+    let radii_mm = [unit, 0.6 * unit];
+    let inside = ellipse_stats(scan, &axial, [0.0, -2.6 * unit], radii_mm);
+    let shapes = [
+        Shape::Ruler {
+            a: at(-2.0, -1.0),
+            b: at(2.0, -1.0),
+        },
+        Shape::Angle {
+            a: at(2.0, 2.5),
+            vertex: at(0.0, 0.8),
+            b: at(-2.0, 2.5),
+        },
+        Shape::Region {
+            centre: at(0.0, -2.6),
+            across: axial.across,
+            down: axial.down,
+            radii_mm,
+            stats: inside,
+        },
+        Shape::Marker { at: at(3.0, 0.5) },
+    ];
+    shapes.into_iter().map(Action::AnnotationAdd).collect()
+}
+
+fn xyz(point: Point<Patient>) -> [f64; 3] {
+    [point.x, point.y, point.z]
+}
+
 /// A capture that has been asked for and not yet finished.
 pub struct Capture {
     path: PathBuf,
@@ -72,6 +120,8 @@ pub struct Capture {
     asked: bool,
     /// Whether the first series listed has still to be shown for the picture.
     first: bool,
+    /// Whether one of each kind of annotation has still to be made for the picture.
+    measured: bool,
 }
 
 impl Capture {
@@ -84,6 +134,7 @@ impl Capture {
             settled: 0,
             asked: false,
             first: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("first")),
+            measured: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("measured")),
         })
     }
 
@@ -92,6 +143,17 @@ impl Capture {
         let pick = first_listed(state, has).filter(|_| self.first)?;
         self.first = false;
         Some(pick)
+    }
+
+    /// The annotations the picture asks for, when it asks for them: given once, when the
+    /// scene's volume is there to make them on.
+    pub fn sample(&mut self, state: &AppState, scan: Option<&Volume>) -> Vec<Action> {
+        let made = scan
+            .filter(|_| self.measured)
+            .map(|scan| sample_annotations(state, scan));
+        let made = made.unwrap_or_default();
+        self.measured &= made.is_empty();
+        made
     }
 
     /// Call once a frame. `ready` says whether the window shows what is wanted.
@@ -121,6 +183,41 @@ impl Capture {
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
         }
         ctx.request_repaint();
+    }
+}
+
+impl VoxaApp {
+    /// What a frame does for a picture of the window, if one has been asked for: pose the
+    /// scene and make the annotations the picture wants, once the volume is ready; show the
+    /// series it wants; and take the picture when everything asked for is on the screen.
+    pub(super) fn for_a_picture(&mut self, ctx: &egui::Context) {
+        if self.session.state().scene.status == SceneStatus::Ready {
+            for action in std::mem::take(&mut self.pose) {
+                self.session.dispatch(action);
+            }
+            let state = self.session.state();
+            let shown = state.scene.series.as_ref();
+            let scan = shown.and_then(|id| self.session.volume(id));
+            let wanted = self.capture.as_mut();
+            let sample = wanted.map(|capture| capture.sample(state, scan.as_deref()));
+            for action in sample.unwrap_or_default() {
+                self.session.dispatch(action);
+            }
+        }
+        // A picture of the window waits for the slice and, if there is to be one, the volume.
+        let no_volume_to_come = !matches!(
+            self.session.state().scene.status,
+            SceneStatus::Building { .. } | SceneStatus::Ready
+        );
+        let slices = self.slices_hidden() || self.gpus.first().is_some_and(Gpu::has_picture);
+        let ready = slices && (no_volume_to_come || self.scene.has_picture());
+        if let Some(capture) = &mut self.capture {
+            let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
+            capture.step(ctx, ready && pick.is_none());
+            if let Some(pick) = pick {
+                self.session.dispatch(pick);
+            }
+        }
     }
 }
 
@@ -174,5 +271,43 @@ mod tests {
         assert_eq!(size_from("900"), None);
         assert_eq!(size_from("0x600"), None, "a window has to have a size");
         assert_eq!(size_from("wide x tall"), None);
+    }
+
+    #[test]
+    fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
+        use voxa_core::Volume;
+        use voxa_volume::PlaneKind;
+
+        use crate::annotations::Shape;
+        use crate::planes::plane;
+        use crate::testing::{THICK_SCAN, id, thick_scan_ready};
+        let state = thick_scan_ready();
+        let info = &state.series(&id(THICK_SCAN)).expect("listed").info;
+        let placement = info.voxel_to_patient.expect("placed");
+        let scan = Volume::new([4, 4, 30], vec![5.0; 480], placement).expect("adds up");
+        let made = sample_annotations(&state, &scan);
+        let shapes: Vec<&Shape> = made
+            .iter()
+            .filter_map(|action| match action {
+                Action::AnnotationAdd(shape) => Some(shape),
+                _ => None,
+            })
+            .collect();
+        let kinds: Vec<&str> = shapes.iter().map(|shape| shape.kind()).collect();
+        assert_eq!(kinds, ["Ruler", "Angle", "Region", "Marker"]);
+        assert_eq!(made.len(), 4, "and nothing else");
+        let axial = plane(&state, PlaneKind::Axial).expect("a plane");
+        let on_the_plane = |at: &[f64; 3]| {
+            let [x, y, z] = *at;
+            axial.of(voxa_core::Point::new(x, y, z)).1.abs() < 1.0e-9
+        };
+        for shape in &shapes {
+            assert!(shape.points().iter().all(on_the_plane), "{shape:?}");
+        }
+        assert_eq!(
+            sample_annotations(&AppState::default(), &scan),
+            [],
+            "nothing with no volume"
+        );
     }
 }

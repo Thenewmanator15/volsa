@@ -7,7 +7,6 @@ use std::time::Instant;
 use egui::RichText;
 
 use crate::action::Action;
-use crate::scene::SceneStatus;
 use crate::session::Session;
 use crate::settings;
 use crate::state::{NoticeKind, VIEWPORTS};
@@ -275,26 +274,7 @@ impl eframe::App for VoxaApp {
         for action in actions {
             self.dispatch(action);
         }
-        if self.session.state().scene.status == SceneStatus::Ready {
-            for action in std::mem::take(&mut self.pose) {
-                self.dispatch(action);
-            }
-        }
-        // A picture of the window waits for the slice and, if there is to be one, the volume.
-        let no_volume_to_come = !matches!(
-            self.session.state().scene.status,
-            SceneStatus::Building { .. } | SceneStatus::Ready
-        );
-        let ready = (self.slices_hidden()
-            || self.gpus.first().is_some_and(viewport::Gpu::has_picture))
-            && (no_volume_to_come || self.scene.has_picture());
-        if let Some(capture) = &mut self.capture {
-            let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
-            capture.step(ui.ctx(), ready && pick.is_none());
-            if let Some(pick) = pick {
-                self.session.dispatch(pick);
-            }
-        }
+        self.for_a_picture(ui.ctx());
     }
 }
 

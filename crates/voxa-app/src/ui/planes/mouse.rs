@@ -14,6 +14,13 @@ use crate::action::Action;
 pub struct PlaneInput {
     /// The point of the patient under the pointer while the main button is held on the panel.
     pub held_at: Option<Point<Patient>>,
+    /// The point under the pointer when the main button went down on the panel this frame.
+    pub pressed_at: Option<Point<Patient>>,
+    /// The point under the pointer when the main button came up this frame, if it had gone
+    /// down on the panel or the pointer is over it.
+    pub released_at: Option<Point<Patient>>,
+    /// The point under the pointer while it is over the panel or dragging from it.
+    pub hover_at: Option<Point<Patient>>,
     /// Wheel notches turned: positive towards the person, which moves on to later layers.
     pub wheel: i32,
     /// Whether Ctrl was held as the wheel turned, which zooms instead.
@@ -85,10 +92,30 @@ pub(super) fn gather(
     let size = [cell.width(), cell.height()];
     let in_panel = |at: egui::Pos2| [at.x - cell.left(), at.y - cell.top()];
     let mut input = PlaneInput::default();
-    let main_down = ui.input(|i| i.pointer.button_down(PointerButton::Primary));
-    if response.is_pointer_button_down_on() && main_down {
-        let at = response.interact_pointer_pos().map(in_panel);
-        input.held_at = at.map(|at| view.screen_to_patient(size, at));
+    let patient = |at: egui::Pos2| view.screen_to_patient(size, in_panel(at));
+    let (main_down, went_down, came_up, latest) = ui.input(|i| {
+        let pointer = &i.pointer;
+        let main = PointerButton::Primary;
+        (
+            pointer.button_down(main),
+            pointer.button_pressed(main),
+            pointer.button_released(main),
+            pointer.latest_pos(),
+        )
+    });
+    let on_panel = response.is_pointer_button_down_on();
+    if on_panel && main_down {
+        input.held_at = response.interact_pointer_pos().map(patient);
+    }
+    if on_panel && went_down {
+        input.pressed_at = response.interact_pointer_pos().map(patient);
+    }
+    let over = response.contains_pointer();
+    if came_up && (over || response.drag_stopped()) {
+        input.released_at = latest.map(patient);
+    }
+    if over || response.dragged() {
+        input.hover_at = latest.map(patient);
     }
     input.double_clicked = response.double_clicked();
     let dragged = response.drag_delta();

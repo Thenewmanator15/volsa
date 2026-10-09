@@ -42,7 +42,16 @@ impl VoxaApp {
         if let Some(cells) = areas.planes {
             // After the scene, which is what puts the volume on the graphics device.
             let held = self.scene.volume_pipeline();
-            planes::show(ui, cells, state, held, &mut self.planes, render, actions);
+            let on_device = held.zip(render);
+            let scan = volume.map(|volume| &**volume);
+            planes::show(
+                ui,
+                cells,
+                state,
+                (on_device, scan),
+                &mut self.planes,
+                actions,
+            );
         }
         if let Some(for_slices) = areas.slices {
             let (session, gpus) = (&self.session, &mut self.gpus);

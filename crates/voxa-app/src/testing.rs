@@ -87,3 +87,25 @@ pub fn with_odd_series() -> Index {
 pub fn three_series() -> Index {
     indexed(three_series_files())
 }
+
+/// A state with the three series listed, the 30-slice one shown, and its volume ready in the
+/// scene: the volume's own corners are what the worker would have reported.
+pub fn thick_scan_ready() -> crate::state::AppState {
+    use voxa_core::Point;
+
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let mut state = crate::state::AppState::default();
+    reduce(&mut state, Action::IndexProgress(three_series()));
+    let (viewport, series) = (0, id(THICK_SCAN));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    let info = &state.series(&id(THICK_SCAN)).expect("listed").info;
+    let placement = info.voxel_to_patient.expect("placed");
+    let end = |i: usize, bit: usize, count: f64| if i & bit == 0 { -0.5 } else { count - 0.5 };
+    let corners = std::array::from_fn(|i| {
+        placement.apply(Point::new(end(i, 1, 4.0), end(i, 2, 4.0), end(i, 4, 30.0)))
+    });
+    let series = id(THICK_SCAN);
+    reduce(&mut state, Action::VolumeReady { series, corners });
+    state
+}
