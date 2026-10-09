@@ -351,3 +351,42 @@ fn views_that_cannot_be_written_are_said_to_be_lost_next_time() {
         "the view is still there for now"
     );
 }
+
+#[test]
+fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&three_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    let series = id(FINE_SCAN);
+    let has_its_windows = |session: &Session, slice: usize| {
+        let key = (id(FINE_SCAN), slice);
+        session.state().windows.contains_key(&key)
+    };
+    until(&mut session, |session| {
+        (0..64).all(|slice| has_its_windows(session, slice))
+    });
+    let in_the_cache = |slice: &usize| {
+        let cache = session.cache().lock().expect("no worker panicked");
+        cache.contains(&series, *slice)
+    };
+    let twice = (0..64).filter(in_the_cache).count();
+    assert!(twice <= 1, "{twice} slices are held a second time");
+    let volume = session.volume(&series).expect("kept");
+    for slice in [0_u32, 31, 63] {
+        let frame = session
+            .cached(&series, slice as usize)
+            .expect("read from the volume");
+        assert_eq!((frame.rows, frame.cols, frame.values.len()), (8, 8, 64));
+        assert_eq!(Some(frame.values[9]), volume.get(1, 1, slice));
+    }
+    assert!(
+        session.cached(&series, 64).is_none(),
+        "there is no such slice"
+    );
+    assert!(
+        session.cached(&id(THICK_SCAN), 0).is_none(),
+        "nor is another series there"
+    );
+}

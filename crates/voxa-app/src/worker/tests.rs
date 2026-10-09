@@ -50,6 +50,20 @@ impl Bench {
         self.reports.recv_timeout(QUIET).is_err()
     }
 
+    /// Everything reported from now until the workers have been quiet for a while.
+    pub(super) fn drain(&self) -> Vec<Action> {
+        std::iter::from_fn(|| self.reports.recv_timeout(QUIET).ok()).collect()
+    }
+
+    /// Wait for something the workers do without reporting it.
+    pub(super) fn until(&self, done: impl Fn(&Self) -> bool) {
+        let started = std::time::Instant::now();
+        while !done(self) {
+            assert!(started.elapsed() < PATIENCE, "the workers never got there");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
     /// Index a path to the end; the finished index, or the message it failed with.
     pub(super) fn index(&self, path: &Path) -> Result<Index, String> {
         self.workers.run(Effect::StartIndex(path.to_owned()), None);
@@ -80,7 +94,7 @@ impl Bench {
         (0..expected).map(|_| self.next()).collect()
     }
 
-    fn cached(&self, series: &str, slice: usize) -> Option<Arc<Frame>> {
+    pub(super) fn cached(&self, series: &str, slice: usize) -> Option<Arc<Frame>> {
         self.cache
             .lock()
             .expect("no worker panicked")

@@ -1,7 +1,6 @@
 //! The window: toolbar, study browser, the 3D scene, the viewport grid and status line.
 
 use std::path::PathBuf;
-use std::sync::PoisonError;
 use std::sync::mpsc::channel;
 use std::time::Instant;
 
@@ -119,11 +118,6 @@ impl VoxaApp {
             self.thumbnails.clear();
             return;
         };
-        let cache = self
-            .session
-            .cache()
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner);
         for series in &index.series {
             let id = &series.info.id;
             if self.thumbnails.contains_key(id) {
@@ -131,7 +125,9 @@ impl VoxaApp {
             }
             let middle = series.slices.len() / 2;
             let window = self.session.state().windows.get(&(id.clone(), middle));
-            let (Some(frame), Some([automatic, ..])) = (cache.get(id, middle), window) else {
+            // Only with its window: a slice read out of a volume is a copy made for the asking.
+            let frame = window.and_then(|_| self.session.cached(id, middle));
+            let (Some(frame), Some([automatic, ..])) = (frame, window) else {
                 continue;
             };
             let picture = thumbnail(&frame, *automatic, THUMBNAIL_PIXELS);
@@ -208,8 +204,9 @@ impl VoxaApp {
             render,
             actions,
         );
-        let (cache, gpus) = (self.session.cache(), &mut self.gpus);
-        viewport::show(ui, for_slices, state, cache, gpus, render, actions);
+        let (session, gpus) = (&self.session, &mut self.gpus);
+        let frames = |series: &_, slice| session.cached(series, slice);
+        viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 

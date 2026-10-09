@@ -9,7 +9,7 @@ use crate::testing::{FINE_SCAN, THICK_SCAN, id, series_files, slice_options};
 
 /// The files of a series of 4 x 4 slices whose values count up through the whole stack, with
 /// `change` applied to each slice's options.
-fn counted(
+pub(super) fn counted(
     uid: &str,
     slices: u16,
     change: impl Fn(u16, &mut SliceOptions),
@@ -25,14 +25,14 @@ fn counted(
     (0..slices).map(file).collect()
 }
 
-fn build(bench: &Bench, index: &Index, series: &str) {
+pub(super) fn build(bench: &Bench, index: &Index, series: &str) {
     bench
         .workers
         .run(Effect::BuildVolume { series: id(series) }, Some(index));
 }
 
 /// The reports up to and including the first that says how a volume ended.
-fn until_the_volume_ends(bench: &Bench) -> Vec<Action> {
+pub(super) fn until_the_volume_ends(bench: &Bench) -> Vec<Action> {
     let mut reports = Vec::new();
     loop {
         reports.push(bench.next());
@@ -42,7 +42,7 @@ fn until_the_volume_ends(bench: &Bench) -> Vec<Action> {
     }
 }
 
-fn stored(bench: &Bench, series: &str) -> Option<Arc<Volume>> {
+pub(super) fn stored(bench: &Bench, series: &str) -> Option<Arc<Volume>> {
     bench
         .volumes
         .lock()
@@ -82,10 +82,14 @@ fn a_volume_is_built_from_every_slice_and_kept_in_the_store() {
             _ => None,
         })
         .collect();
+    let other = |report: &&Action| {
+        let about_the_volume = matches!(report, Action::VolumeProgress { .. });
+        !about_the_volume && !matches!(report, Action::FrameReady { .. })
+    };
     assert_eq!(
-        progress.len(),
-        reports.len() - 1,
-        "nothing else is reported: {reports:?}"
+        reports.iter().filter(other).count(),
+        1,
+        "besides progress and slices, only that it is ready: {reports:?}"
     );
     assert!(
         progress.is_sorted(),

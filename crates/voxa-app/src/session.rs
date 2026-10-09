@@ -9,7 +9,7 @@ use voxa_core::{SeriesId, Volume};
 use voxa_dicom::Frame;
 use voxa_render::Prepared;
 
-use crate::action::Action;
+use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::reducer::reduce;
 use crate::state::AppState;
@@ -67,12 +67,19 @@ impl Session {
         &self.cache
     }
 
-    /// A decoded slice, if it is in the cache.
+    /// A decoded slice: from the frame cache if it is there, and otherwise read out of the
+    /// series' volume, if that is the one kept. A series shown in 3D is held once, as its
+    /// volume; a slice read out of it is a copy made for the asking.
     pub fn cached(&self, series: &SeriesId, slice: usize) -> Option<Arc<Frame>> {
-        self.cache
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(series, slice)
+        let cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let cached = cache.get(series, slice);
+        drop(cache);
+        cached.or_else(|| {
+            let volume = self.volume(series)?;
+            let [cols, rows, _] = volume.dims();
+            let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
+            Some(Arc::new(Frame { rows, cols, values }))
+        })
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
@@ -94,7 +101,11 @@ impl Session {
 
     /// Apply an action and hand the work it calls for to the workers.
     pub fn dispatch(&mut self, action: Action) {
-        for effect in reduce(&mut self.state, action) {
+        let mut effects = reduce(&mut self.state, action);
+        // A volume asked for is made known to the workers before the frames of its series
+        // are: the slices are then decoded once, for the volume.
+        effects.sort_by_key(|effect| !matches!(effect, Effect::BuildVolume { .. }));
+        for effect in effects {
             self.workers.run(effect, self.state.index.as_ref());
         }
     }

@@ -21,16 +21,26 @@ impl VolumeStore {
         (of == series).then(|| Arc::clone(volume))
     }
 
-    /// Keep the volume of a series, in place of any kept before.
-    pub fn put(&mut self, series: SeriesId, volume: Arc<Volume>) {
-        self.held = Some((series, volume));
+    /// Whether the volume of a series is the one kept.
+    pub fn holds(&self, series: &SeriesId) -> bool {
+        self.held.as_ref().is_some_and(|(of, _)| of == series)
+    }
+
+    /// Keep the volume of a series, in place of any kept before. The one kept before is
+    /// handed back, with its series.
+    pub fn put(
+        &mut self,
+        series: SeriesId,
+        volume: Arc<Volume>,
+    ) -> Option<(SeriesId, Arc<Volume>)> {
         self.ready = None;
+        self.held.replace((series, volume))
     }
 
     /// Keep the volume of a series as it was made ready for the graphics device, if that
     /// series' volume is the one kept.
     pub fn put_prepared(&mut self, series: &SeriesId, ready: Prepared) {
-        if self.held.as_ref().is_some_and(|(of, _)| of == series) {
+        if self.holds(series) {
             self.ready = Some(ready);
         }
     }
@@ -38,8 +48,11 @@ impl VolumeStore {
     /// Take what was made ready for the graphics device of a series' volume. It is handed
     /// over once: the device then holds it, and it is large.
     pub fn take_prepared(&mut self, series: &SeriesId) -> Option<Prepared> {
-        let kept = self.held.as_ref().is_some_and(|(of, _)| of == series);
-        if kept { self.ready.take() } else { None }
+        if self.holds(series) {
+            self.ready.take()
+        } else {
+            None
+        }
     }
 
     /// Keep nothing.
@@ -101,6 +114,17 @@ mod tests {
             store.take_prepared(&id(THICK_SCAN)).is_none(),
             "it goes with its volume"
         );
+    }
+
+    #[test]
+    fn the_store_says_whether_it_holds_a_series_and_hands_back_what_gives_way() {
+        let mut store = VolumeStore::default();
+        assert!(!store.holds(&id(THICK_SCAN)));
+        let before = store.put(id(THICK_SCAN), volume(1.0));
+        assert!(before.is_none(), "nothing gave way");
+        assert!(store.holds(&id(THICK_SCAN)) && !store.holds(&id(FINE_SCAN)));
+        let before = store.put(id(FINE_SCAN), volume(2.0));
+        assert_eq!(before, Some((id(THICK_SCAN), volume(1.0))));
     }
 
     #[test]

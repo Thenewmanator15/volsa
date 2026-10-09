@@ -46,6 +46,17 @@ impl FrameCache {
             .is_some_and(|slices| slices.contains_key(&slice))
     }
 
+    /// Forget every slice of one series.
+    pub fn forget(&mut self, series: &SeriesId) {
+        let gone = self.frames.remove(series);
+        let freed: usize = gone
+            .iter()
+            .flat_map(BTreeMap::values)
+            .map(|frame| size_of(frame))
+            .sum();
+        self.bytes -= freed;
+    }
+
     /// Forget every slice.
     pub fn clear(&mut self) {
         self.frames.clear();
@@ -192,6 +203,26 @@ mod tests {
         assert_eq!(cache.get(&id("a"), 0), Some(frame(2.0)));
         assert_eq!(cache.bytes(), ONE);
         assert!(cache.contains(&id("a"), 0) && !cache.contains(&id("a"), 1));
+    }
+
+    #[test]
+    fn forgetting_a_series_drops_its_frames_and_leaves_the_others() {
+        let mut cache = FrameCache::new(10 * ONE);
+        cache.insert(&id("a"), 0, frame(1.0), 0);
+        cache.insert(&id("a"), 1, frame(2.0), 0);
+        cache.insert(&id("b"), 0, frame(3.0), 0);
+        cache.forget(&id("a"));
+        assert_eq!(held(&cache, "a", 0..2), Vec::<usize>::new());
+        assert_eq!(
+            (cache.bytes(), cache.get(&id("b"), 0)),
+            (ONE, Some(frame(3.0)))
+        );
+        cache.forget(&id("a"));
+        assert_eq!(
+            cache.bytes(),
+            ONE,
+            "forgetting what is not held changes nothing"
+        );
     }
 
     #[test]

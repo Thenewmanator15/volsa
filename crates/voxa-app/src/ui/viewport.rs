@@ -5,18 +5,21 @@ use std::sync::{Arc, Mutex, PoisonError};
 use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
+use voxa_dicom::Frame;
 use voxa_render::{SlicePipeline, ViewTransform};
 
 use super::overlay;
 use super::theme;
 use crate::action::Action;
-use crate::cache::FrameCache;
 use crate::state::{AppState, Layout};
 
 mod annotate;
 mod mouse;
 
 pub(super) use mouse::turned as wheel_turned;
+
+/// Where a viewport gets a decoded slice from, by series and place: `None` until it is there.
+pub type Frames<'a> = dyn Fn(&SeriesId, usize) -> Option<Arc<Frame>> + 'a;
 
 /// Space between neighbouring viewports, in points.
 pub const GAP: f32 = 4.0;
@@ -154,7 +157,7 @@ pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
-    cache: &Mutex<FrameCache>,
+    frames: &Frames<'_>,
     gpus: &mut [Gpu],
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
@@ -180,7 +183,7 @@ pub fn show(
         };
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
-            (Some(gpu), Some(render)) => slice(ui, &pane, cache, gpu, render),
+            (Some(gpu), Some(render)) => slice(ui, &pane, frames, gpu, render),
             _ => false,
         };
         if drawn {
@@ -208,11 +211,11 @@ pub fn show(
 }
 
 /// Upload the slice a viewport shows if it is not the one already uploaded, set window and
-/// view, and queue the drawing. False when the slice is not in the cache or cannot be shown.
+/// view, and queue the drawing. False when the slice is not there yet or cannot be shown.
 fn slice(
     ui: &Ui,
     pane: &Pane<'_>,
-    cache: &Mutex<FrameCache>,
+    frames: &Frames<'_>,
     gpu: &mut Gpu,
     render: &RenderState,
 ) -> bool {
@@ -226,10 +229,7 @@ fn slice(
     let wanted = (series.clone(), viewport.slice);
     let mut pipeline = gpu.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
     if gpu.uploaded.as_ref() != Some(&wanted) {
-        let cached = cache
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .get(series, viewport.slice);
+        let cached = frames(series, viewport.slice);
         let Some(frame) = cached else {
             return false;
         };

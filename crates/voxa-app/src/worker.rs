@@ -50,6 +50,8 @@ struct Shared {
     builds: AtomicU64,
     /// The longest side, in voxels, of a volume the window's graphics device can hold.
     volume_side: AtomicU32,
+    /// The series whose volume is being built. Its slices are decoded for the volume.
+    wanted_volume: Mutex<Option<SeriesId>>,
     /// The folder settings are kept in, if there is one.
     settings: Option<PathBuf>,
     /// How many times the saved views have been asked to be written, and the newest of
@@ -95,6 +97,7 @@ impl Workers {
             volumes,
             builds: AtomicU64::new(0),
             volume_side: AtomicU32::new(DEFAULT_VOLUME_SIDE),
+            wanted_volume: Mutex::new(None),
             settings,
             stores: AtomicU64::new(0),
             stored: Mutex::new(0),
@@ -103,12 +106,6 @@ impl Workers {
             pool: named.build().ok(),
             shared: Arc::new(shared),
         }
-    }
-
-    /// Say how long a side, in voxels, the window's graphics device allows a volume. Volumes
-    /// built from now on are made ready to fit it.
-    pub fn set_volume_side(&self, longest: u32) {
-        self.shared.volume_side.store(longest, Ordering::SeqCst);
     }
 
     /// Do what an effect asks. `index` is the index the state holds, which says where the
@@ -149,6 +146,7 @@ impl Workers {
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         lock(&self.shared.volumes).clear();
+        *lock(&self.shared.wanted_volume) = None;
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             let finished = shielded(|| shared.index_source(&path, opened));
@@ -161,10 +159,18 @@ impl Workers {
     }
 
     /// Decode the slices of a series that are not yet in the cache, those nearest `around`
-    /// first, and no more of them than `at_most` or than the cache can hold.
+    /// first, and no more of them than `at_most` or than the cache can hold. None of a series
+    /// held as a volume, and one at most of a series whose volume is being built.
     fn request_frames(&self, listed: &IndexedSeries, around: usize, at_most: usize) {
         let shared = &self.shared;
         let series = listed.info.id.clone();
+        // A series with a volume has its slices read from that. One whose volume is being
+        // built is decoded there, once; here only the slice shown is, so it is seen at once.
+        if lock(&shared.volumes).holds(&series) {
+            return;
+        }
+        let building = lock(&shared.wanted_volume).as_ref() == Some(&series);
+        let at_most = if building { at_most.min(1) } else { at_most };
         let number = shared.requests.fetch_add(1, Ordering::SeqCst) + 1;
         lock(&shared.newest).insert(series.clone(), number);
         let request = Request {
@@ -202,23 +208,6 @@ impl Workers {
                 let (shared, request) = (Arc::clone(&shared), Arc::clone(&request));
                 rayon::spawn_fifo(move || {
                     shielded(|| shared.decode(&batch, &request));
-                });
-            }
-        });
-    }
-
-    /// Build the volume of a series for the 3D scene, in place of any being built.
-    fn build_volume(&self, listed: &IndexedSeries) {
-        let build = self.shared.next_build();
-        let (shared, listed) = (Arc::clone(&self.shared), listed.clone());
-        self.spawn(move || {
-            let finished = shielded(|| shared.build_volume(&listed, &build));
-            if !finished && shared.building(&build) {
-                // Without this the scene would say it was building for ever.
-                let reason = "This series could not be read for a 3D view: the reader stopped                               on one of its files";
-                shared.report(Action::VolumeFailed {
-                    series: listed.info.id.clone(),
-                    reason: reason.to_owned(),
                 });
             }
         });
@@ -308,17 +297,16 @@ impl Shared {
         }
     }
 
-    /// Put a decoded slice in the cache and announce it, or announce that it failed.
+    /// Hold a decoded slice for the viewport and announce it, or announce that it failed.
     fn deliver(&self, request: &Request, slice: usize, decoded: Result<Frame, String>) {
         let series = request.series.clone();
         let report = match decoded {
             Ok(frame) => {
                 let windows = PRESETS.map(|preset| preset.window(&frame.values));
-                let mut cache = lock(&self.cache);
-                if self.opened.load(Ordering::SeqCst) != request.opened {
+                let frame = Arc::new(frame);
+                if !self.hold(&series, slice, frame, request.around, request.opened) {
                     return;
                 }
-                cache.insert(&series, slice, Arc::new(frame), request.around);
                 Action::FrameReady {
                     series,
                     slice,
@@ -392,6 +380,8 @@ fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg(test)]
+mod once_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

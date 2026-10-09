@@ -67,6 +67,17 @@ impl Volume {
         self.values.get(at).copied()
     }
 
+    /// The values of one slice, row by row; `None` when there is no such slice.
+    pub fn slice_values(&self, slice: u32) -> Option<&[f32]> {
+        let [cols, rows, slices] = self.dims;
+        if slice >= slices {
+            return None;
+        }
+        let in_a_slice = cols as usize * rows as usize;
+        let start = slice as usize * in_a_slice;
+        self.values.get(start..start + in_a_slice)
+    }
+
     /// The eight outer corners of the volume in the patient: half a voxel outside the centres
     /// of the corner voxels. Corner `i` is at the far end of the columns when `i & 1` is set,
     /// of the rows when `i & 2` is, and of the slices when `i & 4` is.
@@ -186,5 +197,25 @@ mod tests {
         let printed = format!("{:?}", counted());
         assert!(printed.contains("dims: [2, 2, 3]"), "{printed}");
         assert!(printed.len() < 400, "{} characters", printed.len());
+    }
+}
+
+#[cfg(test)]
+mod slice_tests {
+    use super::*;
+
+    #[test]
+    fn the_values_of_one_slice_can_be_read_by_themselves() {
+        let values = (0..12u8).map(f32::from).collect();
+        let volume = Volume::new([2, 2, 3], values, Affine::identity()).expect("adds up");
+        assert_eq!(
+            volume.slice_values(0),
+            Some([0.0, 1.0, 2.0, 3.0].as_slice())
+        );
+        assert_eq!(
+            volume.slice_values(2),
+            Some([8.0, 9.0, 10.0, 11.0].as_slice())
+        );
+        assert_eq!(volume.slice_values(3), None);
     }
 }

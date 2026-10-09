@@ -16,8 +16,20 @@ All notable changes to Voxa are recorded here. The format follows
   window shows, and the empty blocks at its ends are stepped over. 512 x 512 x 64 in a
   1280 x 800 picture on integrated graphics: 85 ms to 51 ms still, 15.6 ms to 9.9 ms moving.
 
+- A series opened with the 3D scene in view is decoded once. Before, its slices could be
+  decoded twice, once for the 2D viewport and once for the volume. They are now decoded for
+  the volume, and the viewport reads them out of it; only the slice on show is also decoded
+  straight away for the viewport, so that it is seen at once.
+- A series shown in 3D is held in memory once, as its volume, and no longer a second time as
+  separate slices. When another series takes the 3D scene, the slices of the one before are
+  kept for its viewport, as far as the slice cache has room, so going back to it decodes
+  nothing again. Slices decoded for a volume that fails, or is overtaken by another, are kept
+  the same way and not thrown away.
+
 ### Fixed
 
+- The message shown when the reader stops part-way through a series being built for 3D had a
+  long run of spaces in the middle of it.
 - Putting a second large volume on the graphics device could find it with no room, and the
   volume was then shown at reduced resolution without need. The first volume's memory is now
   given back before the second is put there.
