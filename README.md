@@ -47,7 +47,7 @@ of them. It needs `cargo install --locked cargo-llvm-cov`.
 | `voxa-core` | Data model, typed coordinate spaces, errors |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing, pixel decoding |
 | `voxa-volume` | Volumes from series, sampling and lines of sight, histograms and automatic window/level |
-| `voxa-render` | GPU drawing of slices; the 3D camera |
+| `voxa-render` | GPU drawing of slices and of volumes; the 3D camera |
 | `voxa-app` | The application: interface, state, background work |
 | `xtask` | Project tasks (`check`, `coverage`) |
 

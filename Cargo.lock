@@ -3884,6 +3884,7 @@ version = "0.1.0"
 dependencies = [
  "bytemuck",
  "egui-wgpu",
+ "half",
  "pollster 0.4.0",
  "proptest",
  "thiserror 2.0.21",

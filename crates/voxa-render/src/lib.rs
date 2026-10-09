@@ -13,11 +13,21 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod camera;
+mod gpu;
 mod offscreen;
+mod offscreen_scene;
+mod scene;
 mod slice_pipeline;
+#[cfg(test)]
+mod testing;
 mod view;
+mod volume_pipeline;
+mod volume_texture;
 
 pub use camera::{Camera, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView, ORBIT_DEGREES_PER_PX};
 pub use offscreen::{Headless, render_to_rgba};
+pub use offscreen_scene::HeadlessScene;
+pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
+pub use volume_pipeline::VolumePipeline;

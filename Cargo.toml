@@ -27,6 +27,7 @@ thiserror = "2"
 tracing = "0.1"
 rayon = "1.12"
 bytemuck = { version = "1.25", features = ["derive"] }
+half = "2.7"
 pollster = "0.4"
 
 # Interface. The only wgpu in the tree is the one egui-wgpu re-exports.

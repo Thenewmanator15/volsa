@@ -7,7 +7,7 @@ Voxa is a Cargo workspace of small crates that talk only through their public in
 | `voxa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VoxaError` | nothing in the workspace |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
 | `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; histograms, percentiles, automatic window/level | `voxa-core` |
-| `voxa-render` | The GPU slice pipeline and the view transform; the camera a volume is seen from | `voxa-core`, `voxa-volume` |
+| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene | `voxa-core`, `voxa-volume` |
 | `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
 | `xtask` | `cargo xtask check` and `cargo xtask coverage` | nothing in the workspace |
 

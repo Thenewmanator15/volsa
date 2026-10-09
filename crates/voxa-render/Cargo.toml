@@ -12,6 +12,7 @@ voxa-core.workspace = true
 voxa-volume.workspace = true
 bytemuck.workspace = true
 egui-wgpu.workspace = true
+half.workspace = true
 pollster.workspace = true
 thiserror.workspace = true
 

@@ -35,6 +35,9 @@ pub enum RenderError {
         /// The longest side the device accepts.
         limit: u32,
     },
+    /// The graphics device has no room for a volume, however much it is reduced.
+    #[error("The graphics device has no room for this volume, even much reduced.")]
+    NoRoom,
     /// A picture with no width or no height was asked for.
     #[error("A picture with no size cannot be drawn.")]
     EmptyTarget,
