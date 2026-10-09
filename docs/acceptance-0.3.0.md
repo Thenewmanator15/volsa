@@ -13,7 +13,7 @@ as such at the end.
 | Gate | Result |
 |---|---|
 | `cargo xtask check` (formatting, lints as errors, 400-line limit, tests, licences and advisories, documentation) | passes |
-| Tests in the workspace | 652, all passing |
+| Tests in the workspace | 653, all passing |
 | `cargo xtask coverage` (line coverage, floor 80%) | `voxa-core` 96.6%, `voxa-dicom` 98.4%, `voxa-volume` 99.2% |
 
 What the tests of this milestone hold to:
@@ -110,6 +110,11 @@ the minimum size of 900 x 600, and looked at:
 - On the hard-edged test ball the smooth planes show a faint rim beside each edge. That is
   what a curve through the values does beside a sharp edge (a test holds the device to the
   curve), and the Smooth switch says so.
+
+**A fault found in review and fixed.** A kept-measurements file damaged into something that
+is not text was read as if there were no file, and the next change would have written over
+it. It is now put aside like any other file Voxa cannot read; a test with such a file fails
+without the change.
 
 **Left as it is.** At 900 x 600, with a ruler, an angle, a region and a marker all in one
 layer of a panel 210 points wide, their words run into one another, and in the 3D scene the

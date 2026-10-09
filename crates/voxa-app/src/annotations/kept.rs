@@ -36,10 +36,14 @@ enum Read {
 }
 
 fn read(folder: &Path) -> Read {
-    let Ok(text) = std::fs::read_to_string(folder.join(FILE)) else {
-        return Read::Missing;
+    let bytes = match std::fs::read(folder.join(FILE)) {
+        Ok(bytes) => bytes,
+        Err(why) if why.kind() == std::io::ErrorKind::NotFound => return Read::Missing,
+        // Something is there and cannot be read at all: that is not the same as nothing.
+        Err(_) => return Read::NotUnderstood,
     };
-    match serde_json::from_str::<Kept>(&text) {
+    // From the bytes, so that a file which is not even text is one that is not understood.
+    match serde_json::from_slice::<Kept>(&bytes) {
         Ok(kept) if kept.version <= ANNOTATIONS_VERSION => Read::Held(kept),
         _ => Read::NotUnderstood,
     }
@@ -196,5 +200,18 @@ mod tests {
             );
             assert_eq!(load_annotations(folder.path(), "two"), [marker(1, "B")]);
         }
+    }
+
+    #[test]
+    fn a_file_that_is_not_even_text_is_put_aside_too() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let (file, aside) = (folder.path().join(FILE), folder.path().join(SET_ASIDE));
+        let damaged = [0xFF_u8, 0xFE, b'{', 0x00, 0x80];
+        std::fs::write(&file, damaged).expect("writes");
+        assert_eq!(load_annotations(folder.path(), "one"), []);
+        assert_eq!(std::fs::read(&file).expect("reads"), damaged, "left alone");
+        save_annotations(folder.path(), "one", &[marker(1, "A")]).expect("saves");
+        assert_eq!(std::fs::read(&aside).expect("reads"), damaged, "kept aside");
+        assert_eq!(load_annotations(folder.path(), "one"), [marker(1, "A")]);
     }
 }
