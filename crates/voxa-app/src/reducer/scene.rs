@@ -127,7 +127,10 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
             let views = Effect::LoadViews {
                 series: series.clone(),
             };
-            (building, vec![volume, views])
+            let annotations = Effect::LoadAnnotations {
+                series: series.clone(),
+            };
+            (building, vec![volume, views, annotations])
         }
         Err(why) => {
             // Why, each reason once, and then what is done about it, once.

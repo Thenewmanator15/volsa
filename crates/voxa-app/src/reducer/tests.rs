@@ -95,6 +95,9 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     expected.push(Effect::LoadViews {
         series: id(FINE_SCAN),
     });
+    expected.push(Effect::LoadAnnotations {
+        series: id(FINE_SCAN),
+    });
     assert_eq!(effects, expected);
     assert_eq!(state.viewports[0].series, Some(id(FINE_SCAN)));
 
@@ -114,7 +117,11 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     let views = Effect::LoadViews {
         series: id(THICK_SCAN),
     };
-    assert_eq!(again, vec![Effect::RequestThumbnails, rebuilt, views]);
+    let annotations = Effect::LoadAnnotations {
+        series: id(THICK_SCAN),
+    };
+    let expected = vec![Effect::RequestThumbnails, rebuilt, views, annotations];
+    assert_eq!(again, expected);
     assert_eq!(
         state.viewports[0].series,
         Some(id(THICK_SCAN)),

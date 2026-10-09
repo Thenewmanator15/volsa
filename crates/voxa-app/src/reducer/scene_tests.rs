@@ -18,7 +18,10 @@ pub(super) fn select(state: &mut AppState, viewport: usize, series: &str) -> Vec
 /// of it.
 pub(super) fn started(series: &str) -> Vec<Effect> {
     let series = id(series);
-    vec![build(&series.0), Effect::LoadViews { series }]
+    let views = Effect::LoadViews {
+        series: series.clone(),
+    };
+    vec![build(&series.0), views, Effect::LoadAnnotations { series }]
 }
 
 pub(super) fn build(series: &str) -> Effect {

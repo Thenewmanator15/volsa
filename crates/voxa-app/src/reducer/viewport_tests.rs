@@ -27,9 +27,12 @@ fn selecting_a_series_shows_its_middle_slice_fitted_and_asks_for_frames() {
     expected.push(Effect::LoadViews {
         series: id(THICK_SCAN),
     });
+    expected.push(Effect::LoadAnnotations {
+        series: id(THICK_SCAN),
+    });
     assert_eq!(
         effects, expected,
-        "its frames, and its volume for the 3D scene"
+        "its frames, and its volume, views and annotations for the 3D scene"
     );
     let viewport = &state.viewports[1];
     assert_eq!(viewport.series, Some(id(THICK_SCAN)));

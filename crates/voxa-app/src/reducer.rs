@@ -98,8 +98,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             Vec::new()
         }
         about_annotations if annotations::concerns(&about_annotations) => {
-            annotations::reduce(state, about_annotations);
-            Vec::new()
+            annotations::reduce(state, about_annotations)
         }
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }

@@ -134,4 +134,6 @@ impl Session {
 }
 
 #[cfg(test)]
+mod annotation_tests;
+#[cfg(test)]
 mod tests;

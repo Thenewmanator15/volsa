@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_volume::{RegionStats, angle_degrees, distance_mm, pitch_along};
 
+pub use kept::{ANNOTATIONS_VERSION, load_annotations, save_annotations};
+
 /// The most annotations one series may have.
 pub const MAX_ANNOTATIONS: usize = 200;
 /// How many changes can be undone.
@@ -336,6 +338,8 @@ fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
         _ => z,
     }
 }
+
+mod kept;
 
 #[cfg(test)]
 mod tests;

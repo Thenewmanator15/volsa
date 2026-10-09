@@ -7,7 +7,7 @@ use super::tests::showing;
 use super::*;
 use crate::annotations::{Annotations, MAX_ANNOTATIONS, MAX_LABEL, Shape, Tool};
 use crate::state::NoticeKind;
-use crate::testing::{FINE_SCAN, THICK_SCAN};
+use crate::testing::{FINE_SCAN, THICK_SCAN, id};
 
 fn ruler(length: f64) -> Shape {
     Shape::Ruler {
@@ -200,4 +200,124 @@ fn another_series_or_another_scan_starts_with_no_annotations_and_no_tool() {
         },
     );
     assert_eq!(state.annotations.items.len(), 1);
+}
+
+fn kept_as_it_is(state: &AppState) -> Vec<Effect> {
+    let (series, items) = (id(THICK_SCAN), state.annotations.items.clone());
+    vec![Effect::StoreAnnotations { series, items }]
+}
+
+#[test]
+fn every_change_to_the_list_asks_for_it_to_be_kept() {
+    let mut state = ready();
+    let rename = || {
+        let (id, label) = (2, "the long way".to_owned());
+        Action::AnnotationRename { id, label }
+    };
+    let changes = [
+        Action::AnnotationAdd(marker()),
+        Action::AnnotationAdd(ruler(5.0)),
+        Action::Undo,
+        Action::Redo,
+        rename(),
+        Action::AnnotationRemove(1),
+        Action::AnnotationsClear,
+    ];
+    for change in changes {
+        let said = format!("{change:?}");
+        let effects = reduce(&mut state, change);
+        assert_eq!(effects, kept_as_it_is(&state), "{said}");
+    }
+    let nothing = [
+        Action::Redo,
+        Action::AnnotationRemove(99),
+        Action::AnnotationsClear,
+        Action::SetTool(Tool::Ruler),
+    ];
+    for action in nothing {
+        let said = format!("{action:?}");
+        assert_eq!(
+            reduce(&mut state, action),
+            [],
+            "{said} changes nothing to keep"
+        );
+    }
+}
+
+#[test]
+fn annotations_read_from_where_they_are_kept_become_the_list_with_nothing_to_undo() {
+    use crate::annotations::Annotation;
+    let mut state = ready();
+    let kept = vec![Annotation {
+        id: 4,
+        label: "kept".to_owned(),
+        shape: marker(),
+    }];
+    let read = |series: &str| {
+        let (series, items) = (id(series), kept.clone());
+        Action::AnnotationsLoaded { series, items }
+    };
+    assert_eq!(reduce(&mut state, read(FINE_SCAN)), []);
+    assert_eq!(
+        state.annotations.items,
+        [],
+        "another series' are not this one's"
+    );
+    assert_eq!(
+        reduce(&mut state, read(THICK_SCAN)),
+        [],
+        "reading is no change to keep"
+    );
+    assert_eq!(labels(&state), ["kept"]);
+    assert!(
+        !state.annotations.can_undo(),
+        "what was read cannot be undone away"
+    );
+    add(&mut state, marker());
+    assert_eq!(
+        state.annotations.items[1].id, 5,
+        "numbers carry on from what was kept"
+    );
+    // Once the person has changed the list, what arrives late does not undo their change.
+    reduce(&mut state, read(THICK_SCAN));
+    assert_eq!(labels(&state), ["kept", "Marker 5"]);
+}
+
+#[test]
+fn a_scene_started_on_a_series_asks_for_its_annotations() {
+    use super::tests::loaded;
+    use crate::testing::{LOCALISER, with_odd_series};
+    let mut state = loaded();
+    let effects = select(&mut state, 0, THICK_SCAN);
+    let series = id(THICK_SCAN);
+    assert!(
+        effects.contains(&Effect::LoadAnnotations { series }),
+        "{effects:?}"
+    );
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(with_odd_series()));
+    let effects = select(&mut state, 0, LOCALISER);
+    let asked = |effect: &Effect| matches!(effect, Effect::LoadAnnotations { .. });
+    assert!(
+        !effects.iter().any(asked),
+        "nothing is measured on a series with no 3D view"
+    );
+}
+
+#[test]
+fn annotations_that_could_not_be_written_are_said_to_be_lost_next_time() {
+    let mut state = ready();
+    for _ in 0..2 {
+        let reason = "the disk is full".to_owned();
+        reduce(&mut state, Action::AnnotationsNotStored { reason });
+    }
+    let [notice] = &state.notices[..] else {
+        panic!("said once: {:?}", state.notices);
+    };
+    assert_eq!(notice.kind, NoticeKind::Warning);
+    let said = "Measurements could not be written, so they will not be there next time";
+    assert_eq!(
+        (notice.text.as_str(), &notice.details[..]),
+        (said, &["the disk is full".to_owned()][..])
+    );
 }

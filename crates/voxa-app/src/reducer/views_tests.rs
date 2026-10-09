@@ -32,9 +32,12 @@ fn choosing_a_series_asks_for_the_views_saved_for_it() {
     let views = Effect::LoadViews {
         series: id(THICK_SCAN),
     };
+    let annotations = Effect::LoadAnnotations {
+        series: id(THICK_SCAN),
+    };
     let expected = [
         frames_around(THICK_SCAN, 15),
-        vec![build(THICK_SCAN), views],
+        vec![build(THICK_SCAN), views, annotations],
     ]
     .concat();
     assert_eq!(effects, expected);

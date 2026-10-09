@@ -17,6 +17,7 @@ use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
+mod annotations;
 mod post;
 mod views;
 mod volume;
@@ -59,6 +60,9 @@ struct Shared {
     /// those requests that has been.
     stores: AtomicU64,
     stored: Mutex<u64>,
+    /// The same two counts for the kept annotations.
+    notes: AtomicU64,
+    noted: Mutex<u64>,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -102,6 +106,8 @@ impl Workers {
             settings,
             stores: AtomicU64::new(0),
             stored: Mutex::new(0),
+            notes: AtomicU64::new(0),
+            noted: Mutex::new(0),
         };
         Self {
             pool: named.build().ok(),
@@ -135,6 +141,8 @@ impl Workers {
             }
             Effect::LoadViews { series } => self.load_views(series),
             Effect::StoreViews { series, views } => self.store_views(&series, views),
+            Effect::LoadAnnotations { series } => self.load_annotations(series),
+            Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
             Effect::None => {}
         }
     }

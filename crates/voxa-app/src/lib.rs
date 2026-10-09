@@ -32,8 +32,8 @@ mod worker;
 
 pub use action::{Action, Effect};
 pub use annotations::{
-    Annotation, Annotations, MAX_ANNOTATIONS, MAX_HISTORY, MAX_LABEL, Measured, Shape, Tool,
-    measured,
+    ANNOTATIONS_VERSION, Annotation, Annotations, MAX_ANNOTATIONS, MAX_HISTORY, MAX_LABEL,
+    Measured, Shape, Tool, load_annotations, measured, save_annotations,
 };
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;

@@ -7,7 +7,7 @@ use voxa_dicom::Index;
 use voxa_render::{Look, NamedView};
 use voxa_volume::PlaneKind;
 
-use crate::annotations::{Shape, Tool};
+use crate::annotations::{Annotation, Shape, Tool};
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::state::{Layout, Notice, PresetWindows};
@@ -306,6 +306,18 @@ pub enum Action {
     Undo,
     /// Do again the change last undone.
     Redo,
+    /// The annotations kept for a series have been read.
+    AnnotationsLoaded {
+        /// The series they are of.
+        series: SeriesId,
+        /// The annotations, oldest first.
+        items: Vec<Annotation>,
+    },
+    /// The annotations could not be written to where they are kept.
+    AnnotationsNotStored {
+        /// Why, as the system gave it.
+        reason: String,
+    },
 }
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
@@ -333,6 +345,18 @@ pub enum Effect {
         series: SeriesId,
         /// All of its views, oldest first.
         views: Vec<SavedView>,
+    },
+    /// Read the annotations kept for a series.
+    LoadAnnotations {
+        /// The series.
+        series: SeriesId,
+    },
+    /// Keep the annotations of a series, in place of any kept for it before.
+    StoreAnnotations {
+        /// The series.
+        series: SeriesId,
+        /// Its annotations, oldest first.
+        items: Vec<Annotation>,
     },
     /// Decode every slice of a series and stack them into a volume for the 3D scene.
     BuildVolume {

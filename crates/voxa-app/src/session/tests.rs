@@ -19,19 +19,19 @@ use crate::testing::{
 /// Long enough for any worker on any machine; a test that waits this long has failed.
 const PATIENCE: Duration = Duration::from_secs(60);
 
-fn session() -> Session {
+pub(super) fn session() -> Session {
     let (sender, reports) = channel();
     Session::new(sender, reports, 1 << 24, None)
 }
 
 /// A session that keeps its settings in `folder`.
-fn session_keeping(folder: &Path) -> Session {
+pub(super) fn session_keeping(folder: &Path) -> Session {
     let (sender, reports) = channel();
     Session::new(sender, reports, 1 << 24, Some(folder.to_owned()))
 }
 
 /// Take in what the workers report until `done` holds.
-fn until(session: &mut Session, done: impl Fn(&Session) -> bool) {
+pub(super) fn until(session: &mut Session, done: impl Fn(&Session) -> bool) {
     let started = Instant::now();
     while !done(session) {
         assert!(started.elapsed() < PATIENCE, "still waiting");
@@ -40,7 +40,7 @@ fn until(session: &mut Session, done: impl Fn(&Session) -> bool) {
 }
 
 /// A zip of the files, in a temporary folder that lasts as long as the first value returned.
-fn zip_of(files: &[(String, Vec<u8>)]) -> (TempDir, PathBuf) {
+pub(super) fn zip_of(files: &[(String, Vec<u8>)]) -> (TempDir, PathBuf) {
     let folder = tempfile::tempdir().expect("a temporary folder");
     let path = folder.path().join("export.zip");
     let mut writer = zip::ZipWriter::new(std::fs::File::create(&path).expect("zip is created"));
@@ -56,7 +56,7 @@ fn zip_of(files: &[(String, Vec<u8>)]) -> (TempDir, PathBuf) {
 }
 
 /// Open a path and take in what the workers report until `done` holds.
-fn open_until(session: &mut Session, path: &Path, done: impl Fn(&Session) -> bool) {
+pub(super) fn open_until(session: &mut Session, path: &Path, done: impl Fn(&Session) -> bool) {
     session.dispatch(Action::OpenPath(path.to_owned()));
     let started = Instant::now();
     while !done(session) {
@@ -186,7 +186,7 @@ fn opening_a_second_export_replaces_the_first() {
 }
 
 /// Whether the scene shows this series with its volume built.
-fn ready_in_3d(session: &Session, series: &str) -> bool {
+pub(super) fn ready_in_3d(session: &Session, series: &str) -> bool {
     let scene = &session.state().scene;
     scene.series == Some(id(series)) && scene.status == SceneStatus::Ready
 }
