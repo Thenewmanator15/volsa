@@ -1,4 +1,5 @@
-//! Image statistics: histograms and automatic window/level.
+//! Whole series as volumes, and image statistics: assembling, sampling, rays, reduction,
+//! histograms and automatic window/level.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![cfg_attr(
@@ -15,7 +16,15 @@
 mod assemble;
 mod auto_window;
 mod histogram;
+mod ray;
+mod reduce;
+mod sample;
+#[cfg(test)]
+mod testing;
 
 pub use assemble::{VolumeError, assemble, can_be_volume, value_range};
 pub use auto_window::{PRESETS, Preset, auto_window};
 pub use histogram::Histogram;
+pub use ray::{Ray, enter_and_leave, first_hit};
+pub use reduce::{block_maxima, halved, halvings_needed};
+pub use sample::sample;

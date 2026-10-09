@@ -1,6 +1,6 @@
 [package]
 name = "voxa-volume"
-description = "Image statistics: histograms and automatic window/level."
+description = "Whole series as volumes, and image statistics: histograms and automatic window/level."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
