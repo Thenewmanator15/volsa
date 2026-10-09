@@ -7,7 +7,7 @@ use std::time::Instant;
 use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
 use voxa_core::{Patient, Point, Volume};
-use voxa_render::{RenderError, SceneParams, pick};
+use voxa_render::{Prepared, RenderError, SceneParams, pick};
 
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
@@ -42,6 +42,8 @@ pub struct SceneView {
     part_notch: f32,
     /// How far the slice's handle has been dragged short of a whole slice, in millimetres.
     carried: f64,
+    /// The scene's volume as a worker made it ready for the device, until it is handed over.
+    ready: Option<Prepared>,
 }
 
 impl SceneView {
@@ -53,6 +55,19 @@ impl SceneView {
             changed: Instant::now(),
             part_notch: 0.0,
             carried: 0.0,
+            ready: None,
+        }
+    }
+
+    /// Whether this volume has still to be put on the graphics device.
+    pub fn needs(&self, volume: &Arc<Volume>) -> bool {
+        self.gpu.as_ref().is_some_and(|gpu| !gpu.holds(volume))
+    }
+
+    /// Give the viewport its volume as a worker made it ready, to hand over when it draws.
+    pub fn offer(&mut self, ready: Option<Prepared>) {
+        if ready.is_some() {
+            self.ready = ready;
         }
     }
 
@@ -97,8 +112,13 @@ impl SceneView {
             }
             return None;
         };
-        if let Some(halved) = gpu.hold(render, volume) {
+        if let Some(halved) = gpu.hold(render, volume, self.ready.take()) {
             actions.push(Action::SceneUploaded { halved });
+        }
+        if !gpu.has_volume() {
+            // The device had no room for it at all: there is nothing to draw.
+            gpu.forget();
+            return None;
         }
         if self.shown.as_ref() != Some(&params) {
             self.shown = Some(params.clone());

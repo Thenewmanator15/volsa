@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use voxa_core::{SeriesId, Volume};
 use voxa_dicom::Frame;
+use voxa_render::Prepared;
 
 use crate::action::Action;
 use crate::cache::FrameCache;
@@ -80,6 +81,15 @@ impl Session {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(series)
+    }
+
+    /// Take what a worker made ready for the graphics device of a series' volume, if it is
+    /// there to take. It is handed over once.
+    pub fn take_prepared(&self, series: &SeriesId) -> Option<Prepared> {
+        self.volumes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take_prepared(series)
     }
 
     /// Apply an action and hand the work it calls for to the workers.

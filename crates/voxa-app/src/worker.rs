@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
@@ -19,6 +19,10 @@ use crate::volume_store::VolumeStore;
 
 mod views;
 mod volume;
+
+/// The longest side of a volume taken to fit a graphics device until the window says what
+/// its own allows: what every device made for the desktop can hold.
+const DEFAULT_VOLUME_SIDE: u32 = 2048;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
 /// with further [`Action`]s. Nothing here writes to a log, so nothing a file contains can end
@@ -44,6 +48,8 @@ struct Shared {
     volumes: Arc<Mutex<VolumeStore>>,
     /// How many volumes have been asked for. One being built for an earlier request stops.
     builds: AtomicU64,
+    /// The longest side, in voxels, of a volume the window's graphics device can hold.
+    volume_side: AtomicU32,
     /// The folder settings are kept in, if there is one.
     settings: Option<PathBuf>,
     /// How many times the saved views have been asked to be written, and the newest of
@@ -88,6 +94,7 @@ impl Workers {
             requests: AtomicU64::new(0),
             volumes,
             builds: AtomicU64::new(0),
+            volume_side: AtomicU32::new(DEFAULT_VOLUME_SIDE),
             settings,
             stores: AtomicU64::new(0),
             stored: Mutex::new(0),
@@ -96,6 +103,12 @@ impl Workers {
             pool: named.build().ok(),
             shared: Arc::new(shared),
         }
+    }
+
+    /// Say how long a side, in voxels, the window's graphics device allows a volume. Volumes
+    /// built from now on are made ready to fit it.
+    pub fn set_volume_side(&self, longest: u32) {
+        self.shared.volume_side.store(longest, Ordering::SeqCst);
     }
 
     /// Do what an effect asks. `index` is the index the state holds, which says where the

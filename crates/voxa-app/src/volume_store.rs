@@ -4,11 +4,14 @@
 use std::sync::Arc;
 
 use voxa_core::{SeriesId, Volume};
+use voxa_render::Prepared;
 
 /// The one volume in use. A volume is large, so only the newest is kept.
 #[derive(Debug, Default)]
 pub struct VolumeStore {
     held: Option<(SeriesId, Arc<Volume>)>,
+    /// The volume kept, made ready for the graphics device, until the window takes it.
+    ready: Option<Prepared>,
 }
 
 impl VolumeStore {
@@ -21,17 +24,35 @@ impl VolumeStore {
     /// Keep the volume of a series, in place of any kept before.
     pub fn put(&mut self, series: SeriesId, volume: Arc<Volume>) {
         self.held = Some((series, volume));
+        self.ready = None;
+    }
+
+    /// Keep the volume of a series as it was made ready for the graphics device, if that
+    /// series' volume is the one kept.
+    pub fn put_prepared(&mut self, series: &SeriesId, ready: Prepared) {
+        if self.held.as_ref().is_some_and(|(of, _)| of == series) {
+            self.ready = Some(ready);
+        }
+    }
+
+    /// Take what was made ready for the graphics device of a series' volume. It is handed
+    /// over once: the device then holds it, and it is large.
+    pub fn take_prepared(&mut self, series: &SeriesId) -> Option<Prepared> {
+        let kept = self.held.as_ref().is_some_and(|(of, _)| of == series);
+        if kept { self.ready.take() } else { None }
     }
 
     /// Keep nothing.
     pub fn clear(&mut self) {
         self.held = None;
+        self.ready = None;
     }
 }
 
 #[cfg(test)]
 mod tests {
     use voxa_core::Affine;
+    use voxa_render::MAX_VOLUME_BYTES;
 
     use super::*;
     use crate::testing::{FINE_SCAN, THICK_SCAN, id};
@@ -52,6 +73,34 @@ mod tests {
         );
         store.clear();
         assert!(store.get(&id(THICK_SCAN)).is_none());
+    }
+
+    #[test]
+    fn what_was_made_ready_for_the_device_is_kept_with_its_volume_and_taken_once() {
+        let mut store = VolumeStore::default();
+        let ready = || Prepared::of(&volume(1.0), 2048, MAX_VOLUME_BYTES);
+        store.put_prepared(&id(THICK_SCAN), ready());
+        assert!(
+            store.take_prepared(&id(THICK_SCAN)).is_none(),
+            "with no volume, nothing"
+        );
+        store.put(id(THICK_SCAN), volume(1.0));
+        store.put_prepared(&id(FINE_SCAN), ready());
+        assert!(
+            store.take_prepared(&id(FINE_SCAN)).is_none(),
+            "nor for another series"
+        );
+        store.put_prepared(&id(THICK_SCAN), ready());
+        assert!(store.take_prepared(&id(FINE_SCAN)).is_none());
+        let taken = store.take_prepared(&id(THICK_SCAN)).expect("kept");
+        assert_eq!(taken.dims(), [1, 1, 2]);
+        assert!(store.take_prepared(&id(THICK_SCAN)).is_none(), "taken once");
+        store.put_prepared(&id(THICK_SCAN), ready());
+        store.put(id(FINE_SCAN), volume(2.0));
+        assert!(
+            store.take_prepared(&id(THICK_SCAN)).is_none(),
+            "it goes with its volume"
+        );
     }
 
     #[test]

@@ -89,6 +89,11 @@ impl VoxaApp {
             pose: Vec::new(),
             turntable: None,
         };
+        if let Some(render) = render {
+            // Volumes are made ready on the workers to fit this device.
+            let longest = render.device.limits().max_texture_dimension_3d;
+            app.session.workers().set_volume_side(longest);
+        }
         if app.capture.is_some() {
             // A picture for the documentation may want one of the windows open in it.
             let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
@@ -186,6 +191,13 @@ impl VoxaApp {
         };
         let shown = state.scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));
+        // If it has still to go on the graphics device, take what a worker made ready of it.
+        let waiting = volume
+            .as_ref()
+            .is_some_and(|volume| self.scene.needs(volume));
+        let ready = shown.filter(|_| waiting);
+        self.scene
+            .offer(ready.and_then(|series| self.session.take_prepared(series)));
         let scene = &mut self.scene;
         scene::show(
             ui,

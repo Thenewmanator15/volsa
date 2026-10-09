@@ -6,6 +6,26 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- Showing a large series in 3D no longer holds the window up while the volume is made ready
+  for the graphics device: that is now done on a worker thread, in parallel, and the window
+  only hands the result over. For 512 x 512 voxels in 300 slices on integrated graphics the
+  window's part went from about 730 ms to about 65 ms.
+- MIP draws faster with the same picture: a line of sight stops once it is as white as the
+  window shows, and the empty blocks at its ends are stepped over. 512 x 512 x 64 in a
+  1280 x 800 picture on integrated graphics: 85 ms to 51 ms still, 15.6 ms to 9.9 ms moving.
+
+### Fixed
+
+- Putting a second large volume on the graphics device could find it with no room, and the
+  volume was then shown at reduced resolution without need. The first volume's memory is now
+  given back before the second is put there.
+- Running out of graphics memory while a volume was being handed over would have stopped the
+  program. It is now watched for, and the volume is halved and tried again.
+- If the graphics device has no room for a volume at all, the scene now says that it cannot
+  be drawn. Before, it would have gone on showing the volume of the series before.
+
 ## [0.2.0] - 2026-10-09
 
 The second milestone: the series being looked at is also shown in 3D. Voxa is not a medical

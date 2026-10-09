@@ -229,3 +229,41 @@ fn the_workers_carry_on_after_a_task_panics_and_still_build_a_volume() {
         Some(Action::VolumeReady { .. })
     ));
 }
+
+#[test]
+fn a_built_volume_is_also_made_ready_for_the_graphics_device() {
+    let bench = Bench::with_budget(1 << 20);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    let take = || {
+        let mut store = bench.volumes.lock().expect("no worker panicked");
+        store.take_prepared(&id(THICK_SCAN))
+    };
+    let ready = take().expect("made ready on the worker");
+    assert_eq!((ready.dims(), ready.halved()), ([4, 4, 30], 0));
+    assert!(take().is_none(), "it is handed over once");
+    assert!(
+        stored(&bench, THICK_SCAN).is_some(),
+        "the volume itself stays"
+    );
+}
+
+#[test]
+fn a_volume_is_made_ready_for_the_device_the_window_has() {
+    let bench = Bench::with_budget(1 << 20);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    // A device that can hold no more than two voxels a side.
+    bench.workers.set_volume_side(2);
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    let mut store = bench.volumes.lock().expect("no worker panicked");
+    let ready = store.take_prepared(&id(THICK_SCAN)).expect("made ready");
+    assert_eq!((ready.dims(), ready.halved()), ([1, 1, 2], 4));
+    assert!(
+        store.take_prepared(&id(FINE_SCAN)).is_none(),
+        "nor is it another series'"
+    );
+}

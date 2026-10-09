@@ -6,6 +6,7 @@ use std::sync::{Arc, Mutex};
 use rayon::prelude::*;
 use voxa_core::SeriesId;
 use voxa_dicom::{Frame, ImageFile, IndexedSeries};
+use voxa_render::{MAX_VOLUME_BYTES, Prepared};
 use voxa_volume::assemble;
 
 use super::{Batch, Shared, batches, lock};
@@ -73,12 +74,17 @@ impl Shared {
         match stacked(listed, decoded) {
             Ok(volume) => {
                 let corners = volume.corners();
+                // Made ready for the graphics device here, on a worker, so that the window
+                // has only to hand it over.
+                let side = self.volume_side.load(Ordering::SeqCst);
+                let ready = Prepared::of(&volume, side, MAX_VOLUME_BYTES);
                 // Checked with the store locked, so a newer volume is never overwritten.
                 let mut store = lock(&self.volumes);
                 if !self.building(build) {
                     return;
                 }
                 store.put(series.clone(), Arc::new(volume));
+                store.put_prepared(&series, ready);
                 drop(store);
                 self.report(Action::VolumeReady { series, corners });
             }

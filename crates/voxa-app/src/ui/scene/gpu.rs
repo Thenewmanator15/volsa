@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 
 use egui_wgpu::{RenderState, wgpu};
 use voxa_core::Volume;
-use voxa_render::{PICTURE_FORMAT, RenderError, SceneParams, VolumePipeline};
+use voxa_render::{PICTURE_FORMAT, Prepared, RenderError, SceneParams, VolumePipeline};
 
 /// The format of the scene's picture: 8-bit greys as they are to be seen, which is how the
 /// interface reads a picture it is handed, and the format a picture is read back in.
@@ -26,8 +26,8 @@ type Drawn = (SceneParams, [f32; 2]);
 pub struct SceneGpu {
     pipeline: VolumePipeline,
     picture: Option<Picture>,
-    /// The volume that is uploaded now, so it is uploaded once and not every frame.
-    uploaded: Weak<Volume>,
+    /// The volume the device was last given, so it is given once and not every frame.
+    given: Weak<Volume>,
     drawn: Option<Drawn>,
 }
 
@@ -37,25 +37,42 @@ impl SceneGpu {
         Self {
             pipeline: VolumePipeline::new(&render.device, FORMAT),
             picture: None,
-            uploaded: Weak::new(),
+            given: Weak::new(),
             drawn: None,
         }
     }
 
-    /// Put a volume on the graphics device, unless it is the one already there. Says how
-    /// many times it had to be halved to fit when it was put there now; `None` when it was
-    /// there already or the device has no room for it at all.
-    pub fn hold(&mut self, render: &RenderState, volume: &Arc<Volume>) -> Option<u32> {
-        if Weak::ptr_eq(&self.uploaded, &Arc::downgrade(volume)) {
+    /// Whether this volume is the one the graphics device was last given.
+    pub fn holds(&self, volume: &Arc<Volume>) -> bool {
+        Weak::ptr_eq(&self.given, &Arc::downgrade(volume))
+    }
+
+    /// Whether there is a volume on the graphics device to draw.
+    pub fn has_volume(&self) -> bool {
+        self.pipeline.has_volume()
+    }
+
+    /// Put a volume on the graphics device, unless it is the one already given. `ready` is
+    /// the volume as a worker made it ready, if it did: handing that over is quick. Without
+    /// it, or if it does not fit this device, the volume is made ready here. Says how many
+    /// times it was halved to fit when it was put there now. If the device has no room for
+    /// it at all, nothing is left there to draw, and it is not tried again.
+    pub fn hold(
+        &mut self,
+        render: &RenderState,
+        volume: &Arc<Volume>,
+        ready: Option<Prepared>,
+    ) -> Option<u32> {
+        if self.holds(volume) {
             return None;
         }
-        let halved = self
-            .pipeline
-            .upload(&render.device, &render.queue, volume)
-            .ok()?;
-        self.uploaded = Arc::downgrade(volume);
+        let (device, queue) = (&render.device, &render.queue);
+        let quick =
+            ready.and_then(|ready| self.pipeline.upload_prepared(device, queue, &ready).ok());
+        let halved = quick.or_else(|| self.pipeline.upload(device, queue, volume).ok());
+        self.given = Arc::downgrade(volume);
         self.drawn = None;
-        Some(halved)
+        halved
     }
 
     /// Draw the scene into a picture of its own, `pixels` wide and high, and give it back as
