@@ -270,3 +270,24 @@ proptest! {
         prop_assert!(dot.abs() < 1.0e-12, "across and down are square");
     }
 }
+
+#[test]
+fn a_position_is_found_on_a_slice_with_how_many_slices_past_it_it_lies() {
+    let coarse = grid([0.5, 0.5, 3.0]);
+    let on = coarse.apply(Point::new(5.0, 6.0, 7.0));
+    let ([column, row], away) = position_on_slice(&coarse, 7, on).expect("found");
+    assert!(close([column, row, away], [5.0, 6.0, 0.0]));
+    let past = coarse.apply(Point::new(5.0, 6.0, 8.4));
+    let ([column, row], away) = position_on_slice(&coarse, 7, past).expect("found");
+    assert!(close([column, row, away], [5.0, 6.0, 1.4]));
+    let (_, away) = position_on_slice(&coarse, 9, past).expect("found");
+    assert!((away + 0.6).abs() < 1.0e-12, "before slice 9: {away}");
+    // On slices that are tilted the place across the slice is still its column and row.
+    let on = tilted().apply(Point::new(5.0, 6.0, 7.0));
+    let ([column, row], away) = position_on_slice(&tilted(), 7, on).expect("found");
+    assert!(close([column, row, away], [5.0, 6.0, 0.0]));
+    let flat = Affine::from_columns([0.0; 3], [0.0; 3], [0.0; 3], [0.0; 3]);
+    assert_eq!(position_on_slice(&flat, 0, through()), None);
+    let nowhere = Point::new(f64::NAN, 0.0, 0.0);
+    assert_eq!(position_on_slice(&coarse, 0, nowhere), None);
+}

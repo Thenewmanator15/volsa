@@ -56,6 +56,11 @@ pub struct Areas {
     pub slices: Option<Rect>,
 }
 
+/// What the Link switch says when pointed at.
+pub const LINK_SAYS: &str = "Keep the slices of this study on the planes' position, and the position on \
+                             the slice scrolled to. Linked views take it that the patient did not \
+                             move between series.";
+
 /// Give the large part and the column to what is shown. With the 3D scene large the column
 /// holds the slices or the three planes, one above another; with the slices large it holds
 /// the scene; with the planes large they share the large part with the scene, two by two,
@@ -131,7 +136,7 @@ pub fn header(
     ui: &mut Ui,
     strip: Rect,
     (large, column): (MainPanel, ColumnShows),
-    there_is_3d: bool,
+    (there_is_3d, linked): (bool, bool),
     actions: &mut Vec<Action>,
 ) {
     let enlarged = match (large, column) {
@@ -153,6 +158,11 @@ pub fn header(
         }
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
             shown_in_the_column(ui, large, column, actions);
+            let link = egui::Button::new(RichText::new("Link").small()).selected(linked);
+            let link = ui.add_enabled(there_is_3d, link);
+            if link.on_hover_text(LINK_SAYS).clicked() {
+                actions.push(Action::SetLinked(!linked));
+            }
         });
     });
 }
@@ -239,7 +249,7 @@ mod tests {
                 ..RawInput::default()
             };
             let mut output = ctx.run_ui(input, |ui| {
-                header(ui, strip, (large, column), there_is_3d, &mut asked);
+                header(ui, strip, (large, column), (there_is_3d, true), &mut asked);
             });
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
@@ -265,13 +275,18 @@ mod tests {
         let (slices, planes) = (ColumnShows::Slices, ColumnShows::Planes);
         assert_eq!(
             sweep(MainPanel::Scene, slices, true),
-            [Action::SetColumn(planes), Action::SetMain(MainPanel::Stack)],
-            "the tab not shown, then Enlarge for the slices"
+            [
+                Action::SetColumn(planes),
+                Action::SetLinked(false),
+                Action::SetMain(MainPanel::Stack)
+            ],
+            "the tab not shown, the link, then Enlarge for the slices"
         );
         assert_eq!(
             sweep(MainPanel::Scene, planes, true),
             [
                 Action::SetColumn(slices),
+                Action::SetLinked(false),
                 Action::SetMain(MainPanel::Planes)
             ],
             "Enlarge gives the planes the large part"
@@ -283,17 +298,23 @@ mod tests {
         let slices = ColumnShows::Slices;
         assert_eq!(
             sweep(MainPanel::Stack, slices, true),
-            [Action::SetMain(MainPanel::Scene)]
+            [Action::SetLinked(false), Action::SetMain(MainPanel::Scene)]
         );
         assert_eq!(
             sweep(MainPanel::Planes, slices, true),
-            [Action::SetMain(MainPanel::Stack)]
+            [Action::SetLinked(false), Action::SetMain(MainPanel::Stack)]
         );
         assert_eq!(
             sweep(MainPanel::Planes, ColumnShows::Planes, true),
-            [Action::SetMain(MainPanel::Stack)],
+            [Action::SetLinked(false), Action::SetMain(MainPanel::Stack)],
             "with the planes large the column holds the slices whatever it held before"
         );
+    }
+
+    #[test]
+    fn the_link_says_what_it_takes_for_granted() {
+        let taken = "Linked views take it that the patient did not move between series.";
+        assert!(LINK_SAYS.ends_with(taken), "{LINK_SAYS}");
     }
 
     #[test]

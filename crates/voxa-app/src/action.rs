@@ -287,6 +287,8 @@ pub enum Action {
     PlaneFit(PlaneKind),
     /// Choose what the column beside the 3D scene shows.
     SetColumn(ColumnShows),
+    /// Link the stack viewports to the planes' position, or let them go.
+    SetLinked(bool),
     /// Choose what the main button does in the plane views and the 3D scene.
     SetTool(Tool),
     /// Add a measurement or a marker to the scene's series.

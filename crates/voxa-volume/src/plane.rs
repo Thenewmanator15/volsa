@@ -244,6 +244,20 @@ pub fn nearest_slice(
     }
 }
 
+/// Where a position falls on one slice of a stack: its column and row there, and how many
+/// slices past that slice it lies, below zero when it lies before it. `None` for a
+/// placement that cannot be turned round, or a position that is not a number.
+pub fn position_on_slice(
+    placement: &Affine<Voxel, Patient>,
+    slice: usize,
+    position: Point<Patient>,
+) -> Option<([f64; 2], f64)> {
+    let at = placement.inverse()?.apply(position);
+    let away = at.z - f64::from(u32::try_from(slice).ok()?);
+    let found = at.x.is_finite() && at.y.is_finite() && away.is_finite();
+    found.then_some(([at.x, at.y], away))
+}
+
 /// The values of a volume on a plane: a picture of `size` (width, height) whose pixels are
 /// `mm_per_px` apart, its middle at the plane's centre, row by row from the top. Each value
 /// is blended from the eight voxels round its point; outside the volume it is not a number.

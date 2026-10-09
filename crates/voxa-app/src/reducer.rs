@@ -11,6 +11,7 @@ use crate::scene::{MainPanel, Scene};
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod link;
 mod planes;
 mod scene;
 mod viewport;
@@ -28,13 +29,14 @@ const VIEWS: &str = "views";
 /// This is the only code that changes [`AppState`], and it does nothing else: no files, no
 /// threads, no clock. Whatever an action refers to that is not there (a viewport, a series, a
 /// preset, a notice, a cut) is ignored. After every action the 3D scene is kept on the series
-/// the active viewport shows, the planes' position inside that scene's volume, and the
-/// annotations with the series they were made on.
+/// the active viewport shows, the planes' position inside that scene's volume, the
+/// annotations with the series they were made on, and the linked viewports on the position.
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     // Indexing may have added slices to a series chosen before it ended.
     let rebuild = action == Action::IndexDone;
     let fit = matches!(action, Action::Fit { .. });
     let was = state.scene.series.clone();
+    let before = link::Before::of(state, &action);
     let mut effects = act(state, action);
     if fit && state.main == MainPanel::Scene {
         // The key that shows the whole slice again shows the whole volume again too.
@@ -47,6 +49,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     });
     planes::settle(state);
     annotations::settle(state, was.as_ref());
+    effects.extend(link::keep(state, &before));
     effects
 }
 
@@ -268,6 +271,8 @@ fn settle_window(
 
 #[cfg(test)]
 mod annotations_tests;
+#[cfg(test)]
+mod link_tests;
 #[cfg(test)]
 mod planes_tests;
 #[cfg(test)]

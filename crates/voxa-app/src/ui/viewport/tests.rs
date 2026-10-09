@@ -105,3 +105,21 @@ fn index_spacing(state: &mut AppState, spacing: [f64; 3]) {
     let index = state.index.as_mut().expect("indexed");
     index.series[0].info.spacing_mm = spacing;
 }
+
+#[test]
+fn the_position_is_marked_by_four_short_lines_that_leave_the_point_itself_clear() {
+    let lines = annotate::position_mark([100.0, 50.0]);
+    assert_eq!(lines[0], [[88.0, 50.0], [96.0, 50.0]], "to the left of it");
+    assert_eq!(lines[3], [[100.0, 54.0], [100.0, 62.0]], "below it");
+    for [[ax, ay], [bx, by]] in lines {
+        let level = ay == 50.0 && by == 50.0;
+        let upright = ax == 100.0 && bx == 100.0;
+        assert!(
+            level != upright,
+            "each lies along the row or the column of the point"
+        );
+        let nearest =
+            (ax - 100.0).abs().min((bx - 100.0).abs()) + (ay - 50.0).abs().min((by - 50.0).abs());
+        assert_eq!(nearest, 4.0, "and stops short of it");
+    }
+}

@@ -1,11 +1,16 @@
 //! What is written over a slice: corner text, a letter at each edge, and a scale bar.
 
-use egui::{Align2, Rect, Ui};
-use voxa_core::SeriesInfo;
+use egui::{Align2, Rect, Stroke, Ui, vec2};
+use voxa_core::{Point, SeriesInfo};
 
-use super::super::overlay;
 use super::super::pen::{self, Pen};
+use super::super::{overlay, theme};
 use super::{Pane, narrowed, pixel_aspect};
+use crate::planes::position_in_viewport;
+
+/// How far from the position the lines that mark it begin, and how long they are, in points.
+const CLEAR: f32 = 4.0;
+const ARM: f32 = 8.0;
 
 /// Write over a slice: what it is in the corners, and, when the files say where the slice
 /// lies, a letter at each edge and a scale bar.
@@ -45,6 +50,37 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>) {
         let labels = overlay::orientation_labels(placement, &viewport.view, radiological);
         pen::letters(&pen, inside, &labels);
         scale_bar(&pen, pane, info, inside);
+    }
+    mark_position(&pen, pane, info);
+}
+
+/// The four short lines that mark the planes' position about a point of a viewport, each
+/// along the point's row or column and stopping short of it, so that what is there shows.
+pub(super) fn position_mark([x, y]: [f32; 2]) -> [[[f32; 2]; 2]; 4] {
+    let (near, far) = (CLEAR, CLEAR + ARM);
+    [
+        [[x - far, y], [x - near, y]],
+        [[x + near, y], [x + far, y]],
+        [[x, y - far], [x, y - near]],
+        [[x, y + near], [x, y + far]],
+    ]
+}
+
+/// Mark the planes' position on a linked viewport whose slice it lies in.
+fn mark_position(pen: &Pen, pane: &Pane<'_>, info: &SeriesInfo) {
+    let Some([column, row]) = position_in_viewport(pane.state, pane.at) else {
+        return;
+    };
+    let size = [pane.cell.width(), pane.cell.height()];
+    let aspect = pixel_aspect(pane.state, pane.at);
+    let to_screen = pane
+        .shown
+        .image_to_screen([info.cols, info.rows], size, aspect);
+    let at = to_screen.apply(Point::new(column, row, 0.0));
+    let stroke = Stroke::new(1.5, theme::ACCENT);
+    for [from, to] in position_mark([narrowed(at.x), narrowed(at.y)]) {
+        let placed = |[x, y]: [f32; 2]| pane.cell.min + vec2(x, y);
+        pen.painter.line_segment([placed(from), placed(to)], stroke);
     }
 }
 

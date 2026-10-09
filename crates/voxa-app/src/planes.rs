@@ -1,8 +1,8 @@
 //! The three plane views as the application remembers them: the one point they all pass
 //! through, how each panel is zoomed and moved, and what the column beside the 3D scene shows.
 
-use voxa_core::{Affine, Patient, Point, Voxel};
-use voxa_volume::{Plane, PlaneKind, plane_of};
+use voxa_core::{Affine, Patient, Point, SeriesId, Voxel};
+use voxa_volume::{Plane, PlaneKind, plane_of, position_on_slice};
 
 use crate::scene::{MainPanel, SceneStatus};
 use crate::state::AppState;
@@ -105,6 +105,33 @@ pub fn grid(state: &AppState) -> Option<(Affine<Voxel, Patient>, [u32; 3])> {
     let info = &state.series(state.scene.series.as_ref()?)?.info;
     let slices = u32::try_from(info.slices).ok()?;
     Some((info.voxel_to_patient?, [info.cols, info.rows, slices]))
+}
+
+/// Where the series a viewport shows lies in the patient, if that viewport is linked to the
+/// position: the link is on, there is a position, and the series is one of the study of the
+/// scene's series whose files say where its slices are.
+pub fn linked_placement(state: &AppState, at: usize) -> Option<Affine<Voxel, Patient>> {
+    if !state.planes.linked || state.planes.position.is_none() {
+        return None;
+    }
+    let shown = state.viewports.get(at)?.series.as_ref()?;
+    let scene = state.scene.series.as_ref()?;
+    let studies = &state.index.as_ref()?.studies;
+    let together = studies.iter().any(|study| {
+        let has = |id: &SeriesId| study.series.iter().any(|series| series.id == *id);
+        has(shown) && has(scene)
+    });
+    let placement = state.series(shown)?.info.voxel_to_patient;
+    placement.filter(|_| together)
+}
+
+/// The column and row at which the position falls on the slice a viewport shows, when the
+/// viewport is linked and the position is within half a slice of that slice.
+pub fn position_in_viewport(state: &AppState, at: usize) -> Option<[f64; 2]> {
+    let placement = linked_placement(state, at)?;
+    let slice = state.viewports.get(at)?.slice;
+    let (on_slice, away) = position_on_slice(&placement, slice, state.planes.position?)?;
+    (away.abs() <= 0.5).then_some(on_slice)
 }
 
 /// One of the three planes of the scene's volume through the position, facing as the

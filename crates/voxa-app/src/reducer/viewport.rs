@@ -59,7 +59,7 @@ fn moved(from: usize, delta: i32) -> usize {
 
 /// Show another slice of the same series, stopping at the last, and ask for the frames
 /// around it. Nothing happens when the viewport is already there.
-fn go_to(state: &mut AppState, at: usize, slice: usize) -> Vec<Effect> {
+pub(super) fn go_to(state: &mut AppState, at: usize, slice: usize) -> Vec<Effect> {
     let count = state.slices_in(at);
     let Some(viewport) = state.viewports.get_mut(at) else {
         return Vec::new();

@@ -25,7 +25,8 @@ impl VoxaApp {
         let large = state.main.given(&state.scene.status);
         let column = state.planes.column;
         let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
-        layout::header(ui, strip, (large, column), there_is_3d, actions);
+        let linked = state.planes.linked;
+        layout::header(ui, strip, (large, column), (there_is_3d, linked), actions);
         let areas = layout::areas(large, column, main, side);
         let shown = state.scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));

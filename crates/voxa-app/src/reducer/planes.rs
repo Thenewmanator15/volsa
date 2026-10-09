@@ -1,6 +1,6 @@
 //! Actions about the plane views, and keeping their position inside the scene's volume.
 
-use voxa_core::{Patient, Point};
+use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_render::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM};
 use voxa_volume::{PlaneKind, central_voxel, clamped_into, scrolled};
 
@@ -22,6 +22,7 @@ pub(super) fn concerns(action: &Action) -> bool {
             | Action::PlanePan { .. }
             | Action::PlaneFit(_)
             | Action::SetColumn(_)
+            | Action::SetLinked(_)
     )
 }
 
@@ -37,25 +38,47 @@ pub(super) fn reduce(state: &mut AppState, action: &Action) {
         Action::PlanePan { kind, by_mm } => pan(state.planes.panel_mut(kind), by_mm),
         Action::PlaneFit(kind) => *state.planes.panel_mut(kind) = PlanePanel::default(),
         Action::SetColumn(column) => state.planes.column = column,
+        Action::SetLinked(linked) => state.planes.linked = linked,
         _ => {}
     }
 }
 
-/// Keep the position where there is a volume to have one in: on the voxel in the middle of a
-/// volume that has just become ready, and nowhere, with the panels as they start, while
-/// there is none.
+/// Keep the position where there is a volume to have one in: in the middle of a volume that
+/// has just become ready, and nowhere, with the panels as they start, while there is none.
 pub(super) fn settle(state: &mut AppState) {
     if let Some((placement, dims)) = grid(state) {
-        let middle = central_voxel(&placement, dims);
-        state.planes.position.get_or_insert(middle);
+        if state.planes.position.is_none() {
+            state.planes.position = Some(starting(state, &placement, dims));
+        }
     } else {
         state.planes.position = None;
         state.planes.panels = [PlanePanel::default(); 3];
     }
 }
 
+/// Where the position starts in a volume: on the voxel in the middle of the slice the active
+/// viewport shows, if it shows this series, so that what the person is looking at is where
+/// the planes meet; otherwise on the voxel in the middle of the volume.
+fn starting(
+    state: &AppState,
+    placement: &Affine<Voxel, Patient>,
+    dims: [u32; 3],
+) -> Point<Patient> {
+    let active = state.viewports.get(state.active);
+    let shown = active.filter(|viewport| viewport.series == state.scene.series);
+    let slice = shown.and_then(|viewport| u32::try_from(viewport.slice).ok());
+    let [cols, rows, slices] = dims;
+    match slice.filter(|slice| *slice < slices) {
+        Some(slice) => {
+            let [column, row, slice] = [cols / 2, rows / 2, slice].map(f64::from);
+            placement.apply(Point::new(column, row, slice))
+        }
+        None => central_voxel(placement, dims),
+    }
+}
+
 /// Move the position, holding it inside the volume. Nothing happens with no volume ready.
-fn set_position(state: &mut AppState, point: Point<Patient>) {
+pub(super) fn set_position(state: &mut AppState, point: Point<Patient>) {
     if let Some((placement, dims)) = grid(state) {
         state.planes.position = Some(clamped_into(&placement, dims, point));
     }
