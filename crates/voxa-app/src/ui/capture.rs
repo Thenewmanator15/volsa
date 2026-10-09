@@ -36,6 +36,13 @@ const SETTLE_FRAMES: u32 = 30;
 /// How long to wait for a picture before capturing whatever is there.
 const PATIENCE: Duration = Duration::from_secs(20);
 
+/// Where settings are kept for this run: the folder the system gives, unless the run is to
+/// take a picture of the window. A picture shows nothing kept from another run, the saved
+/// views and annotations of whoever uses this computer, and leaves nothing behind.
+pub fn kept_between_runs(capturing: bool, folder: Option<PathBuf>) -> Option<PathBuf> {
+    folder.filter(|_| !capturing)
+}
+
 /// A window size written as width `x` height. `None` unless both are numbers above zero.
 pub fn size_from(text: &str) -> Option<[f32; 2]> {
     let (width, height) = text.split_once('x')?;
@@ -309,5 +316,13 @@ mod tests {
             [],
             "nothing with no volume"
         );
+    }
+
+    #[test]
+    fn a_picture_of_the_window_neither_shows_nor_changes_what_is_kept_between_runs() {
+        let folder = || Some(PathBuf::from("where settings are kept"));
+        assert_eq!(kept_between_runs(false, folder()), folder());
+        assert_eq!(kept_between_runs(true, folder()), None);
+        assert_eq!(kept_between_runs(false, None), None);
     }
 }

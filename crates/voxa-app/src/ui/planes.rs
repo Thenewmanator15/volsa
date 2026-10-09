@@ -25,6 +25,7 @@ pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
     Room, crosshair, crossing, interpolated_note, plane_caption, plane_colour, plane_letters,
 };
+pub use shapes::{Drawn, paint};
 
 /// How thick the lines of the cross and the bar along the top of a panel are, in points.
 const LINE: f32 = 1.0;
@@ -64,7 +65,7 @@ impl PlanesView {
 
 /// What the panels are drawn from: the scene's volume on the graphics device, with the
 /// window's device, and the same volume on the processor, for measuring.
-pub type Drawn<'a> = (
+pub type Sources<'a> = (
     Option<(&'a VolumePipeline, &'a RenderState)>,
     Option<&'a Volume>,
 );
@@ -76,7 +77,7 @@ pub fn show(
     ui: &mut Ui,
     cells: [Rect; 3],
     state: &AppState,
-    (on_device, scan): Drawn<'_>,
+    (on_device, scan): Sources<'_>,
     view: &mut PlanesView,
     actions: &mut Vec<Action>,
 ) {

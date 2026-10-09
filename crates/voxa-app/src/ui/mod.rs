@@ -76,8 +76,10 @@ impl VoxaApp {
         let render = creation.wgpu_render_state.as_ref();
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
+        let capture = capture::Capture::from_environment();
+        let kept = capture::kept_between_runs(capture.is_some(), settings::folder());
         let mut app = Self {
-            session: Session::new(from_workers, reports, CACHE_BYTES, settings::folder()),
+            session: Session::new(from_workers, reports, CACHE_BYTES, kept),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),
@@ -86,7 +88,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             clocks: [cine::Clock::default(); VIEWPORTS],
-            capture: capture::Capture::from_environment(),
+            capture,
             pose: Vec::new(),
             turntable: None,
         };

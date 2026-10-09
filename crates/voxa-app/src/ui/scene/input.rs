@@ -22,9 +22,6 @@ pub struct SceneInput {
     pub pointer: [f32; 2],
     /// Whether any button went down.
     pub pressed: bool,
-    /// The point of the patient under the pointer when the main button was clicked, without
-    /// being dragged, on something drawn.
-    pub clicked_surface: Option<Point<Patient>>,
     /// The point of the patient under the pointer when the main button was double-clicked
     /// on something drawn.
     pub double_clicked_surface: Option<Point<Patient>>,
@@ -36,8 +33,9 @@ pub struct SceneInput {
 /// drag with the middle button moves the picture, and a drag with the right button changes
 /// the window of the active viewport, across for width and down for centre. New here: a drag
 /// with the main button turns the scene (or moves it, with Shift), the wheel zooms about the
-/// pointer, turning it away magnifying, a click on something drawn moves the planes'
-/// position there, and a double-click puts that point in the middle as well.
+/// pointer, turning it away magnifying, and a double-click on something drawn puts that
+/// point in the middle. What a single click does depends on the tool in hand: see
+/// [`clicked`](super::tools::clicked).
 pub fn scene_input_to_actions(active: usize, input: &SceneInput) -> Vec<Action> {
     let mut actions = Vec::new();
     let moved = |[x, y]: [f32; 2]| x.abs() > 0.0 || y.abs() > 0.0;
@@ -71,9 +69,6 @@ pub fn scene_input_to_actions(active: usize, input: &SceneInput) -> Vec<Action> 
             d_center,
             d_width,
         });
-    }
-    if let Some(point) = input.clicked_surface {
-        actions.push(Action::SetPosition(point));
     }
     if let Some(point) = input.double_clicked_surface {
         actions.push(Action::SceneCentre(point));
@@ -179,25 +174,5 @@ mod tests {
             ..SceneInput::default()
         };
         assert_eq!(asked(only_pressed), []);
-    }
-
-    #[test]
-    fn a_click_on_something_drawn_moves_the_position_there() {
-        let at = Point::new(1.0, 2.0, 3.0);
-        let clicked = SceneInput {
-            clicked_surface: Some(at),
-            ..SceneInput::default()
-        };
-        assert_eq!(asked(clicked), [Action::SetPosition(at)]);
-        // A double-click is two clicks: the position goes there and so does the middle.
-        let twice = SceneInput {
-            clicked_surface: Some(at),
-            double_clicked_surface: Some(at),
-            ..SceneInput::default()
-        };
-        assert_eq!(
-            asked(twice),
-            [Action::SetPosition(at), Action::SceneCentre(at)]
-        );
     }
 }

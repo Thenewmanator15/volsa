@@ -38,7 +38,7 @@ pub fn shown_on(shape: &Shape, plane: &Plane, half_layer_mm: f64) -> bool {
 }
 
 /// An annotation as it falls in a panel, in points from the panel's top left corner.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Drawn {
     /// A ruler: its two ends.
     Line([[f32; 2]; 2]),
@@ -53,6 +53,8 @@ pub enum Drawn {
     },
     /// A marker.
     Dot([f32; 2]),
+    /// A shape seen at a slant: the points of its outline, going round.
+    Outline(Vec<[f32; 2]>),
 }
 
 /// Where an annotation falls in a panel of `viewport` (width, height) points.
@@ -78,6 +80,15 @@ impl Drawn {
         match *self {
             Self::Line([_, [x, y]]) | Self::Arms([_, [x, y], _]) | Self::Dot([x, y]) => {
                 [x + 2.0 * DOT, y - 2.0 * DOT]
+            }
+            Self::Outline(ref round) => {
+                // Above the highest point of it.
+                let top = round.iter().copied().reduce(|top, at| {
+                    let ([_, high], [_, y]) = (top, at);
+                    if y < high { at } else { top }
+                });
+                let [x, y] = top.unwrap_or_default();
+                [x, y - 2.0 * DOT]
             }
             Self::Ellipse {
                 centre: [x, y],
@@ -124,6 +135,10 @@ pub fn paint(pen: &Pen, cell: Rect, drawn: &Drawn, colour: Color32, words: &str)
         Drawn::Dot(at) => {
             pen.painter.circle_stroke(placed(at), 2.0 * DOT, stroke);
             dot(at);
+        }
+        Drawn::Outline(ref round) => {
+            let outline: Vec<Pos2> = round.iter().map(|at| placed(*at)).collect();
+            pen.painter.add(Painted::closed_line(outline, stroke));
         }
     }
     if !words.is_empty() {

@@ -12,6 +12,7 @@ use voxa_render::{Prepared, RenderError, SceneParams, VolumePipeline, pick};
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
 use crate::action::Action;
+use crate::annotations::Tool;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 
@@ -20,6 +21,7 @@ pub mod export;
 mod gpu;
 mod handles;
 mod input;
+mod tools;
 pub mod views;
 
 pub use captions::{
@@ -45,6 +47,8 @@ pub struct SceneView {
     carried: handles::Carried,
     /// The scene's volume as a worker made it ready for the device, until it is handed over.
     ready: Option<Prepared>,
+    /// The first end of a ruler being clicked in the scene, once it has been placed.
+    ruler_from: Option<Point<Patient>>,
 }
 
 impl SceneView {
@@ -57,6 +61,7 @@ impl SceneView {
             part_notch: 0.0,
             carried: handles::Carried::default(),
             ready: None,
+            ruler_from: None,
         }
     }
 
@@ -184,15 +189,24 @@ pub fn show(
     if state.scene.status == SceneStatus::Ready {
         // Drawn after the scene itself, so a press on a handle takes hold of the handle.
         handles::show(ui, area, state, &mut view.carried, actions);
+        tools::draw(ui, area, state, view.ruler_from);
     }
-    // A click on something drawn moves the planes' position there, and a double-click puts
-    // that point in the middle as well.
+    // What a click on something drawn does depends on the tool in hand; navigating, a
+    // double-click puts that point in the middle as well.
     let pointed_at = response.clicked().then(|| {
         let at = response.interact_pointer_pos()? - area.min;
         pick(volume?, &scene_params(state, 1.0)?, size, [at.x, at.y])
     });
-    let pointed_at = pointed_at.flatten();
-    let twice = pointed_at.filter(|_| response.double_clicked());
+    if state.tool != Tool::Ruler {
+        view.ruler_from = None;
+    }
+    if response.clicked() {
+        let (begun, asked) = tools::clicked(state.tool, view.ruler_from, pointed_at.flatten());
+        view.ruler_from = begun;
+        actions.extend(asked);
+    }
+    let navigating = state.tool == Tool::Navigate && response.double_clicked();
+    let twice = pointed_at.flatten().filter(|_| navigating);
     let window_width = state
         .viewports
         .get(state.active)
@@ -200,7 +214,6 @@ pub fn show(
     let input = gather(ui, &response, area, twice, &mut view.part_notch);
     let input = SceneInput {
         window_width,
-        clicked_surface: pointed_at,
         ..input
     };
     actions.extend(scene_input_to_actions(state.active, &input));
@@ -220,7 +233,9 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
     // In the top left corner, which nothing else uses, kept clear of the letter at the top.
-    let said = captions(spacing, scene.halved).join("\n");
+    let mut said = captions(spacing, scene.halved);
+    said.extend(tools::said(state).into_iter().map(str::to_owned));
+    let said = said.join("\n");
     let room = inside.width() / 2.0 - pen::LETTER_ROOM;
     pen.write_wrapped(inside.left_top(), &said, room);
 }
