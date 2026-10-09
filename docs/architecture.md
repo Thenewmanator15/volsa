@@ -33,15 +33,22 @@ The 3D scene follows the series of the active viewport:
 1. A worker decodes every slice of the series, taking those already in the frame cache, and
    `voxa-volume` stacks them into a `Volume`: the values, and the transform that places each
    voxel in the patient. The one volume in use is kept in a store shared with the window.
-2. `voxa-render` uploads it once as a 3D texture of 16-bit values from 0 at the smallest to 1 at
-   the largest, halving it first if the device cannot hold it, with a small second texture of
-   the largest value in each block of voxels.
+   A series is decoded once and held once: while its volume is being built the viewport's own
+   request decodes only the slice on show, and once the volume is kept the series' frames
+   leave the cache and the 2D viewport reads its slices out of the volume. A volume that gives
+   way to another, or a build that fails, leaves its slices in the frame cache.
+2. The same worker makes the volume ready for the graphics device: 16-bit values from 0 at the
+   smallest to 1 at the largest, halved first if the device cannot hold it, with the largest
+   value in each block of voxels. The window only hands the result over as two 3D textures.
 3. For every pixel a fragment shader builds the line of sight from the camera, clips it to the
    volume's box in texture space (so a tilted stack needs no resampling), steps past the blocks
    with nothing to draw, and walks the rest: adding up lit, windowed values (Surface, VR) or
    keeping the brightest (MIP). Cut planes shorten the line; the 2D slice is an opaque sheet.
+   In VR and MIP a step is half a voxel along the axis the line crosses fastest; in Surface it
+   is half the least distance between voxels from every side.
 4. The picture is drawn off the screen, at half size and half quality while the camera moves,
-   and shown by `egui` as an image. The same path draws the pictures that are saved.
+   and shown by `egui` as an image. The same path draws the pictures that are saved; a
+   turntable's pictures are put together into its file on a worker.
 5. The camera has no perspective and lives in patient space, so nothing is mirrored, a scale bar
    holds across the picture, and the letters at the edges come from the same rule as in 2D.
 
