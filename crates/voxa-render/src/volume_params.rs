@@ -30,7 +30,7 @@ const VR_LONGEST_STEP_MM: f64 = 5.0;
 /// The coarsest a picture is drawn: steps ten times as long as at full quality.
 const MIN_QUALITY: f32 = 0.1;
 /// The narrowest window the shader is given, as a share of the volume's range of values.
-const MIN_WINDOW: f32 = 1.0e-6;
+pub(crate) const MIN_WINDOW: f32 = 1.0e-6;
 
 /// What the shader needs besides the volume; the layout matches `Scene` in `volume.wgsl`.
 #[repr(C)]
@@ -58,14 +58,8 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
     let to_patient = scene.camera.screen_to_patient(viewport);
     let [_, _, towards] = to_patient.columns();
     let [across, along, forward] = to_patient.columns().map(four);
-    // How far along one axis of the volume a point of the patient is, from 0 to 1: its
-    // voxel coordinate, counted from the face half a voxel before the first voxel's centre.
     let to_voxel = placed.patient_to_voxel;
-    let along_axis = |pick: fn([f64; 3]) -> f64, count: u32| {
-        let [x, y, z] = to_voxel.columns().map(pick);
-        let from_face = pick(to_voxel.origin()) + 0.5;
-        [x, y, z, from_face].map(|part| single(part / f64::from(count)))
-    };
+    let [to_u, to_v, to_w] = texture_rows(placed);
     let [cols, rows, slices] = placed.dims;
     let quality = if scene.quality.is_finite() {
         scene.quality
@@ -92,9 +86,9 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
         along,
         forward,
         top_left: four(to_patient.origin()),
-        to_u: along_axis(|[col, _, _]| col, cols),
-        to_v: along_axis(|[_, row, _]| row, rows),
-        to_w: along_axis(|[_, _, slice]| slice, slices),
+        to_u,
+        to_v,
+        to_w,
         view: [wide, high, step_mm, look],
         window: [black, black_to_white, stopped_per_mm, 0.0],
         ramp: [begins, becomes_solid_over, 0.0, 0.0],
@@ -104,6 +98,24 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
         planes: [cuts_used, flag(sheet.is_some()), flag(skipping), 0.0],
         grid: [cols as f32, rows as f32, slices as f32, 0.0].map(|count| count / BLOCK as f32),
     }
+}
+
+/// How far along the volume's columns, rows and slices a point of the patient is, from 0 at
+/// one face to 1 at the other, as three rows the shaders multiply a point by: the point's
+/// voxel coordinate, counted from the face half a voxel before the first voxel's centre.
+pub(crate) fn texture_rows(placed: &Placed) -> [[f32; 4]; 3] {
+    let to_voxel = placed.patient_to_voxel;
+    let along_axis = |pick: fn([f64; 3]) -> f64, count: u32| {
+        let [x, y, z] = to_voxel.columns().map(pick);
+        let from_face = pick(to_voxel.origin()) + 0.5;
+        [x, y, z, from_face].map(|part| single(part / f64::from(count)))
+    };
+    let [cols, rows, slices] = placed.dims;
+    [
+        along_axis(|[col, _, _]| col, cols),
+        along_axis(|[_, row, _]| row, rows),
+        along_axis(|[_, _, slice]| slice, slices),
+    ]
 }
 
 /// A look as the shader knows it: its number there, how much of the light a millimetre of

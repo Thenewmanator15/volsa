@@ -18,6 +18,8 @@ mod handle;
 mod offscreen;
 mod offscreen_scene;
 mod pick;
+mod plane_pipeline;
+mod plane_view;
 mod prepared;
 mod scene;
 mod slice_pipeline;
@@ -36,6 +38,8 @@ pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
 pub use pick::{pick, surface_threshold};
+pub use plane_pipeline::PlanePipeline;
+pub use plane_view::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM, PlaneView};
 pub use prepared::{MAX_VOLUME_BYTES, Prepared};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use slice_pipeline::{RenderError, SlicePipeline};

@@ -31,6 +31,9 @@ pub struct VolumePipeline {
     params: wgpu::Buffer,
     blended: wgpu::Sampler,
     uploaded: Option<Uploaded>,
+    /// How many volumes have been shown, so that what draws from the same texture can tell
+    /// when it has been replaced.
+    uploads: u64,
 }
 
 impl VolumePipeline {
@@ -84,6 +87,7 @@ impl VolumePipeline {
             params,
             blended,
             uploaded: None,
+            uploads: 0,
         }
     }
 
@@ -180,6 +184,13 @@ impl VolumePipeline {
             ],
         });
         self.uploaded = Some(Uploaded { placed, bind_group });
+        self.uploads += 1;
+    }
+
+    /// The volume on the graphics device now, and which upload it is.
+    pub(crate) fn placed(&self) -> Option<(&Placed, u64)> {
+        let uploaded = self.uploaded.as_ref()?;
+        Some((&uploaded.placed, self.uploads))
     }
 
     /// Whether a volume has been uploaded.

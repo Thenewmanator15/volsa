@@ -2,7 +2,11 @@
 
 use voxa_core::Volume;
 
+use voxa_core::WindowLevel;
+
 use crate::gpu::{Gpu, TARGET};
+use crate::plane_pipeline::PlanePipeline;
+use crate::plane_view::PlaneView;
 use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
@@ -12,6 +16,7 @@ use crate::volume_pipeline::VolumePipeline;
 pub struct HeadlessScene {
     gpu: Gpu,
     pipeline: VolumePipeline,
+    plane: PlanePipeline,
 }
 
 impl HeadlessScene {
@@ -25,7 +30,12 @@ impl HeadlessScene {
     pub fn new() -> Result<Self, RenderError> {
         let gpu = Gpu::start()?;
         let pipeline = VolumePipeline::new(&gpu.device, TARGET);
-        Ok(Self { gpu, pipeline })
+        let plane = PlanePipeline::new(&gpu.device, TARGET);
+        Ok(Self {
+            gpu,
+            pipeline,
+            plane,
+        })
     }
 
     /// Put a volume on the graphics device, and say how many times it had to be halved to
@@ -64,12 +74,35 @@ impl HeadlessScene {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.picture(device, queue, params, viewport, size)
     }
+
+    /// Draw a plane through the uploaded volume into a picture `size` (width, height) pixels
+    /// large, through `window`, and return it as red, green, blue, alpha bytes, row by row
+    /// from the top. Every pixel is an opaque grey, black outside the volume. With nothing
+    /// uploaded the picture is black.
+    ///
+    /// # Errors
+    ///
+    /// As [`HeadlessScene::render`].
+    pub fn render_plane(
+        &mut self,
+        view: &PlaneView,
+        window: WindowLevel,
+        size: [u32; 2],
+    ) -> Result<Vec<u8>, RenderError> {
+        let viewport = size.map(|side| side as f32);
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.plane.show(device, &self.pipeline);
+        self.plane.set_params(queue, view, viewport, window);
+        Gpu::on(device, queue).picture(size, |pass| self.plane.draw(pass))
+    }
 }
 
 #[cfg(test)]
 mod cut_tests;
 #[cfg(test)]
 mod haze_tests;
+#[cfg(test)]
+mod plane_tests;
 #[cfg(test)]
 mod skip_tests;
 #[cfg(test)]
