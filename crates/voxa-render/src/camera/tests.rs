@@ -358,3 +358,26 @@ fn a_camera_can_be_refitted_to_a_box_from_the_way_it_already_faces() {
     let fitted = Camera::fitted(NamedView::Left, &corners, [400.0, 300.0]);
     assert_eq!(left.refitted(&corners, [400.0, 300.0]), fitted);
 }
+
+#[test]
+fn a_turntable_is_one_full_turn_about_the_patient_in_equal_steps() {
+    let camera = Camera::looking(NamedView::Anterior, Point::new(3.0, 4.0, 5.0), 0.7);
+    let camera = camera.orbited([0.0, 30.0]);
+    let frames = turntable(&camera, 72);
+    assert_eq!(frames.len(), 72);
+    assert_eq!(frames[0], camera, "it starts where the camera is");
+    let step = 5.0_f64.to_radians();
+    for (before, after) in frames.iter().zip(&frames[1..]) {
+        let turned = (before.yaw - after.yaw).rem_euclid(std::f64::consts::TAU);
+        assert!((turned - step).abs() < 1e-9, "{turned}");
+        let same = (after.pitch, after.target, after.mm_per_px);
+        assert_eq!(same, (camera.pitch, camera.target, camera.mm_per_px));
+    }
+    // Half way round it is seen from the other side.
+    assert!(close(
+        frames[36].axes()[0],
+        camera.axes()[0].map(|part| -part)
+    ));
+    assert_eq!(turntable(&camera, 0), Vec::new());
+    assert_eq!(turntable(&camera, 1), [camera]);
+}

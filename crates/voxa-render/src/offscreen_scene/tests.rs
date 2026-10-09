@@ -312,3 +312,35 @@ fn a_picture_of_no_size_is_refused() {
         Err(RenderError::EmptyTarget)
     ));
 }
+
+#[test]
+fn a_turntable_carries_the_bead_round_to_the_other_side() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let volume = ball();
+    gpu.upload(&volume).expect("uploads");
+    let front = scene_of(&volume, NamedView::Anterior, Look::Mip);
+    let frames = crate::camera::turntable(&front.camera, 72);
+    let seen_from = |gpu: &mut HeadlessScene, frame: usize| {
+        let scene = SceneParams {
+            camera: frames[frame],
+            ..front.clone()
+        };
+        bead_middle(&drawn(gpu, &scene))
+    };
+    let [at_first, _] = seen_from(&mut gpu, 0);
+    let [half_way, _] = seen_from(&mut gpu, 36);
+    let middle = f64::from(SIDE / 2);
+    assert!(
+        at_first > middle && half_way < middle,
+        "{at_first} then {half_way}"
+    );
+    // A quarter of the way round it is seen from the patient's right, as when the scene is
+    // dragged to the right.
+    let [quarter, _] = seen_from(&mut gpu, 18);
+    assert!(
+        (quarter - (48.0 + 25.2)).abs() < 1.5,
+        "seen from the right: {quarter}"
+    );
+}

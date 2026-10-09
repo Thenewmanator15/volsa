@@ -5,11 +5,11 @@ use std::sync::{Arc, Weak};
 
 use egui_wgpu::{RenderState, wgpu};
 use voxa_core::Volume;
-use voxa_render::{SceneParams, VolumePipeline};
+use voxa_render::{PICTURE_FORMAT, RenderError, SceneParams, VolumePipeline};
 
 /// The format of the scene's picture: 8-bit greys as they are to be seen, which is how the
-/// interface reads a picture it is handed.
-const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
+/// interface reads a picture it is handed, and the format a picture is read back in.
+const FORMAT: wgpu::TextureFormat = PICTURE_FORMAT;
 
 /// The off-screen picture, and the name the interface knows it by.
 struct Picture {
@@ -56,6 +56,22 @@ impl SceneGpu {
         self.uploaded = Arc::downgrade(volume);
         self.drawn = None;
         Some(halved)
+    }
+
+    /// Draw the scene into a picture of its own, `pixels` wide and high, and give it back as
+    /// red, green, blue, alpha bytes: for saving to a file. The picture on the screen is drawn
+    /// afresh afterwards.
+    pub fn snapshot(
+        &mut self,
+        render: &RenderState,
+        params: &SceneParams,
+        viewport: [f32; 2],
+        pixels: [u32; 2],
+    ) -> Result<Vec<u8>, RenderError> {
+        self.drawn = None;
+        let (device, queue) = (&render.device, &render.queue);
+        self.pipeline
+            .picture(device, queue, params, viewport, pixels)
     }
 
     /// Take what was drawn as no longer worth showing: the scene has moved on.

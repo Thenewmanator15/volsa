@@ -1,0 +1,299 @@
+//! Saving the 3D scene as a picture or as a turntable that goes once round the patient. What
+//! is saved is the scene alone: no letters, captions, handles or words.
+
+use std::path::{Path, PathBuf};
+
+use egui::Ui;
+use voxa_render::{SceneParams, turntable};
+
+use crate::export::{
+    ExportError, SUGGESTED_NAME, TURNTABLE_FRAMES, TURNTABLE_SECONDS, gif, png, turntable_size,
+    write,
+};
+use crate::state::{Notice, NoticeKind};
+
+/// The key of the notice that says how saving went.
+const SAVING: &str = "saving";
+
+/// What the person asked to save.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Asked {
+    /// The scene as it is, as one picture.
+    Picture,
+    /// The scene going once round the patient, as an animation.
+    Turntable,
+}
+
+/// What the Export menu holds: a button for each kind of file. Greyed until there is a 3D
+/// view to save.
+pub fn contents(ui: &mut Ui, there: bool) -> Option<Asked> {
+    let not_yet = "There is no 3D view to save yet";
+    let picture = ui.add_enabled(there, egui::Button::new("Save picture…"));
+    let picture = picture.on_hover_text("The 3D view as it is now, as a PNG file");
+    let turning = ui.add_enabled(there, egui::Button::new("Save turntable…"));
+    let turning =
+        turning.on_hover_text("The 3D view going once round the patient, as an animated GIF");
+    if picture.on_disabled_hover_text(not_yet).clicked() {
+        Some(Asked::Picture)
+    } else if turning.on_disabled_hover_text(not_yet).clicked() {
+        Some(Asked::Turntable)
+    } else {
+        None
+    }
+}
+
+/// Ask the person where to save, offering a name that says nothing of the scan.
+pub fn choose(asked: Asked) -> Option<PathBuf> {
+    let (title, kind, ending) = match asked {
+        Asked::Picture => ("Save the 3D view as a picture", "PNG picture", "png"),
+        Asked::Turntable => ("Save a turntable of the 3D view", "Animated GIF", "gif"),
+    };
+    rfd::FileDialog::new()
+        .set_title(title)
+        .set_file_name(format!("{SUGGESTED_NAME}.{ending}"))
+        .add_filter(kind, &[ending])
+        .save_file()
+}
+
+/// Save one picture of the scene, and say how it went.
+pub fn save_picture(path: &Path, rgba: &[u8], size: [u32; 2]) -> Notice {
+    said(path, png(rgba, size).and_then(|file| write(path, &file)))
+}
+
+/// What to tell the person once a file has been saved, or has not.
+fn said(path: &Path, outcome: Result<(), ExportError>) -> Notice {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned());
+    let (kind, text) = match outcome {
+        Ok(()) => (
+            NoticeKind::Info,
+            format!("Saved {}", name.unwrap_or_default()),
+        ),
+        Err(why) => (NoticeKind::Error, why.to_string()),
+    };
+    Notice {
+        kind,
+        text,
+        details: Vec::new(),
+        key: Some(SAVING),
+    }
+}
+
+/// A notice that a picture could not be drawn for saving.
+pub fn not_drawn(why: &impl ToString) -> Notice {
+    let (kind, text) = (NoticeKind::Error, why.to_string());
+    Notice {
+        kind,
+        text,
+        details: Vec::new(),
+        key: Some(SAVING),
+    }
+}
+
+/// A turntable being made. One picture is drawn for each frame the interface draws, so the
+/// window stays alive and the person can stop it.
+pub struct Turntable {
+    path: PathBuf,
+    /// The scene for each picture, in order.
+    scenes: Vec<SceneParams>,
+    /// The pictures drawn so far.
+    drawn: Vec<Vec<u8>>,
+    /// The size the scene is laid out at, and the size of each picture in pixels.
+    viewport: [f32; 2],
+    size: [u32; 2],
+}
+
+impl Turntable {
+    /// A turntable of the scene as it is now, to be saved at `path`.
+    pub fn new(path: PathBuf, scene: &SceneParams, viewport: [f32; 2]) -> Self {
+        let cameras = turntable(&scene.camera, TURNTABLE_FRAMES);
+        let full = |camera| SceneParams {
+            camera,
+            quality: 1.0,
+            ..scene.clone()
+        };
+        Self {
+            path,
+            scenes: cameras.into_iter().map(full).collect(),
+            drawn: Vec::new(),
+            viewport,
+            size: turntable_size(viewport),
+        }
+    }
+
+    /// How many pictures have been drawn, and how many there will be.
+    pub fn progress(&self) -> (usize, usize) {
+        (self.drawn.len(), self.scenes.len())
+    }
+
+    /// The scene to draw next, the size it is laid out at and the picture's size in pixels;
+    /// `None` when every picture has been drawn.
+    pub fn next(&self) -> Option<(&SceneParams, [f32; 2], [u32; 2])> {
+        let scene = self.scenes.get(self.drawn.len())?;
+        Some((scene, self.viewport, self.size))
+    }
+
+    /// Take the picture drawn of the scene [`Turntable::next`] gave.
+    pub fn take(&mut self, rgba: Vec<u8>) {
+        self.drawn.push(rgba);
+    }
+
+    /// Put the pictures together, write the file, and say how it went.
+    pub fn finish(self) -> Notice {
+        let file = gif(&self.drawn, self.size, TURNTABLE_SECONDS);
+        said(&self.path, file.and_then(|file| write(&self.path, &file)))
+    }
+}
+
+/// Show how far a turntable has got, with a way to stop it. True when the person stops it.
+pub fn progress(ctx: &egui::Context, making: &Turntable) -> bool {
+    let (done, of) = making.progress();
+    let mut stop = false;
+    egui::Window::new("Saving a turntable")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label(format!("Drawing picture {} of {of}", (done + 1).min(of)));
+            let share = if of == 0 {
+                1.0
+            } else {
+                done as f32 / of as f32
+            };
+            ui.add(egui::ProgressBar::new(share).desired_width(240.0));
+            stop = ui.button("Cancel").clicked();
+        });
+    stop
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use egui::{Event, Modifiers, PointerButton, RawInput, pos2};
+    use image::AnimationDecoder;
+    use image::codecs::gif::GifDecoder;
+    use voxa_core::{Point, WindowLevel};
+    use voxa_render::{Camera, Look, NamedView};
+
+    use super::*;
+
+    fn scene() -> SceneParams {
+        SceneParams {
+            camera: Camera::looking(NamedView::Anterior, Point::new(0.0, 0.0, 0.0), 0.5),
+            window: WindowLevel::new(200.0, 400.0),
+            look: Look::Surface,
+            cuts: Vec::new(),
+            slice: None,
+            quality: 0.5,
+            skip_empty: true,
+        }
+    }
+
+    /// Click down the menu and gather what was asked for, in the order met.
+    fn sweep(there: bool) -> Vec<Asked> {
+        let ctx = egui::Context::default();
+        let mut asked = Vec::new();
+        let mut pass = |events: Vec<Event>| {
+            let input = RawInput {
+                events,
+                ..RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, there)));
+            // No renderer is behind these passes to take the font texture.
+            output.textures_delta.clear();
+        };
+        pass(Vec::new());
+        for y in (4..80u8).step_by(4) {
+            let pos = pos2(30.0, f32::from(y));
+            let button = |pressed| Event::PointerButton {
+                pos,
+                button: PointerButton::Primary,
+                pressed,
+                modifiers: Modifiers::NONE,
+            };
+            pass(vec![Event::PointerMoved(pos), button(true)]);
+            pass(vec![button(false)]);
+        }
+        asked.dedup();
+        asked
+    }
+
+    #[test]
+    fn the_menu_offers_a_picture_and_a_turntable_once_there_is_a_3d_view() {
+        assert_eq!(sweep(true), [Asked::Picture, Asked::Turntable]);
+        assert_eq!(sweep(false), []);
+    }
+
+    #[test]
+    fn a_picture_is_saved_and_the_notice_names_the_file_and_nothing_else() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let path = folder.path().join("voxa-3d.png");
+        let notice = save_picture(&path, &[9; 3 * 2 * 4], [3, 2]);
+        assert_eq!(
+            (notice.kind, notice.text.as_str()),
+            (NoticeKind::Info, "Saved voxa-3d.png")
+        );
+        let read = image::load_from_memory(&std::fs::read(&path).expect("reads")).expect("a png");
+        assert_eq!((read.width(), read.height()), (3, 2));
+        let failed = save_picture(
+            &folder.path().join("no folder").join("x.png"),
+            &[9; 24],
+            [3, 2],
+        );
+        assert_eq!(failed.kind, NoticeKind::Error);
+        assert!(
+            failed.text.starts_with("The file could not be written"),
+            "{}",
+            failed.text
+        );
+    }
+
+    #[test]
+    fn a_turntable_draws_seventy_two_scenes_at_full_quality_and_saves_them_as_a_gif() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let path = folder.path().join("voxa-3d.gif");
+        let mut making = Turntable::new(path.clone(), &scene(), [200.0, 100.0]);
+        assert_eq!(making.progress(), (0, 72));
+        let mut yaws = Vec::new();
+        while let Some((scene, viewport, size)) = making.next() {
+            assert_eq!((viewport, size), ([200.0, 100.0], [200, 100]));
+            assert_eq!((scene.quality, scene.look), (1.0, Look::Surface));
+            yaws.push(scene.camera.yaw);
+            let grey = u8::try_from(yaws.len()).expect("72 at most");
+            making.take([grey, grey, grey, 255].repeat(200 * 100));
+        }
+        assert_eq!((yaws.len(), making.progress()), (72, (72, 72)));
+        assert_eq!(yaws[0], scene().camera.yaw, "it starts as the scene is");
+        yaws.dedup();
+        assert_eq!(yaws.len(), 72, "and every picture is from a different side");
+        let notice = making.finish();
+        assert_eq!(notice.text, "Saved voxa-3d.gif");
+        let file = Cursor::new(std::fs::read(&path).expect("reads"));
+        let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
+        assert_eq!(frames, 72);
+    }
+
+    #[test]
+    fn a_turntable_with_no_pictures_drawn_says_so_and_writes_nothing() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let path = folder.path().join("voxa-3d.gif");
+        let notice = Turntable::new(path.clone(), &scene(), [400.0, 300.0]).finish();
+        assert_eq!(notice.kind, NoticeKind::Error);
+        assert_eq!(notice.text, "There is no picture of that size to save.");
+        assert!(!path.exists());
+    }
+
+    #[test]
+    fn the_progress_window_draws_and_is_not_stopped_unless_asked() {
+        let ctx = egui::Context::default();
+        let making = Turntable::new(PathBuf::from("voxa-3d.gif"), &scene(), [400.0, 300.0]);
+        let mut stopped = true;
+        let mut output = ctx.run_ui(RawInput::default(), |ui| {
+            stopped = progress(ui.ctx(), &making);
+        });
+        output.textures_delta.clear();
+        assert!(!stopped);
+    }
+}

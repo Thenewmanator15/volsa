@@ -7,7 +7,7 @@ use std::time::Instant;
 use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
 use voxa_core::{Patient, Point, Volume};
-use voxa_render::{SceneParams, pick};
+use voxa_render::{RenderError, SceneParams, pick};
 
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
@@ -16,6 +16,7 @@ use crate::scene::SceneStatus;
 use crate::state::AppState;
 
 mod captions;
+pub mod export;
 mod gpu;
 mod handles;
 mod input;
@@ -58,6 +59,19 @@ impl SceneView {
     /// Whether a picture of a volume has been drawn, so there is something to see.
     pub fn has_picture(&self) -> bool {
         self.gpu.as_ref().is_some_and(gpu::SceneGpu::has_picture)
+    }
+
+    /// Draw the scene into a picture for saving: `pixels` wide and high, laid out as at
+    /// `viewport`. `None` when there is no graphics device to draw with.
+    pub fn snapshot(
+        &mut self,
+        render: Option<&RenderState>,
+        params: &SceneParams,
+        viewport: [f32; 2],
+        pixels: [u32; 2],
+    ) -> Option<Result<Vec<u8>, RenderError>> {
+        let (gpu, render) = (self.gpu.as_mut()?, render?);
+        Some(gpu.snapshot(render, params, viewport, pixels))
     }
 
     /// Draw the scene's picture if there is a volume and a device to draw it with, and give
@@ -217,6 +231,12 @@ fn gather(
         (input.wheel, _) = viewport::wheel_turned(ui, part_notch);
     }
     input
+}
+
+/// The size in pixels of a picture laid out at `viewport` on a screen with this many pixels
+/// to the point.
+pub fn pixels(viewport: [f32; 2], pixels_per_point: f32) -> [u32; 2] {
+    viewport.map(|side| whole(side * pixels_per_point))
 }
 
 /// A length on the screen as a whole number of pixels, at least one.

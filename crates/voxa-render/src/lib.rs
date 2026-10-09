@@ -27,7 +27,9 @@ mod view;
 mod volume_pipeline;
 mod volume_texture;
 
-pub use camera::{Camera, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView, ORBIT_DEGREES_PER_PX};
+pub use camera::{
+    Camera, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView, ORBIT_DEGREES_PER_PX, turntable,
+};
 pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll, slice_outline};
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
@@ -35,4 +37,4 @@ pub use pick::{pick, surface_threshold};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
-pub use volume_pipeline::VolumePipeline;
+pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

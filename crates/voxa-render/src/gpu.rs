@@ -18,6 +18,14 @@ pub(crate) struct Gpu {
 }
 
 impl Gpu {
+    /// A device that is already running, such as the one a window draws with.
+    pub(crate) fn on(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+        Self {
+            device: device.clone(),
+            queue: queue.clone(),
+        }
+    }
+
     /// Start a graphics device: the machine's own adapter if it has one, otherwise one
     /// emulated in software.
     ///

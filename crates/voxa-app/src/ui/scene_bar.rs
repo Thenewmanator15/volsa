@@ -3,8 +3,9 @@
 use egui::Ui;
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
-use super::scene::views;
+use super::scene::{export, views};
 use crate::action::Action;
+use crate::scene::SceneStatus;
 use crate::state::AppState;
 
 /// The looks offered, with the label and hover text of each button. The labels are the names
@@ -38,9 +39,11 @@ pub const VIEWS: [(NamedView, &str, &str); 6] = [
 ];
 
 /// Draw the scene's line of the bar: the looks, the sides to see the patient from, the cuts,
-/// whether the slice shown in 2D is drawn in the scene, and the saved views.
-pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+/// whether the slice shown in 2D is drawn in the scene, the saved views, and saving to a
+/// file. Gives what the person asked to save, if anything.
+pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<export::Asked> {
     let scene = &state.scene;
+    let mut saving = None;
     ui.horizontal_wrapped(|ui| {
         ui.label("3D");
         for (look, label, hint) in LOOKS {
@@ -92,7 +95,12 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         }
         ui.separator();
         views::menu(ui, state, actions);
+        let there = scene.status == SceneStatus::Ready;
+        let menu = ui.menu_button("Export", |ui| saving = export::contents(ui, there));
+        menu.response
+            .on_hover_text("Save the 3D view as a picture or as a turntable");
     });
+    saving
 }
 
 #[cfg(test)]
@@ -114,7 +122,10 @@ mod tests {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| show(ui, state, &mut actions));
+            let mut output = ctx.run_ui(input, |ui| {
+                let asked = show(ui, state, &mut actions);
+                assert_eq!(asked, None, "the Export menu is closed");
+            });
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
             for action in actions {

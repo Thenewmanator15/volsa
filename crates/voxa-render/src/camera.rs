@@ -252,6 +252,22 @@ impl Camera {
     }
 }
 
+/// The cameras for one full turn about the patient's head-to-foot axis in `frames` equal
+/// steps, the first being `camera` itself. The patient turns the way a drag to the right
+/// turns them.
+pub fn turntable(camera: &Camera, frames: u32) -> Vec<Camera> {
+    let step = TAU / f64::from(frames.max(1));
+    let turned = |frame: u32| Camera {
+        yaw: camera.yaw - f64::from(frame) * step,
+        ..*camera
+    };
+    let after_the_first = (1..frames).map(|frame| turned(frame).sound());
+    (0..frames.min(1))
+        .map(|_| *camera)
+        .chain(after_the_first)
+        .collect()
+}
+
 fn xyz(point: Point<Patient>) -> [f64; 3] {
     [point.x, point.y, point.z]
 }

@@ -49,8 +49,8 @@ impl HeadlessScene {
     /// [`RenderError::Readback`] when the picture cannot be copied back.
     pub fn render(&mut self, params: &SceneParams, size: [u32; 2]) -> Result<Vec<u8>, RenderError> {
         let viewport = size.map(|side| side as f32);
-        self.pipeline.set_params(&self.gpu.queue, params, viewport);
-        self.gpu.picture(size, |pass| self.pipeline.draw(pass))
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.pipeline.picture(device, queue, params, viewport, size)
     }
 }
 

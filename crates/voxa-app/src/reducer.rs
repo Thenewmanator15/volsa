@@ -57,6 +57,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::TogglePatient
         | Action::SetTagFilter(_)
         | Action::DismissNotice(_)
+        | Action::Post(_)
         | Action::SetMain(_) => {
             window(state, action);
             Vec::new()
@@ -165,6 +166,10 @@ fn window(state: &mut AppState, action: Action) {
         Action::TogglePatient => state.show_patient = !state.show_patient,
         Action::SetTagFilter(filter) => state.tag_filter = filter,
         Action::SetMain(panel) => state.main = panel,
+        Action::Post(notice) => match notice.key {
+            Some(key) => post(state, key, Some(notice)),
+            None => state.notices.push(notice),
+        },
         Action::DismissNotice(at) if at < state.notices.len() => {
             state.notices.remove(at);
         }

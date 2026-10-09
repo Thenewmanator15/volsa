@@ -7,7 +7,7 @@ use voxa_dicom::Index;
 use voxa_render::{Look, NamedView};
 
 use crate::scene::MainPanel;
-use crate::state::{Layout, PresetWindows};
+use crate::state::{Layout, Notice, PresetWindows};
 use crate::views::SavedView;
 
 /// One thing that happened: something the person did, or something a worker finished.
@@ -148,6 +148,9 @@ pub enum Action {
     },
     /// Remove a notice, by its place in the list.
     DismissNotice(usize),
+    /// Tell the person something the window itself has to say, such as how saving a file
+    /// went. A notice with a key takes the place of the last with that key.
+    Post(Notice),
     /// Give the 3D scene or the 2D viewports the large part of the window.
     SetMain(MainPanel),
     /// The scene's picture has a new size.

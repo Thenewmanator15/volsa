@@ -210,3 +210,29 @@ fn a_slice_that_failed_is_remembered_with_its_reason_until_it_decodes() {
     reduce(&mut state, ready);
     assert_eq!(state.failed.get(&key), None);
 }
+
+#[test]
+fn a_notice_posted_from_the_window_takes_the_place_of_the_last_with_its_key() {
+    let mut state = AppState::default();
+    let notice = |text: &str, key| Notice {
+        kind: NoticeKind::Info,
+        text: text.to_owned(),
+        details: Vec::new(),
+        key,
+    };
+    reduce(
+        &mut state,
+        Action::Post(notice("Saved one", Some("saving"))),
+    );
+    reduce(&mut state, Action::Post(notice("Something else", None)));
+    reduce(
+        &mut state,
+        Action::Post(notice("Saved two", Some("saving"))),
+    );
+    let texts: Vec<&str> = state
+        .notices
+        .iter()
+        .map(|notice| notice.text.as_str())
+        .collect();
+    assert_eq!(texts, ["Something else", "Saved two"]);
+}

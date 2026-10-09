@@ -55,7 +55,7 @@ directories = "6"
 # Tests and benchmarks.
 proptest = "1.11"
 tempfile = "3.27"
-image = { version = "0.25", default-features = false, features = ["png"] }
+image = { version = "0.25", default-features = false, features = ["png", "gif"] }
 criterion = "0.8"
 
 [workspace.lints.clippy]

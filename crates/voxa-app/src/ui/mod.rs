@@ -22,6 +22,7 @@ mod help;
 mod layout;
 mod overlay;
 mod pen;
+mod saving;
 mod scene;
 mod scene_bar;
 mod tags;
@@ -51,6 +52,8 @@ pub struct VoxaApp {
     capture: Option<capture::Capture>,
     /// What a picture of the window wants done to the 3D scene once its volume is ready.
     pose: Vec<Action>,
+    /// A turntable of the 3D scene that is being drawn, a picture each frame.
+    turntable: Option<scene::export::Turntable>,
 }
 
 impl VoxaApp {
@@ -84,6 +87,7 @@ impl VoxaApp {
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture: capture::Capture::from_environment(),
             pose: Vec::new(),
+            turntable: None,
         };
         if app.capture.is_some() {
             // A picture for the documentation may want one of the windows open in it.
@@ -265,11 +269,13 @@ impl eframe::App for VoxaApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
         let bar = egui::Panel::top("toolbar");
-        let asked = bar
+        let (asked, saving) = bar
             .show(ui, |ui| {
                 let asked = toolbar::show(ui, self.session.state(), &mut actions);
-                scene_bar::show(ui, self.session.state(), &mut actions);
-                asked
+                (
+                    asked,
+                    scene_bar::show(ui, self.session.state(), &mut actions),
+                )
             })
             .inner;
         self.about_open |= asked.about;
@@ -295,6 +301,7 @@ impl eframe::App for VoxaApp {
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
         self.keys(ui.ctx(), &mut actions);
+        self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
         for action in actions {
             self.dispatch(action);
         }

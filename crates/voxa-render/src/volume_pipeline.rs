@@ -6,6 +6,7 @@ use egui_wgpu::wgpu;
 use voxa_core::{Patient, Point, Volume};
 use voxa_volume::halvings_needed;
 
+use crate::gpu::Gpu;
 use crate::scene::{Look, MAX_CUTS, SceneParams};
 use crate::slice_pipeline::RenderError;
 use crate::vector::{dot, unit};
@@ -27,6 +28,10 @@ pub(crate) const SURFACE_RAMP: f32 = 0.1;
 const MIN_QUALITY: f32 = 0.1;
 /// The narrowest window the shader is given, as a share of the volume's range of values.
 const MIN_WINDOW: f32 = 1.0e-6;
+
+/// The format of a picture read back with [`VolumePipeline::picture`]: 8-bit red, green, blue
+/// and alpha, with no gamma curve, so the grey read back is the grey the shader wrote.
+pub const PICTURE_FORMAT: wgpu::TextureFormat = crate::gpu::TARGET;
 
 /// What the shader needs besides the volume; the layout matches `Scene` in `volume.wgsl`.
 #[repr(C)]
@@ -200,6 +205,29 @@ impl VolumePipeline {
         };
         let params = shader_params(&uploaded.placed, params, viewport);
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
+    }
+
+    /// Draw the uploaded volume into a picture `size` (width, height) pixels large, off the
+    /// screen, and return it as red, green, blue, alpha bytes, row by row from the top. Every
+    /// pixel is an opaque grey. `viewport` is the size the picture is laid out at, which is
+    /// what the camera measures in. The pipeline must have been made for [`PICTURE_FORMAT`].
+    /// With nothing uploaded the picture is black.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::EmptyTarget`] when either side of `size` is zero,
+    /// [`RenderError::TooLarge`] when it is more than the device can hold, and
+    /// [`RenderError::Readback`] when the picture cannot be copied back.
+    pub fn picture(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        params: &SceneParams,
+        viewport: [f32; 2],
+        size: [u32; 2],
+    ) -> Result<Vec<u8>, RenderError> {
+        self.set_params(queue, params, viewport);
+        Gpu::on(device, queue).picture(size, |pass| self.draw(pass))
     }
 
     /// Draw the uploaded volume over the whole of the pass's viewport. Draws nothing until a
