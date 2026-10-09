@@ -2,19 +2,25 @@
 
 Voxa is a desktop viewer for MRI scan exports, written in Rust. It opens a folder, a zip or a
 `DICOMDIR`, lists the studies and series inside, and shows any series as a stack of slices with
-correct orientation, contrast controls, overlays, tag inspection and cine playback, and shows
-the series being looked at as a 3D volume that can be turned, cut open and saved as a picture.
+correct orientation, contrast controls, overlays, tag inspection and cine playback; shows the
+series being looked at as a 3D volume that can be turned, cut open and saved as a picture; and
+shows axial, coronal and sagittal planes through any point of it, on which lengths, angles and
+regions can be measured and points marked.
 
 **Voxa is not a medical device and is not for diagnostic use.**
 
-![Voxa showing a made-up test study in 3D, cut open, with the slice shown beside it](docs/images/voxa-phantom-3d.png)
+![Voxa showing a made-up test study in three planes and in 3D, with measurements](docs/images/voxa-phantom-planes.png)
 
-The picture shows a made-up study that Voxa's own example writes, not a scan of anyone: a ball,
-turned and cut open in the 3D scene, with the slice through its middle beside it.
+The pictures show a made-up study that Voxa's own example writes, not a scan of anyone. Above:
+a ball in its axial, sagittal and coronal planes and in 3D, with a ruler, an angle, a region and
+a marker measured on it, and the slice through its middle beside them. Below: the same ball
+turned and cut open in the 3D scene.
 
-Status: version 0.2.0, the second milestone (Interactive 3D). What it does and what it does not yet do
+![Voxa showing the same study in 3D, cut open, with the slice shown beside it](docs/images/voxa-phantom-3d.png)
+
+Status: version 0.3.0, the third milestone (Plane views and measurement). What it does and what it does not yet do
 are in the [changelog](CHANGELOG.md); how it was checked is in
-[docs/acceptance-0.2.0.md](docs/acceptance-0.2.0.md). The design and the plan for every
+[docs/acceptance-0.3.0.md](docs/acceptance-0.3.0.md). The design and the plan for every
 milestone are in [docs/superpowers](docs/superpowers).
 
 ## Build and run
@@ -48,8 +54,8 @@ of them. It needs `cargo install --locked cargo-llvm-cov`.
 |---|---|
 | `voxa-core` | Data model, typed coordinate spaces, errors |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing, pixel decoding |
-| `voxa-volume` | Volumes from series, sampling and lines of sight, histograms and automatic window/level |
-| `voxa-render` | GPU drawing of slices and of volumes; the 3D camera |
+| `voxa-volume` | Volumes from series, sampling and lines of sight, planes through a volume, measuring, histograms and automatic window/level |
+| `voxa-render` | GPU drawing of slices, of volumes and of planes through them; the 3D camera |
 | `voxa-app` | The application: interface, state, background work |
 | `xtask` | Project tasks (`check`, `coverage`) |
 

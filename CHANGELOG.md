@@ -6,7 +6,54 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-10
+
+The third milestone: plane views and measurement, on top of a pass for speed. Voxa is not a
+medical device and is not for diagnostic use.
+
+### Added
+
+- Three plane views of the series in the 3D scene: axial, coronal and sagittal, through one
+  point, the position. They are in the column beside the scene under a "Planes" tab, or, with
+  Enlarge, share the large part of the window with the scene, two by two. Each is drawn on the
+  graphics device from the scene's own volume, so it costs no second copy and moving through
+  its layers decodes nothing.
+- The planes follow the scan's own axes and are named by the anatomical plane each is nearest,
+  so the scan's own slices are shown exactly as taken and a tilted scan gives tilted planes,
+  lettered truly. Axial is seen from the feet and coronal from the front, as radiology shows
+  them. Colours are those of 3D Slicer: axial red, sagittal yellow, coronal green.
+- In a plane view: a click or drag moves the position, the wheel moves through layers, Ctrl
+  with the wheel zooms about the pointer, the middle button moves the picture, the right
+  button changes the window, a double-click fits. Each panel has a letter at each edge, a
+  scale bar, the lines of the other two planes, and a note where its picture runs across
+  slices far apart and is interpolated between them.
+- In the 3D scene the three planes are outlined in their colours, with the position where they
+  cross; a click on a surface moves the position there, and each plane has a grip to drag it.
+- Measuring, in the plane views and in 3D: a ruler, an angle, the scan values inside an
+  ellipse (mean, spread, least, greatest, area), and named markers. Everything is worked out
+  from millimetres in the patient and the scan's own values, never from the screen, and a
+  ruler says how exactly it can be known: one voxel along its own direction.
+- A Measure window (the M key): the tools, undo and redo (Ctrl+Z, Ctrl+Y), the list of what
+  has been measured with a name for each that can be typed over, and saving the list as a
+  table (CSV) or as JSON. Esc puts the tool in hand down.
+- Measurements are kept between sessions, in a small file in the settings folder, filed under
+  a hash of the series. That file and the saved lists hold coordinates, numbers and the names
+  typed, and nothing that says whose scan it was.
+- Link, on from the start: 2D viewports showing a series of the same study go to the slice
+  nearest the position, and scrolling one takes the position with it. The position is marked
+  on each by a small cross. Linked views take it that the patient did not move between series.
+- Smooth, off from the start: the planes drawn from a curve through the scan's values (a
+  cubic B-spline) in place of a blend of the nearest. The curve passes through every measured
+  value; it shows no more detail, and beside a sharp edge it overshoots a little.
+- `cargo run -p voxa-app --example check_planes` checks the plane views of a whole export
+  without a window and prints nothing from its files.
+
 ### Changed
+
+- A 3D scene that the person has turned or zoomed keeps what it shows when its part of the
+  window changes size. Before, it kept its scale, so a scene moved into a small part of the
+  window showed only a corner of itself.
+- In a narrow 3D scene the captions go beneath the letter at the top, across the whole width.
 
 - Showing a large series in 3D no longer holds the window up while the volume is made ready
   for the graphics device: that is now done on a worker thread, in parallel, and the window
@@ -62,6 +109,19 @@ All notable changes to Voxa are recorded here. The format follows
   program. It is now watched for, and the volume is halved and tried again.
 - If the graphics device has no room for a volume at all, the scene now says that it cannot
   be drawn. Before, it would have gone on showing the volume of the series before.
+
+### Known limits
+
+- The planes follow the scan's own axes: a plane cannot be turned by hand, and there are no
+  slabs or curved planes.
+- An annotation cannot be moved or reshaped once made; it is removed and drawn again.
+  Measuring is in the plane views and the 3D scene, not in the 2D viewports.
+- Nothing moves the words beside annotations apart: several close together in a small panel
+  run into one another.
+- Linking is within one study. Series of different studies are not brought into register.
+- A region's numbers are worked out once, when it is drawn, from the scan's own values.
+- Drawing with the mouse, the grips in 3D, the keys and the save dialogs have been tested
+  without a window but not tried by hand; see `docs/acceptance-0.3.0.md`.
 
 ## [0.2.0] - 2026-10-09
 

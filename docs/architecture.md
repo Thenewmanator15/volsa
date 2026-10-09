@@ -6,8 +6,8 @@ Voxa is a Cargo workspace of small crates that talk only through their public in
 |---|---|---|
 | `voxa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VoxaError` | nothing in the workspace |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
-| `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; histograms, percentiles, automatic window/level | `voxa-core` |
-| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene | `voxa-core`, `voxa-volume` |
+| `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `voxa-core` |
+| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture | `voxa-core`, `voxa-volume` |
 | `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
 | `xtask` | `cargo xtask check` and `cargo xtask coverage` | nothing in the workspace |
 
@@ -54,11 +54,35 @@ The 3D scene follows the series of the active viewport:
 5. The camera has no perspective and lives in patient space, so nothing is mirrored, a scale bar
    holds across the picture, and the letters at the edges come from the same rule as in 2D.
 
+The plane views and measuring hang on one point, the position:
+
+1. The state holds one position in the patient, inside the scene's volume. Everything that
+   moves through the volume moves it: a click in a plane view or on a surface in 3D, the wheel
+   over a plane, a grip in the scene, and, while Link is on, scrolling a 2D viewport of the
+   same study. Linked viewports in turn go to the slice nearest the position.
+2. `voxa-volume` gives the three planes of the volume through the position. They follow the
+   volume's own axes, each named by the anatomical plane it is nearest, so the scan's own
+   slices are never resampled and a tilted scan is shown tilted.
+3. Each plane is drawn by a small fragment shader that reads the scene's own 3D texture: for
+   every pixel of the panel, the point of the patient it shows, then the value there, through
+   the window. A plane view therefore costs no second copy of the volume. With Smooth on, a
+   worker turns the volume into the coefficients of the cubic B-spline through its values,
+   the window puts them on the device once as a second texture, and the same shader reads
+   that with eight blended reads a pixel.
+4. Annotations (rulers, angles, regions, markers) are points in the patient, in millimetres,
+   kept with the series they were made on. What each measures is worked out in `voxa-volume`
+   from those points and from the scan's own values, never from the screen. A plane view shows
+   the ones that lie in its layer; the 3D scene shows them all, in front of the picture.
+5. The list is written to `annotations.json` in the settings folder, filed under a hash of
+   the series, and can be saved as a table or as JSON. None of these holds anything that says
+   whose scan it was.
+
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled
 by one pure function, `reduce`, which returns the `Effect`s to run (start indexing, request
-frames, build a volume, read and write saved views). Workers report back by sending further `Action`s. This makes every interaction testable
+frames, build a volume, work out the curve for smooth planes, read and write saved views and
+annotations). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
 
 ## Coordinates
