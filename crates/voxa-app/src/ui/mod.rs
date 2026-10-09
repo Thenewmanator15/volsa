@@ -1,4 +1,4 @@
-//! The window: toolbar, study browser, viewport grid and status line.
+//! The window: toolbar, study browser, the 3D scene, the viewport grid and status line.
 
 use std::path::PathBuf;
 use std::sync::PoisonError;
@@ -6,8 +6,10 @@ use std::sync::mpsc::channel;
 use std::time::Instant;
 
 use egui::RichText;
+use egui_wgpu::RenderState;
 
 use crate::action::Action;
+use crate::scene::SceneStatus;
 use crate::session::Session;
 use crate::state::{NoticeKind, VIEWPORTS};
 
@@ -17,6 +19,8 @@ mod capture;
 mod cine;
 mod help;
 mod overlay;
+mod pen;
+mod scene;
 mod tags;
 mod theme;
 mod toolbar;
@@ -26,6 +30,8 @@ pub use browser::thumbnail;
 
 /// Decoded slices kept in memory: one gibibyte of pixel values.
 const CACHE_BYTES: usize = 1 << 30;
+/// The width of the column beside the main area, in points, where there is room for it.
+const SIDE_COLUMN: f32 = 360.0;
 /// Thumbnails are made at twice their size on screen, to stay sharp on dense displays.
 const THUMBNAIL_PIXELS: u32 = 128;
 
@@ -34,6 +40,7 @@ pub struct VoxaApp {
     session: Session,
     /// One for each viewport; empty when the window has no graphics device to draw slices.
     gpus: Vec<viewport::Gpu>,
+    scene: scene::SceneView,
     thumbnails: browser::Thumbnails,
     about_open: bool,
     help_open: bool,
@@ -66,6 +73,7 @@ impl VoxaApp {
         let mut app = Self {
             session: Session::new(from_workers, reports, CACHE_BYTES),
             gpus: gpus.unwrap_or_default(),
+            scene: scene::SceneView::new(render),
             thumbnails: browser::Thumbnails::default(),
             about_open: false,
             help_open: false,
@@ -150,6 +158,28 @@ impl VoxaApp {
 }
 
 impl VoxaApp {
+    /// Draw the 3D scene in the large part of what is left of the window, and the 2D
+    /// viewports in a column beside it.
+    fn pictures(
+        &mut self,
+        ui: &mut egui::Ui,
+        render: Option<&RenderState>,
+        actions: &mut Vec<Action>,
+    ) {
+        let state = self.session.state();
+        let whole = ui.available_rect_before_wrap();
+        let column = SIDE_COLUMN.min(whole.width() / 3.0);
+        let (main, side) = whole.split_left_right_at_x(whole.right() - column);
+        let main = main.with_max_x(main.right() - viewport::GAP);
+        let shown = state.scene.series.as_ref();
+        let volume = shown.and_then(|series| self.session.volume(series));
+        let scene = &mut self.scene;
+        scene::show(ui, main, state, volume.as_ref(), scene, render, actions);
+        let (cache, gpus) = (self.session.cache(), &mut self.gpus);
+        viewport::show(ui, side, state, cache, gpus, render, actions);
+        ui.allocate_rect(whole, egui::Sense::hover());
+    }
+
     /// Move playback on in every viewport where it is running, and ask to be woken when the
     /// next slice is due, so nothing is redrawn in between.
     fn play(&mut self, ctx: &egui::Context) {
@@ -240,15 +270,7 @@ impl eframe::App for VoxaApp {
             .fill(theme::BACKGROUND)
             .inner_margin(viewport::GAP);
         egui::CentralPanel::default().frame(behind).show(ui, |ui| {
-            let render = frame.wgpu_render_state();
-            viewport::show(
-                ui,
-                self.session.state(),
-                self.session.cache(),
-                &mut self.gpus,
-                render,
-                &mut actions,
-            );
+            self.pictures(ui, frame.wgpu_render_state(), &mut actions);
         });
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
@@ -257,7 +279,13 @@ impl eframe::App for VoxaApp {
         for action in actions {
             self.dispatch(action);
         }
-        let ready = self.gpus.first().is_some_and(viewport::Gpu::has_picture);
+        // A picture of the window waits for the slice and, if there is to be one, the volume.
+        let no_volume_to_come = !matches!(
+            self.session.state().scene.status,
+            SceneStatus::Building { .. } | SceneStatus::Ready
+        );
+        let ready = self.gpus.first().is_some_and(viewport::Gpu::has_picture)
+            && (no_volume_to_come || self.scene.has_picture());
         if let Some(capture) = &mut self.capture {
             capture.step(ui.ctx(), ready);
         }

@@ -22,7 +22,7 @@ const VR_STOPPED_PER_MM: f32 = 0.05;
 const SURFACE_STOPPED_PER_MM: f32 = 1.0;
 /// The share of the window, up from its low end, over which tissue becomes solid in the
 /// surface look. In the see-through look it is the whole window.
-const SURFACE_RAMP: f32 = 0.1;
+pub(crate) const SURFACE_RAMP: f32 = 0.1;
 /// The coarsest a picture is drawn: steps ten times as long as at full quality.
 const MIN_QUALITY: f32 = 0.1;
 /// The narrowest window the shader is given, as a share of the volume's range of values.

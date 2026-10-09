@@ -16,6 +16,8 @@ use crate::state::{AppState, Layout};
 mod annotate;
 mod mouse;
 
+pub(super) use mouse::turned as wheel_turned;
+
 /// Space between neighbouring viewports, in points.
 pub const GAP: f32 = 4.0;
 /// Thickness of the line round the active viewport, in points.
@@ -146,17 +148,17 @@ fn narrowed(value: f64) -> f32 {
     value as f32
 }
 
-/// Draw the viewports of the current layout into what is left of `ui`, and turn what the
-/// mouse does over each into actions.
+/// Draw the viewports of the current layout into `area`, and turn what the mouse does over
+/// each into actions.
 pub fn show(
     ui: &mut Ui,
+    area: Rect,
     state: &AppState,
     cache: &Mutex<FrameCache>,
     gpus: &mut [Gpu],
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) {
-    let area = ui.available_rect_before_wrap();
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
         let Some(viewport) = state.viewports.get(at) else {
             continue;
@@ -203,7 +205,6 @@ pub fn show(
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
         actions.extend(overlay::input_to_actions(at, &input));
     }
-    ui.allocate_rect(area, Sense::hover());
 }
 
 /// Upload the slice a viewport shows if it is not the one already uploaded, set window and

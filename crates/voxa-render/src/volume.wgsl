@@ -244,7 +244,9 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let stride = max(scene.view.z, (leave - enter) / MAX_STEPS);
     let steps = i32(ceil((leave - enter) / stride));
     let lit = scene.view.w > 1.5;
-    let first = scattered(pixel);
+    // By the picture's own pixels, however large it is laid out, so the pattern is as fine
+    // as the picture.
+    let first = scattered(corner.position.xy);
     var brightest = 0.0;
     var light = 0.0;
     var stopped = 0.0;

@@ -1,10 +1,10 @@
 //! What a 3D picture of a volume is drawn from, apart from the volume itself: where it is seen
 //! from, through which window, in which look, and the planes that cut it open.
 
-use voxa_core::{Patient, Point, WindowLevel};
+use voxa_core::{Affine, Patient, Point, Voxel, WindowLevel};
 
 use crate::camera::{Camera, ORBIT_DEGREES_PER_PX};
-use crate::vector::{moved, turned_about, unit};
+use crate::vector::{cross, moved, turned_about, unit};
 
 /// The most cut planes a scene can have.
 pub const MAX_CUTS: usize = 3;
@@ -88,6 +88,26 @@ pub struct SlicePlane {
     pub point: Point<Patient>,
     /// The direction, of length 1, straight out of the slice.
     pub normal: [f64; 3],
+}
+
+impl SlicePlane {
+    /// The plane of one slice of a series: through the middle of the slice, facing straight
+    /// out of it. `placement` is the series' own, `size` its columns and rows, and `slice`
+    /// counts from 0. `None` when the placement gives the slice no plane.
+    pub fn of_slice(
+        placement: &Affine<Voxel, Patient>,
+        size: [u32; 2],
+        slice: usize,
+    ) -> Option<Self> {
+        let [along_columns, along_rows, _] = placement.columns();
+        let normal = unit(cross(along_columns, along_rows))?;
+        let [cols, rows] = size.map(|count| (f64::from(count) - 1.0) / 2.0);
+        let slice = f64::from(u32::try_from(slice).ok()?);
+        Some(Self {
+            point: placement.apply(Point::new(cols, rows, slice)),
+            normal,
+        })
+    }
 }
 
 /// Everything a picture of a volume is drawn from, apart from the volume.
@@ -211,5 +231,29 @@ mod tests {
         };
         assert_eq!(flat.moved(5.0), flat);
         assert_eq!(flat.turned(&from_the_front(), [10.0, 10.0]), flat);
+    }
+
+    #[test]
+    fn the_plane_of_a_slice_passes_through_its_middle_and_faces_out_of_it() {
+        use voxa_core::Affine;
+        // 4 x 4 voxels of 1 mm in slices 5 mm apart, going up the patient.
+        let placed = |step: [f64; 3]| {
+            Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], step, [-10.0, -20.0, 0.0])
+        };
+        let plane = SlicePlane::of_slice(&placed([0.0, 0.0, 5.0]), [4, 4], 3).expect("placed");
+        assert_eq!(plane.point, Point::new(-8.5, -18.5, 15.0));
+        assert!(close(plane.normal, [0.0, 0.0, 1.0]), "{:?}", plane.normal);
+        // In a tilted stack the slices still lie flat: the plane faces out of the slice, not
+        // along the stack.
+        let tilted = SlicePlane::of_slice(&placed([0.0, 1.0, 5.0]), [4, 4], 2).expect("placed");
+        assert_eq!(tilted.point, Point::new(-8.5, -16.5, 10.0));
+        assert!(close(tilted.normal, [0.0, 0.0, 1.0]), "{:?}", tilted.normal);
+        let flat =
+            Affine::from_columns([1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0; 3]);
+        assert_eq!(
+            SlicePlane::of_slice(&flat, [4, 4], 0),
+            None,
+            "no plane to speak of"
+        );
     }
 }

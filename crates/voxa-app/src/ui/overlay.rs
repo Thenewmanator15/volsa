@@ -9,9 +9,9 @@ use crate::action::Action;
 use crate::state::Layout;
 
 /// How much one wheel notch with Ctrl held magnifies.
-const ZOOM_PER_NOTCH: f32 = 1.1;
+pub(super) const ZOOM_PER_NOTCH: f32 = 1.1;
 /// A drag of one screen pixel changes the window by this fraction of its width.
-const WINDOW_PER_PIXEL: f32 = 1.0 / 256.0;
+pub(super) const WINDOW_PER_PIXEL: f32 = 1.0 / 256.0;
 /// The lengths a scale bar may have, in millimetres, longest first.
 const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 /// Said in a corner when the files do not say where the slices are.
@@ -112,7 +112,7 @@ fn screen_directions(
 
 /// The letter for the way a direction in the patient points, by its largest part. Patient
 /// coordinates follow DICOM: +x is the patient's left, +y the back, +z the head.
-fn letter([x, y, z]: [f64; 3]) -> &'static str {
+pub(super) fn letter([x, y, z]: [f64; 3]) -> &'static str {
     let (across, through, along) = (x.abs(), y.abs(), z.abs());
     if across >= through && across >= along {
         if x > 0.0 { "L" } else { "R" }

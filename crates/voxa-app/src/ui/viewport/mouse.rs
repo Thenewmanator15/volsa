@@ -32,13 +32,20 @@ pub(super) fn gather(
     if let Some(at) = response.hover_pos() {
         let from_middle = at - cell.center();
         input.pointer = [from_middle.x, from_middle.y];
-        let (turned, with_ctrl) = ui.input(|i| wheel(&i.events));
-        *part_notch += turned;
-        let whole = part_notch.trunc();
-        *part_notch -= whole;
-        (input.wheel, input.zooming) = (notches(whole), with_ctrl);
+        (input.wheel, input.zooming) = turned(ui, part_notch);
     }
     input
+}
+
+/// How many whole notches the wheel turned towards the person this frame, and whether Ctrl
+/// was held. `part_notch` carries what a touchpad has scrolled short of a whole notch from
+/// one frame to the next.
+pub(in crate::ui) fn turned(ui: &Ui, part_notch: &mut f32) -> (i32, bool) {
+    let (turned, with_ctrl) = ui.input(|i| wheel(&i.events));
+    *part_notch += turned;
+    let whole = part_notch.trunc();
+    *part_notch -= whole;
+    (notches(whole), with_ctrl)
 }
 
 /// How far the wheel turned towards the person, in notches, and whether Ctrl was held.
