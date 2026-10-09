@@ -25,6 +25,9 @@ All notable changes to Voxa are recorded here. The format follows
   kept for its viewport, as far as the slice cache has room, so going back to it decodes
   nothing again. Slices decoded for a volume that fails, or is overtaken by another, are kept
   the same way and not thrown away.
+- A turntable's pictures are put together into its GIF on a worker thread, so the window
+  stays alive while that is done (about a third of a second for 72 pictures of 512 x 320).
+  It says "Saving ..." meanwhile and "Saved ..." when the file is written.
 
 ### Fixed
 

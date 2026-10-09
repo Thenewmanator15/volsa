@@ -11,6 +11,7 @@ use crate::export::{
     write,
 };
 use crate::state::{Notice, NoticeKind};
+use crate::worker::Workers;
 
 /// The key of the notice that says how saving went.
 const SAVING: &str = "saving";
@@ -62,16 +63,14 @@ pub fn save_picture(path: &Path, rgba: &[u8], size: [u32; 2]) -> Notice {
 
 /// What to tell the person once a file has been saved, or has not.
 fn said(path: &Path, outcome: Result<(), ExportError>) -> Notice {
-    let name = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned());
-    let (kind, text) = match outcome {
-        Ok(()) => (
-            NoticeKind::Info,
-            format!("Saved {}", name.unwrap_or_default()),
-        ),
-        Err(why) => (NoticeKind::Error, why.to_string()),
-    };
+    match outcome {
+        Ok(()) => about(NoticeKind::Info, format!("Saved {}", name_of(path))),
+        Err(why) => about(NoticeKind::Error, why.to_string()),
+    }
+}
+
+/// A notice about saving. Each takes the place of the one before.
+fn about(kind: NoticeKind, text: String) -> Notice {
     Notice {
         kind,
         text,
@@ -80,15 +79,25 @@ fn said(path: &Path, outcome: Result<(), ExportError>) -> Notice {
     }
 }
 
+/// The name of the file the person chose, without the folders it is in.
+fn name_of(path: &Path) -> String {
+    let name = path.file_name();
+    name.map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default()
+}
+
 /// A notice that a picture could not be drawn for saving.
 pub fn not_drawn(why: &impl ToString) -> Notice {
-    let (kind, text) = (NoticeKind::Error, why.to_string());
-    Notice {
-        kind,
-        text,
-        details: Vec::new(),
-        key: Some(SAVING),
-    }
+    about(NoticeKind::Error, why.to_string())
+}
+
+/// Put a finished turntable's pictures together and write its file on a worker, so that the
+/// window is not held up meanwhile. What to say until then is given back; the worker posts
+/// how it went when it is done.
+pub fn finish_on(workers: &Workers, making: Turntable) -> Notice {
+    let (meanwhile, otherwise) = (making.saving(), making.not_saved());
+    workers.post(otherwise, move || making.finish());
+    meanwhile
 }
 
 /// A turntable being made. One picture is drawn for each frame the interface draws, so the
@@ -137,6 +146,21 @@ impl Turntable {
     /// Take the picture drawn of the scene [`Turntable::next`] gave.
     pub fn take(&mut self, rgba: Vec<u8>) {
         self.drawn.push(rgba);
+    }
+
+    /// What to say while the pictures are put together and the file is written.
+    pub fn saving(&self) -> Notice {
+        about(NoticeKind::Info, format!("Saving {}…", name_of(&self.path)))
+    }
+
+    /// What to say if putting the pictures together stops before it can say how it went.
+    pub fn not_saved(&self) -> Notice {
+        let name = name_of(&self.path);
+        let why = "putting its pictures together stopped part-way";
+        about(
+            NoticeKind::Error,
+            format!("{name} could not be saved: {why}."),
+        )
     }
 
     /// Put the pictures together, write the file, and say how it went.
@@ -283,6 +307,58 @@ mod tests {
         assert_eq!(notice.kind, NoticeKind::Error);
         assert_eq!(notice.text, "There is no picture of that size to save.");
         assert!(!path.exists());
+    }
+
+    /// A turntable of small pictures with every one drawn.
+    fn drawn(path: PathBuf) -> Turntable {
+        let mut making = Turntable::new(path, &scene(), [20.0, 10.0]);
+        while let Some((_, _, [wide, high])) = making.next() {
+            making.take(vec![200; (wide * high * 4) as usize]);
+        }
+        making
+    }
+
+    #[test]
+    fn what_is_said_while_a_turntable_is_put_together_gives_way_to_how_it_went() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let making = drawn(folder.path().join("voxa-3d.gif"));
+        let (saving, stopped) = (making.saving(), making.not_saved());
+        assert_eq!(
+            (saving.kind, saving.text.as_str()),
+            (NoticeKind::Info, "Saving voxa-3d.gif…")
+        );
+        let said =
+            "voxa-3d.gif could not be saved: putting its pictures together stopped part-way.";
+        assert_eq!(
+            (stopped.kind, stopped.text.as_str()),
+            (NoticeKind::Error, said)
+        );
+        let done = making.finish();
+        assert!(saving.key.is_some(), "so that the next takes its place");
+        assert_eq!((saving.key, stopped.key), (done.key, done.key));
+    }
+
+    #[test]
+    fn a_finished_turntable_is_put_together_on_a_worker_which_says_when_it_is_saved() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        let path = folder.path().join("voxa-3d.gif");
+        let (sender, reports) = std::sync::mpsc::channel();
+        let mut session = crate::session::Session::new(sender, reports, 1 << 20, None);
+        let meanwhile = finish_on(session.workers(), drawn(path.clone()));
+        assert_eq!(meanwhile.text, "Saving voxa-3d.gif…");
+        let said = |session: &crate::session::Session| {
+            let notices = &session.state().notices;
+            notices
+                .iter()
+                .any(|notice| notice.text == "Saved voxa-3d.gif")
+        };
+        while !said(&session) {
+            let heard = session.wait(std::time::Duration::from_secs(60));
+            assert!(heard > 0, "the worker says how it went");
+        }
+        let file = Cursor::new(std::fs::read(&path).expect("reads"));
+        let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
+        assert_eq!(frames, 72);
     }
 
     #[test]

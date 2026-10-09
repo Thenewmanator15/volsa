@@ -341,10 +341,15 @@ fn spin(gpu: &mut HeadlessScene, scene: &SceneParams, pictures: &Path) -> Result
         frames.push(gpu.render(&scene, SMALL).map_err(said)?);
     }
     let drawn = started.elapsed().as_secs_f64();
+    let started = Instant::now();
     let file = gif(&frames, SMALL, 6.0).map_err(said)?;
+    let joined = started.elapsed().as_secs_f64();
     std::fs::write(pictures.join(format!("{SUGGESTED_NAME}.gif")), &file).map_err(said)?;
     let decoder = image::codecs::gif::GifDecoder::new(std::io::Cursor::new(file)).map_err(said)?;
     let read = image::AnimationDecoder::into_frames(decoder).count();
-    println!("Turntable: 72 pictures drawn in {drawn:.1} s, saved and read back as {read} frames");
+    println!(
+        "Turntable: 72 pictures drawn in {drawn:.1} s, put together in {joined:.1} s, saved and \
+         read back as {read} frames"
+    );
     Ok(())
 }

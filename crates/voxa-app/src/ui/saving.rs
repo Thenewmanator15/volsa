@@ -1,5 +1,5 @@
 //! Saving the 3D scene to a file from the window: a picture, or a turntable drawn a picture
-//! a frame.
+//! a frame and put together on a worker.
 
 use egui_wgpu::RenderState;
 
@@ -45,7 +45,10 @@ impl VoxaApp {
             .next()
             .map(|(scene, viewport, size)| (scene.clone(), viewport, size));
         let Some((scene, viewport, size)) = next else {
-            actions.push(Action::Post(making.finish()));
+            // Putting the pictures together takes a moment: a worker does it, and says how
+            // it went.
+            let meanwhile = export::finish_on(self.session.workers(), making);
+            actions.push(Action::Post(meanwhile));
             return;
         };
         match self.scene.snapshot(render, &scene, viewport, size) {

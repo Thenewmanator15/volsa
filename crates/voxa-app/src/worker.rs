@@ -17,6 +17,7 @@ use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
+mod post;
 mod views;
 mod volume;
 
