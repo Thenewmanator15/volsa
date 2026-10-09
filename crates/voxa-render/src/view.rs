@@ -149,7 +149,7 @@ impl Default for ViewTransform {
     }
 }
 
-fn positive_or(value: f64, otherwise: f64) -> f64 {
+pub(crate) fn positive_or(value: f64, otherwise: f64) -> f64 {
     if value.is_finite() && value > 0.0 {
         value
     } else {
@@ -157,7 +157,7 @@ fn positive_or(value: f64, otherwise: f64) -> f64 {
     }
 }
 
-fn finite_or(value: f64, otherwise: f64) -> f64 {
+pub(crate) fn finite_or(value: f64, otherwise: f64) -> f64 {
     if value.is_finite() { value } else { otherwise }
 }
 

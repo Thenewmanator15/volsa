@@ -3885,8 +3885,10 @@ dependencies = [
  "bytemuck",
  "egui-wgpu",
  "pollster 0.4.0",
+ "proptest",
  "thiserror 2.0.21",
  "voxa-core",
+ "voxa-volume",
 ]
 
 [[package]]
