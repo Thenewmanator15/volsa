@@ -4,12 +4,12 @@
 use std::borrow::Cow;
 
 use egui_wgpu::wgpu;
-use half::f16;
 use voxa_core::{Affine, Patient, Volume, Voxel};
-use voxa_volume::{block_maxima, halved, value_range};
+use voxa_volume::halved;
 
-/// The side, in voxels, of the blocks whose largest values are kept.
-pub(crate) const BLOCK: u32 = 8;
+pub(crate) use crate::prepared::BLOCK;
+use crate::prepared::Prepared;
+
 /// The most bytes of slices handed to the device in one piece.
 const SLAB_BYTES: usize = 16 << 20;
 const BYTES_PER_VOXEL: u32 = 2;
@@ -17,6 +17,9 @@ const BYTES_PER_VOXEL: u32 = 2;
 /// A volume as the graphics device holds it, and what is needed to find a point of the
 /// patient in it and to turn a stored value back into the scan's own.
 pub(crate) struct Placed {
+    /// The two textures themselves, kept so that their memory can be given back at once.
+    values: wgpu::Texture,
+    largest: wgpu::Texture,
     /// The values as the shader reads them; the texture lasts as long as this does.
     pub(crate) view: wgpu::TextureView,
     /// The largest value in each block of [`BLOCK`] voxels a side and in the blocks touching
@@ -36,44 +39,60 @@ pub(crate) struct Placed {
 impl Placed {
     /// Put a volume on the graphics device as it is. `None` when the device has no room.
     pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, volume: &Volume) -> Option<Self> {
-        let (maxima, blocks) = block_maxima(volume, BLOCK);
-        let maxima = with_neighbours(&maxima, blocks);
-        Self::with_maxima(device, queue, volume, (&maxima, blocks))
+        Self::from_prepared(device, queue, &Prepared::as_it_is(volume, 0))
     }
 
     /// As [`Placed::new`], with the largest scan value in each block, and the number of
     /// blocks each way, given and not worked out.
+    #[cfg(test)]
     pub(crate) fn with_maxima(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         volume: &Volume,
-        (maxima, blocks): (&[f32], [u32; 3]),
+        maxima: (&[f32], [u32; 3]),
     ) -> Option<Self> {
+        Self::from_prepared(device, queue, &Prepared::with_maxima(volume, maxima, 0))
+    }
+
+    /// Put a volume that has been made ready on the graphics device: all that is left to do
+    /// is hand over the bytes. `None` when the device has no room.
+    pub(crate) fn from_prepared(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        ready: &Prepared,
+    ) -> Option<Self> {
+        // Watched for running out of room from making the textures to the last byte handed
+        // over: left unwatched, either would stop the program.
         let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
-        let values = texture(device, "voxa volume values", volume.dims());
-        let largest = texture(device, "voxa volume block maxima", blocks);
+        let values = texture(device, "voxa volume values", ready.dims);
+        let largest = texture(device, "voxa volume block maxima", ready.blocks);
+        write(device, queue, &values, ready.dims, &ready.halves);
+        write(device, queue, &largest, ready.blocks, &ready.maxima);
         if pollster::block_on(room.pop()).is_some() {
+            values.destroy();
+            largest.destroy();
             return None;
         }
-        let (halves, smallest, span) = as_halves(volume);
-        write(queue, &values, volume.dims(), &halves);
-        let stored: Vec<u16> = maxima
-            .iter()
-            .map(|value| as_half(*value, smallest, span))
-            .collect();
-        write(queue, &largest, blocks, &stored);
         Some(Self {
             view: values.create_view(&wgpu::TextureViewDescriptor::default()),
             maxima: largest.create_view(&wgpu::TextureViewDescriptor::default()),
-            dims: volume.dims(),
-            patient_to_voxel: volume.patient_to_voxel(),
-            finest_mm: volume
-                .spacing_mm()
-                .into_iter()
-                .fold(f64::INFINITY, f64::min),
-            smallest,
-            span,
+            values,
+            largest,
+            dims: ready.dims,
+            patient_to_voxel: ready.patient_to_voxel,
+            finest_mm: ready.finest_mm,
+            smallest: ready.smallest,
+            span: ready.span,
         })
+    }
+}
+
+impl Drop for Placed {
+    /// Give the device its memory back now. Left to itself the device frees a texture some
+    /// time later, and a second large volume put there in the meantime may not fit.
+    fn drop(&mut self) {
+        self.values.destroy();
+        self.largest.destroy();
     }
 }
 
@@ -96,9 +115,16 @@ fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgpu::Texture 
     })
 }
 
-/// Hand the values to the device a slab of whole slices at a time, so that no one piece is
-/// large. Values beyond the last whole slice, if there are any, are left out.
-fn write(queue: &wgpu::Queue, texture: &wgpu::Texture, dims: [u32; 3], halves: &[u16]) {
+/// Hand the values to the device a slab of whole slices at a time, sending each on its way
+/// before the next, so that the device never holds more than one slab waiting to be copied.
+/// Values beyond the last whole slice, if there are any, are left out.
+fn write(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    dims: [u32; 3],
+    halves: &[u16],
+) {
     let [cols, rows, slices] = dims;
     let in_a_slice = cols as usize * rows as usize;
     let slab_slices = (SLAB_BYTES / (in_a_slice * BYTES_PER_VOXEL as usize)).max(1);
@@ -137,58 +163,10 @@ fn write(queue: &wgpu::Queue, texture: &wgpu::Texture, dims: [u32; 3], halves: &
                 depth_or_array_layers: in_this_slab,
             },
         );
+        // Send this slab on its way and let the device give back what carried the last.
+        queue.submit(std::iter::empty());
+        let _ = device.poll(wgpu::PollType::Poll);
     }
-}
-
-/// The values of a volume as 16-bit floating-point numbers from 0, its smallest value, to 1,
-/// its largest; then that smallest value and the span from it to the largest. A value that
-/// is not a number is stored as 0. A volume all of one value is stored as zeros, with a span
-/// of 1.
-pub(crate) fn as_halves(volume: &Volume) -> (Vec<u16>, f32, f32) {
-    let (smallest, largest) = value_range(volume).unwrap_or((0.0, 0.0));
-    let span = if largest > smallest {
-        largest - smallest
-    } else {
-        1.0
-    };
-    let stored = |value: &f32| as_half(*value, smallest, span);
-    (volume.values().iter().map(stored).collect(), smallest, span)
-}
-
-/// One scan value as it is stored: how far it is from `smallest` towards the top of `span`,
-/// from 0 to 1, as the bits of a 16-bit floating-point number.
-pub(crate) fn as_half(value: f32, smallest: f32, span: f32) -> u16 {
-    let part = (value - smallest) / span;
-    // Infinities land on the nearer end; what is not a number has no end to land on.
-    f16::from_f32(if part.is_nan() {
-        0.0
-    } else {
-        part.clamp(0.0, 1.0)
-    })
-    .to_bits()
-}
-
-/// The largest value of each block made the largest of its own and those of the blocks
-/// touching it, corners included. A value read anywhere in a block is blended from voxels
-/// that may lie just over the block's faces; after this the block's figure covers them too.
-/// `blocks` is how many blocks there are along columns, rows and slices.
-pub(crate) fn with_neighbours(maxima: &[f32], blocks: [u32; 3]) -> Vec<f32> {
-    let [cols, rows, slices] = blocks.map(|count| count as usize);
-    // Along columns, then rows, then slices: each pass spreads what the last one gathered.
-    let axes = [(1, cols), (cols, rows), (cols * rows, slices)];
-    axes.into_iter()
-        .fold(maxima.to_vec(), |values, (apart, count)| {
-            let largest_about = |at: usize| {
-                let place = at / apart.max(1) % count.max(1);
-                let before = at.checked_sub(apart).filter(|_| place > 0);
-                let after = (place + 1 < count).then_some(at + apart);
-                let about = [Some(at), before, after].into_iter().flatten();
-                about
-                    .filter_map(|at| values.get(at))
-                    .fold(f32::NEG_INFINITY, |a, b| a.max(*b))
-            };
-            (0..values.len()).map(largest_about).collect()
-        })
 }
 
 /// Halve `volume` `halvings` times and hand it to `place`. Each time `place` has no room for
@@ -219,6 +197,7 @@ pub(crate) fn placed_by_halving<T>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prepared::{as_halves, with_neighbours};
 
     /// 16-bit floating-point 0, a half and 1, as stored.
     const ZERO: u16 = 0x0000;

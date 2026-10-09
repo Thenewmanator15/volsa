@@ -18,12 +18,14 @@ mod handle;
 mod offscreen;
 mod offscreen_scene;
 mod pick;
+mod prepared;
 mod scene;
 mod slice_pipeline;
 #[cfg(test)]
 mod testing;
 mod vector;
 mod view;
+mod volume_params;
 mod volume_pipeline;
 mod volume_texture;
 
@@ -34,6 +36,7 @@ pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
 pub use pick::{pick, surface_threshold};
+pub use prepared::{MAX_VOLUME_BYTES, Prepared};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};

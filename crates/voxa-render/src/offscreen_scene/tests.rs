@@ -344,3 +344,38 @@ fn a_turntable_carries_the_bead_round_to_the_other_side() {
         "seen from the right: {quarter}"
     );
 }
+
+#[test]
+fn a_volume_made_ready_beforehand_draws_the_same_picture() {
+    use crate::prepared::{MAX_VOLUME_BYTES, Prepared};
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let volume = ball();
+    let scene = scene_of(&volume, NamedView::Left, Look::Surface);
+    gpu.upload(&volume).expect("uploads");
+    let straight = drawn(&mut gpu, &scene);
+    let put = |gpu: &mut HeadlessScene, ready: &Prepared| {
+        let (device, queue) = (&gpu.gpu.device, &gpu.gpu.queue);
+        gpu.pipeline.upload_prepared(device, queue, ready)
+    };
+    let ready = Prepared::of(&volume, 2048, MAX_VOLUME_BYTES);
+    assert_eq!(put(&mut gpu, &ready).expect("uploads"), 0);
+    assert_eq!(drawn(&mut gpu, &scene), straight);
+    // Made ready for a device with shorter sides, it says how often it was halved.
+    let reduced = Prepared::of(&volume, 24, MAX_VOLUME_BYTES);
+    assert_eq!(put(&mut gpu, &reduced).expect("uploads"), 1);
+    assert_ne!(
+        drawn(&mut gpu, &scene),
+        straight,
+        "and is drawn from fewer voxels"
+    );
+}
+
+#[test]
+fn a_volume_made_ready_for_a_larger_device_than_this_one_is_told_apart() {
+    use crate::volume_pipeline::too_long;
+    assert!(too_long([2049, 4, 4], 2048));
+    assert!(too_long([1, 1, 300], 256));
+    assert!(!too_long([2048, 2048, 2048], 2048));
+}

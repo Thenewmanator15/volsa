@@ -5,7 +5,7 @@ use voxa_volume::{Ray, first_hit};
 
 use crate::scene::{MAX_CUTS, SceneParams};
 use crate::vector::{dot, unit};
-use crate::volume_pipeline::{SURFACE_BEGINS, SURFACE_RAMP};
+use crate::volume_params::{SURFACE_BEGINS, SURFACE_RAMP};
 
 /// The least a line of sight must lean towards a plane to be taken as meeting it.
 const ALONGSIDE: f64 = 1.0e-6;

@@ -11,7 +11,9 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use voxa_core::{Affine, Point, Volume, WindowLevel};
-use voxa_render::{Camera, HeadlessScene, Look, NamedView, RenderError, SceneParams};
+use voxa_render::{
+    Camera, HeadlessScene, Look, MAX_VOLUME_BYTES, NamedView, Prepared, RenderError, SceneParams,
+};
 
 const PICTURE: [u32; 2] = [1280, 800];
 
@@ -153,6 +155,15 @@ fn put_a_large_volume_on_the_device(c: &mut Criterion) {
     let volume = made_up_head(512, 300);
     c.bench_function("512 x 512 x 300 on to the device", |b| {
         b.iter(|| black_box(gpu.upload(&volume).expect("uploads")));
+    });
+    // The same in its two parts: the first can be done on a worker, and only the second
+    // holds the window up.
+    c.bench_function("512 x 512 x 300 made ready", |b| {
+        b.iter(|| black_box(Prepared::of(&volume, 2048, MAX_VOLUME_BYTES)));
+    });
+    let ready = Prepared::of(&volume, 2048, MAX_VOLUME_BYTES);
+    c.bench_function("512 x 512 x 300 handed to the device", |b| {
+        b.iter(|| black_box(gpu.upload_prepared(&ready).expect("uploads")));
     });
 }
 

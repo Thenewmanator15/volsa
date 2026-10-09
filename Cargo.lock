@@ -3947,6 +3947,7 @@ dependencies = [
  "half",
  "pollster 0.4.0",
  "proptest",
+ "rayon",
  "thiserror 2.0.21",
  "voxa-core",
  "voxa-volume",

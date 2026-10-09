@@ -3,6 +3,7 @@
 use voxa_core::Volume;
 
 use crate::gpu::{Gpu, TARGET};
+use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
 use crate::volume_pipeline::VolumePipeline;
@@ -36,6 +37,17 @@ impl HeadlessScene {
     pub fn upload(&mut self, volume: &Volume) -> Result<u32, RenderError> {
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, volume)
+    }
+
+    /// Put a volume that was made ready beforehand on the graphics device; see
+    /// [`VolumePipeline::upload_prepared`].
+    ///
+    /// # Errors
+    ///
+    /// As [`VolumePipeline::upload_prepared`].
+    pub fn upload_prepared(&mut self, ready: &Prepared) -> Result<u32, RenderError> {
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.pipeline.upload_prepared(device, queue, ready)
     }
 
     /// Draw the uploaded volume into a picture `size` (width, height) pixels large and return
