@@ -107,11 +107,42 @@ fn skipping_is_exact_with_cuts_and_at_low_quality() {
 }
 
 #[test]
-fn the_brightest_value_look_never_skips() {
-    let Some(apart) = skipping_changes(Look::Mip, |_| {}) else {
+fn skipping_leaves_the_brightest_value_look_as_it_was() {
+    // What is skipped is no brighter than the bottom of the window, which is black anyway.
+    for window in [
+        WindowLevel::new(200.0, 400.0),
+        WindowLevel::new(300.0, 200.0),
+    ] {
+        let turned = |scene: &mut SceneParams| {
+            scene.window = window;
+            scene.camera = scene.camera.orbited([40.0, 25.0]);
+        };
+        let Some(apart) = skipping_changes(Look::Mip, turned) else {
+            return;
+        };
+        assert!(apart <= 2, "a pixel is {apart} grey levels out");
+    }
+}
+
+#[test]
+fn skipping_steps_over_empty_blocks_in_the_brightest_value_look_too() {
+    let Some(mut gpu) = headless_scene() else {
         return;
     };
-    assert_eq!(apart, 0);
+    let plain = SceneParams {
+        look: Look::Mip,
+        ..ball_marked(&mut gpu, 100.0, 100.0)
+    };
+    let skipped = SceneParams {
+        skip_empty: true,
+        ..plain.clone()
+    };
+    let (plain, skipped) = (
+        total(&drawn(&mut gpu, &plain)),
+        total(&drawn(&mut gpu, &skipped)),
+    );
+    // Every block is marked as holding nothing above the bottom of the window.
+    assert!(plain > 0 && skipped == 0, "{skipped} skipping, {plain} not");
 }
 
 /// The summed grey of a test picture.

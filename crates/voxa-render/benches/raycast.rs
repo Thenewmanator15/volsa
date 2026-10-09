@@ -17,8 +17,7 @@ const PICTURE: [u32; 2] = [1280, 800];
 
 /// A ball of value 300 and 90 mm radius with a core of value 800 and 40 mm radius, in the
 /// middle of 256 x 256 voxels of 1 mm in 64 slices 3 mm apart.
-fn made_up_head(side: u16) -> Volume {
-    let slices = 64_u16;
+fn made_up_head(side: u16, slices: u16) -> Volume {
     // The head is the same size whatever the number of voxels across it.
     let mm = 256.0 / f64::from(side);
     let middle = |count: u16| (f64::from(count) - 1.0) / 2.0;
@@ -60,7 +59,7 @@ fn draw_a_head(c: &mut Criterion) {
         }
         Err(other) => panic!("{other}"),
     };
-    let volume = made_up_head(256);
+    let volume = made_up_head(256, 64);
     gpu.upload(&volume).expect("uploads");
     let viewport = PICTURE.map(|side| side as f32);
     // Turned a little, so that lines of sight cross the blocks of the volume at a slant.
@@ -82,9 +81,6 @@ fn draw_a_head(c: &mut Criterion) {
     for (name, look) in looks {
         for quality in [1.0, 0.5] {
             for skip_empty in [false, true] {
-                if skip_empty && look == Look::Mip {
-                    continue; // MIP never skips, so the two would be the same measurement.
-                }
                 let scene = SceneParams {
                     look,
                     quality,
@@ -112,7 +108,7 @@ fn as_the_window_draws(c: &mut Criterion) {
         eprintln!("skipped: no graphics adapter here, not even a software one");
         return;
     };
-    let volume = made_up_head(512);
+    let volume = made_up_head(512, 64);
     gpu.upload(&volume).expect("uploads");
     let viewport = PICTURE.map(|side| side as f32);
     let camera = Camera::fitted(NamedView::Anterior, &volume.corners(), viewport);
@@ -146,9 +142,23 @@ fn as_the_window_draws(c: &mut Criterion) {
     }
 }
 
+/// What a person waits for when a large series is first shown in 3D, after its slices are
+/// decoded: making the volume ready for the graphics device and putting it there. The
+/// volume is 512 x 512 voxels in 300 slices, 300 MB of values.
+fn put_a_large_volume_on_the_device(c: &mut Criterion) {
+    let Ok(mut gpu) = HeadlessScene::new() else {
+        eprintln!("skipped: no graphics adapter here, not even a software one");
+        return;
+    };
+    let volume = made_up_head(512, 300);
+    c.bench_function("512 x 512 x 300 on to the device", |b| {
+        b.iter(|| black_box(gpu.upload(&volume).expect("uploads")));
+    });
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(20).measurement_time(Duration::from_secs(4));
-    targets = draw_a_head, as_the_window_draws
+    targets = draw_a_head, as_the_window_draws, put_a_large_volume_on_the_device
 }
 criterion_main!(benches);

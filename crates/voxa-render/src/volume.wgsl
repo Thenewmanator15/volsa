@@ -282,6 +282,10 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
         let value = value_at(at);
         if brightest_value {
             brightest = max(brightest, value);
+            if brightest >= scene.window.x + scene.window.y {
+                // Already as white as the window shows: nothing further on can change it.
+                break;
+            }
             continue;
         }
         let solid = solidity(value);

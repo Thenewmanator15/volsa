@@ -278,8 +278,10 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
     let sheet = scene
         .slice
         .and_then(|slice| plane(slice.point, slice.normal));
-    // The brightest value on a line can be anywhere along it, so that look skips nothing.
-    let skipping = scene.skip_empty && scene.look != Look::Mip;
+    // What is stepped over is too faint to draw in the look in use. In the brightest-value look
+    // that is anything no brighter than the bottom of the window, which is black whatever else
+    // lies on the line.
+    let skipping = scene.skip_empty;
     let [wide, high] = viewport;
     let black = (scene.window.low() - placed.smallest) / placed.span;
     let black_to_white = (scene.window.width / placed.span).max(MIN_WINDOW);
