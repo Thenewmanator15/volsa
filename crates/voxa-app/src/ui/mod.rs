@@ -1,17 +1,15 @@
 //! The window: toolbar, study browser, viewport grid and status line.
 
 use std::path::PathBuf;
-use std::sync::mpsc::{Receiver, channel};
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::PoisonError;
+use std::sync::mpsc::channel;
 use std::time::Instant;
 
 use egui::RichText;
 
 use crate::action::Action;
-use crate::cache::FrameCache;
-use crate::reducer::reduce;
-use crate::state::{AppState, NoticeKind, VIEWPORTS};
-use crate::worker::Workers;
+use crate::session::Session;
+use crate::state::{NoticeKind, VIEWPORTS};
 
 mod about;
 mod browser;
@@ -33,10 +31,7 @@ const THUMBNAIL_PIXELS: u32 = 128;
 
 /// The Voxa window.
 pub struct VoxaApp {
-    state: AppState,
-    workers: Workers,
-    reports: Receiver<Action>,
-    cache: Arc<Mutex<FrameCache>>,
+    session: Session,
     /// One for each viewport; empty when the window has no graphics device to draw slices.
     gpus: Vec<viewport::Gpu>,
     thumbnails: browser::Thumbnails,
@@ -65,15 +60,11 @@ impl VoxaApp {
                 ctx.request_repaint();
             }
         });
-        let cache = Arc::new(Mutex::new(FrameCache::new(CACHE_BYTES)));
         let render = creation.wgpu_render_state.as_ref();
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let mut app = Self {
-            state: AppState::default(),
-            workers: Workers::new(from_workers, Arc::clone(&cache)),
-            reports,
-            cache,
+            session: Session::new(from_workers, reports, CACHE_BYTES),
             gpus: gpus.unwrap_or_default(),
             thumbnails: browser::Thumbnails::default(),
             about_open: false,
@@ -97,25 +88,27 @@ impl VoxaApp {
 
     /// Apply an action and hand the work it calls for to the workers.
     fn dispatch(&mut self, action: Action) {
-        for effect in reduce(&mut self.state, action) {
-            self.workers.run(effect, self.state.index.as_ref());
-        }
+        self.session.dispatch(action);
     }
 
     /// Make the small picture of each series whose middle slice has arrived.
     fn make_thumbnails(&mut self, ctx: &egui::Context) {
-        let Some(index) = &self.state.index else {
+        let Some(index) = &self.session.state().index else {
             self.thumbnails.clear();
             return;
         };
-        let cache = self.cache.lock().unwrap_or_else(PoisonError::into_inner);
+        let cache = self
+            .session
+            .cache()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
         for series in &index.series {
             let id = &series.info.id;
             if self.thumbnails.contains_key(id) {
                 continue;
             }
             let middle = series.slices.len() / 2;
-            let window = self.state.windows.get(&(id.clone(), middle));
+            let window = self.session.state().windows.get(&(id.clone(), middle));
             let (Some(frame), Some([automatic, ..])) = (cache.get(id, middle), window) else {
                 continue;
             };
@@ -135,7 +128,8 @@ impl VoxaApp {
                     .small()
                     .color(theme::QUIET_TEXT),
             );
-            let Some((at, notice)) = self.state.notices.iter().enumerate().next_back() else {
+            let Some((at, notice)) = self.session.state().notices.iter().enumerate().next_back()
+            else {
                 return;
             };
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -162,7 +156,8 @@ impl VoxaApp {
         let now = Instant::now();
         for viewport in 0..VIEWPORTS {
             let cine = self
-                .state
+                .session
+                .state()
                 .viewports
                 .get(viewport)
                 .and_then(|shown| shown.cine);
@@ -203,7 +198,8 @@ impl VoxaApp {
             // A question mark is its own key on some keyboards and Shift with slash on others.
             if key == egui::Key::Questionmark || (key == egui::Key::Slash && shift) {
                 self.help_open = !self.help_open;
-            } else if let Some(action) = overlay::shortcut_action(key, self.state.active) {
+            } else if let Some(action) = overlay::shortcut_action(key, self.session.state().active)
+            {
                 actions.push(action);
             }
         }
@@ -212,29 +208,33 @@ impl VoxaApp {
 
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        while let Ok(report) = self.reports.try_recv() {
-            self.dispatch(report);
-        }
+        self.session.pump();
         self.play(ctx);
         self.make_thumbnails(ctx);
-        self.tags.refresh(&self.state, &self.workers, ctx);
+        self.tags
+            .refresh(self.session.state(), self.session.workers(), ctx);
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
         let bar = egui::Panel::top("toolbar");
         let asked = bar
-            .show(ui, |ui| toolbar::show(ui, &self.state, &mut actions))
+            .show(ui, |ui| {
+                toolbar::show(ui, self.session.state(), &mut actions)
+            })
             .inner;
         self.about_open |= asked.about;
         self.help_open |= asked.shortcuts;
         self.tags.open ^= asked.tags;
+        if let Some(path) = chosen(ui.ctx(), asked.open) {
+            actions.push(Action::OpenPath(path));
+        }
         egui::Panel::bottom("status").show(ui, |ui| self.status(ui, &mut actions));
         let column = egui::Panel::left("browser")
             .exact_size(browser::WIDTH)
             .resizable(false);
         column.show(ui, |ui| {
-            browser::show(ui, &self.state, &self.thumbnails, &mut actions);
+            browser::show(ui, self.session.state(), &self.thumbnails, &mut actions);
         });
         let behind = egui::Frame::NONE
             .fill(theme::BACKGROUND)
@@ -243,8 +243,8 @@ impl eframe::App for VoxaApp {
             let render = frame.wgpu_render_state();
             viewport::show(
                 ui,
-                &self.state,
-                &self.cache,
+                self.session.state(),
+                self.session.cache(),
                 &mut self.gpus,
                 render,
                 &mut actions,
@@ -252,7 +252,7 @@ impl eframe::App for VoxaApp {
         });
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
-        self.tags.show(ui.ctx(), &self.state, &mut actions);
+        self.tags.show(ui.ctx(), self.session.state(), &mut actions);
         self.keys(ui.ctx(), &mut actions);
         for action in actions {
             self.dispatch(action);
@@ -264,6 +264,43 @@ impl eframe::App for VoxaApp {
     }
 }
 
+/// What the person has just asked to open, if anything: a file or folder dropped on the
+/// window, or one chosen in the system's dialog after pressing an Open button. While
+/// something is being dragged over the window, say that it can be dropped.
+fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> {
+    let (hovering, dropped) = ctx.input(|input| {
+        let dropped = input
+            .raw
+            .dropped_files
+            .first()
+            .map(|file| file.path().to_owned());
+        (!input.raw.hovered_files.is_empty(), dropped)
+    });
+    if hovering {
+        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("drop to open"));
+        let painter = ctx.layer_painter(layer);
+        let screen = ctx.content_rect();
+        painter.rect_filled(screen, 0, egui::Color32::from_black_alpha(160));
+        let font = egui::FontId::proportional(24.0);
+        let middle = egui::Align2::CENTER_CENTER;
+        painter.text(
+            screen.center(),
+            middle,
+            "Drop to open",
+            font,
+            egui::Color32::WHITE,
+        );
+    }
+    dropped.or_else(|| match asked? {
+        toolbar::Pick::Folder => rfd::FileDialog::new()
+            .set_title("Open a folder of DICOM files")
+            .pick_folder(),
+        toolbar::Pick::File => rfd::FileDialog::new()
+            .set_title("Open a zip file or a DICOMDIR")
+            .pick_file(),
+    })
+}
+
 /// Open the Voxa window and run until it is closed. `initial` is a scan to open at once.
 ///
 /// # Errors
@@ -272,8 +309,8 @@ impl eframe::App for VoxaApp {
 pub fn run(initial: Option<PathBuf>) -> eframe::Result {
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
-        .with_inner_size([1280.0, 800.0])
-        .with_min_inner_size([1280.0, 600.0]);
+        .with_inner_size([1440.0, 900.0])
+        .with_min_inner_size([900.0, 600.0]);
     let options = eframe::NativeOptions {
         viewport,
         ..Default::default()

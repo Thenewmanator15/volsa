@@ -7,15 +7,21 @@ use voxa_volume::PRESETS;
 use crate::action::Action;
 use crate::state::{AppState, Cine, Layout};
 
+/// The kinds of thing a scan can be opened from. The system's own dialogs choose either a
+/// folder or a file, never both, so there is a button for each.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pick {
+    /// A folder of DICOM files.
+    Folder,
+    /// A zip file, a DICOMDIR or a single DICOM file.
+    File,
+}
+
 /// What the person asked for that is not a change of state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[expect(
-    clippy::struct_excessive_bools,
-    reason = "one for each button, and any may be pressed"
-)]
 pub struct Asked {
-    /// To choose a scan to open.
-    pub open: bool,
+    /// To choose a scan to open, and which kind.
+    pub open: Option<Pick>,
     /// To see the About window.
     pub about: bool,
     /// To see the list of keys and what the mouse does.
@@ -32,14 +38,23 @@ const LAYOUTS: [(Layout, &str, &str); 3] = [
 ];
 
 /// Draw the toolbar: open, the layouts, the window of the active viewport, the display
-/// switches, playback, and at the far end the tag browser, the list of keys and About.
+/// switches, playback, the tag browser, the list of keys and About. In a narrow window the
+/// bar wraps onto a second line.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
     let mut asked = Asked::default();
-    ui.horizontal(|ui| {
-        let open = ui.button("Open…");
-        asked.open = open
-            .on_hover_text("Open a folder, a zip file or a DICOMDIR")
-            .clicked();
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Open");
+        let folder = ui
+            .button("Folder…")
+            .on_hover_text("Open a folder of DICOM files");
+        let file = ui
+            .button("File…")
+            .on_hover_text("Open a zip file or a DICOMDIR");
+        if folder.clicked() {
+            asked.open = Some(Pick::Folder);
+        } else if file.clicked() {
+            asked.open = Some(Pick::File);
+        }
         ui.separator();
         ui.label("Layout");
         for (layout, label, hint) in LAYOUTS {
@@ -59,14 +74,13 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
         switches(ui, state, actions);
         ui.separator();
         playback(ui, state, actions);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            asked.about = ui.button("About").clicked();
-            asked.shortcuts = ui.button("?").on_hover_text("Keys and mouse").clicked();
-            let tags = ui.button("Tags");
-            asked.tags = tags
-                .on_hover_text("Every element of the file behind the slice shown")
-                .clicked();
-        });
+        ui.separator();
+        let tags = ui.button("Tags");
+        asked.tags = tags
+            .on_hover_text("Every element of the file behind the slice shown")
+            .clicked();
+        asked.shortcuts = ui.button("?").on_hover_text("Keys and mouse").clicked();
+        asked.about = ui.button("About").clicked();
     });
     asked
 }
@@ -203,9 +217,15 @@ mod tests {
 
     /// Click all the way along the bar and gather everything that was asked for.
     fn sweep(state: &AppState) -> (Vec<Action>, Asked) {
+        let (actions, all, _) = sweep_with_picks(state);
+        (actions, all)
+    }
+
+    /// As [`sweep`], with every kind of thing asked to be opened, in the order met.
+    fn sweep_with_picks(state: &AppState) -> (Vec<Action>, Asked, Vec<Pick>) {
         let ctx = egui::Context::default();
         let _ = pass(&ctx, state, Vec::new());
-        let (mut actions, mut all) = (Vec::new(), Asked::default());
+        let (mut actions, mut all, mut picks) = (Vec::new(), Asked::default(), Vec::new());
         for x in (3..1700u16).step_by(5) {
             let (asked_for, asked) = click(&ctx, state, pos2(f32::from(x), 12.0));
             for action in asked_for {
@@ -213,17 +233,19 @@ mod tests {
                     actions.push(action);
                 }
             }
-            all.open |= asked.open;
+            picks.extend(asked.open.filter(|pick| !picks.contains(pick)));
+            all.open = all.open.or(asked.open);
             all.about |= asked.about;
             all.shortcuts |= asked.shortcuts;
             all.tags |= asked.tags;
         }
-        (actions, all)
+        (actions, all, picks)
     }
 
     #[test]
     fn the_bar_offers_each_thing_once_from_left_to_right() {
-        let (actions, asked) = sweep(&AppState::default());
+        let (actions, asked, picks) = sweep_with_picks(&AppState::default());
+        assert_eq!(picks, [Pick::Folder, Pick::File]);
         let preset = |preset| Action::ApplyPreset {
             viewport: 0,
             preset,
@@ -250,7 +272,7 @@ mod tests {
         assert_eq!(
             asked,
             Asked {
-                open: true,
+                open: Some(Pick::Folder),
                 about: true,
                 shortcuts: true,
                 tags: true

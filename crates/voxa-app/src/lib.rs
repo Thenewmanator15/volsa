@@ -13,8 +13,10 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod action;
+mod args;
 mod cache;
 mod reducer;
+mod session;
 mod state;
 #[cfg(test)]
 mod testing;
@@ -22,8 +24,10 @@ mod ui;
 mod worker;
 
 pub use action::{Action, Effect};
+pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use reducer::reduce;
+pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
