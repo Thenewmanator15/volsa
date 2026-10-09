@@ -39,3 +39,18 @@ jobs:
         run: cargo install --locked cargo-llvm-cov
       - name: Coverage floor on the crates that need no GPU
         run: cargo xtask coverage
+
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install the pinned toolchain
+        run: rustup show
+      - name: Build Voxa as it would be handed to someone
+        run: cargo build --release -p voxa-app
+      - name: Keep the program
+        uses: actions/upload-artifact@v4
+        with:
+          name: voxa-windows
+          path: target/release/voxa-app.exe
+          if-no-files-found: error

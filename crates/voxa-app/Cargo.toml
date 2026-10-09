@@ -23,6 +23,11 @@ egui-wgpu.workspace = true
 voxa-dicom = { workspace = true, features = ["testkit"] }
 tempfile.workspace = true
 zip.workspace = true
+criterion.workspace = true
+
+[[bench]]
+name = "decode"
+harness = false
 
 [lints]
 workspace = true

@@ -6,8 +6,14 @@ correct orientation, contrast controls, overlays, tag inspection and cine playba
 
 **Voxa is not a medical device and is not for diagnostic use.**
 
-Status: milestone 1 (Foundation) is in progress. The design and the plan for every milestone are
-in [docs/superpowers](docs/superpowers).
+![Voxa showing a made-up test study: a ball with a bead near the front](docs/images/voxa-phantom.png)
+
+The picture shows a made-up study that Voxa's own example writes, not a scan of anyone.
+
+Status: version 0.1.0, the first milestone (Foundation). What it does and what it does not yet do
+are in the [changelog](CHANGELOG.md); how it was checked is in
+[docs/acceptance-0.1.0.md](docs/acceptance-0.1.0.md). The design and the plan for every
+milestone are in [docs/superpowers](docs/superpowers).
 
 ## Build and run
 
