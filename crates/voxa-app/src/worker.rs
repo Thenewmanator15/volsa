@@ -79,7 +79,12 @@ impl Workers {
                 let listed =
                     index.and_then(|index| index.series.iter().find(|s| s.info.id == series));
                 if let Some(listed) = listed {
-                    self.request_frames(listed, around);
+                    self.request_frames(listed, around, usize::MAX);
+                }
+            }
+            Effect::RequestThumbnails => {
+                for listed in index.map_or(&[][..], |index| index.series.as_slice()) {
+                    self.request_frames(listed, listed.slices.len() / 2, 1);
                 }
             }
             Effect::None => {}
@@ -98,8 +103,8 @@ impl Workers {
     }
 
     /// Decode the slices of a series that are not yet in the cache, those nearest `around`
-    /// first, and no more of them than the cache can hold.
-    fn request_frames(&self, listed: &IndexedSeries, around: usize) {
+    /// first, and no more of them than `at_most` or than the cache can hold.
+    fn request_frames(&self, listed: &IndexedSeries, around: usize, at_most: usize) {
         let shared = &self.shared;
         let series = listed.info.id.clone();
         let number = shared.requests.fetch_add(1, Ordering::SeqCst) + 1;
@@ -118,7 +123,7 @@ impl Workers {
         let room = (lock(&shared.cache).budget() / frame_bytes.max(1)).max(1);
         let mut nearest: Vec<usize> = (0..listed.slices.len()).collect();
         nearest.sort_by_key(|slice| slice.abs_diff(around));
-        nearest.truncate(room);
+        nearest.truncate(room.min(at_most));
         let wanted = {
             let cache = lock(&shared.cache);
             nearest

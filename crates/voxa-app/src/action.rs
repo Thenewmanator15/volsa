@@ -159,6 +159,8 @@ pub enum Effect {
         /// The slice being shown.
         around: usize,
     },
+    /// Decode the middle slice of every series, for the pictures in the browser.
+    RequestThumbnails,
     /// Nothing to do.
     None,
 }

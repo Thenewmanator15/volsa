@@ -62,3 +62,19 @@ Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 Voxa is built on other people's libraries, each under its own licence; `cargo deny check` holds
 them to the permissive licences listed in [deny.toml](deny.toml). This software is based in part
 on the work of the Independent JPEG Group.
+
+The typefaces in the interface come with the `egui` library: Ubuntu Light (Ubuntu Font Licence
+1.0), Hack (MIT) and Noto Emoji (SIL Open Font Licence 1.1). No other font files are in this
+repository.
+
+## Trying it without a scan
+
+```
+cargo run -p voxa-app --example write_phantom -- phantom
+cargo run -p voxa-app -- phantom
+```
+
+The first command writes a small made-up study (a ball, brighter towards the patient's left, with
+a bead near the front) to the folder `phantom`; the second opens it. Setting the environment
+variable `VOXA_CAPTURE` to a `.png` path makes Voxa save one picture of its own window and close,
+which is how the pictures in the documentation are made.

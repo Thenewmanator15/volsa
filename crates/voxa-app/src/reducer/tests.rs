@@ -86,7 +86,10 @@ fn the_layout_keeps_the_active_viewport_within_those_shown() {
 fn finishing_the_index_opens_the_most_detailed_series_once() {
     let mut state = loaded();
     let effects = reduce(&mut state, Action::IndexDone);
-    assert_eq!(effects, frames_around(FINE_SCAN, 32));
+    // Thumbnails are asked for first, so the request for the whole series is the newer one.
+    let mut expected = vec![Effect::RequestThumbnails];
+    expected.extend(frames_around(FINE_SCAN, 32));
+    assert_eq!(effects, expected);
     assert_eq!(state.viewports[0].series, Some(id(FINE_SCAN)));
 
     reduce(
@@ -97,7 +100,7 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
         },
     );
     let again = reduce(&mut state, Action::IndexDone);
-    assert_eq!(again, Vec::new());
+    assert_eq!(again, vec![Effect::RequestThumbnails]);
     assert_eq!(
         state.viewports[0].series,
         Some(id(THICK_SCAN)),
@@ -112,7 +115,10 @@ fn finishing_an_index_with_no_series_fit_to_open_shows_nothing() {
         &mut state,
         Action::IndexProgress(crate::testing::indexed(series_files(SCOUT, 3, 3, 4))),
     );
-    assert_eq!(reduce(&mut state, Action::IndexDone), Vec::new());
+    assert_eq!(
+        reduce(&mut state, Action::IndexDone),
+        vec![Effect::RequestThumbnails]
+    );
     assert_eq!(state.viewports[0].series, None);
 }
 

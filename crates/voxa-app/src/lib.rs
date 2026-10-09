@@ -18,6 +18,7 @@ mod reducer;
 mod state;
 #[cfg(test)]
 mod testing;
+mod ui;
 mod worker;
 
 pub use action::{Action, Effect};
@@ -26,4 +27,5 @@ pub use reducer::reduce;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
+pub use ui::{VoxaApp, run, thumbnail};
 pub use worker::Workers;

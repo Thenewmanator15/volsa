@@ -13,6 +13,10 @@ voxa-dicom.workspace = true
 voxa-volume.workspace = true
 voxa-render.workspace = true
 rayon.workspace = true
+eframe = { workspace = true, features = ["wgpu", "default_fonts", "x11", "wayland"] }
+image.workspace = true
+egui.workspace = true
+egui-wgpu.workspace = true
 
 [dev-dependencies]
 voxa-dicom = { workspace = true, features = ["testkit"] }

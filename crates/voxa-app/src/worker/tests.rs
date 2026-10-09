@@ -252,6 +252,29 @@ fn a_path_that_is_not_there_fails_in_plain_words() {
 }
 
 #[test]
+fn thumbnails_decode_the_middle_slice_of_every_series_and_no_other() {
+    let folder = folder_of(&crate::testing::three_series_files());
+    let bench = Bench::with_budget(1000 * ONE);
+    let index = bench.index(folder.path()).expect("indexes");
+    bench.workers.run(Effect::RequestThumbnails, Some(&index));
+    let reports: Vec<Action> = (0..3).map(|_| bench.next()).collect();
+    let mut middles: Vec<(String, usize)> = reports
+        .iter()
+        .filter_map(|report| match report {
+            Action::FrameReady { series, slice, .. } => Some((series.0.clone(), *slice)),
+            _ => None,
+        })
+        .collect();
+    middles.sort();
+    let expected = [("1.2.3.1", 15), ("1.2.3.2", 32), ("1.2.3.3", 1)];
+    assert_eq!(
+        middles,
+        expected.map(|(series, slice)| (series.to_owned(), slice))
+    );
+    assert!(bench.is_quiet(), "one slice for each series");
+}
+
+#[test]
 fn asking_for_nothing_or_for_a_series_that_is_not_there_does_nothing() {
     let folder = folder_of(&series_files(THICK_SCAN, 1, 3, 4));
     let bench = Bench::with_budget(100 * ONE);

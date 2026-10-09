@@ -67,7 +67,13 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
             };
             post(state, OPENING, Some(notice));
         }
-        Action::IndexDone => return open_best(state),
+        Action::IndexDone => {
+            // Thumbnails first: the request for the whole of the series opened is then the
+            // newer one for that series, and is not set aside in favour of its thumbnail.
+            let mut effects = vec![Effect::RequestThumbnails];
+            effects.extend(open_best(state));
+            return effects;
+        }
         Action::FrameReady {
             series,
             slice,

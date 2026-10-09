@@ -26,6 +26,12 @@ allow = [
     # The Independent JPEG Group's licence, on the JPEG code under the DICOM library. It asks
     # that documentation shipped with a program say so; the README carries the sentence.
     "IJG",
+    # The typefaces bundled with the interface library (Ubuntu, Hack, Noto Emoji). Both
+    # licences allow shipping the fonts inside a program; the README names them.
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+    # The Boost licence, on the Windows clipboard code under the interface library.
+    "BSL-1.0",
 ]
 
 [bans]
