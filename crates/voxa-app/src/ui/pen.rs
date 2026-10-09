@@ -1,7 +1,10 @@
 //! Writing over a picture: words that can be read over anything, the letter at each edge, and
 //! a scale bar. The 2D viewports and the 3D scene are written over in the same hand.
 
-use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, Ui, vec2};
+use std::sync::Arc;
+
+use egui::text::{LayoutJob, TextWrapping};
+use egui::{Align, Align2, Color32, FontId, Galley, Pos2, Rect, Stroke, Ui, pos2, vec2};
 
 use super::overlay::EdgeLabels;
 
@@ -9,6 +12,8 @@ use super::overlay::EdgeLabels;
 pub const INSET: f32 = 10.0;
 /// The most of a picture's width a scale bar may take.
 pub const BAR_SHARE: f32 = 0.3;
+/// The room left in the middle of an edge for the letter written there.
+pub const LETTER_ROOM: f32 = 14.0;
 /// The colour of words and lines drawn over a picture.
 const INK: Color32 = Color32::from_gray(230);
 
@@ -43,18 +48,54 @@ impl Pen {
 }
 
 impl Pen {
-    /// Write some words upwards from the bottom left corner `at`, broken into lines no longer
+    /// One line of small type, cut short with an ellipsis if it is longer than `width`.
+    fn line(&self, text: &str, colour: Color32, width: f32) -> Arc<Galley> {
+        let mut job = LayoutJob::simple_singleline(text.to_owned(), self.small.clone(), colour);
+        job.wrap = TextWrapping::truncate_at_width(width);
+        self.painter.layout_job(job)
+    }
+
+    /// Write lines in a corner of a picture, one beneath another, each cut short if it is
+    /// longer than `width`. `at` is the corner and `anchor` says which corner it is.
+    pub fn write_lines(&self, at: Pos2, anchor: Align2, lines: &[String], width: f32) {
+        let inked: Vec<_> = lines
+            .iter()
+            .map(|line| self.line(line, INK, width))
+            .collect();
+        let height: f32 = inked.iter().map(|words| words.size().y).sum();
+        let mut top = if anchor.y() == Align::Max {
+            at.y - height
+        } else {
+            at.y
+        };
+        for (line, words) in lines.iter().zip(inked) {
+            let size = words.size();
+            let left = if anchor.x() == Align::Max {
+                at.x - size.x
+            } else {
+                at.x
+            };
+            let shadow = self.line(line, Color32::BLACK, width);
+            self.painter
+                .galley(pos2(left + 1.0, top + 1.0), shadow, Color32::BLACK);
+            self.painter.galley(pos2(left, top), words, INK);
+            top += size.y;
+        }
+    }
+
+    /// Write some words downwards from the top left corner `at`, broken into lines no longer
     /// than `width`.
-    pub fn write_in_lines(&self, at: Pos2, text: &str, width: f32) {
+    pub fn write_wrapped(&self, at: Pos2, text: &str, width: f32) {
         let laid_out = |colour| {
             let (text, font) = (text.to_owned(), self.small.clone());
             self.painter.layout(text, font, colour, width)
         };
-        let (shadow, words) = (laid_out(Color32::BLACK), laid_out(INK));
-        let top_left = at - vec2(0.0, words.size().y);
-        self.painter
-            .galley(top_left + vec2(1.0, 1.0), shadow, Color32::BLACK);
-        self.painter.galley(top_left, words, INK);
+        self.painter.galley(
+            at + vec2(1.0, 1.0),
+            laid_out(Color32::BLACK),
+            Color32::BLACK,
+        );
+        self.painter.galley(at, laid_out(INK), INK);
     }
 }
 
@@ -87,4 +128,35 @@ pub fn bar(pen: &Pen, inside: Rect, length: f32, label: &str) {
         label,
         &pen.small,
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_line_too_long_for_its_room_is_cut_short_and_the_rest_are_written_whole() {
+        let ctx = egui::Context::default();
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0));
+            let pen = Pen::over(ui, area);
+            let long = "A description that goes on a great deal longer than its corner";
+            let cut = pen.line(long, INK, 80.0);
+            assert!(cut.elided && cut.size().x <= 81.0, "{}", cut.size().x);
+            let short = pen.line("Slice 2 of 9", INK, 200.0);
+            assert!(!short.elided);
+            let lines = [long.to_owned(), "Slice 2 of 9".to_owned()];
+            for anchor in [
+                Align2::LEFT_TOP,
+                Align2::RIGHT_TOP,
+                Align2::LEFT_BOTTOM,
+                Align2::RIGHT_BOTTOM,
+            ] {
+                pen.write_lines(area.center(), anchor, &lines, 80.0);
+            }
+            pen.write_wrapped(area.left_top(), long, 120.0);
+        });
+        // No renderer is behind this pass to take the font texture.
+        output.textures_delta.clear();
+    }
 }

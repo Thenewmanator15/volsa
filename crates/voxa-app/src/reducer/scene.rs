@@ -64,6 +64,14 @@ fn built(scene: &mut Scene, report: Action) {
     }
 }
 
+/// Show the whole volume again, from the way the camera already faces.
+pub(super) fn refit(state: &mut AppState) {
+    let scene = &mut state.scene;
+    if let Some(corners) = scene.corners {
+        scene.camera = scene.camera.refitted(&corners, scene.viewport);
+    }
+}
+
 /// Keep the scene on the series the active viewport shows: when that is no longer the series
 /// in the scene, the scene starts afresh for it.
 pub(super) fn follow(state: &mut AppState) -> Vec<Effect> {

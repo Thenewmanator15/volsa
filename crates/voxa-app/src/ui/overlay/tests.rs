@@ -367,5 +367,24 @@ fn each_key_does_what_the_reference_says() {
         "the reference window is not a change of state"
     );
     let listed: Vec<&str> = SHORTCUTS.iter().map(|(key, _)| *key).collect();
-    assert_eq!(listed, ["H", "V", "R", "F", "1", "2", "4", "Space", "?"]);
+    let expected = ["H", "V", "R", "F", "1", "2", "4", "Space", "Esc", "?"];
+    assert_eq!(listed, expected);
+}
+
+#[test]
+fn escape_gives_the_3d_view_the_large_part_of_the_window() {
+    use crate::scene::MainPanel;
+    assert_eq!(
+        shortcut_action(Key::Escape, 2),
+        Some(Action::SetMain(MainPanel::Scene))
+    );
+    assert_eq!(
+        shortcut_action(Key::F, 2),
+        Some(Action::Fit { viewport: 2 }),
+        "F is still F"
+    );
+    assert!(
+        SHORTCUTS.iter().any(|(key, _)| *key == "Esc"),
+        "and Esc is in the list"
+    );
 }

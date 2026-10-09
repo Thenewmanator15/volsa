@@ -6,6 +6,7 @@ use voxa_render::ViewTransform;
 
 use super::browser::date_in_words;
 use crate::action::Action;
+use crate::scene::MainPanel;
 use crate::state::Layout;
 
 /// How much one wheel notch with Ctrl held magnifies.
@@ -18,15 +19,19 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 9] = [
+pub const SHORTCUTS: [(&str, &str); 10] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
-    ("F", "Fit the whole picture in the viewport"),
+    (
+        "F",
+        "Fit the whole picture in the viewport, and the whole volume in 3D",
+    ),
     ("1", "One viewport"),
     ("2", "Two viewports side by side"),
     ("4", "Four viewports"),
     ("Space", "Play or pause through the slices"),
+    ("Esc", "Give the 3D view the large part of the window"),
     ("?", "Show this list"),
 ];
 
@@ -270,6 +275,7 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
         Key::Num2 => Action::SetLayout(Layout::TwoAcross),
         Key::Num4 => Action::SetLayout(Layout::TwoByTwo),
         Key::Space => Action::CineToggle { viewport },
+        Key::Escape => Action::SetMain(MainPanel::Scene),
         _ => return None,
     })
 }

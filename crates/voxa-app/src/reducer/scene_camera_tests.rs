@@ -165,3 +165,39 @@ fn opening_another_path_empties_the_scene() {
         "how the window is laid out is kept"
     );
 }
+
+#[test]
+fn fitting_also_shows_the_whole_volume_again_while_the_scene_is_the_large_panel() {
+    let mut state = ready();
+    reduce(&mut state, Action::SceneOrbit { by: [40.0, 10.0] });
+    reduce(
+        &mut state,
+        Action::SceneZoom {
+            factor: 5.0,
+            about: [30.0, 30.0],
+        },
+    );
+    let turned = state.scene.camera;
+    reduce(&mut state, Action::Fit { viewport: 0 });
+    let refitted = turned.refitted(&corners(), Scene::FIRST_VIEWPORT);
+    assert_eq!(
+        state.scene.camera, refitted,
+        "the same way round, the whole of it in view"
+    );
+    assert_ne!(refitted.mm_per_px, turned.mm_per_px);
+
+    reduce(&mut state, Action::SetMain(MainPanel::Stack));
+    reduce(
+        &mut state,
+        Action::SceneZoom {
+            factor: 5.0,
+            about: [0.0, 0.0],
+        },
+    );
+    let zoomed = state.scene.camera;
+    reduce(&mut state, Action::Fit { viewport: 0 });
+    assert_eq!(
+        state.scene.camera, zoomed,
+        "with the slices large, only they are fitted"
+    );
+}

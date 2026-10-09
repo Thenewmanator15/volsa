@@ -27,11 +27,6 @@ pub use input::{SceneInput, scene_input_to_actions};
 /// What to say when the volume is ready and this computer cannot draw it.
 const CANNOT_DRAW: &str = "The 3D view cannot be drawn on this computer's graphics device.";
 
-/// The most of the scene's width its captions may take, which keeps them clear of the scale
-/// bar in the middle, and the least they are given.
-const CAPTION_SHARE: f32 = 0.3;
-const CAPTION_LEAST: f32 = 200.0;
-
 /// What the 3D viewport keeps between frames.
 pub struct SceneView {
     /// Empty when the window has no graphics device to draw a volume with.
@@ -176,13 +171,10 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     }
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
-    // Kept to the left of the letter in the middle of the bottom edge.
-    let said = captions(spacing, scene.halved).join(
-        "
-",
-    );
-    let room = (area.width() * CAPTION_SHARE).max(CAPTION_LEAST);
-    pen.write_in_lines(inside.left_bottom(), &said, room);
+    // In the top left corner, which nothing else uses, kept clear of the letter at the top.
+    let said = captions(spacing, scene.halved).join("\n");
+    let room = inside.width() / 2.0 - pen::LETTER_ROOM;
+    pen.write_wrapped(inside.left_top(), &said, room);
 }
 
 /// What the mouse did over the scene this frame.

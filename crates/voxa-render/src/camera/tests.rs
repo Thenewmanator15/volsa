@@ -336,3 +336,25 @@ proptest! {
         prop_assert!(close(cross(right, down), forward), "mirrored at {yaw} {pitch}");
     }
 }
+
+#[test]
+fn a_camera_can_be_refitted_to_a_box_from_the_way_it_already_faces() {
+    let corners = box_of([100.0, 200.0, 50.0]).map(|at| Point::new(at.x + 9.0, at.y, at.z - 4.0));
+    let turned = Camera::looking(NamedView::Left, Point::new(70.0, 0.0, 0.0), 3.0);
+    let refitted = turned
+        .orbited([33.0, -20.0])
+        .refitted(&corners, [400.0, 400.0]);
+    assert_eq!(
+        refitted.axes(),
+        turned.orbited([33.0, -20.0]).axes(),
+        "it faces the same way"
+    );
+    assert!(close(
+        [refitted.target.x, refitted.target.y, refitted.target.z],
+        [9.0, 0.0, -4.0]
+    ));
+    // From a named side it is that side's fitted view.
+    let left = Camera::looking(NamedView::Left, Point::new(1.0, 2.0, 3.0), 7.0);
+    let fitted = Camera::fitted(NamedView::Left, &corners, [400.0, 300.0]);
+    assert_eq!(left.refitted(&corners, [400.0, 300.0]), fitted);
+}

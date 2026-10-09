@@ -35,8 +35,10 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>) {
         (inside.left_bottom(), Align2::LEFT_BOTTOM),
         (inside.right_bottom(), Align2::RIGHT_BOTTOM),
     ];
+    // Each corner has half the width, less room for the letter in the middle of the edge.
+    let room = inside.width() / 2.0 - pen::LETTER_ROOM;
     for (lines, (at, anchor)) in corners.iter().zip(anchors) {
-        pen.write(at, anchor, &lines.join("\n"), &pen.small);
+        pen.write_lines(at, anchor, lines, room);
     }
     if let Some(placement) = placement {
         let radiological = pane.state.radiological;

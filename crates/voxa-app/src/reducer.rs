@@ -6,7 +6,7 @@ use voxa_core::SeriesId;
 use voxa_dicom::best_series;
 
 use crate::action::{Action, Effect};
-use crate::scene::Scene;
+use crate::scene::{MainPanel, Scene};
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod scene;
@@ -26,7 +26,12 @@ const OPENING: &str = "opening";
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     // Indexing may have added slices to a series chosen before it ended.
     let rebuild = action == Action::IndexDone;
+    let fit = matches!(action, Action::Fit { .. });
     let mut effects = act(state, action);
+    if fit && state.main == MainPanel::Scene {
+        // The key that shows the whole slice again shows the whole volume again too.
+        scene::refit(state);
+    }
     effects.extend(if rebuild {
         scene::rebuild(state)
     } else {

@@ -9,7 +9,7 @@ use egui::RichText;
 use egui_wgpu::RenderState;
 
 use crate::action::Action;
-use crate::scene::SceneStatus;
+use crate::scene::{MainPanel, SceneStatus};
 use crate::session::Session;
 use crate::state::{NoticeKind, VIEWPORTS};
 
@@ -18,9 +18,11 @@ mod browser;
 mod capture;
 mod cine;
 mod help;
+mod layout;
 mod overlay;
 mod pen;
 mod scene;
+mod scene_bar;
 mod tags;
 mod theme;
 mod toolbar;
@@ -30,8 +32,6 @@ pub use browser::thumbnail;
 
 /// Decoded slices kept in memory: one gibibyte of pixel values.
 const CACHE_BYTES: usize = 1 << 30;
-/// The width of the column beside the main area, in points, where there is room for it.
-const SIDE_COLUMN: f32 = 360.0;
 /// Thumbnails are made at twice their size on screen, to stay sharp on dense displays.
 const THUMBNAIL_PIXELS: u32 = 128;
 
@@ -158,8 +158,8 @@ impl VoxaApp {
 }
 
 impl VoxaApp {
-    /// Draw the 3D scene in the large part of what is left of the window, and the 2D
-    /// viewports in a column beside it.
+    /// Draw the 3D scene and the 2D viewports in what is left of the window: one has the
+    /// large part, the other a column beside it under a strip with a button that swaps them.
     fn pictures(
         &mut self,
         ui: &mut egui::Ui,
@@ -168,15 +168,27 @@ impl VoxaApp {
     ) {
         let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
-        let column = SIDE_COLUMN.min(whole.width() / 3.0);
-        let (main, side) = whole.split_left_right_at_x(whole.right() - column);
-        let main = main.with_max_x(main.right() - viewport::GAP);
+        let layout::Panels { main, side } = layout::panels(whole);
+        let (strip, side) = layout::header_and_rest(side);
+        layout::header(ui, strip, state.main, actions);
+        let (for_scene, for_slices) = match state.main {
+            MainPanel::Scene => (main, side),
+            MainPanel::Stack => (side, main),
+        };
         let shown = state.scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));
         let scene = &mut self.scene;
-        scene::show(ui, main, state, volume.as_ref(), scene, render, actions);
+        scene::show(
+            ui,
+            for_scene,
+            state,
+            volume.as_ref(),
+            scene,
+            render,
+            actions,
+        );
         let (cache, gpus) = (self.session.cache(), &mut self.gpus);
-        viewport::show(ui, side, state, cache, gpus, render, actions);
+        viewport::show(ui, for_slices, state, cache, gpus, render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 
@@ -250,7 +262,9 @@ impl eframe::App for VoxaApp {
         let bar = egui::Panel::top("toolbar");
         let asked = bar
             .show(ui, |ui| {
-                toolbar::show(ui, self.session.state(), &mut actions)
+                let asked = toolbar::show(ui, self.session.state(), &mut actions);
+                scene_bar::show(ui, self.session.state(), &mut actions);
+                asked
             })
             .inner;
         self.about_open |= asked.about;
@@ -335,9 +349,12 @@ fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> 
 ///
 /// When the window or its graphics device cannot be created.
 pub fn run(initial: Option<PathBuf>) -> eframe::Result {
+    // A picture for the documentation may want the window a particular size.
+    let asked = std::env::var(capture::SIZE_VARIABLE).ok();
+    let size = asked.and_then(|size| capture::size_from(&size));
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
-        .with_inner_size([1440.0, 900.0])
+        .with_inner_size(size.unwrap_or([1440.0, 900.0]))
         .with_min_inner_size([900.0, 600.0]);
     let options = eframe::NativeOptions {
         viewport,

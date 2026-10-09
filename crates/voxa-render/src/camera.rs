@@ -89,11 +89,22 @@ impl Camera {
     /// eight corners, in a viewport of this width and height: the box is in the middle and
     /// fills nine tenths of the viewport along the side it fits more tightly.
     pub fn fitted(view: NamedView, corners: &[Point<Patient>; 8], viewport: [f32; 2]) -> Self {
+        Self::looking(view, Point::new(0.0, 0.0, 0.0), 1.0).refitted(corners, viewport)
+    }
+
+    /// The camera, facing the way it does, moved and scaled to show the whole of a box as
+    /// [`Camera::fitted`] would.
+    #[must_use]
+    pub fn refitted(self, corners: &[Point<Patient>; 8], viewport: [f32; 2]) -> Self {
         let sum = corners
             .iter()
             .fold([0.0; 3], |sum, corner| moved(sum, 1.0, xyz(*corner)));
         let [x, y, z] = sum.map(|total| total / 8.0);
-        let facing = Self::looking(view, Point::new(x, y, z), 1.0);
+        let facing = Self {
+            target: Point::new(x, y, z),
+            ..self
+        }
+        .sound();
         let [right, down, _] = facing.axes();
         let span = |axis: [f64; 3]| {
             let along = corners.iter().map(|corner| dot(axis, xyz(*corner)));
