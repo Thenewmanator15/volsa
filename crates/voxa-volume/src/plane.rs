@@ -159,6 +159,57 @@ pub fn clamped_into(
     ))
 }
 
+/// The centre of the voxel in the middle of a volume. With an even number of voxels along an
+/// axis it is the one just past the middle, so that a plane through this point shows a layer
+/// of the scan as it was taken, not a blend of two.
+pub fn central_voxel(placement: &Affine<Voxel, Patient>, dims: [u32; 3]) -> Point<Patient> {
+    let [cols, rows, slices] = dims.map(|count| f64::from(count / 2));
+    placement.apply(Point::new(cols, rows, slices))
+}
+
+/// A point moved `steps` whole layers of voxels along whichever of the volume's axes is
+/// nearest `normal`, counting the way the voxel numbers rise: one step from a layer is the
+/// next layer, and from between two layers it is the layer ahead. It stops at the first and
+/// last layers. `None` for a normal of no length or a placement that cannot be turned round.
+pub fn scrolled(
+    placement: &Affine<Voxel, Patient>,
+    dims: [u32; 3],
+    point: Point<Patient>,
+    normal: [f64; 3],
+    steps: i32,
+) -> Option<Point<Patient>> {
+    let to_voxel = placement.inverse()?;
+    let normal = unit(normal)?;
+    if steps == 0 {
+        return Some(point);
+    }
+    let along = placement
+        .columns()
+        .map(|axis| unit(axis).map_or(0.0, |axis| dot(axis, normal).abs()));
+    let [by_columns, by_rows, by_slices] = along;
+    let voxel = to_voxel.apply(point);
+    let [cols, rows, slices] = dims;
+    let stepped = |at: f64, count: u32| {
+        // A point is on a layer if it is within a millionth of a voxel of it.
+        let on = at.round();
+        let from = match (at - on).abs() < 1.0e-6 {
+            true => on,
+            false if steps > 0 => at.floor(),
+            false => at.ceil(),
+        };
+        let last = f64::from(count.saturating_sub(1));
+        (from + f64::from(steps)).clamp(0.0, last)
+    };
+    let moved = if by_slices >= by_columns && by_slices >= by_rows {
+        Point::new(voxel.x, voxel.y, stepped(voxel.z, slices))
+    } else if by_rows >= by_columns {
+        Point::new(voxel.x, stepped(voxel.y, rows), voxel.z)
+    } else {
+        Point::new(stepped(voxel.x, cols), voxel.y, voxel.z)
+    };
+    Some(placement.apply(moved))
+}
+
 /// Which slice of a stack of `slices` a point is nearest, counting from 0 and stopping at
 /// either end.
 pub fn nearest_slice(

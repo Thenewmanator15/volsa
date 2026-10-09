@@ -176,6 +176,53 @@ fn the_slice_nearest_a_point_is_found_and_stops_at_the_ends() {
 }
 
 #[test]
+fn the_voxel_in_the_middle_of_a_volume_is_a_voxel_and_not_a_place_between_two() {
+    let straight = grid([1.0; 3]);
+    assert_eq!(central_voxel(&straight, DIMS), Point::new(10.0, 15.0, 20.0));
+    assert_eq!(
+        central_voxel(&straight, [21, 31, 1]),
+        Point::new(10.0, 15.0, 0.0)
+    );
+    assert_eq!(
+        central_voxel(&straight, [0, 0, 0]),
+        Point::new(0.0, 0.0, 0.0)
+    );
+}
+
+#[test]
+fn scrolling_goes_layer_by_layer_the_way_voxel_numbers_rise_and_stops_at_the_ends() {
+    let fine = grid([0.5, 0.5, 3.0]);
+    let on_slice_7 = Point::new(5.0, 6.0, 21.0);
+    let up = [0.0, 0.0, 1.0];
+    let to = |z| Some(Point::new(5.0, 6.0, z));
+    assert_eq!(scrolled(&fine, DIMS, on_slice_7, up, 1), to(24.0));
+    let down = [0.0, 0.0, -1.0];
+    assert_eq!(
+        scrolled(&fine, DIMS, on_slice_7, down, 1),
+        to(24.0),
+        "whichever way it faces"
+    );
+    assert_eq!(scrolled(&fine, DIMS, on_slice_7, up, -2), to(15.0));
+    assert_eq!(
+        scrolled(&fine, DIMS, on_slice_7, up, 1000),
+        to(117.0),
+        "the last of 40"
+    );
+    assert_eq!(scrolled(&fine, DIMS, on_slice_7, up, -1000), to(0.0));
+    // From between two layers, a step lands on the layer ahead.
+    let between = Point::new(5.0, 6.0, 22.0);
+    assert_eq!(scrolled(&fine, DIMS, between, up, 1), to(24.0));
+    assert_eq!(scrolled(&fine, DIMS, between, up, -1), to(21.0));
+    assert_eq!(scrolled(&fine, DIMS, between, up, 0), Some(between));
+    // Across the stack it is the columns that are stepped through.
+    let across = scrolled(&fine, DIMS, on_slice_7, [1.0, 0.0, 0.0], 1);
+    assert_eq!(across, Some(Point::new(5.5, 6.0, 21.0)));
+    assert_eq!(scrolled(&fine, DIMS, on_slice_7, [0.0; 3], 1), None);
+    let flat = Affine::from_columns([0.0; 3], [0.0; 3], [0.0; 3], [0.0; 3]);
+    assert_eq!(scrolled(&flat, DIMS, on_slice_7, up, 1), None);
+}
+
+#[test]
 fn a_plane_is_read_out_of_a_volume_with_what_lies_outside_marked() {
     let volume = ball();
     let middle = Point::new(10.0, 10.0, 10.0);

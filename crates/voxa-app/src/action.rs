@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use voxa_core::{Patient, Point, SeriesId, WindowLevel};
 use voxa_dicom::Index;
 use voxa_render::{Look, NamedView};
+use voxa_volume::PlaneKind;
 
+use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::state::{Layout, Notice, PresetWindows};
 use crate::views::SavedView;
@@ -253,6 +255,37 @@ pub enum Action {
         /// Why, in plain words.
         reason: String,
     },
+    /// Move the point the three planes pass through. It is held inside the volume.
+    SetPosition(Point<Patient>),
+    /// Move a plane through the volume by whole layers, the way the voxel numbers rise.
+    PlaneScroll {
+        /// Which plane.
+        kind: PlaneKind,
+        /// How many layers; less than none goes back.
+        steps: i32,
+    },
+    /// Magnify a plane's panel, keeping still what lies under `about_mm`.
+    PlaneZoom {
+        /// Which plane.
+        kind: PlaneKind,
+        /// How many times larger; less than 1 makes it smaller.
+        factor: f64,
+        /// The point of the plane that stays put, in millimetres across and down from the
+        /// plane's centre.
+        about_mm: [f64; 2],
+    },
+    /// Move what is in the middle of a plane's panel.
+    PlanePan {
+        /// Which plane.
+        kind: PlaneKind,
+        /// How far the middle of the panel moves over the plane, in millimetres across and
+        /// down.
+        by_mm: [f64; 2],
+    },
+    /// Show the whole of a plane again, undoing zoom and pan.
+    PlaneFit(PlaneKind),
+    /// Choose what the column beside the 3D scene shows.
+    SetColumn(ColumnShows),
 }
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.

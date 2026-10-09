@@ -28,7 +28,10 @@ pub use assemble::{VolumeError, assemble, can_be_volume, value_range};
 pub use auto_window::{PRESETS, Preset, auto_window};
 pub use histogram::Histogram;
 pub use measure::{RegionStats, angle_degrees, distance_mm, ellipse_stats};
-pub use plane::{Plane, PlaneKind, clamped_into, nearest_slice, pitch_along, plane_of, reslice};
+pub use plane::{
+    Plane, PlaneKind, central_voxel, clamped_into, nearest_slice, pitch_along, plane_of, reslice,
+    scrolled,
+};
 pub use ray::{Ray, enter_and_leave, first_hit};
 pub use reduce::{block_maxima, halved, halvings_needed};
 pub use sample::sample;

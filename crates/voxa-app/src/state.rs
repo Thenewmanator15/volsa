@@ -7,6 +7,7 @@ use voxa_dicom::{Index, IndexedSeries};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
+use crate::planes::Planes;
 use crate::scene::{MainPanel, Scene};
 use crate::views::SavedView;
 
@@ -162,6 +163,8 @@ pub struct AppState {
     pub main: MainPanel,
     /// The views saved of the scene's series, oldest first.
     pub views: Vec<SavedView>,
+    /// The axial, coronal and sagittal planes through one point of the scene's volume.
+    pub planes: Planes,
 }
 
 impl Default for AppState {
@@ -180,6 +183,7 @@ impl Default for AppState {
             scene: Scene::default(),
             main: MainPanel::default(),
             views: Vec::new(),
+            planes: Planes::default(),
         }
     }
 }

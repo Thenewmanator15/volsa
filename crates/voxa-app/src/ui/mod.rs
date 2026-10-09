@@ -185,7 +185,7 @@ impl VoxaApp {
         let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
         layout::header(ui, strip, large, there_is_3d, actions);
         let (for_scene, for_slices) = match large {
-            MainPanel::Scene => (main, side),
+            MainPanel::Scene | MainPanel::Planes => (main, side),
             MainPanel::Stack => (side, main),
         };
         let shown = state.scene.series.as_ref();

@@ -6,9 +6,11 @@ use voxa_core::SeriesId;
 use voxa_dicom::best_series;
 
 use crate::action::{Action, Effect};
+use crate::planes::Planes;
 use crate::scene::{MainPanel, Scene};
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
+mod planes;
 mod scene;
 mod viewport;
 mod views;
@@ -25,7 +27,7 @@ const VIEWS: &str = "views";
 /// This is the only code that changes [`AppState`], and it does nothing else: no files, no
 /// threads, no clock. Whatever an action refers to that is not there (a viewport, a series, a
 /// preset, a notice, a cut) is ignored. After every action the 3D scene is kept on the series
-/// the active viewport shows.
+/// the active viewport shows, and the planes' position inside that scene's volume.
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     // Indexing may have added slices to a series chosen before it ended.
     let rebuild = action == Action::IndexDone;
@@ -40,6 +42,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     } else {
         scene::follow(state)
     });
+    planes::settle(state);
     effects
 }
 
@@ -86,6 +89,15 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::ViewDelete(_)
         | Action::ViewsLoaded { .. }
         | Action::ViewsNotStored { .. } => views::reduce(state, action),
+        Action::SetPosition(_)
+        | Action::PlaneScroll { .. }
+        | Action::PlaneZoom { .. }
+        | Action::PlanePan { .. }
+        | Action::PlaneFit(_)
+        | Action::SetColumn(_) => {
+            planes::reduce(state, &action);
+            Vec::new()
+        }
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
 }
@@ -94,18 +106,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
 fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
         Action::OpenPath(path) => {
-            *state = AppState {
-                layout: state.layout,
-                active: state.active,
-                radiological: state.radiological,
-                show_patient: state.show_patient,
-                main: state.main,
-                scene: Scene {
-                    viewport: state.scene.viewport,
-                    ..Scene::default()
-                },
-                ..AppState::default()
-            };
+            *state = emptied(state);
             return vec![Effect::StartIndex(path)];
         }
         Action::IndexProgress(index) => {
@@ -150,6 +151,29 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
         _ => {}
     }
     Vec::new()
+}
+
+/// The state with nothing open: what another path starts from. How the window is arranged
+/// and what the person chose to see is kept; everything about the scan is gone.
+fn emptied(state: &AppState) -> AppState {
+    AppState {
+        layout: state.layout,
+        active: state.active,
+        radiological: state.radiological,
+        show_patient: state.show_patient,
+        main: state.main,
+        scene: Scene {
+            viewport: state.scene.viewport,
+            ..Scene::default()
+        },
+        planes: Planes {
+            column: state.planes.column,
+            linked: state.planes.linked,
+            smooth: state.planes.smooth,
+            ..Planes::default()
+        },
+        ..AppState::default()
+    }
 }
 
 /// What concerns the window as a whole, not one viewport.
@@ -240,6 +264,8 @@ fn settle_window(
     }
 }
 
+#[cfg(test)]
+mod planes_tests;
 #[cfg(test)]
 mod scene_camera_tests;
 #[cfg(test)]

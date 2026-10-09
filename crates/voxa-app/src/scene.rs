@@ -12,6 +12,8 @@ pub enum MainPanel {
     Scene,
     /// The 2D viewports, with the 3D scene small beside them.
     Stack,
+    /// The three planes and the 3D scene in four panels, with the 2D viewports beside them.
+    Planes,
 }
 
 impl MainPanel {

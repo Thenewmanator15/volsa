@@ -55,7 +55,7 @@ pub fn header(
     actions: &mut Vec<Action>,
 ) {
     let (shows, enlarged) = match large {
-        MainPanel::Scene => ("Slices", MainPanel::Stack),
+        MainPanel::Scene | MainPanel::Planes => ("Slices", MainPanel::Stack),
         MainPanel::Stack => ("3D", MainPanel::Scene),
     };
     let inside = strip.shrink2(vec2(4.0, 0.0));
