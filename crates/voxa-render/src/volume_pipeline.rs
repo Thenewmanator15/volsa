@@ -9,7 +9,7 @@ use voxa_volume::halvings_needed;
 use crate::scene::{Look, MAX_CUTS, SceneParams};
 use crate::slice_pipeline::RenderError;
 use crate::vector::{dot, unit};
-use crate::volume_texture::{Placed, placed_by_halving};
+use crate::volume_texture::{BLOCK, Placed, placed_by_halving};
 
 /// The most a volume may take on the graphics device. A device does not say how much room it
 /// has, so a volume is reduced to this before it is tried: 512 MiB, which holds 512 x 512
@@ -45,6 +45,7 @@ struct Params {
     cuts: [[f32; 4]; MAX_CUTS],
     sheet: [f32; 4],
     planes: [f32; 4],
+    grid: [f32; 4],
 }
 
 /// The volume now on the graphics device.
@@ -155,6 +156,12 @@ impl VolumePipeline {
         let place = |shown: &Volume| Placed::new(device, queue, shown);
         let (placed, halvings) =
             placed_by_halving(volume, halvings, place).ok_or(RenderError::NoRoom)?;
+        self.show(device, placed);
+        Ok(halvings)
+    }
+
+    /// Draw from a volume already on the graphics device, in place of any shown before.
+    pub(crate) fn show(&mut self, device: &wgpu::Device, placed: Placed) {
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("voxa volume"),
             layout: &self.layout,
@@ -171,10 +178,13 @@ impl VolumePipeline {
                     binding: 2,
                     resource: wgpu::BindingResource::Sampler(&self.blended),
                 },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::TextureView(&placed.maxima),
+                },
             ],
         });
         self.uploaded = Some(Uploaded { placed, bind_group });
-        Ok(halvings)
     }
 
     /// Whether a volume has been uploaded.
@@ -233,6 +243,8 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
     let sheet = scene
         .slice
         .and_then(|slice| plane(slice.point, slice.normal));
+    // The brightest value on a line can be anywhere along it, so that look skips nothing.
+    let skipping = scene.skip_empty && scene.look != Look::Mip;
     let [wide, high] = viewport;
     let black = (scene.window.low() - placed.smallest) / placed.span;
     let black_to_white = (scene.window.width / placed.span).max(MIN_WINDOW);
@@ -249,12 +261,13 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
         voxel: [cols, rows, slices, 1].map(|count| 1.0 / count as f32),
         cuts,
         sheet: sheet.unwrap_or_default(),
-        planes: [cuts_used, if sheet.is_some() { 1.0 } else { 0.0 }, 0.0, 0.0],
+        planes: [cuts_used, flag(sheet.is_some()), flag(skipping), 0.0],
+        grid: [cols as f32, rows as f32, slices as f32, 0.0].map(|count| count / BLOCK as f32),
     }
 }
 
-/// What the shader is given: the parameters, the volume as a texture, and the way values
-/// between its voxels are blended.
+/// What the shader is given: the parameters, the volume as a texture, the way values between
+/// its voxels are blended, and the largest value in each block of the volume.
 fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
         binding,
@@ -275,7 +288,12 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let blended = wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering);
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("voxa volume"),
-        entries: &[entry(0, parameters), entry(1, volume), entry(2, blended)],
+        entries: &[
+            entry(0, parameters),
+            entry(1, volume),
+            entry(2, blended),
+            entry(3, volume),
+        ],
     })
 }
 
@@ -301,6 +319,11 @@ fn plane(point: Point<Patient>, normal: [f64; 3]) -> Option<[f32; 4]> {
     from_origin
         .is_finite()
         .then(|| [x, y, z, from_origin].map(single))
+}
+
+/// Yes or no as the number the shader keeps it in.
+fn flag(yes: bool) -> f32 {
+    if yes { 1.0 } else { 0.0 }
 }
 
 /// Three numbers as the four the shader keeps them in.

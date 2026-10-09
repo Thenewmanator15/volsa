@@ -28,13 +28,20 @@ struct Scene {
     // points to; the sheet is the 2D slice, drawn in the scene.
     cuts: array<vec4<f32>, 3>,
     sheet: vec4<f32>,
-    // How many of the cuts are in use, and 1 if there is a sheet.
+    // How many of the cuts are in use; 1 if there is a sheet; 1 if blocks with nothing in
+    // them to draw are stepped over.
     planes: vec4<f32>,
+    // How many blocks the volume is along its columns, rows and slices, counting a part
+    // block as a part.
+    grid: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> scene: Scene;
 @group(0) @binding(1) var values: texture_3d<f32>;
 @group(0) @binding(2) var blended: sampler;
+// The largest value in each block of the volume and in the blocks around it, stored as the
+// values are.
+@group(0) @binding(3) var maxima: texture_3d<f32>;
 
 // The most steps along one line of sight; a longer line is followed in longer steps.
 const MAX_STEPS: f32 = 4096.0;
@@ -46,6 +53,8 @@ const SHADOW: f32 = 0.35;
 // with a direction to it.
 const LEAST_SLOPE: f32 = 0.01;
 const FAR: f32 = 1.0e30;
+// The most blocks a line of sight is followed through in search of something to draw.
+const MAX_BLOCKS: i32 = 512;
 // The least a line of sight must lean towards a plane to be taken as meeting it.
 const ALONGSIDE: f32 = 1.0e-6;
 
@@ -114,6 +123,51 @@ fn slope_at(at: vec3<f32>) -> vec3<f32> {
     return (value_at(at + u) - value_at(at - u)) / (2.0 * scene.voxel.x) * scene.to_u.xyz
         + (value_at(at + v) - value_at(at - v)) / (2.0 * scene.voxel.y) * scene.to_v.xyz
         + (value_at(at + w) - value_at(at - w)) / (2.0 * scene.voxel.z) * scene.to_w.xyz;
+}
+
+// How many millimetres further a line goes before it leaves the block it is in. `within` is
+// where the line is in the block, 0 to 1 each way, and `going` how far it moves, in blocks,
+// for each millimetre.
+fn leaves_after(within: vec3<f32>, going: vec3<f32>) -> f32 {
+    var after = FAR;
+    for (var axis = 0; axis < 3; axis++) {
+        if going[axis] > 1.0e-9 {
+            after = min(after, (1.0 - within[axis]) / going[axis]);
+        } else if going[axis] < -1.0e-9 {
+            after = min(after, -within[axis] / going[axis]);
+        }
+    }
+    return max(after, 0.0);
+}
+
+// Follow a line of sight from `begin` millimetres along it towards `end`, through blocks with
+// nothing in them bright enough to draw, and say how far along it the first block that may
+// hold something is met: `end` if there is none. `block_start` and `block_step` are the line
+// measured in blocks, and `nudge` a small length that takes a point on the face between two
+// blocks into the one ahead.
+fn past_the_empty(
+    block_start: vec3<f32>,
+    block_step: vec3<f32>,
+    begin: f32,
+    end: f32,
+    nudge: f32,
+) -> f32 {
+    let way = sign(end - begin);
+    let far = abs(end - begin);
+    let last_block = vec3<i32>(textureDimensions(maxima)) - vec3<i32>(1, 1, 1);
+    var gone = 0.0;
+    for (var n = 0; n < MAX_BLOCKS; n++) {
+        if gone >= far {
+            return end;
+        }
+        let here = block_start + (begin + way * (gone + nudge)) * block_step;
+        let block = clamp(vec3<i32>(floor(here)), vec3<i32>(0, 0, 0), last_block);
+        if textureLoad(maxima, block, 0).r > scene.window.x {
+            break;
+        }
+        gone += leaves_after(here - vec3<f32>(block), block_step * way) + 2.0 * nudge;
+    }
+    return begin + way * min(gone, far);
 }
 
 // A fixed pattern over the pixels, 0 to 1, with no two neighbours alike. Each line of sight
@@ -197,8 +251,28 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     // How much light the surface last met is in: all of it facing the viewer, down to SHADOW
     // turned away. It carries on into the even tissue behind the surface.
     var shade = 1.0;
-    for (var i = 0; i < steps; i++) {
-        let at = start + min(enter + (f32(i) + first) * stride, leave) * step;
+    // The steps to take: all of them, or, when empty space is stepped over, those from the
+    // first block that may hold something to the last. A block's largest value takes in its
+    // neighbours', so every value left out is blended from voxels too dark to draw. One
+    // step to spare is kept at each end.
+    var first_step = 0;
+    var end_step = steps;
+    if scene.planes.z > 0.5 {
+        let block_start = start * scene.grid.xyz;
+        let block_step = step * scene.grid.xyz;
+        let nudge = 0.01 * stride;
+        let met = past_the_empty(block_start, block_step, enter, leave, nudge);
+        first_step = max(i32(ceil((met - enter) / stride - first)) - 1, 0);
+        if met < leave {
+            let left = past_the_empty(block_start, block_step, leave, enter, nudge);
+            end_step = min(i32(floor((left - enter) / stride - first)) + 2, steps);
+        } else {
+            end_step = 0;
+        }
+    }
+    for (var i = first_step; i < end_step; i++) {
+        let along = min(enter + (f32(i) + first) * stride, leave);
+        let at = start + along * step;
         let value = value_at(at);
         if brightest_value {
             brightest = max(brightest, value);

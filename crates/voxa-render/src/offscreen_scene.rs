@@ -57,6 +57,8 @@ impl HeadlessScene {
 #[cfg(test)]
 mod cut_tests;
 #[cfg(test)]
+mod skip_tests;
+#[cfg(test)]
 mod solid_tests;
 #[cfg(test)]
 mod tests;
