@@ -11,26 +11,26 @@ use crate::testing::{
 };
 
 /// The grey of the shell, the core and the bead through the ball's window.
-const SHELL: u8 = 64;
+pub(super) const SHELL: u8 = 64;
 const CORE: u8 = 191;
 const BEAD: u8 = 255;
 /// A pixel 14 mm to the left of the middle of a fitted picture: in the shell, clear of the core.
 const IN_THE_SHELL: (u32, u32) = (23, 48);
-const MIDDLE: (u32, u32) = (48, 48);
+pub(super) const MIDDLE: (u32, u32) = (48, 48);
 
-fn drawn(gpu: &mut HeadlessScene, params: &SceneParams) -> Vec<u8> {
+pub(super) fn drawn(gpu: &mut HeadlessScene, params: &SceneParams) -> Vec<u8> {
     gpu.render(params, [SIDE, SIDE]).expect("renders")
 }
 
 /// The test ball, uploaded and drawn from one side in one look. `None` with no adapter.
-fn ball_from(view: NamedView, look: Look) -> Option<Vec<u8>> {
+pub(super) fn ball_from(view: NamedView, look: Look) -> Option<Vec<u8>> {
     let mut gpu = headless_scene()?;
     let volume = ball();
     assert_eq!(gpu.upload(&volume).expect("uploads"), 0, "it fits as it is");
     Some(drawn(&mut gpu, &scene_of(&volume, view, look)))
 }
 
-fn at(rgba: &[u8], (x, y): (u32, u32)) -> u8 {
+pub(super) fn at(rgba: &[u8], (x, y): (u32, u32)) -> u8 {
     grey(rgba, x, y)
 }
 

@@ -55,4 +55,6 @@ impl HeadlessScene {
 }
 
 #[cfg(test)]
+mod solid_tests;
+#[cfg(test)]
 mod tests;

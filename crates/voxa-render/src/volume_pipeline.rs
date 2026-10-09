@@ -15,7 +15,13 @@ use crate::volume_texture::{Placed, placed_by_halving};
 /// voxels in 1024 slices whole.
 const MAX_VOLUME_BYTES: u64 = 512 << 20;
 /// How much of the light a millimetre of the brightest tissue stops in the see-through look.
-const STOPPED_PER_MM: f32 = 0.05;
+const VR_STOPPED_PER_MM: f32 = 0.05;
+/// How much of the light a millimetre of solid tissue stops in the surface look: all but a
+/// fiftieth of it within 4 mm, so the first tissue met hides what is behind it.
+const SURFACE_STOPPED_PER_MM: f32 = 1.0;
+/// The share of the window, up from its low end, over which tissue becomes solid in the
+/// surface look. In the see-through look it is the whole window.
+const SURFACE_RAMP: f32 = 0.1;
 /// The coarsest a picture is drawn: steps ten times as long as at full quality.
 const MIN_QUALITY: f32 = 0.1;
 /// The narrowest window the shader is given, as a share of the volume's range of values.
@@ -34,6 +40,7 @@ struct Params {
     to_w: [f32; 4],
     view: [f32; 4],
     window: [f32; 4],
+    voxel: [f32; 4],
 }
 
 /// The volume now on the graphics device.
@@ -212,9 +219,11 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
         1.0
     };
     let step_mm = single(placed.finest_mm / 2.0) / quality.clamp(MIN_QUALITY, 1.0);
-    let look = match scene.look {
-        Look::Surface | Look::Vr => 0.0,
-        Look::Mip => 1.0,
+    // The look as the shader knows it, how much light a millimetre stops, and the ramp.
+    let (look, stopped_per_mm, ramp) = match scene.look {
+        Look::Vr => (0.0, VR_STOPPED_PER_MM, 1.0),
+        Look::Mip => (1.0, 0.0, 1.0),
+        Look::Surface => (2.0, SURFACE_STOPPED_PER_MM, SURFACE_RAMP),
     };
     let [wide, high] = viewport;
     let black = (scene.window.low() - placed.smallest) / placed.span;
@@ -228,7 +237,13 @@ fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32; 2]) -> Pa
         to_v: along_axis(|[_, row, _]| row, rows),
         to_w: along_axis(|[_, _, slice]| slice, slices),
         view: [wide, high, step_mm, look],
-        window: [black, black_to_white, STOPPED_PER_MM, 0.0],
+        window: [black, black_to_white, stopped_per_mm, ramp],
+        voxel: [
+            1.0 / cols as f32,
+            1.0 / rows as f32,
+            1.0 / slices as f32,
+            0.0,
+        ],
     }
 }
 
