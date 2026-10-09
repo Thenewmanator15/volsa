@@ -4,7 +4,7 @@
 use voxa_core::{Affine, Patient, Point, Voxel, WindowLevel};
 
 use crate::camera::{Camera, ORBIT_DEGREES_PER_PX};
-use crate::vector::{cross, moved, turned_about, unit};
+use crate::vector::{cross, dot, moved, turned_about, unit};
 
 /// The most cut planes a scene can have.
 pub const MAX_CUTS: usize = 3;
@@ -92,15 +92,22 @@ pub struct SlicePlane {
 
 impl SlicePlane {
     /// The plane of one slice of a series: through the middle of the slice, facing straight
-    /// out of it. `placement` is the series' own, `size` its columns and rows, and `slice`
+    /// out of it towards the slices that come after. `placement` is the series' own, `size` its columns and rows, and `slice`
     /// counts from 0. `None` when the placement gives the slice no plane.
     pub fn of_slice(
         placement: &Affine<Voxel, Patient>,
         size: [u32; 2],
         slice: usize,
     ) -> Option<Self> {
-        let [along_columns, along_rows, _] = placement.columns();
-        let normal = unit(cross(along_columns, along_rows))?;
+        let [along_columns, along_rows, to_the_next] = placement.columns();
+        let out_of_it = unit(cross(along_columns, along_rows))?;
+        // Of the two ways out of the slice, the one towards the slices after it.
+        let facing = if dot(out_of_it, to_the_next) < 0.0 {
+            -1.0
+        } else {
+            1.0
+        };
+        let normal = out_of_it.map(|part| part * facing);
         let [cols, rows] = size.map(|count| (f64::from(count) - 1.0) / 2.0);
         let slice = f64::from(u32::try_from(slice).ok()?);
         Some(Self {
@@ -248,6 +255,13 @@ mod tests {
         let tilted = SlicePlane::of_slice(&placed([0.0, 1.0, 5.0]), [4, 4], 2).expect("placed");
         assert_eq!(tilted.point, Point::new(-8.5, -16.5, 10.0));
         assert!(close(tilted.normal, [0.0, 0.0, 1.0]), "{:?}", tilted.normal);
+        // It faces the way the slices are numbered: a step along it is a step to a later one.
+        let downwards = SlicePlane::of_slice(&placed([0.0, 0.0, -5.0]), [4, 4], 1).expect("placed");
+        assert!(
+            close(downwards.normal, [0.0, 0.0, -1.0]),
+            "{:?}",
+            downwards.normal
+        );
         let flat =
             Affine::from_columns([1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 0.0, 1.0], [0.0; 3]);
         assert_eq!(

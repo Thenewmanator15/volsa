@@ -8,10 +8,15 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use voxa_render::Look;
+
+use crate::action::Action;
+
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
-/// The environment variable naming windows to have open in the picture: any of `tags`,
-/// `keys` and `about`, separated by commas.
+/// The environment variable naming what to have in the picture, separated by commas: the
+/// windows `tags`, `keys` and `about`, and for the 3D scene `vr` or `mip`, `turned`, `cut`
+/// and `slice`.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving the size of the window for the picture, in points, as
 /// width `x` height: `900x600`.
@@ -26,6 +31,21 @@ pub fn size_from(text: &str) -> Option<[f32; 2]> {
     let (width, height) = text.split_once('x')?;
     let side = |text: &str| text.trim().parse::<f32>().ok().filter(|side| *side > 0.0);
     Some([side(width)?, side(height)?])
+}
+
+/// What to do to the 3D scene, once its volume is ready, for a picture that asks for it by
+/// the words in `wanted`: a look, a turn, a cut, the slice drawn in it.
+pub fn pose(wanted: &str) -> Vec<Action> {
+    let asked = |word: &str| wanted.split(',').any(|part| part.trim() == word);
+    let poses = [
+        ("vr", Action::SceneLook(Look::Vr)),
+        ("mip", Action::SceneLook(Look::Mip)),
+        ("turned", Action::SceneOrbit { by: [70.0, 35.0] }),
+        ("cut", Action::CutAdd),
+        ("slice", Action::ShowSliceInScene(true)),
+    ];
+    let wanted = poses.into_iter().filter(|(word, _)| asked(word));
+    wanted.map(|(_, action)| action).collect()
 }
 
 /// A capture that has been asked for and not yet finished.
@@ -81,6 +101,25 @@ impl Capture {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_picture_can_ask_for_the_scene_to_be_posed() {
+        use voxa_render::Look;
+        assert_eq!(pose("tags,keys"), []);
+        assert_eq!(pose("cut"), [Action::CutAdd]);
+        let all = pose("about, mip, turned, cut, slice");
+        let expected = [
+            Action::SceneLook(Look::Mip),
+            Action::SceneOrbit { by: [70.0, 35.0] },
+            Action::CutAdd,
+            Action::ShowSliceInScene(true),
+        ];
+        assert_eq!(
+            all, expected,
+            "in an order that does not depend on how they were asked"
+        );
+        assert_eq!(pose("vr"), [Action::SceneLook(Look::Vr)]);
+    }
 
     #[test]
     fn a_window_size_is_read_as_width_by_height() {

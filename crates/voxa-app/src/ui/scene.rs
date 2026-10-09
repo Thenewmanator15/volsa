@@ -17,6 +17,7 @@ use crate::state::AppState;
 
 mod captions;
 mod gpu;
+mod handles;
 mod input;
 
 pub use captions::{
@@ -37,6 +38,8 @@ pub struct SceneView {
     changed: Instant,
     /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
     part_notch: f32,
+    /// How far the slice's handle has been dragged short of a whole slice, in millimetres.
+    carried: f64,
 }
 
 impl SceneView {
@@ -47,6 +50,7 @@ impl SceneView {
             shown: None,
             changed: Instant::now(),
             part_notch: 0.0,
+            carried: 0.0,
         }
     }
 
@@ -134,6 +138,10 @@ pub fn show(
         let text = text.unwrap_or_default();
         ui.painter()
             .text(area.center(), middle, text, font, theme::QUIET_TEXT);
+    }
+    if state.scene.status == SceneStatus::Ready {
+        // Drawn after the scene itself, so a press on a handle takes hold of the handle.
+        handles::show(ui, area, state, &mut view.carried, actions);
     }
     // A double-click on something drawn puts that point in the middle.
     let pointed_at = response.double_clicked().then(|| {

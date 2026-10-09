@@ -48,6 +48,8 @@ pub struct VoxaApp {
     /// When playback in each viewport last moved on.
     clocks: [cine::Clock; VIEWPORTS],
     capture: Option<capture::Capture>,
+    /// What a picture of the window wants done to the 3D scene once its volume is ready.
+    pose: Vec<Action>,
 }
 
 impl VoxaApp {
@@ -80,6 +82,7 @@ impl VoxaApp {
             tags: tags::Panel::default(),
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture: capture::Capture::from_environment(),
+            pose: Vec::new(),
         };
         if app.capture.is_some() {
             // A picture for the documentation may want one of the windows open in it.
@@ -87,6 +90,7 @@ impl VoxaApp {
             app.tags.open = wanted.contains("tags");
             app.help_open = wanted.contains("keys");
             app.about_open = wanted.contains("about");
+            app.pose = capture::pose(&wanted);
         }
         if let Some(path) = initial {
             app.dispatch(Action::OpenPath(path));
@@ -292,6 +296,11 @@ impl eframe::App for VoxaApp {
         self.keys(ui.ctx(), &mut actions);
         for action in actions {
             self.dispatch(action);
+        }
+        if self.session.state().scene.status == SceneStatus::Ready {
+            for action in std::mem::take(&mut self.pose) {
+                self.dispatch(action);
+            }
         }
         // A picture of the window waits for the slice and, if there is to be one, the volume.
         let no_volume_to_come = !matches!(
