@@ -324,12 +324,18 @@ fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far
         if shapes::shown_on(&item.shape, &view.plane, half_layer) {
             let words = shapes::beside(item, &value(&item.shape));
             let drawn = shapes::drawn(&item.shape, view, size);
-            shapes::paint(pen, cell, &drawn, theme::ACCENT, &words);
+            shapes::paint(pen, (cell, ROOM.top), &drawn, theme::ACCENT, &words);
         }
     }
     if let Some(shape) = so_far {
         let drawn = shapes::drawn(&shape, view, size);
-        shapes::paint(pen, cell, &drawn, theme::WARNING, &value(&shape));
+        shapes::paint(
+            pen,
+            (cell, ROOM.top),
+            &drawn,
+            theme::WARNING,
+            &value(&shape),
+        );
     }
 }
 

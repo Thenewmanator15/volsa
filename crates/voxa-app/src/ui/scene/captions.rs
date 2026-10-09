@@ -5,6 +5,7 @@ use std::time::Duration;
 use voxa_render::{Camera, SceneParams, SlicePlane};
 
 use super::super::overlay::{EdgeLabels, letter};
+use super::super::pen::LETTER_ROOM;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
@@ -40,6 +41,24 @@ pub fn captions(spacing_mm: [f64; 3], halved: u32) -> Vec<String> {
         share.map(|share| format!("Shown at {share} resolution to fit this graphics device.")),
     );
     lines
+}
+
+/// A picture narrower than this, inside its margins, has its words beneath the letter at its
+/// top: beside the letter, in half the width, they would be a column of single words.
+const NARROW: f32 = 480.0;
+/// How far beneath the top of such a picture its words begin, to clear the letter.
+const UNDER_LETTER: f32 = 20.0;
+
+/// Where the scene's words go in a picture `wide` points across inside its margins: how far
+/// beneath its top left corner they begin, and how wide they may run. In a wide picture they
+/// stand beside the letter at the top, in half the width; in a narrow one beneath that
+/// letter, across the whole width.
+pub fn caption_room(wide: f32) -> (f32, f32) {
+    if wide < NARROW {
+        (UNDER_LETTER, wide)
+    } else {
+        (0.0, wide / 2.0 - LETTER_ROOM)
+    }
 }
 
 /// The letter at each edge of the scene, from the way the camera faces: the same letters, by

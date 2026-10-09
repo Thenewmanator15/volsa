@@ -1,7 +1,7 @@
 //! Annotations as they are seen in a plane view: which of them lie in the layer a panel
 //! shows, and where their points fall in the panel.
 
-use egui::{Align2, Color32, Pos2, Rect, Shape as Painted, Stroke, vec2};
+use egui::{Align2, Color32, Pos2, Rect, Shape as Painted, Stroke, pos2, vec2};
 use voxa_core::{Patient, Point};
 use voxa_render::PlaneView;
 use voxa_volume::Plane;
@@ -108,8 +108,24 @@ pub fn beside(item: &Annotation, value: &str) -> String {
     }
 }
 
-/// Paint an annotation over a panel at `cell`, in one colour, with words beside it.
-pub fn paint(pen: &Pen, cell: Rect, drawn: &Drawn, colour: Color32, words: &str) {
+/// Where words `wide` points long begin so as to stay inside a panel that reaches from
+/// `left` to `right`: at `at`, where they belong, or as far to the left of it as it takes; if
+/// they are longer than the panel, at its left edge.
+pub fn label_left(at: f32, wide: f32, (left, right): (f32, f32)) -> f32 {
+    at.min(right - wide).max(left)
+}
+
+/// How far down the bottom of words `high` points tall is put so that they begin no higher
+/// than `clear`, beneath what is written along the top of a panel: at `at`, where they
+/// belong, or as far beneath it as it takes.
+pub fn label_bottom(at: f32, high: f32, clear: f32) -> f32 {
+    at.max(clear + high)
+}
+
+/// Paint an annotation over a panel at `cell`, in one colour, with words beside it. The
+/// words are kept inside the panel, and out of the `top` points along its top where its
+/// own words are.
+pub fn paint(pen: &Pen, (cell, top): (Rect, f32), drawn: &Drawn, colour: Color32, words: &str) {
     let placed = |[x, y]: [f32; 2]| cell.min + vec2(x, y);
     let stroke = Stroke::new(LINE, colour);
     let dot = |at: [f32; 2]| {
@@ -156,13 +172,12 @@ pub fn paint(pen: &Pen, cell: Rect, drawn: &Drawn, colour: Color32, words: &str)
         let laid_out = pen
             .painter
             .layout_no_wrap(words.to_owned(), pen.small.clone(), colour);
-        // To the right of the point, unless they would run off the panel there.
-        if at.x + laid_out.size().x > cell.right() {
-            let other_side = at - vec2(4.0 * DOT, 0.0);
-            pen.write(other_side, Align2::RIGHT_BOTTOM, words, &pen.small);
-        } else {
-            pen.write(at, Align2::LEFT_BOTTOM, words, &pen.small);
-        }
+        // Beside the point, moved as far as it takes to stay inside the panel.
+        let inside = cell.shrink(DOT);
+        let size = laid_out.size();
+        let left = label_left(at.x, size.x, (inside.left(), inside.right()));
+        let bottom = label_bottom(at.y, size.y, inside.top() + top);
+        pen.write(pos2(left, bottom), Align2::LEFT_BOTTOM, words, &pen.small);
     }
 }
 

@@ -1,7 +1,7 @@
 //! Actions about the 3D scene, and keeping the scene on the series the active viewport shows.
 
 use voxa_core::{SeriesId, SeriesProblem};
-use voxa_render::{Camera, CutPlane, MAX_CUTS, NamedView};
+use voxa_render::{Camera, CutPlane, MAX_CUTS, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView};
 use voxa_volume::can_be_volume;
 
 use crate::action::{Action, Effect};
@@ -149,14 +149,22 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
 }
 
 /// A new size for the scene's picture. While the camera is still Voxa's own choice the volume
-/// is fitted to it again. A size that is not a size is ignored.
+/// is fitted to it again. A camera the person has moved keeps what it shows: as much of the
+/// patient across the shorter side of the picture as before, so that a scene given a smaller
+/// part of the window is the same view, smaller, and not a corner of it. A size that is not
+/// a size is ignored.
 fn resized(scene: &mut Scene, viewport: [f32; 2]) {
     if !viewport.iter().all(|side| side.is_finite() && *side > 0.0) {
         return;
     }
+    let shorter = |[wide, high]: [f32; 2]| f64::from(wide.min(high));
+    let (was, is) = (shorter(scene.viewport), shorter(viewport));
     scene.viewport = viewport;
     if let Some(corners) = scene.corners.filter(|_| scene.untouched) {
         scene.camera = Camera::fitted(NamedView::Anterior, &corners, viewport);
+    } else if was > 0.0 {
+        let scale = scene.camera.mm_per_px * was / is;
+        scene.camera.mm_per_px = scale.clamp(MIN_MM_PER_PX, MAX_MM_PER_PX);
     }
 }
 

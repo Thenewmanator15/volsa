@@ -232,12 +232,12 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     }
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
-    // In the top left corner, which nothing else uses, kept clear of the letter at the top.
+    // At the top left, which nothing else uses, kept clear of the letter at the top.
     let mut said = captions(spacing, scene.halved);
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
-    let room = inside.width() / 2.0 - pen::LETTER_ROOM;
-    pen.write_wrapped(inside.left_top(), &said, room);
+    let (down, room) = captions::caption_room(inside.width());
+    pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
 }
 
 /// What the mouse did over the scene this frame.

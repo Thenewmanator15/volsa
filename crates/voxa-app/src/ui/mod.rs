@@ -102,6 +102,10 @@ impl VoxaApp {
             app.session.workers().set_volume_side(longest);
         }
         if app.capture.is_some() {
+            // A picture is of things as they come to rest, not part-way through fading in.
+            creation
+                .egui_ctx
+                .all_styles_mut(|style| style.animation_time = 0.0);
             // A picture for the documentation may want one of the windows open in it.
             let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
             app.tags.open = wanted.contains("tags");

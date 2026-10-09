@@ -5,7 +5,7 @@ use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_render::PlaneView;
 use voxa_volume::{Plane, PlaneKind, plane_of};
 
-use super::shapes::{Drawn, beside, drawn, shown_on};
+use super::shapes::{Drawn, beside, drawn, label_bottom, label_left, shown_on};
 use super::tools::{Draft, Pointer, drafted, preview};
 use crate::annotations::{Annotation, Shape, Tool};
 
@@ -323,4 +323,41 @@ fn beside_a_marker_is_its_name_and_beside_the_rest_the_name_and_what_was_measure
         beside(&named("Ruler 1", ruler), "5.0 mm"),
         "Ruler 1: 5.0 mm"
     );
+}
+
+#[test]
+fn words_beside_an_annotation_are_kept_inside_the_panel() {
+    let panel = (4.0, 200.0);
+    assert_eq!(
+        label_left(100.0, 50.0, panel),
+        100.0,
+        "there is room: where they belong"
+    );
+    assert_eq!(
+        label_left(180.0, 50.0, panel),
+        150.0,
+        "moved left to end at the edge"
+    );
+    assert_eq!(label_left(-20.0, 50.0, panel), 4.0, "nor off the left");
+    assert_eq!(
+        label_left(90.0, 300.0, panel),
+        4.0,
+        "longer than the panel: from its left"
+    );
+}
+
+#[test]
+fn words_beside_an_annotation_keep_clear_of_what_is_written_along_the_top() {
+    // A panel whose top is at 100, with 26 points along it for its caption; words 14 high.
+    assert_eq!(
+        label_bottom(200.0, 14.0, 126.0),
+        200.0,
+        "lower down they are left alone"
+    );
+    assert_eq!(
+        label_bottom(120.0, 14.0, 126.0),
+        140.0,
+        "moved down to begin under it"
+    );
+    assert_eq!(label_bottom(140.0, 14.0, 126.0), 140.0);
 }

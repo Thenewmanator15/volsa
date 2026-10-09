@@ -10,7 +10,7 @@ use super::*;
 use crate::scene::{MainPanel, Scene};
 
 #[test]
-fn the_camera_is_refitted_to_a_new_size_only_while_untouched() {
+fn a_new_size_refits_an_untouched_camera_and_keeps_what_a_moved_one_shows() {
     let mut state = ready();
     reduce(
         &mut state,
@@ -33,10 +33,16 @@ fn the_camera_is_refitted_to_a_new_size_only_while_untouched() {
             viewport: [1000.0, 900.0],
         },
     );
+    // The view is the person's now, and keeps what it shows: as much of the patient across
+    // the shorter side of the picture, which is three times as long as it was.
+    let kept = fitted.orbited([30.0, 10.0]);
+    assert!((state.scene.camera.mm_per_px - fitted.mm_per_px / 3.0).abs() < 1.0e-12);
     assert_eq!(
-        state.scene.camera.mm_per_px, fitted.mm_per_px,
-        "the scale is the person's now"
+        (state.scene.camera.yaw, state.scene.camera.pitch),
+        (kept.yaw, kept.pitch),
+        "and the way it faces"
     );
+    assert_eq!(state.scene.camera.target, kept.target);
     assert_eq!(state.scene.viewport, [1000.0, 900.0]);
     reduce(
         &mut state,

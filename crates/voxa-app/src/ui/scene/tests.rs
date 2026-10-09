@@ -235,3 +235,17 @@ fn with_the_planes_out_of_sight_there_is_no_cross_to_take_hold_of() {
     let asked = after(&state, drag([410.0, 292.0], [410.0, 282.0]));
     assert_eq!(asked, [Action::SceneOrbit { by: [0.0, -10.0] }]);
 }
+
+#[test]
+fn in_a_narrow_picture_the_words_go_beneath_the_letter_and_take_the_whole_width() {
+    use super::captions::caption_room;
+    let (down, wide) = caption_room(1000.0);
+    assert_eq!(
+        (down, wide),
+        (0.0, 486.0),
+        "beside the letter, in half the width"
+    );
+    let (down, wide) = caption_room(376.0);
+    assert_eq!(wide, 376.0, "a quarter of the window: the whole width");
+    assert!(down >= 18.0, "and beneath the letter: {down}");
+}

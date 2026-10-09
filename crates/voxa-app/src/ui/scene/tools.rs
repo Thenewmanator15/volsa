@@ -127,11 +127,17 @@ pub fn draw(ui: &Ui, area: Rect, state: &AppState, begun: Option<Point<Patient>>
         let value = measured(&item.shape, placement.as_ref()).value;
         let words = beside(item, &value);
         let drawn = scene_drawn(&item.shape, camera, viewport);
-        paint(&pen, area, &drawn, theme::ACCENT, &words);
+        paint(&pen, (area, 0.0), &drawn, theme::ACCENT, &words);
     }
     if let Some(from) = begun {
         let drawn = Drawn::Dot(on_screen(camera, viewport, from));
-        paint(&pen, area, &drawn, theme::WARNING, "Click the other end");
+        paint(
+            &pen,
+            (area, 0.0),
+            &drawn,
+            theme::WARNING,
+            "Click the other end",
+        );
     }
 }
 
