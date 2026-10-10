@@ -13,7 +13,7 @@ repository. What was not checked is listed as such at the end.
 | Gate | Result |
 |---|---|
 | `cargo xtask check` (formatting, lints as errors, 400-line limit, tests, licences and advisories, documentation) | passes |
-| Tests in the workspace | 749, all passing |
+| Tests in the workspace | 750, all passing |
 | `cargo xtask coverage` (line coverage, floor 80%) | `voxa-core` 96.6%, `voxa-dicom` 98.4%, `voxa-volume` 99.2%, `voxa-labels` 98.8% |
 
 What the tests of this milestone hold to:
@@ -135,6 +135,11 @@ labels, at 1440 x 900 and at the minimum size of 900 x 600, and looked at:
 - "Slice in 3D" could be switched on in the Parts look and changed nothing. It is greyed
   there, with the reason.
 
+**A fault found in review and fixed.** A label file dropped on the window, or chosen with
+"File…", before any scan had a 3D view to put labels on was ignored without a word. A notice
+now says that labels are put on the 3D view of a scan, and to open the scan first; a test
+with such a file fails without the change.
+
 **Left as it is.**
 
 - The solids show faint bands, like contour lines, where the label voxels step; plainest on a
@@ -142,6 +147,10 @@ labels, at 1440 x 900 and at the minimum size of 900 x 600, and looked at:
 - Choosing the Parts look does not move the camera, so labels larger than the series shown
   run off the picture until it is zoomed out.
 - A selected part seen flat-on through a cut is not marked.
+- A part that is faded but shown still takes the pointer from whatever is seen through it.
+- The reader sets aside room for as many voxels as a file's header claims before it reads
+  them, up to the most Voxa holds, so a small damaged file can ask for a great deal of memory
+  for a moment before it is refused as cut short.
 - At 900 x 600, with the planes large and labels on them, a panel's notes run to five short
   lines over the corner of its picture.
 - In the smallest window, a selected part with two sides leaves room for about four rows of
@@ -161,6 +170,8 @@ These need a person at the window and have not been tried by hand:
 - The search box with a real keyboard, the slider for how solid a part is, the switches for a
   side and a group, "Show only this" and "Show all", and how the list scrolls.
 - A ruler or a marker placed on the solids in the Parts look.
+- "Save picture…" and a turntable while the scene shows the Parts look. (The saved picture is
+  drawn by the same path as the one on the screen; saving one was not tried.)
 - Turning, cutting and zooming the solids, and whether they keep up while moving.
 - A label volume too large for the graphics device. (That it is then listed and not drawn is
   written, and was not made to happen.)

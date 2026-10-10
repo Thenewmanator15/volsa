@@ -4,10 +4,15 @@ use voxa_labels::boxes_meet;
 
 use crate::action::{Action, Effect};
 use crate::labels::{
-    FAINTEST, Labels, LabelsStatus, NOWHERE_NEAR, PartShown, on_this_series, study_of,
+    FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOWHERE_NEAR, PartShown, on_this_series,
+    study_of,
 };
 use crate::planes::grid;
-use crate::state::AppState;
+use crate::state::{AppState, Notice, NoticeKind};
+
+/// The notice that labels were not opened for want of a volume takes the place of an earlier
+/// one, and goes when labels are opened.
+const NOTHING_TO_PUT_THEM_ON: &str = "nothing to label";
 
 /// Whether an action is about labels.
 pub(super) fn concerns(action: &Action) -> bool {
@@ -56,7 +61,8 @@ pub(super) fn emptied(labels: &Labels) -> Labels {
 }
 
 /// Ask for a label file to be read. Labels are put on a volume, so there must be one ready;
-/// they will belong to the study of the series it is of.
+/// they will belong to the study of the series it is of. With no volume nothing is read, and
+/// a notice says what to do first.
 fn open(
     state: &mut AppState,
     labels: std::path::PathBuf,
@@ -64,8 +70,16 @@ fn open(
 ) -> Vec<Effect> {
     let series = state.scene.series.clone().filter(|_| grid(state).is_some());
     let Some(study) = series.and_then(|series| study_of(state, &series)) else {
+        let notice = Notice {
+            kind: NoticeKind::Warning,
+            text: NOTHING_TO_LABEL.to_owned(),
+            details: Vec::new(),
+            key: Some(NOTHING_TO_PUT_THEM_ON),
+        };
+        super::post(state, NOTHING_TO_PUT_THEM_ON, Some(notice));
         return Vec::new();
     };
+    super::post(state, NOTHING_TO_PUT_THEM_ON, None);
     state.labels = Labels {
         status: LabelsStatus::Reading,
         study: Some(study),

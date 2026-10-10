@@ -287,6 +287,8 @@ fn settle_window(
 #[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
+mod labels_open_tests;
+#[cfg(test)]
 mod labels_tests;
 #[cfg(test)]
 mod link_tests;

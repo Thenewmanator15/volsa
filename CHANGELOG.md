@@ -18,7 +18,8 @@ and is not for diagnostic use.
   dropping the file on the window, or with `--labels FILE` on the command line. A label file is
   a single-file NIfTI-1 volume (`.nii` or `.nii.gz`) of whole numbers, one number for each part.
   It is read on a worker thread, and a file that is not that is refused with a sentence that
-  says why.
+  says why. Labels are put on the 3D view of a series: a label file opened before there is one
+  is not read, and a notice says to open the scan first.
 - Names for the parts, from a table beside the label file: the table a labelling pipeline
   writes (names with a group, a colour, a number for each side, how each was made, and the
   model's own check), a plain list of numbers and names, or a 3D Slicer colour table (`.ctbl`).
@@ -84,8 +85,10 @@ and is not for diagnostic use.
   contour lines, where the voxels step. The slice shown in 2D is not drawn among them.
 - A selected part seen flat-on through a cut is not marked: the pale rim that marks it follows
   its surface, and a cut face has none.
-- A label file named with `--labels` for a scan that has no 3D view is not opened, and nothing
-  says so.
+- A label file named with `--labels` waits for a series with a 3D view to be shown. While the
+  series on show has none, the labels are not opened and nothing says that they are waiting.
+- A part that is faded but still shown takes the pointer: resting on, or clicking, a part seen
+  through it names and selects the faded one in front. Hide the part in front instead.
 - No FreeSurfer, NRRD or DICOM SEG files, no meshes, no correcting labels by hand, and no
   comparing the labels of two studies.
 - Opening the made-up study's folder reports two files skipped: its labels and their table,

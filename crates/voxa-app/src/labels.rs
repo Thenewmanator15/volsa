@@ -10,6 +10,9 @@ use crate::state::AppState;
 /// What is said when labels turn out to lie nowhere near the series they were opened on.
 pub const NOWHERE_NEAR: &str =
     "These labels lie nowhere near this series. They were probably made from another scan.";
+/// What is said when a label file is opened and there is no volume to put its labels on.
+pub const NOTHING_TO_LABEL: &str =
+    "Labels are put on the 3D view of a scan. Open the scan first, then its labels.";
 /// The least solid a part can be faded to. Hiding a part is done by its switch.
 pub const FAINTEST: f32 = 0.1;
 
