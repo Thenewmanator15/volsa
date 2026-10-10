@@ -228,7 +228,7 @@ fn clicking_down_the_list_finds_everything_it_offers() {
         !actions.contains(&Action::SetOverlay(Overlay::Outline)),
         "the one in use"
     );
-    assert_eq!(asked, [Asked::OpenNames]);
+    assert_eq!(asked, [Asked::OpenNames, Asked::SaveCsv]);
 }
 
 #[test]
@@ -245,6 +245,14 @@ fn the_part_selected_can_be_faded_shown_alone_and_let_go() {
     );
     let said = written(&state);
     assert!(said.contains("hippocampus, right: 4.0 ml"), "{said}");
+    let against = "Left 4.0 ml, right 4.0 ml: the same size.";
+    assert!(said.contains(against), "its two sides are compared: {said}");
+    reduce(&mut state, Action::PartSelect(Some(2)));
+    let said = written(&state);
+    assert!(
+        !said.contains("Left "),
+        "a part with one side is not: {said}"
+    );
 }
 
 #[test]

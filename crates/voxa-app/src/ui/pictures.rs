@@ -76,7 +76,8 @@ impl VoxaApp {
         }
         if let Some(area) = areas.parts {
             let asked = parts::show(ui, area, state, &mut self.parts, actions);
-            actions.extend(asked.and_then(|asked| self.labels.chosen(asked)));
+            let open = &state.labels;
+            actions.extend(asked.and_then(|asked| self.labels.chosen(asked, open)));
         }
         ui.allocate_rect(whole, egui::Sense::hover());
     }

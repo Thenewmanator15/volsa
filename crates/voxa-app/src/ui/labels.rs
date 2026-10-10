@@ -8,9 +8,12 @@ use egui_wgpu::RenderState;
 use voxa_labels::LabelSet;
 use voxa_render::{LabelsOnDevice, PartLook};
 
+use super::scene::export::said;
 use super::{VoxaApp, parts};
 use crate::action::Action;
-use crate::labels::{is_label_file, on_this_series};
+use crate::export::write;
+use crate::labels::{Labels, is_label_file, on_this_series};
+use crate::parts_table::{PARTS_NAME, parts_csv};
 use crate::planes::grid;
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -63,9 +66,10 @@ impl Opening {
 }
 
 impl Opening {
-    /// Ask the person for the file the Parts list wants, and give what opens it: a label
-    /// file, or another table of names for the labels open. `None` when they chose nothing.
-    pub fn chosen(&mut self, asked: parts::Asked) -> Option<Action> {
+    /// Ask the person for the file the Parts list wants, and give what comes of it: what
+    /// opens a label file, or another table of names for the labels open, or what says how
+    /// saving the list of `open` labels went. `None` when they chose nothing.
+    pub fn chosen(&mut self, asked: parts::Asked, open: &Labels) -> Option<Action> {
         match asked {
             parts::Asked::OpenLabels => {
                 let labels = rfd::FileDialog::new()
@@ -80,6 +84,15 @@ impl Opening {
                     .add_filter("Table of names", &["json", "ctbl"])
                     .pick_file()?;
                 self.renamed(table)
+            }
+            parts::Asked::SaveCsv => {
+                let path = rfd::FileDialog::new()
+                    .set_title("Save the parts as a table")
+                    .set_file_name(format!("{PARTS_NAME}.csv"))
+                    .add_filter("CSV table", &["csv"])
+                    .save_file()?;
+                let outcome = write(&path, parts_csv(open).as_bytes());
+                Some(Action::Post(said(&path, outcome)))
             }
         }
     }

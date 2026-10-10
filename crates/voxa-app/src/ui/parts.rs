@@ -9,6 +9,7 @@ use voxa_render::Overlay;
 use super::theme;
 use crate::action::Action;
 use crate::labels::{FAINTEST, Labels, LabelsStatus, NamesFrom, on_this_series};
+use crate::parts_table::sides_compared;
 use crate::planes::grid;
 use crate::state::AppState;
 
@@ -34,6 +35,8 @@ pub enum Asked {
     OpenLabels,
     /// To choose another table of names for the labels open.
     OpenNames,
+    /// To save the list of parts as a table.
+    SaveCsv,
 }
 
 /// What the list keeps between frames.
@@ -134,7 +137,7 @@ fn list(
     view: &mut PartsView,
     actions: &mut Vec<Action>,
 ) -> Option<Asked> {
-    let asked = switches(ui, labels, actions);
+    let mut asked = switches(ui, labels, actions);
     let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
     ui.add(search.desired_width(f32::INFINITY));
     if let Some(part) = labels.selected {
@@ -144,7 +147,7 @@ fn list(
     let wide = ui.available_width() >= WIDE;
     let tall = ScrollArea::vertical().auto_shrink([false, false]);
     tall.show(ui, |ui| {
-        about(ui, labels);
+        asked = asked.or(about(ui, labels));
         let groups = rows(labels, &view.search);
         if groups.is_empty() {
             ui.label(RichText::new("No part has that in its name.").color(theme::QUIET_TEXT));
@@ -174,8 +177,9 @@ fn list(
 }
 
 /// What the labels are: what they are of, that another program made them, where their
-/// names came from, and the labelling model's own check of them.
-fn about(ui: &mut Ui, labels: &Labels) {
+/// names came from, and the labelling model's own check of them; and, beneath that, the
+/// button that saves the list as a table. Gives that it was asked for.
+fn about(ui: &mut Ui, labels: &Labels) -> Option<Asked> {
     let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
     if !labels.title.is_empty() {
         ui.label(RichText::new(&labels.title).strong());
@@ -195,6 +199,9 @@ fn about(ui: &mut Ui, labels: &Labels) {
                 .color(colour),
         );
     }
+    let save = ui.small_button("Save as CSV…");
+    let hint = "Save every part, with its volume, as a table for a spreadsheet";
+    save.on_hover_text(hint).clicked().then_some(Asked::SaveCsv)
 }
 
 /// The switches that act on all the labels: show every part, close the labels, choose
@@ -328,7 +335,8 @@ fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut Vec<
     });
 }
 
-/// The part selected: what it is, how solid it is drawn, and showing it alone.
+/// The part selected: what it is, how solid it is drawn, showing it alone, and its two
+/// sides set against each other if it has two.
 fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) {
     let (Some(named), Some(how)) = (labels.parts.get(part), labels.shown.get(part)) else {
         return;
@@ -355,6 +363,9 @@ fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) 
             actions.push(Action::PartIsolate(part));
         }
     });
+    if let Some(against) = sides_compared(labels, part) {
+        ui.label(RichText::new(against).small().color(theme::QUIET_TEXT));
+    }
 }
 
 #[cfg(test)]

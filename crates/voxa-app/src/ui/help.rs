@@ -6,7 +6,7 @@ use super::overlay::SHORTCUTS;
 use super::theme;
 
 /// What the mouse does over a viewport, for the same window.
-pub const MOUSE: [(&str, &str); 11] = [
+pub const MOUSE: [(&str, &str); 12] = [
     ("Wheel", "Move through the slices"),
     ("Ctrl + wheel", "Zoom about the pointer"),
     ("Middle drag", "Move the picture"),
@@ -27,6 +27,10 @@ pub const MOUSE: [(&str, &str); 11] = [
     ("Shift + drag, or middle drag, in 3D", "Move the scene"),
     ("Wheel, in 3D", "Zoom about the pointer"),
     ("Double-click, in 3D", "Put that point in the middle"),
+    (
+        "Click, on a labelled part",
+        "Select it. Rest the pointer on a part for its name",
+    ),
 ];
 
 /// Show the reference while `open` is true; closing it sets `open` to false.
@@ -61,7 +65,12 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 24);
+        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 25);
+        let parts = MOUSE
+            .iter()
+            .find(|(input, _)| input.contains("labelled part"));
+        let (_, does) = parts.expect("what a click on a part does is listed");
+        assert!(does.contains("Select") && does.contains("name"), "{does}");
         let in_3d = MOUSE
             .iter()
             .filter(|(input, _)| input.ends_with("in 3D"))

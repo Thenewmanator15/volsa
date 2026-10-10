@@ -6,6 +6,7 @@ use serde::Serialize;
 use voxa_core::{Affine, Patient, Voxel};
 
 use crate::annotations::{Annotation, measured};
+use crate::csv::{field, not_a_formula};
 
 /// The file name offered when measurements are saved. It says nothing of the scan.
 pub const MEASUREMENTS_NAME: &str = "voxa-measurements";
@@ -69,26 +70,6 @@ pub fn measurements_csv(rows: &[Row]) -> String {
         table.push_str("\r\n");
     }
     table
-}
-
-/// One field of the table: in quotation marks, with any of its own doubled, when it holds a
-/// comma, a quotation mark or a line break.
-fn field(text: &str) -> String {
-    if text.contains([',', '"', '\r', '\n']) {
-        format!("\"{}\"", text.replace('"', "\"\""))
-    } else {
-        text.to_owned()
-    }
-}
-
-/// A name as it is safe to hand a spreadsheet: one that begins like a formula is given an
-/// apostrophe first, which a spreadsheet reads as "this is text".
-fn not_a_formula(label: &str) -> String {
-    if label.starts_with(['=', '+', '-', '@']) {
-        format!("'{label}")
-    } else {
-        label.to_owned()
-    }
 }
 
 /// What the JSON holds.
