@@ -1,7 +1,7 @@
 # Voxa: labelling a scan inside the app
 
 Date: 2026-10-11
-Status: draft for review
+Status: approved by the owner on 2026-10-11
 
 This is the specification for the second half of milestone 4 of
 [the Voxa design](2026-10-05-voxa-design.md): running a labelling model inside Voxa. The first
