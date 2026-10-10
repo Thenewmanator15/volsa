@@ -67,7 +67,7 @@ fn built(scene: &mut Scene, report: Action) {
 /// Show the whole volume again, from the way the camera already faces.
 pub(super) fn refit(state: &mut AppState) {
     let scene = &mut state.scene;
-    if let Some(corners) = scene.corners {
+    if let Some(corners) = scene.frame.or(scene.corners) {
         scene.camera = scene.camera.refitted(&corners, scene.viewport);
     }
 }
@@ -160,7 +160,7 @@ fn resized(scene: &mut Scene, viewport: [f32; 2]) {
     let shorter = |[wide, high]: [f32; 2]| f64::from(wide.min(high));
     let (was, is) = (shorter(scene.viewport), shorter(viewport));
     scene.viewport = viewport;
-    if let Some(corners) = scene.corners.filter(|_| scene.untouched) {
+    if let Some(corners) = scene.frame.or(scene.corners).filter(|_| scene.untouched) {
         scene.camera = Camera::fitted(NamedView::Anterior, &corners, viewport);
     } else if was > 0.0 {
         let scale = scene.camera.mm_per_px * was / is;
@@ -177,7 +177,7 @@ fn move_camera(scene: &mut Scene, to: impl FnOnce(Camera) -> Camera) {
 /// A camera facing one side of the patient: showing the whole volume if there is one, and
 /// otherwise keeping its place and scale.
 fn facing(scene: &Scene, view: NamedView) -> Camera {
-    match &scene.corners {
+    match &scene.frame.or(scene.corners) {
         Some(corners) => Camera::fitted(view, corners, scene.viewport),
         None => Camera::looking(view, scene.camera.target, scene.camera.mm_per_px),
     }

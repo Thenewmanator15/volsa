@@ -228,7 +228,11 @@ fn the_selected_part_is_paler_on_a_cuts_face_and_the_other_is_as_it_was() {
     let selected = drawn(&mut gpu, &front);
     // On the cut's face: the red half on the picture's right, the blue, selected, on its left.
     let (red, blue) = (pixel(&front, 6.0, 3.0), pixel(&front, -6.0, 3.0));
-    assert_eq!(rgb(&selected, red), rgb(&plain, red), "not the one selected");
+    assert_eq!(
+        rgb(&selected, red),
+        rgb(&plain, red),
+        "not the one selected"
+    );
     let (before, after) = (rgb(&plain, blue), rgb(&selected, blue));
     let sum = |colour: [u8; 3]| colour.iter().map(|part| u32::from(*part)).sum::<u32>();
     assert!(

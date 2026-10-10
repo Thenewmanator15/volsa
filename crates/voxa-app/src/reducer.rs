@@ -11,6 +11,7 @@ use crate::scene::{MainPanel, Scene};
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod frame;
 mod labels;
 mod link;
 mod planes;
@@ -53,6 +54,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     annotations::settle(state, was.as_ref());
     effects.extend(link::keep(state, &before));
     effects.extend(planes::keep_curve(state, &smoothed));
+    frame::keep(state);
     effects
 }
 
@@ -286,6 +288,8 @@ fn settle_window(
 
 #[cfg(test)]
 mod annotations_tests;
+#[cfg(test)]
+mod frame_tests;
 #[cfg(test)]
 mod labels_open_tests;
 #[cfg(test)]

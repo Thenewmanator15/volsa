@@ -63,6 +63,9 @@ pub struct Scene {
     pub viewport: [f32; 2],
     /// The eight outer corners of the volume in the patient, once it is built.
     pub corners: Option<[Point<Patient>; 8]>,
+    /// The box the camera is fitted to when it is fitted: the volume's own, or, in the
+    /// Parts look, that of labels which reach beyond the volume.
+    pub frame: Option<[Point<Patient>; 8]>,
     /// How many times the volume was halved, each way, to fit the graphics device.
     pub halved: u32,
     /// How the volume is turned into a picture.
@@ -87,6 +90,7 @@ impl Default for Scene {
             untouched: true,
             viewport: Self::FIRST_VIEWPORT,
             corners: None,
+            frame: None,
             halved: 0,
             look: Look::Surface,
             cuts: Vec::new(),
