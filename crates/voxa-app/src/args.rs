@@ -7,9 +7,10 @@ use std::path::PathBuf;
 pub const USAGE: &str = "\
 Voxa, a viewer for MRI scans.
 
-Usage: voxa [PATH]
+Usage: voxa [PATH] [--labels FILE]
 
-  PATH         a folder of DICOM files, a zip file of them, or a DICOMDIR to open
+  PATH           a folder of DICOM files, a zip file of them, or a DICOMDIR to open
+  --labels FILE  labels made for that scan, to show its parts: a NIfTI file (.nii, .nii.gz)
   -h, --help     show this help
   -V, --version  show the version
 
@@ -22,6 +23,13 @@ Voxa is not a medical device and is not for diagnostic use.";
 pub enum Command {
     /// Open the window, with this scan in it if one was named.
     Run(Option<PathBuf>),
+    /// Open the window with a scan, if one was named, and these labels on it.
+    RunWith {
+        /// The scan to open.
+        scan: Option<PathBuf>,
+        /// The labels to open on it once it can be shown in 3D.
+        labels: PathBuf,
+    },
     /// Say which version this is.
     Version,
     /// Say how Voxa is started.
@@ -44,13 +52,19 @@ pub fn parse_args(args: impl Iterator<Item = OsString>) -> Result<Command, Strin
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut asked = None;
     let mut only_paths = false;
-    for arg in args {
+    let mut labels = None;
+    let mut args = args;
+    while let Some(arg) = args.next() {
         let text = arg.to_string_lossy();
         match text.as_ref() {
             _ if only_paths => paths.push(PathBuf::from(&arg)),
             "--" => only_paths = true,
             "-h" | "--help" => asked = Some(Command::Help),
             "-V" | "--version" => asked = asked.or(Some(Command::Version)),
+            "--labels" => {
+                let named = args.next().map(PathBuf::from);
+                labels = Some(named.ok_or("--labels needs the label file to open after it.")?);
+            }
             option if option.starts_with('-') && option.len() > 1 => {
                 return Err(format!("Voxa has no option {option}"));
             }
@@ -63,7 +77,12 @@ pub fn parse_args(args: impl Iterator<Item = OsString>) -> Result<Command, Strin
     let mut paths = paths.into_iter();
     let first = paths.next();
     let extras: Vec<String> = paths.map(|path| path.display().to_string()).collect();
-    if extras.is_empty() {
+    if let (true, Some(labels)) = (extras.is_empty(), labels) {
+        Ok(Command::RunWith {
+            scan: first,
+            labels,
+        })
+    } else if extras.is_empty() {
         Ok(Command::Run(first))
     } else {
         Err(format!(
@@ -82,6 +101,27 @@ mod tests {
 
     fn parsed(args: &[&str]) -> Result<Command, String> {
         parse_args(args.iter().map(OsString::from))
+    }
+
+    #[test]
+    fn labels_are_named_with_their_own_option() {
+        let both = Command::RunWith {
+            scan: Some(PathBuf::from("scan")),
+            labels: PathBuf::from("l.nii.gz"),
+        };
+        assert_eq!(parsed(&["scan", "--labels", "l.nii.gz"]), Ok(both.clone()));
+        assert_eq!(parsed(&["--labels", "l.nii.gz", "scan"]), Ok(both));
+        let alone = Command::RunWith {
+            scan: None,
+            labels: PathBuf::from("l.nii.gz"),
+        };
+        assert_eq!(parsed(&["--labels", "l.nii.gz"]), Ok(alone));
+        let nothing_after = parsed(&["scan", "--labels"]).expect_err("needs a file");
+        assert!(
+            nothing_after.contains("--labels") && nothing_after.ends_with('.'),
+            "{nothing_after}"
+        );
+        assert!(USAGE.contains("--labels FILE"));
     }
 
     #[test]

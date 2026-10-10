@@ -26,6 +26,7 @@ directories.workspace = true
 
 [dev-dependencies]
 voxa-dicom = { workspace = true, features = ["testkit"] }
+voxa-labels = { workspace = true, features = ["testkit"] }
 tempfile.workspace = true
 zip.workspace = true
 criterion.workspace = true

@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use voxa_core::{SeriesId, Volume};
 use voxa_dicom::Frame;
+use voxa_labels::LabelSet;
 use voxa_render::{Prepared, Smoothed};
 
 use crate::action::{Action, Effect};
@@ -106,6 +107,11 @@ impl Session {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .take_smoothed(series)
+    }
+
+    /// The labels a worker has read, if there are any and they have not been given up.
+    pub fn labels(&self) -> Option<Arc<LabelSet>> {
+        self.workers.labels()
     }
 
     /// Apply an action and hand the work it calls for to the workers.

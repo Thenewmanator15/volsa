@@ -42,7 +42,7 @@ pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};
 pub use labels::{
-    Labels, LabelsStatus, NamesFrom, PartShown, look_drawn, on_this_series, study_of,
+    Labels, LabelsStatus, NamesFrom, PartShown, is_label_file, look_drawn, on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
@@ -55,4 +55,4 @@ pub use state::{
 pub use ui::{VoxaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, series_key};
 pub use volume_store::VolumeStore;
-pub use worker::Workers;
+pub use worker::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, Workers, table_beside};

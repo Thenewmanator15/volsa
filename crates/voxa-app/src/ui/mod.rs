@@ -17,6 +17,7 @@ mod capture;
 mod cine;
 mod help;
 mod keys;
+mod labels;
 mod layout;
 mod measure;
 mod overlay;
@@ -50,6 +51,8 @@ pub struct VoxaApp {
     help_open: bool,
     tags: tags::Panel,
     measure: measure::Panel,
+    /// The label file to open, and the one that is open.
+    labels: labels::Opening,
     /// When playback in each viewport last moved on.
     clocks: [cine::Clock; VIEWPORTS],
     capture: Option<capture::Capture>,
@@ -61,7 +64,11 @@ pub struct VoxaApp {
 
 impl VoxaApp {
     /// Set the window up, and open `initial` if a path was given.
-    pub fn new(creation: &eframe::CreationContext<'_>, initial: Option<PathBuf>) -> Self {
+    pub fn new(
+        creation: &eframe::CreationContext<'_>,
+        initial: Option<PathBuf>,
+        labels: Option<PathBuf>,
+    ) -> Self {
         theme::apply(&creation.egui_ctx);
         // Workers report on their own channel; a small thread passes each report on and wakes
         // the window, so the workers need know nothing about the interface.
@@ -91,6 +98,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             measure: measure::Panel::default(),
+            labels: labels::Opening::waiting_for(labels),
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture,
             pose: Vec::new(),
@@ -211,6 +219,7 @@ impl VoxaApp {
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.session.pump();
+        self.open_waiting_labels();
         self.play(ctx);
         self.make_thumbnails(ctx);
         self.tags
@@ -234,7 +243,7 @@ impl eframe::App for VoxaApp {
         self.tags.open ^= asked.tags;
         self.measure.open ^= asked.measure;
         if let Some(path) = chosen(ui.ctx(), asked.open) {
-            actions.push(Action::OpenPath(path));
+            actions.push(self.labels.opening(path));
         }
         egui::Panel::bottom("status").show(ui, |ui| self.status(ui, &mut actions));
         let column = egui::Panel::left("browser")
@@ -302,12 +311,13 @@ fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> 
     })
 }
 
-/// Open the Voxa window and run until it is closed. `initial` is a scan to open at once.
+/// Open the Voxa window and run until it is closed. `initial` is a scan to open at once,
+/// and `labels` a label file to open on it as soon as it can be shown in 3D.
 ///
 /// # Errors
 ///
 /// When the window or its graphics device cannot be created.
-pub fn run(initial: Option<PathBuf>) -> eframe::Result {
+pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result {
     // A picture for the documentation may want the window a particular size.
     let asked = std::env::var(capture::SIZE_VARIABLE).ok();
     let size = asked.and_then(|size| capture::size_from(&size));
@@ -320,7 +330,7 @@ pub fn run(initial: Option<PathBuf>) -> eframe::Result {
         ..Default::default()
     };
     let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
-        Ok(Box::new(VoxaApp::new(creation, initial)))
+        Ok(Box::new(VoxaApp::new(creation, initial, labels)))
     };
     eframe::run_native("Voxa", options, Box::new(create))
 }

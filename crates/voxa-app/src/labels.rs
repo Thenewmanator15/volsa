@@ -88,6 +88,18 @@ impl Labels {
     }
 }
 
+/// Whether a file is opened as labels, by its name: a NIfTI file, plain or gzipped, whatever
+/// the case of its letters. Anything else dropped on the window is a scan.
+pub fn is_label_file(path: &std::path::Path) -> bool {
+    let ending = |path: &std::path::Path, wanted: &str| {
+        let ending = path.extension().map(|ending| ending.to_string_lossy());
+        ending.is_some_and(|ending| ending.eq_ignore_ascii_case(wanted))
+    };
+    let unzipped = path.file_stem().map(std::path::Path::new);
+    ending(path, "nii")
+        || (ending(path, "gz") && unzipped.is_some_and(|inner| ending(inner, "nii")))
+}
+
 /// The study a series belongs to.
 pub fn study_of(state: &AppState, series: &SeriesId) -> Option<StudyId> {
     let studies = &state.index.as_ref()?.studies;

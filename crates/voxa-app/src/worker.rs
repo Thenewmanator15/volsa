@@ -8,9 +8,8 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use voxa_core::SeriesId;
-use voxa_dicom::{
-    Frame, ImageFile, Index, IndexedSeries, SeriesSource, TagRow, index, open_source,
-};
+use voxa_dicom::{Frame, ImageFile, Index, IndexedSeries, SeriesSource, index, open_source};
+use voxa_labels::LabelSet;
 use voxa_volume::PRESETS;
 
 use crate::action::{Action, Effect};
@@ -18,9 +17,13 @@ use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+mod labels;
 mod post;
+mod tags;
 mod views;
 mod volume;
+
+pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
 
 /// The longest side of a volume taken to fit a graphics device until the window says what
 /// its own allows: what every device made for the desktop can hold.
@@ -63,6 +66,9 @@ struct Shared {
     /// The same two counts for the kept annotations.
     notes: AtomicU64,
     noted: Mutex<u64>,
+    /// The labels kept, and how many reads of labels have been asked for or given up.
+    labels: Mutex<Option<Arc<LabelSet>>>,
+    label_reads: AtomicU64,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -108,6 +114,8 @@ impl Workers {
             stored: Mutex::new(0),
             notes: AtomicU64::new(0),
             noted: Mutex::new(0),
+            labels: Mutex::new(None),
+            label_reads: AtomicU64::new(0),
         };
         Self {
             pool: named.build().ok(),
@@ -145,7 +153,9 @@ impl Workers {
             Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::LoadAnnotations { series } => self.load_annotations(series),
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
-            Effect::None | Effect::ReadLabels { .. } | Effect::DropLabels => {}
+            Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
+            Effect::DropLabels => self.drop_labels(),
+            Effect::None => {}
         }
     }
 
@@ -221,29 +231,6 @@ impl Workers {
                     shielded(|| shared.decode(&batch, &request));
                 });
             }
-        });
-    }
-
-    /// List the elements of the file behind one slice, on a worker, and hand them to `reply`.
-    /// The rows hold the patient's details, so they go to `reply` alone and are never made
-    /// into an [`Action`].
-    pub fn list_tags(
-        &self,
-        listed: &IndexedSeries,
-        slice: usize,
-        reply: impl FnOnce(Result<Vec<TagRow>, String>) + Send + 'static,
-    ) {
-        let Some(at) = listed.slices.get(slice).cloned() else {
-            reply(Err("There is no such slice.".to_owned()));
-            return;
-        };
-        let shared = Arc::clone(&self.shared);
-        self.spawn(move || {
-            let rows = match lock(&shared.source).as_mut() {
-                Some(source) => voxa_dicom::list_tags(source.as_mut(), &at),
-                None => return reply(Err("No scan is open.".to_owned())),
-            };
-            reply(rows.map_err(|error| error.to_string()));
         });
     }
 
@@ -391,6 +378,8 @@ fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+#[cfg(test)]
+mod labels_tests;
 #[cfg(test)]
 mod once_tests;
 #[cfg(test)]
