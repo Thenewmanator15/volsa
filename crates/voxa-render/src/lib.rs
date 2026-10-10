@@ -30,6 +30,7 @@ mod slice_pipeline;
 mod smoothed;
 #[cfg(test)]
 mod testing;
+mod timing;
 mod vector;
 mod view;
 mod volume_params;
@@ -52,5 +53,6 @@ pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use section::{box_section, position_cross};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use smoothed::{Smoothed, SmoothedTexture};
+pub use timing::timed_submit;
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
 pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

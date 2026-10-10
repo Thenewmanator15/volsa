@@ -89,6 +89,35 @@ pub fn label_pose(wanted: &str) -> Vec<Action> {
     wanted.map(|(_, action)| action).collect()
 }
 
+/// Whether a picture is of the 3D scene at rest or while it moves.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Motion {
+    /// At rest, drawn in full.
+    Still,
+    /// Kept moving, drawn as it is while it moves.
+    Moving,
+}
+
+/// How many frames the window shows what is wanted before its picture is taken: twice as
+/// many for a picture of the scene moving, which is first left to come to rest.
+pub fn frames_before(scene: Motion) -> u32 {
+    if scene == Motion::Moving {
+        2 * SETTLE_FRAMES
+    } else {
+        SETTLE_FRAMES
+    }
+}
+
+/// For a picture of the scene while it moves, asked for by the word `moving`: after
+/// `settled` frames at rest, a turn of half a point one way on one frame and back on the
+/// next, which keeps the scene moving and shows the same view. Nothing for the first
+/// frames, in which the scene comes to rest and is drawn in full.
+pub fn turn_at(scene: Motion, settled: u32) -> Option<Action> {
+    let way = if settled.is_multiple_of(2) { 0.5 } else { -0.5 };
+    (scene == Motion::Moving && settled >= SETTLE_FRAMES + SETTLE_FRAMES / 2)
+        .then_some(Action::SceneOrbit { by: [way, 0.0] })
+}
+
 /// For a picture that asks for the first series listed, whatever Voxa would have opened: what
 /// shows it. `None` until the index is finished, which is when that series' thumbnail is there.
 pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool) -> Option<Action> {
@@ -151,6 +180,8 @@ pub struct Capture {
     first: bool,
     /// Whether one of each kind of annotation has still to be made for the picture.
     measured: bool,
+    /// Whether the picture is to be of the 3D scene at rest or while it moves.
+    scene: Motion,
 }
 
 impl Capture {
@@ -164,6 +195,11 @@ impl Capture {
             asked: false,
             first: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("first")),
             measured: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("measured")),
+            scene: if std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("moving")) {
+                Motion::Moving
+            } else {
+                Motion::Still
+            },
         })
     }
 
@@ -183,6 +219,12 @@ impl Capture {
         let made = made.unwrap_or_default();
         self.measured &= made.is_empty();
         made
+    }
+
+    /// For a picture of the scene while it moves: how to turn it this frame, a little one
+    /// way and then back, once it has had time to come to rest and be drawn in full.
+    pub fn turn(&self) -> Option<Action> {
+        turn_at(self.scene, self.settled)
     }
 
     /// Call once a frame. `ready` says whether the window shows what is wanted.
@@ -206,7 +248,8 @@ impl Capture {
         if ready {
             self.settled += 1;
         }
-        let due = self.settled >= SETTLE_FRAMES || self.started.elapsed() >= PATIENCE;
+        let frames = frames_before(self.scene);
+        let due = self.settled >= frames || self.started.elapsed() >= PATIENCE;
         if due && !self.asked {
             self.asked = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
@@ -231,6 +274,9 @@ impl VoxaApp {
             let sample = wanted.map(|capture| capture.sample(state, scan.as_deref()));
             for action in sample.unwrap_or_default() {
                 self.session.dispatch(action);
+            }
+            if let Some(turn) = self.capture.as_ref().and_then(Capture::turn) {
+                self.session.dispatch(turn);
             }
         }
         // A picture of the window waits for the slice and, if there is to be one, the volume.
@@ -265,119 +311,4 @@ impl VoxaApp {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_picture_can_ask_for_the_scene_to_be_posed() {
-        use voxa_render::Look;
-        assert_eq!(pose("tags,keys"), []);
-        assert_eq!(pose("cut"), [Action::CutAdd]);
-        let all = pose("about, mip, turned, cut, slice");
-        let expected = [
-            Action::SceneLook(Look::Mip),
-            Action::SceneOrbit { by: [70.0, 35.0] },
-            Action::CutAdd,
-            Action::ShowSliceInScene(true),
-        ];
-        assert_eq!(
-            all, expected,
-            "in an order that does not depend on how they were asked"
-        );
-        assert_eq!(pose("vr"), [Action::SceneLook(Look::Vr)]);
-        assert_eq!(pose("smooth"), [Action::SetSmooth(true)]);
-    }
-
-    #[test]
-    fn a_picture_can_ask_for_the_first_series_listed_once_the_index_is_finished() {
-        let mut state = AppState::default();
-        assert_eq!(
-            first_listed(&state, |_| true),
-            None,
-            "nothing is listed yet"
-        );
-        state.index = Some(crate::testing::with_odd_series());
-        let listed = state.index.as_ref().and_then(|index| index.series.first());
-        let series = listed.map(|listed| listed.info.id.clone()).expect("listed");
-        let unfinished = first_listed(&state, |_| false);
-        assert_eq!(
-            unfinished, None,
-            "its thumbnail comes once the index is finished"
-        );
-        let (viewport, shown) = (0, first_listed(&state, |_| true));
-        assert_eq!(shown, Some(Action::SelectSeries { viewport, series }));
-    }
-
-    #[test]
-    fn a_picture_can_ask_for_the_labelled_parts_to_be_posed_once_they_are_read() {
-        assert_eq!(
-            label_pose("parts, filled, mip"),
-            [],
-            "those wait for no labels"
-        );
-        assert_eq!(label_pose("solids"), [Action::SceneLook(Look::Parts)]);
-        let faded = Action::PartOpacity {
-            part: 0,
-            opacity: 0.3,
-        };
-        let chosen = Action::PartSelect(Some(0));
-        let all = label_pose("chosen, faded, solids");
-        assert_eq!(all, [Action::SceneLook(Look::Parts), faded, chosen]);
-        assert_eq!(pose("solids, faded, chosen"), [], "not before the labels");
-    }
-
-    #[test]
-    fn a_window_size_is_read_as_width_by_height() {
-        assert_eq!(size_from("900x600"), Some([900.0, 600.0]));
-        assert_eq!(size_from(" 1440 x 900 "), Some([1440.0, 900.0]));
-        assert_eq!(size_from("900"), None);
-        assert_eq!(size_from("0x600"), None, "a window has to have a size");
-        assert_eq!(size_from("wide x tall"), None);
-    }
-
-    #[test]
-    fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
-        use voxa_core::Volume;
-        use voxa_volume::PlaneKind;
-
-        use crate::annotations::Shape;
-        use crate::planes::plane;
-        use crate::testing::{THICK_SCAN, id, thick_scan_ready};
-        let state = thick_scan_ready();
-        let info = &state.series(&id(THICK_SCAN)).expect("listed").info;
-        let placement = info.voxel_to_patient.expect("placed");
-        let scan = Volume::new([4, 4, 30], vec![5.0; 480], placement).expect("adds up");
-        let made = sample_annotations(&state, &scan);
-        let shapes: Vec<&Shape> = made
-            .iter()
-            .filter_map(|action| match action {
-                Action::AnnotationAdd(shape) => Some(shape),
-                _ => None,
-            })
-            .collect();
-        let kinds: Vec<&str> = shapes.iter().map(|shape| shape.kind()).collect();
-        assert_eq!(kinds, ["Ruler", "Angle", "Region", "Marker"]);
-        assert_eq!(made.len(), 4, "and nothing else");
-        let axial = plane(&state, PlaneKind::Axial).expect("a plane");
-        let on_the_plane = |at: &[f64; 3]| {
-            let [x, y, z] = *at;
-            axial.of(voxa_core::Point::new(x, y, z)).1.abs() < 1.0e-9
-        };
-        for shape in &shapes {
-            assert!(shape.points().iter().all(on_the_plane), "{shape:?}");
-        }
-        assert_eq!(
-            sample_annotations(&AppState::default(), &scan),
-            [],
-            "nothing with no volume"
-        );
-    }
-
-    #[test]
-    fn a_picture_of_the_window_neither_shows_nor_changes_what_is_kept_between_runs() {
-        let folder = || Some(PathBuf::from("where settings are kept"));
-        assert_eq!(kept_between_runs(false, folder()), folder());
-        assert_eq!(kept_between_runs(true, folder()), None);
-        assert_eq!(kept_between_runs(false, None), None);
-    }
-}
+mod tests;

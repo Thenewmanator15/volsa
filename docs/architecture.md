@@ -52,9 +52,13 @@ The 3D scene follows the series of the active viewport:
    is half the least distance between voxels from every side.
    Surface and VR draw nothing fainter than a tenth of the window, so the noise in the air
    about a patient is neither shown nor allowed to dim what is behind it.
-4. The picture is drawn off the screen, at half size and half quality while the camera moves,
-   and shown by `egui` as an image. The same path draws the pictures that are saved; a
-   turntable's pictures are put together into its file on a worker.
+4. The picture is drawn off the screen and shown by `egui` as an image. While the camera
+   moves it is drawn as finely as the device keeps up with: the device is timed on the
+   pictures it draws in full, by handing it one when it has nothing else in hand and waiting
+   for it, and the moving picture is drawn in full, at three quarters or at a half of the
+   size and fineness, whichever is the finest expected to fit in 8 ms. The same path draws
+   the pictures that are saved; a turntable's pictures are put together into its file on a
+   worker.
 5. The camera has no perspective and lives in patient space, so nothing is mirrored, a scale bar
    holds across the picture, and the letters at the edges come from the same rule as in 2D.
 

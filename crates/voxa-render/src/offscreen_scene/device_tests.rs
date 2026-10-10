@@ -213,3 +213,27 @@ fn with_no_volume_on_the_device_there_is_no_curve_to_make() {
     assert_eq!(gpu.curve_as_held(), None);
     assert_eq!(gpu.blocks_as_held(), None);
 }
+
+#[test]
+fn a_piece_of_work_is_timed_only_when_the_device_has_nothing_else_in_hand() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let nothing = |gpu: &crate::offscreen_scene::HeadlessScene| {
+        let describe = egui_wgpu::wgpu::CommandEncoderDescriptor::default();
+        gpu.gpu.device.create_command_encoder(&describe).finish()
+    };
+    let timed = |gpu: &crate::offscreen_scene::HeadlessScene| {
+        crate::timed_submit(&gpu.gpu.device, &gpu.gpu.queue, nothing(gpu))
+    };
+    gpu.settle();
+    assert!(timed(&gpu).is_some(), "idle: timed");
+    // A volume and the curve through it, handed over and not waited for.
+    let values = (0..96 * 96 * 96).map(|at| (at % 251) as f32).collect();
+    let volume = Volume::new([96; 3], values, Affine::identity()).expect("adds up");
+    gpu.upload(&volume).expect("uploads");
+    assert!(gpu.smooth_planes_on_device());
+    assert_eq!(timed(&gpu), None, "busy: handed over, and not timed");
+    gpu.settle();
+    assert!(timed(&gpu).is_some(), "idle again");
+}

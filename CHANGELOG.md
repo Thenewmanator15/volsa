@@ -27,6 +27,16 @@ All notable changes to Voxa are recorded here. The format follows
   set. The work above was tested on Vulkan and on DirectX 12, on both graphics devices of
   the machine it was written on, and for the first time timed on the discrete one.
 
+- While the 3D scene moves it is drawn as finely as the graphics device keeps up with, not
+  always at half size. The device is timed on the pictures it draws in full, and the moving
+  picture is drawn in full, at three quarters or at a half, whichever is the finest expected
+  to take no more than 8 ms. On a discrete card the moving picture is now the still one:
+  measured in the window, it keeps all of the still picture's detail, where the half-size
+  picture kept about two thirds of it in MIP. A device that is slow, or has not been timed
+  yet, draws the moving scene at a half as before. A sharper way of enlarging the half-size
+  picture was tried first and left out: it made the picture look crisper without bringing it
+  any closer to the full one.
+
 ### Fixed
 
 - Two tests of the worker that reads label files waited for a quiet moment where they

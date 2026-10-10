@@ -75,10 +75,15 @@ pub fn edge_letters(camera: &Camera) -> EdgeLabels {
     }
 }
 
-/// How finely the scene is drawn: coarsely while the camera is moving and for a moment
-/// after, then in full.
-pub fn quality(since_moved: Duration) -> f32 {
-    if since_moved < SETTLING { 0.5 } else { 1.0 }
+/// How finely the scene is drawn: while the camera is moving and for a moment after, as
+/// finely as the graphics device keeps up with, going by how long it took over the last
+/// picture it drew in full, if it has drawn one; then in full.
+pub fn quality(since_moved: Duration, full_took: Option<Duration>) -> f32 {
+    if since_moved < SETTLING {
+        super::pace::moving_quality(full_took)
+    } else {
+        1.0
+    }
 }
 
 /// How long until [`quality`] becomes full, if it is not yet.
@@ -205,9 +210,18 @@ mod tests {
 
     #[test]
     fn the_picture_is_coarse_until_the_camera_has_been_still_a_moment() {
-        assert_eq!(quality(Duration::ZERO), 0.5);
-        assert_eq!(quality(Duration::from_millis(149)), 0.5);
-        assert_eq!(quality(Duration::from_millis(150)), 1.0);
+        assert_eq!(quality(Duration::ZERO, None), 0.5);
+        assert_eq!(quality(Duration::from_millis(149), None), 0.5);
+        assert_eq!(quality(Duration::from_millis(150), None), 1.0);
+        // A device timed at 3 ms for a full picture draws the moving one in full too, and
+        // one timed at 12 ms at three quarters; once still, each draws in full.
+        let (fast, slower) = (
+            Some(Duration::from_millis(3)),
+            Some(Duration::from_millis(12)),
+        );
+        assert_eq!(quality(Duration::ZERO, fast), 1.0);
+        assert_eq!(quality(Duration::ZERO, slower), 0.75);
+        assert_eq!(quality(Duration::from_millis(150), slower), 1.0);
         assert_eq!(
             until_full_quality(Duration::from_millis(100)),
             Some(Duration::from_millis(50))

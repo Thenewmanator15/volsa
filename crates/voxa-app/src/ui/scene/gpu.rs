@@ -2,13 +2,16 @@
 //! and that picture as the interface shows it.
 
 use std::sync::{Arc, Weak};
+use std::time::Duration;
 
 use egui_wgpu::{RenderState, wgpu};
 use voxa_core::Volume;
 use voxa_render::{
     LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, Prepared, RenderError, SceneParams,
-    VolumePipeline,
+    VolumePipeline, timed_submit,
 };
+
+use super::pace::{TIME_EVERY, TIMING_TRIES};
 
 /// The format of the scene's picture: 8-bit greys as they are to be seen, which is how the
 /// interface reads a picture it is handed, and the format a picture is read back in.
@@ -25,6 +28,23 @@ struct Picture {
 /// the labels stood, so that it is drawn again only when one of them changes.
 type Drawn = (SceneParams, [f32; 2], u64);
 
+/// What a timing is of: the picture's size in pixels, the look, and whether it was drawn
+/// as labelled solids.
+type Timed = ([u32; 2], Look, bool);
+
+/// How long the device takes over a picture drawn in full.
+#[derive(Default)]
+struct Timing {
+    /// The last time measured, and what picture it was of.
+    took: Option<(Timed, Duration)>,
+    /// How many pictures in full have been drawn since one was timed, and how many
+    /// times a picture could not be timed because the device was busy.
+    untimed: u32,
+    tries: u32,
+    /// Whether the picture before this one was drawn in full.
+    was_full: bool,
+}
+
 /// What the scene keeps on the graphics device between frames.
 pub struct SceneGpu {
     pipeline: VolumePipeline,
@@ -36,6 +56,7 @@ pub struct SceneGpu {
     /// The volume the device was last given, so it is given once and not every frame.
     given: Weak<Volume>,
     drawn: Option<Drawn>,
+    timing: Timing,
 }
 
 impl SceneGpu {
@@ -48,6 +69,7 @@ impl SceneGpu {
             picture: None,
             given: Weak::new(),
             drawn: None,
+            timing: Timing::default(),
         }
     }
 
@@ -98,6 +120,7 @@ impl SceneGpu {
         let halved = quick.or_else(|| self.pipeline.upload(device, queue, volume).ok());
         self.given = Arc::downgrade(volume);
         self.drawn = None;
+        self.timing = Timing::default();
         halved
     }
 
@@ -118,6 +141,22 @@ impl SceneGpu {
         }
         self.pipeline
             .picture(device, queue, params, viewport, pixels)
+    }
+
+    /// How long the device took over the last picture of `pixels` it drew in full, as
+    /// this scene is drawn. `None` when it has timed none since the volume, the size or
+    /// the look changed.
+    pub fn full_took(&self, pixels: [u32; 2], params: &SceneParams) -> Option<Duration> {
+        let wanted = (pixels, params.look, self.as_parts(params));
+        let (timed, took) = self.timing.took.as_ref()?;
+        (*timed == wanted).then_some(*took)
+    }
+
+    /// Whether a picture in full has been drawn and not timed, the device having been
+    /// busy, and it is worth drawing one again to time it.
+    pub fn wants_timing(&self, pixels: [u32; 2], params: &SceneParams) -> bool {
+        let untimed = self.full_took(pixels, params).is_none();
+        params.quality >= 1.0 && untimed && self.timing.tries < TIMING_TRIES
     }
 
     /// Take what was drawn as no longer worth showing: the scene has moved on.
@@ -150,7 +189,9 @@ impl SceneGpu {
             }
         };
         let wanted = (params.clone(), viewport, self.labels);
-        if self.drawn.as_ref() != Some(&wanted) {
+        // Drawn again when anything has changed, and once more when a full picture has
+        // still to be timed.
+        if self.drawn.as_ref() != Some(&wanted) || self.wants_timing(pixels, params) {
             let as_parts = self.as_parts(params);
             if as_parts {
                 self.parts.set_params(&render.queue, params, viewport);
@@ -160,12 +201,42 @@ impl SceneGpu {
             let describe = wgpu::CommandEncoderDescriptor::default();
             let mut encoder = render.device.create_command_encoder(&describe);
             self.draw_into(&mut encoder, &picture.view, as_parts);
-            render.queue.submit([encoder.finish()]);
+            self.submit(
+                render,
+                encoder.finish(),
+                (pixels, params.look, as_parts),
+                params.quality,
+            );
             self.drawn = Some(wanted);
         }
         let id = picture.id;
         self.picture = Some(picture);
         id
+    }
+
+    /// Hand a picture's drawing to the device. A picture in full is timed when it is the
+    /// first after a coarser one, when none of its kind has been timed, and every so
+    /// often while the moving scene is drawn in full: the device is waited for, which
+    /// costs nothing the picture would not have cost anyway.
+    fn submit(&mut self, render: &RenderState, work: wgpu::CommandBuffer, of: Timed, quality: f32) {
+        let full = quality >= 1.0;
+        let timing = &mut self.timing;
+        let stale = timing.took.as_ref().is_none_or(|(timed, _)| *timed != of);
+        let due = full && (stale || !timing.was_full || timing.untimed >= TIME_EVERY);
+        timing.was_full = full;
+        if !due {
+            timing.untimed += u32::from(full);
+            render.queue.submit([work]);
+            return;
+        }
+        match timed_submit(&render.device, &render.queue, work) {
+            Some(took) => {
+                timing.took = Some((of, took));
+                (timing.untimed, timing.tries) = (0, 0);
+            }
+            // The device was busy: this picture says nothing of how long one takes.
+            None => timing.tries += u32::from(stale),
+        }
     }
 
     /// A picture of a new size, under the name the old one had if there was one.

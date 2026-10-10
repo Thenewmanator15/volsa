@@ -23,6 +23,7 @@ pub mod export;
 mod gpu;
 mod handles;
 mod input;
+mod pace;
 mod parts;
 mod tools;
 pub mod views;
@@ -156,11 +157,19 @@ impl SceneView {
         if let Some(left) = until_full_quality(since) {
             ui.ctx().request_repaint_after(left);
         }
-        let quality = quality(since);
-        let dots = quality * ui.ctx().pixels_per_point();
-        let pixels = [area.width(), area.height()].map(|side| whole(side * dots));
+        // While it moves it is drawn as finely as the device has shown it keeps up with.
+        let size = [area.width(), area.height()];
+        let per_point = ui.ctx().pixels_per_point();
+        let in_full = size.map(|side| whole(side * per_point));
+        let quality = quality(since, gpu.full_took(in_full, &params));
+        let pixels = size.map(|side| whole(side * quality * per_point));
         let params = SceneParams { quality, ..params };
-        Some(gpu.draw(render, &params, [area.width(), area.height()], pixels))
+        let picture = gpu.draw(render, &params, size, pixels);
+        if gpu.wants_timing(in_full, &params) {
+            // It was busy when the full picture was drawn: time one when it is not.
+            ui.ctx().request_repaint_after(pace::TIME_AGAIN);
+        }
+        Some(picture)
     }
 }
 
