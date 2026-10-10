@@ -50,6 +50,12 @@ impl Smoothed {
         self.dims
     }
 
+    /// The coefficients as they are stored.
+    #[cfg(test)]
+    pub(crate) fn halves(&self) -> &[u16] {
+        &self.halves
+    }
+
     /// Put the curve on a graphics device. `None` when the device has no room for it.
     pub fn on(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Option<SmoothedTexture> {
         // Watched for running out of room, as the volume itself is.
@@ -61,12 +67,7 @@ impl Smoothed {
             coefficients.destroy();
             return None;
         }
-        let view = coefficients.create_view(&wgpu::TextureViewDescriptor::default());
-        Some(SmoothedTexture {
-            held: Arc::new(Held { coefficients, view }),
-            dims: self.dims,
-            number: PLACED.fetch_add(1, Ordering::Relaxed) + 1,
-        })
+        Some(SmoothedTexture::holding(coefficients, self.dims))
     }
 }
 
@@ -102,6 +103,23 @@ pub struct SmoothedTexture {
 }
 
 impl SmoothedTexture {
+    /// The curve through a volume of `dims` voxels, whose coefficients `coefficients` holds
+    /// or is about to: the graphics device may still be working them out.
+    pub(crate) fn holding(coefficients: wgpu::Texture, dims: [u32; 3]) -> Self {
+        let view = coefficients.create_view(&wgpu::TextureViewDescriptor::default());
+        Self {
+            held: Arc::new(Held { coefficients, view }),
+            dims,
+            number: PLACED.fetch_add(1, Ordering::Relaxed) + 1,
+        }
+    }
+
+    /// The texture itself, for reading the coefficients back.
+    #[cfg(test)]
+    pub(crate) fn texture(&self) -> &wgpu::Texture {
+        &self.held.coefficients
+    }
+
     /// The coefficients as a shader reads them.
     pub(crate) fn view(&self) -> &wgpu::TextureView {
         &self.held.view

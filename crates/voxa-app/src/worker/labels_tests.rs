@@ -155,7 +155,11 @@ fn a_table_that_cannot_be_read_leaves_the_parts_unnamed_and_says_so() {
     let bench = Bench::with_budget(1 << 20);
     let folder = folder(&[("labels_b.nii.gz", &volume(4)), ("labels_b.json", b"noise")]);
     read(&bench, folder.path().join("labels_b.nii.gz"));
-    let reports = bench.drain();
+    // Everything reported up to the labels themselves, however long the reading takes.
+    let mut reports = Vec::new();
+    while !matches!(reports.last(), Some(Action::LabelsRead { .. })) {
+        reports.push(bench.next());
+    }
     let noticed = reports.iter().find_map(|report| match report {
         Action::Post(notice) => Some(notice),
         _ => None,
@@ -204,6 +208,9 @@ fn the_newest_read_is_the_one_kept_and_dropping_gives_it_up() {
     let folder = folder(&[("small.nii.gz", &volume(4)), ("large.nii.gz", &volume(6))]);
     read(&bench, folder.path().join("small.nii.gz"));
     read(&bench, folder.path().join("large.nii.gz"));
+    // However long the reading takes: until the newer labels are the ones kept.
+    let larger = |set: std::sync::Arc<voxa_labels::LabelSet>| set.dims == [6, 6, 6];
+    bench.until(|bench| bench.workers.labels().is_some_and(larger));
     let reports = bench.drain();
     let last = reports
         .iter()

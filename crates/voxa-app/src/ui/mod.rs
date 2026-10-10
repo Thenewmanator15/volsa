@@ -117,6 +117,11 @@ impl VoxaApp {
             // Volumes are made ready on the workers to fit this device.
             let longest = render.device.limits().max_texture_dimension_3d;
             app.session.workers().set_volume_side(longest);
+            // And what this device works out itself is not worked out on a worker first.
+            let pipeline = app.scene.volume_pipeline();
+            let blocks = pipeline.is_some_and(|pipeline| pipeline.makes_blocks(&render.device));
+            let curves = pipeline.is_some_and(|pipeline| pipeline.makes_curves(&render.device));
+            app.session.workers().leave_to_the_device(blocks, curves);
         }
         if app.capture.is_some() {
             // A picture is of things as they come to rest, not part-way through fading in.

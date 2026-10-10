@@ -39,8 +39,11 @@ The 3D scene follows the series of the active viewport:
    leave the cache and the 2D viewport reads its slices out of the volume. A volume that gives
    way to another, or a build that fails, leaves its slices in the frame cache.
 2. The same worker makes the volume ready for the graphics device: 16-bit values from 0 at the
-   smallest to 1 at the largest, halved first if the device cannot hold it, with the largest
-   value in each block of voxels. The window only hands the result over as two 3D textures.
+   smallest to 1 at the largest, halved first if the device cannot hold it. The window only
+   hands the result over as a 3D texture. The largest value in each block of voxels, which
+   lets a line of sight step over what is empty, is then worked out by the device itself
+   from that texture, by drawing into the slices of a second, small one; a worker works it
+   out beforehand only for a device that cannot.
 3. For every pixel a fragment shader builds the line of sight from the camera, clips it to the
    volume's box in texture space (so a tilted stack needs no resampling), steps past the blocks
    with nothing to draw, and walks the rest: adding up lit, windowed values (Surface, VR) or
@@ -66,10 +69,14 @@ The plane views and measuring hang on one point, the position:
    slices are never resampled and a tilted scan is shown tilted.
 3. Each plane is drawn by a small fragment shader that reads the scene's own 3D texture: for
    every pixel of the panel, the point of the patient it shows, then the value there, through
-   the window. A plane view therefore costs no second copy of the volume. With Smooth on, a
-   worker turns the volume into the coefficients of the cubic B-spline through its values,
-   the window puts them on the device once as a second texture, and the same shader reads
-   that with eight blended reads a pixel.
+   the window. A plane view therefore costs no second copy of the volume. With Smooth on,
+   the device turns the volume it holds into the coefficients of the cubic B-spline through
+   its values: compute shaders run the spline's filter along every line of voxels, each way
+   in turn, in a texture they read and write in place, and the result is copied into a
+   second texture as large as the volume, which the same plane shader reads with eight
+   blended reads a pixel. Nothing passes through the processor. A device with no compute
+   shaders, or with no room for the working texture, leaves it to a worker, which hands the
+   coefficients over as before.
 4. Annotations (rulers, angles, regions, markers) are points in the patient, in millimetres,
    kept with the series they were made on. What each measures is worked out in `voxa-volume`
    from those points and from the scan's own values, never from the screen. A plane view shows

@@ -21,7 +21,8 @@ pub struct Prepared {
     /// Every value, from 0 at the smallest to 1 at the largest, as 16-bit floating point.
     pub(crate) halves: Vec<u16>,
     /// The largest value in each block and the blocks touching it, stored the same way.
-    pub(crate) maxima: Vec<u16>,
+    /// `None` when that is left for the graphics device to work out from the values.
+    pub(crate) maxima: Option<Vec<u16>>,
     /// How many blocks there are along columns, rows and slices.
     pub(crate) blocks: [u32; 3],
     /// Columns, rows and slices as stored, after any halving.
@@ -49,6 +50,21 @@ impl Prepared {
         Self::as_it_is(&shown, halvings)
     }
 
+    /// As [`Prepared::of`], but with the largest value in each block left for the graphics
+    /// device to work out once it holds the values: a pass over every voxel the less.
+    pub fn without_blocks(volume: &Volume, max_side: u32, max_bytes: u64) -> Self {
+        let halvings = halvings_needed(volume.dims(), max_side, max_bytes);
+        let mut shown = Cow::Borrowed(volume);
+        for _ in 0..halvings {
+            shown = Cow::Owned(halved(&shown));
+        }
+        let blocks = shown.dims().map(|count| count.div_ceil(BLOCK));
+        Self {
+            maxima: None,
+            ..Self::with_maxima(&shown, (&[], blocks), halvings)
+        }
+    }
+
     /// Make a volume ready at the size it is. `halved` is how often it has been halved.
     pub(crate) fn as_it_is(volume: &Volume, halved: u32) -> Self {
         let (maxima, blocks) = block_maxima(volume, BLOCK);
@@ -67,7 +83,7 @@ impl Prepared {
         let stored = |value: &f32| as_half(*value, smallest, span);
         Self {
             halves,
-            maxima: maxima.iter().map(stored).collect(),
+            maxima: Some(maxima.iter().map(stored).collect()),
             blocks,
             dims: volume.dims(),
             patient_to_voxel: volume.patient_to_voxel(),
@@ -79,6 +95,12 @@ impl Prepared {
             span,
             halved: times_halved,
         }
+    }
+
+    /// Whether the largest value in each block has been worked out, and is not left for
+    /// the graphics device.
+    pub fn has_blocks(&self) -> bool {
+        self.maxima.is_some()
     }
 
     /// How many times the volume was halved, each way, to fit.
@@ -192,8 +214,12 @@ mod tests {
         let ready = Prepared::of(&volume, 2048, MAX_VOLUME_BYTES);
         assert_eq!((ready.dims(), ready.halved()), ([24, 24, 24], 0));
         assert_eq!(
-            (ready.halves.len(), ready.blocks, ready.maxima.len()),
-            (24 * 24 * 24, [3; 3], 27)
+            (
+                ready.halves.len(),
+                ready.blocks,
+                ready.maxima.as_ref().map(Vec::len)
+            ),
+            (24 * 24 * 24, [3; 3], Some(27))
         );
         assert_eq!(ready.halves, as_halves(&volume).0);
         assert_eq!((ready.smallest, ready.span), (0.0, 400.0));

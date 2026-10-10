@@ -288,9 +288,10 @@ fn the_curve_is_asked_for_only_while_smoothing_is_wanted() {
         asked.set(asked.get() + 1);
         None
     };
-    assert!(!view.smooth(None, None, take), "nothing was refused room");
+    let nothing = super::Smoothing::Nothing;
+    assert_eq!(view.smooth(None, None, None, take), nothing);
     assert_eq!(asked.get(), 0, "not wanted, not asked for");
-    assert!(!view.smooth(None, Some(&volume), take));
-    assert!(!view.smooth(None, Some(&volume), take));
+    assert_eq!(view.smooth(None, Some(&volume), None, take), nothing);
+    assert_eq!(view.smooth(None, Some(&volume), None, take), nothing);
     assert_eq!(asked.get(), 2, "looked for each frame until it is there");
 }

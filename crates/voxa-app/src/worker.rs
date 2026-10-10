@@ -55,6 +55,8 @@ struct Shared {
     builds: AtomicU64,
     /// The longest side, in voxels, of a volume the window's graphics device can hold.
     volume_side: AtomicU32,
+    /// What the window's graphics device does itself, and so is not done here first.
+    device_does: volume::DeviceDoes,
     /// The series whose volume is being built. Its slices are decoded for the volume.
     wanted_volume: Mutex<Option<SeriesId>>,
     /// The folder settings are kept in, if there is one.
@@ -108,6 +110,7 @@ impl Workers {
             volumes,
             builds: AtomicU64::new(0),
             volume_side: AtomicU32::new(DEFAULT_VOLUME_SIDE),
+            device_does: volume::DeviceDoes::default(),
             wanted_volume: Mutex::new(None),
             settings,
             stores: AtomicU64::new(0),

@@ -18,6 +18,7 @@ mod handle;
 mod labels;
 mod offscreen;
 mod offscreen_scene;
+mod on_device;
 mod parts_pipeline;
 mod pick;
 mod plane_pipeline;

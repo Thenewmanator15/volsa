@@ -2,7 +2,7 @@
 //! series is held once: as its volume while that is the one kept, and as frames in the cache
 //! otherwise.
 
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use rayon::prelude::*;
@@ -31,7 +31,25 @@ pub(super) struct Build {
 /// A slice's place in its series, and the slice decoded or why it could not be.
 type Decoded = (usize, Result<Arc<Frame>, String>);
 
+/// What the window's graphics device does itself from a volume it holds.
+#[derive(Debug, Default)]
+pub(super) struct DeviceDoes {
+    /// Working out the largest value in each block of voxels.
+    blocks: AtomicBool,
+    /// Working out the curve through the values.
+    curves: AtomicBool,
+}
+
 impl Workers {
+    /// Say what the window's graphics device does itself: the largest value in each block
+    /// of a volume, and the curve through its values. What it does is left to it from now
+    /// on, and not done on a worker first.
+    pub fn leave_to_the_device(&self, blocks: bool, curves: bool) {
+        let does = &self.shared.device_does;
+        does.blocks.store(blocks, Ordering::SeqCst);
+        does.curves.store(curves, Ordering::SeqCst);
+    }
+
     /// Say how long a side, in voxels, the window's graphics device allows a volume. Volumes
     /// built from now on are made ready to fit it.
     pub fn set_volume_side(&self, longest: u32) {
@@ -39,11 +57,20 @@ impl Workers {
     }
 
     /// Build the volume of a series for the 3D scene, in place of any being built.
-    /// Work out, on a worker, the curve through the volume kept for a series, keep it with
-    /// the volume and say it is ready. Nothing is done when that series' volume is not the
-    /// one kept, and nothing is kept or said if the volume has given way meanwhile, or the
-    /// curve is no longer wanted.
+    /// The curve through a series' volume is wanted. Where the graphics device makes it
+    /// from the volume it holds, nothing is done here; otherwise a worker works it out.
     pub(super) fn build_smooth(&self, series: SeriesId) {
+        if !self.shared.device_does.curves.load(Ordering::SeqCst) {
+            self.work_out_curve(series);
+        }
+    }
+
+    /// Work out, on a worker, the curve through the volume kept for a series, keep it with
+    /// the volume and say it is ready, whatever the graphics device does itself: this is
+    /// also what is asked when the device turns out to have no room to. Nothing is done
+    /// when that series' volume is not the one kept, and nothing is kept or said if the
+    /// volume has given way meanwhile, or the curve is no longer wanted.
+    pub fn work_out_curve(&self, series: SeriesId) {
         let mut store = lock(&self.shared.volumes);
         store.want_smoothed(true);
         let Some(volume) = store.get(&series) else {
@@ -216,7 +243,11 @@ impl Shared {
         // Made ready for the graphics device here, on a worker, so that the window has only
         // to hand it over.
         let side = self.volume_side.load(Ordering::SeqCst);
-        let ready = Prepared::of(&volume, side, MAX_VOLUME_BYTES);
+        let ready = if self.device_does.blocks.load(Ordering::SeqCst) {
+            Prepared::without_blocks(&volume, side, MAX_VOLUME_BYTES)
+        } else {
+            Prepared::of(&volume, side, MAX_VOLUME_BYTES)
+        };
         // Checked with the store locked, so a newer volume is never overwritten.
         let mut store = lock(&self.volumes);
         if !self.ended(build) {

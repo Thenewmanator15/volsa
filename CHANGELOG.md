@@ -6,6 +6,32 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The curve that Smooth draws the planes from is worked out by the graphics device itself,
+  from the volume it already holds, in compute shaders that run on any Vulkan, DirectX 12 or
+  Metal device. Nothing is worked out on the processor and nothing is handed across, so
+  Smooth takes effect at once. For 512 x 512 voxels in 300 slices: 1.15 s on one processor
+  thread before; 0.34 s on integrated graphics and 23 ms on a discrete card now. For 64
+  slices: 210 ms before; 44 ms and 2.3 ms now. On a device with no compute shaders, or with
+  no room to work the curve out, a worker does it as before.
+- The largest value in each block of a volume, which lets the 3D scene step over empty
+  space, is worked out by the graphics device from the values it has just been given. For
+  512 x 512 x 300 the worker's part of making a volume ready drops from 142 ms to 35 ms; the
+  device adds 45 ms of its own on integrated graphics and 2.5 ms on a discrete card, away
+  from the interface's thread. The values themselves are still turned into 16-bit numbers on
+  the processor: doing that on the device would mean handing it twice the bytes from the
+  interface's thread, which costs more than it saves.
+- The renderer with no window, which the tests, the benchmarks and the check programs use,
+  takes its backend and its adapter from `WGPU_BACKEND` and `WGPU_POWER_PREF` when they are
+  set. The work above was tested on Vulkan and on DirectX 12, on both graphics devices of
+  the machine it was written on, and for the first time timed on the discrete one.
+
+### Fixed
+
+- Two tests of the worker that reads label files waited for a quiet moment where they
+  should have waited for what they were about, and failed when the machine was slow.
+
 ## [0.4.0] - 2026-10-10
 
 The fourth milestone: labelled parts, from files. Voxa shows labels that another program made

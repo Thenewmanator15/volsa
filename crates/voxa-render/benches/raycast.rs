@@ -173,8 +173,27 @@ fn put_a_large_volume_on_the_device(c: &mut Criterion) {
     });
     let ready = Prepared::of(&volume, 2048, MAX_VOLUME_BYTES);
     c.bench_function("512 x 512 x 300 handed to the device", |b| {
-        b.iter(|| black_box(gpu.upload_prepared(&ready).expect("uploads")));
+        b.iter(|| {
+            black_box(gpu.upload_prepared(&ready).expect("uploads"));
+            gpu.settle();
+        });
     });
+    // And with the largest value in each block left to the device: less to make ready, and
+    // the device's own work counted in with the handing over.
+    eprintln!("on {}", gpu.device_name());
+    c.bench_function("512 x 512 x 300 made ready without its blocks", |b| {
+        b.iter(|| black_box(Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES)));
+    });
+    let light = Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES);
+    c.bench_function(
+        "512 x 512 x 300 handed to the device, blocks worked out there",
+        |b| {
+            b.iter(|| {
+                black_box(gpu.upload_prepared(&light).expect("uploads"));
+                gpu.settle();
+            });
+        },
+    );
 }
 
 /// What turning Smooth on waits for, on a worker: the coefficients of the curve through a
@@ -184,6 +203,26 @@ fn work_out_the_curve(c: &mut Criterion) {
     c.bench_function("512 x 512 x 64 curve coefficients", |b| {
         b.iter(|| black_box(voxa_volume::coefficients(&volume)));
     });
+    // The same curve worked out by the graphics device from the volume it holds, and for a
+    // series of 300 slices, counting the device's work until it is done.
+    let Ok(mut gpu) = HeadlessScene::new() else {
+        return;
+    };
+    for slices in [64, 300] {
+        let volume = made_up_head(512, slices);
+        gpu.upload(&volume).expect("uploads");
+        c.bench_function(&format!("512 x 512 x {slices} curve, on the device"), |b| {
+            b.iter(|| {
+                assert!(gpu.smooth_planes_on_device(), "the device can");
+                gpu.settle();
+            });
+        });
+        if slices == 300 {
+            c.bench_function("512 x 512 x 300 curve, on the processor", |b| {
+                b.iter(|| black_box(voxa_render::Smoothed::of(&volume, 2048, MAX_VOLUME_BYTES)));
+            });
+        }
+    }
 }
 
 /// Labelled parts drawn as solids: a made-up label volume the size of a whole-head set at

@@ -1,11 +1,16 @@
 //! The middle of the window: the 3D scene, the plane views and the 2D viewports, each in the
 //! part of it the layout gives them.
 
+use std::sync::Arc;
+
 use egui_wgpu::RenderState;
+use voxa_core::Volume;
+use voxa_render::VolumePipeline;
 
 use super::{VoxaApp, labels, layout, parts, planes, scene, viewport};
 use crate::action::Action;
 use crate::scene::SceneStatus;
+use crate::session::Session;
 
 impl VoxaApp {
     /// Draw the 3D scene, the planes and the 2D viewports in what is left of the window. One
@@ -48,13 +53,8 @@ impl VoxaApp {
         let volume = volume.as_ref();
         let sources = (volume, set.as_deref());
         scene::show(ui, areas.scene, state, sources, scene, render, actions);
-        // In sight or not: a curve that is no longer wanted is given up at once.
-        let session = &self.session;
-        let smoothed = volume.filter(|_| state.planes.smooth);
-        let take = || shown.and_then(|series| session.take_smoothed(series));
-        if self.planes.smooth(render, smoothed, take) {
-            actions.push(Action::Post(planes::no_room_to_smooth()));
-        }
+        let views = (&self.scene, &mut self.planes);
+        Self::smooth_planes(&self.session, views, render, volume, actions);
         if let Some(cells) = areas.planes {
             // After the scene, which is what puts the volume on the graphics device.
             let held = self.scene.volume_pipeline();
@@ -80,6 +80,38 @@ impl VoxaApp {
             actions.extend(asked.and_then(|asked| self.labels.chosen(asked, open)));
         }
         ui.allocate_rect(whole, egui::Sense::hover());
+    }
+
+    /// Have the planes drawn smooth, from the curve through the scene's volume, while that
+    /// is wanted; in sight or not, a curve that is no longer wanted is given up at once.
+    /// Where the graphics device makes the curve itself it does so from the volume it
+    /// holds, as soon as the scene has put it there; otherwise a worker's is taken up.
+    fn smooth_planes(
+        session: &Session,
+        (scene, planes): (&scene::SceneView, &mut planes::PlanesView),
+        render: Option<&RenderState>,
+        volume: Option<&Arc<Volume>>,
+        actions: &mut Vec<Action>,
+    ) {
+        let state = session.state();
+        let shown = state.scene.series.as_ref();
+        let smoothed = volume.filter(|_| state.planes.smooth);
+        let take = || shown.and_then(|series| session.take_smoothed(series));
+        let held = volume.is_some_and(|volume| !scene.needs(volume));
+        let makes = |pipeline: &&VolumePipeline| {
+            held && render.is_some_and(|render| pipeline.makes_curves(&render.device))
+        };
+        let on_device = scene.volume_pipeline().filter(makes);
+        match planes.smooth(render, smoothed, on_device, take) {
+            planes::Smoothing::NoRoom => actions.push(Action::Post(planes::no_room_to_smooth())),
+            planes::Smoothing::LeftToAWorker => {
+                // The device had no room to work it out: a worker does, and hands it over.
+                if let Some(series) = shown {
+                    session.workers().work_out_curve(series.clone());
+                }
+            }
+            planes::Smoothing::Nothing => {}
+        }
     }
 
     /// Whether the 2D viewports are out of sight, their place in the column taken by the

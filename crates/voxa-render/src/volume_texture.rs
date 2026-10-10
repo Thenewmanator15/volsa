@@ -7,6 +7,7 @@ use egui_wgpu::wgpu;
 use voxa_core::{Affine, Patient, Volume, Voxel};
 use voxa_volume::halved;
 
+use crate::on_device::{BlocksMaker, largest_in_blocks};
 pub(crate) use crate::prepared::BLOCK;
 use crate::prepared::Prepared;
 
@@ -39,7 +40,7 @@ pub(crate) struct Placed {
 impl Placed {
     /// Put a volume on the graphics device as it is. `None` when the device has no room.
     pub(crate) fn new(device: &wgpu::Device, queue: &wgpu::Queue, volume: &Volume) -> Option<Self> {
-        Self::from_prepared(device, queue, &Prepared::as_it_is(volume, 0))
+        Self::from_prepared(device, queue, &Prepared::as_it_is(volume, 0), None)
     }
 
     /// As [`Placed::new`], with the largest scan value in each block, and the number of
@@ -51,31 +52,48 @@ impl Placed {
         volume: &Volume,
         maxima: (&[f32], [u32; 3]),
     ) -> Option<Self> {
-        Self::from_prepared(device, queue, &Prepared::with_maxima(volume, maxima, 0))
+        Self::from_prepared(
+            device,
+            queue,
+            &Prepared::with_maxima(volume, maxima, 0),
+            None,
+        )
     }
 
     /// Put a volume that has been made ready on the graphics device: all that is left to do
-    /// is hand over the bytes. `None` when the device has no room.
+    /// is hand over the bytes. Where the largest value in each block was left to be worked
+    /// out, `blocks` does it on the device, or, with no `blocks`, it is done here from the
+    /// values as they are stored. `None` when the device has no room.
     pub(crate) fn from_prepared(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         ready: &Prepared,
+        blocks: Option<&BlocksMaker>,
     ) -> Option<Self> {
         // Watched for running out of room from making the textures to the last byte handed
         // over: left unwatched, either would stop the program.
         let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
         let halves = wgpu::TextureFormat::R16Float;
         let values = texture(device, "voxa volume values", ready.dims, halves);
-        let largest = texture(device, "voxa volume block maxima", ready.blocks, halves);
         write(device, queue, &values, ready.dims, &ready.halves);
-        write(device, queue, &largest, ready.blocks, &ready.maxima);
+        let view = values.create_view(&wgpu::TextureViewDescriptor::default());
+        let largest = match (&ready.maxima, blocks) {
+            (None, Some(blocks)) => blocks.make((device, queue), &view, ready.blocks),
+            (worked_out, _) => {
+                let largest = texture(device, "voxa volume block maxima", ready.blocks, halves);
+                let here = || largest_in_blocks(&ready.halves, ready.dims);
+                let maxima = worked_out.as_ref().map_or_else(here, Clone::clone);
+                write(device, queue, &largest, ready.blocks, &maxima);
+                largest
+            }
+        };
         if pollster::block_on(room.pop()).is_some() {
             values.destroy();
             largest.destroy();
             return None;
         }
         Some(Self {
-            view: values.create_view(&wgpu::TextureViewDescriptor::default()),
+            view,
             maxima: largest.create_view(&wgpu::TextureViewDescriptor::default()),
             values,
             largest,
@@ -85,6 +103,14 @@ impl Placed {
             smallest: ready.smallest,
             span: ready.span,
         })
+    }
+}
+
+impl Placed {
+    /// The texture that holds the largest value in each block, for reading it back.
+    #[cfg(test)]
+    pub(crate) fn largest(&self) -> &wgpu::Texture {
+        &self.largest
     }
 }
 
@@ -116,7 +142,9 @@ pub(crate) fn texture(
         sample_count: 1,
         dimension: wgpu::TextureDimension::D3,
         format,
-        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING
+            | wgpu::TextureUsages::COPY_DST
+            | wgpu::TextureUsages::COPY_SRC,
         view_formats: &[],
     })
 }

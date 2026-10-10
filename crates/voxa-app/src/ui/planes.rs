@@ -7,7 +7,7 @@ use std::sync::Arc;
 use egui_wgpu::RenderState;
 use voxa_core::{Volume, WindowLevel};
 use voxa_labels::LabelSet;
-use voxa_render::{LabelsOnDevice, Overlay, PlaneView, Smoothed, SmoothedTexture, VolumePipeline};
+use voxa_render::{LabelsOnDevice, Overlay, PlaneView, SmoothedTexture, VolumePipeline};
 use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
 
 use super::pen::{self, Pen};
@@ -18,6 +18,7 @@ use crate::annotations::{Shape, Tool, measured};
 use crate::planes::{grid, plane};
 use crate::state::{AppState, Notice, NoticeKind};
 
+mod curve;
 mod gpu;
 mod mouse;
 mod overlay;
@@ -25,6 +26,7 @@ mod parts;
 mod shapes;
 mod tools;
 
+pub use curve::Smoothing;
 pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
     Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_colour,
@@ -58,6 +60,9 @@ pub struct PlanesView {
     /// The curve the planes are drawn from when they are drawn smooth, on the graphics
     /// device, with the volume it runs through.
     curve: Option<(Arc<Volume>, SmoothedTexture)>,
+    /// The volume the graphics device had no room to work the curve out for: a worker
+    /// was asked instead, and the device is not asked again for the same volume.
+    refused: Option<Arc<Volume>>,
 }
 
 impl PlanesView {
@@ -68,55 +73,14 @@ impl PlanesView {
             part_notch: [0.0; 3],
             drawing: tools::Drawing::default(),
             curve: None,
+            refused: None,
         }
-    }
-
-    /// Draw the planes smooth, from the curve through `volume`, or plainly with `None`.
-    /// `take` hands over that curve once a worker has made it; it is asked each frame until
-    /// then, and the planes are drawn plainly meanwhile. A curve of another volume is given
-    /// up. True when the curve was there and the graphics device had no room for it.
-    pub fn smooth(
-        &mut self,
-        render: Option<&RenderState>,
-        volume: Option<&Arc<Volume>>,
-        take: impl FnOnce() -> Option<Smoothed>,
-    ) -> bool {
-        let its_own = |(of, _): &(Arc<Volume>, SmoothedTexture)| {
-            volume.is_some_and(|volume| Arc::ptr_eq(of, volume))
-        };
-        if self.curve.as_ref().is_some_and(|held| !its_own(held)) {
-            self.set_curve(None);
-        }
-        let (Some(volume), None) = (volume, &self.curve) else {
-            return false;
-        };
-        let Some((curve, render)) = take().zip(render) else {
-            return false;
-        };
-        let placed = curve.on(&render.device, &render.queue);
-        let no_room = placed.is_none();
-        self.set_curve(placed.map(|placed| (Arc::clone(volume), placed)));
-        no_room
-    }
-
-    /// Whether the planes are drawn smooth now.
-    pub fn is_smooth(&self) -> bool {
-        self.curve.is_some()
     }
 
     /// Draw these labels over every panel in this way, or none with `None`.
     pub fn label(&mut self, with: Option<&LabelsOnDevice>, overlay: Overlay) {
         for gpu in self.gpus.iter().flatten() {
             gpu.labels(with, overlay);
-        }
-    }
-
-    /// Hold a curve, or none, and have every panel draw from it.
-    fn set_curve(&mut self, curve: Option<(Arc<Volume>, SmoothedTexture)>) {
-        self.curve = curve;
-        let placed = self.curve.as_ref().map(|(_, placed)| placed);
-        for gpu in self.gpus.iter().flatten() {
-            gpu.smooth(placed);
         }
     }
 }

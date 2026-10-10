@@ -5,10 +5,14 @@ use egui_wgpu::wgpu;
 use voxa_core::Volume;
 use voxa_volume::halvings_needed;
 
+use std::sync::OnceLock;
+
 use crate::gpu::Gpu;
+use crate::on_device::{BlocksMaker, CurveMaker};
 use crate::prepared::{MAX_VOLUME_BYTES, Prepared};
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
+use crate::smoothed::SmoothedTexture;
 use crate::volume_params::{Params, shader_params};
 use crate::volume_texture::{Placed, placed_by_halving};
 
@@ -31,6 +35,11 @@ pub struct VolumePipeline {
     params: wgpu::Buffer,
     blended: wgpu::Sampler,
     uploaded: Option<Uploaded>,
+    /// What works out, on the device, the largest value in each block of a volume, and
+    /// the curve through its values: each made when first wanted, and `None` on a device
+    /// that cannot.
+    blocks: OnceLock<Option<BlocksMaker>>,
+    curves: OnceLock<Option<CurveMaker>>,
     /// How many volumes have been shown, so that what draws from the same texture can tell
     /// when it has been replaced.
     uploads: u64,
@@ -87,6 +96,8 @@ impl VolumePipeline {
             params,
             blended,
             uploaded: None,
+            blocks: OnceLock::new(),
+            curves: OnceLock::new(),
             uploads: 0,
         }
     }
@@ -154,7 +165,9 @@ impl VolumePipeline {
         }
         // The volume there now goes first, so that the device has its room for this one.
         self.uploaded = None;
-        let placed = Placed::from_prepared(device, queue, ready).ok_or(RenderError::NoRoom)?;
+        let blocks = self.blocks_maker(device);
+        let placed =
+            Placed::from_prepared(device, queue, ready, blocks).ok_or(RenderError::NoRoom)?;
         self.show(device, placed);
         Ok(ready.halved())
     }
@@ -185,6 +198,41 @@ impl VolumePipeline {
         });
         self.uploaded = Some(Uploaded { placed, bind_group });
         self.uploads += 1;
+    }
+
+    fn blocks_maker(&self, device: &wgpu::Device) -> Option<&BlocksMaker> {
+        self.blocks
+            .get_or_init(|| BlocksMaker::new(device))
+            .as_ref()
+    }
+
+    /// Whether this device can work out the largest value in each block of a volume from
+    /// the values it is given, so that a volume can be made ready for it without them
+    /// ([`Prepared::without_blocks`]).
+    pub fn makes_blocks(&self, device: &wgpu::Device) -> bool {
+        self.blocks_maker(device).is_some()
+    }
+
+    /// Whether this device can work out the curve through a volume it holds.
+    pub fn makes_curves(&self, device: &wgpu::Device) -> bool {
+        self.curves
+            .get_or_init(|| CurveMaker::new(device))
+            .is_some()
+    }
+
+    /// The curve through the volume on the device now, worked out by the device itself.
+    /// `None` with no volume there, on a device that cannot, and when it has no room.
+    pub fn curve_on_device(
+        &self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+    ) -> Option<SmoothedTexture> {
+        let (placed, _) = self.placed()?;
+        let maker = self
+            .curves
+            .get_or_init(|| CurveMaker::new(device))
+            .as_ref()?;
+        maker.make((device, queue), &placed.view, placed.dims)
     }
 
     /// The volume on the graphics device now, and which upload it is.

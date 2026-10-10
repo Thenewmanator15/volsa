@@ -1,5 +1,6 @@
 //! Drawing a volume without a window, for tests and exported pictures.
 
+use egui_wgpu::wgpu;
 use voxa_core::Volume;
 use voxa_labels::LabelSet;
 
@@ -13,7 +14,7 @@ use crate::plane_view::PlaneView;
 use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
-use crate::smoothed::Smoothed;
+use crate::smoothed::{Smoothed, SmoothedTexture};
 use crate::volume_pipeline::VolumePipeline;
 
 /// A graphics device with no window, holding one [`VolumePipeline`].
@@ -25,6 +26,8 @@ pub struct HeadlessScene {
     /// The labels drawn over the planes and as solids, and how.
     labels: Option<LabelsOnDevice>,
     overlay: Overlay,
+    /// The curve planes are drawn from, when they are drawn smooth.
+    curve: Option<SmoothedTexture>,
 }
 
 impl HeadlessScene {
@@ -47,6 +50,7 @@ impl HeadlessScene {
             parts,
             labels: None,
             overlay: Overlay::default(),
+            curve: None,
         })
     }
 
@@ -57,6 +61,7 @@ impl HeadlessScene {
     ///
     /// As [`VolumePipeline::upload`].
     pub fn upload(&mut self, volume: &Volume) -> Result<u32, RenderError> {
+        self.curve = None;
         self.plane.smooth(None);
         self.label(None);
         self.pipeline
@@ -70,6 +75,7 @@ impl HeadlessScene {
     ///
     /// As [`VolumePipeline::upload_prepared`].
     pub fn upload_prepared(&mut self, ready: &Prepared) -> Result<u32, RenderError> {
+        self.curve = None;
         self.plane.smooth(None);
         self.label(None);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
@@ -144,9 +150,55 @@ impl HeadlessScene {
     /// volume takes the curve away, as it is another volume's.
     pub fn smooth_planes(&mut self, with: Option<&Smoothed>) -> bool {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        let placed = with.and_then(|curve| curve.on(device, queue));
-        self.plane.smooth(placed.as_ref());
-        placed.is_some()
+        self.curve = with.and_then(|curve| curve.on(device, queue));
+        self.plane.smooth(self.curve.as_ref());
+        self.curve.is_some()
+    }
+
+    /// As [`HeadlessScene::smooth_planes`], with the curve worked out by the device from
+    /// the volume it holds. False with no volume uploaded, on a device that cannot, and
+    /// when it has no room.
+    pub fn smooth_planes_on_device(&mut self) -> bool {
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.curve = self.pipeline.curve_on_device(device, queue);
+        self.plane.smooth(self.curve.as_ref());
+        self.curve.is_some()
+    }
+
+    /// Which graphics device this is, and how it is driven, in a few words: for saying
+    /// what a measurement was made on.
+    pub fn device_name(&self) -> String {
+        let info = self.gpu.device.adapter_info();
+        format!("{} ({:?})", info.name, info.backend)
+    }
+
+    /// Wait until the device has done everything handed to it so far. Work handed to a
+    /// graphics device is done some time afterwards; this is for timing it.
+    pub fn settle(&self) {
+        let _ = self.gpu.device.poll(wgpu::PollType::wait_indefinitely());
+    }
+
+    /// Whether this device works out the largest value in each block of a volume itself.
+    pub fn makes_blocks(&self) -> bool {
+        self.pipeline.makes_blocks(&self.gpu.device)
+    }
+
+    /// Whether this device works out the curve through a volume itself.
+    pub fn makes_curves(&self) -> bool {
+        self.pipeline.makes_curves(&self.gpu.device)
+    }
+
+    /// The largest value in each block of the uploaded volume, as the device holds it.
+    #[cfg(test)]
+    pub(crate) fn blocks_as_held(&self) -> Option<Vec<u16>> {
+        let (placed, _) = self.pipeline.placed()?;
+        Some(self.gpu.halves_of(placed.largest()))
+    }
+
+    /// The coefficients of the curve planes are drawn from, as the device holds them.
+    #[cfg(test)]
+    pub(crate) fn curve_as_held(&self) -> Option<Vec<u16>> {
+        Some(self.gpu.halves_of(self.curve.as_ref()?.texture()))
     }
 
     /// Draw a plane through the uploaded volume into a picture `size` (width, height) pixels
@@ -173,6 +225,8 @@ impl HeadlessScene {
 
 #[cfg(test)]
 mod cut_tests;
+#[cfg(test)]
+mod device_tests;
 #[cfg(test)]
 mod haze_tests;
 #[cfg(test)]

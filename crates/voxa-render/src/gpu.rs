@@ -34,9 +34,13 @@ impl Gpu {
     /// [`RenderError::NoAdapter`] when the machine has neither, and [`RenderError::Device`]
     /// when the adapter found will not start.
     pub(crate) fn start() -> Result<Self, RenderError> {
-        let instance = wgpu::Instance::default();
+        // Which backend and which adapter can be chosen from outside, to try more than
+        // one graphics device on a machine: `WGPU_BACKEND` and `WGPU_POWER_PREF`.
+        let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+        let instance = wgpu::Instance::new(from_outside);
         let adapter = |force_fallback_adapter| {
             let wanted = wgpu::RequestAdapterOptions {
+                power_preference: wgpu::PowerPreference::from_env().unwrap_or_default(),
                 force_fallback_adapter,
                 ..Default::default()
             };
@@ -123,6 +127,42 @@ impl Gpu {
         );
         self.queue.submit([encoder.finish()]);
         self.read_back(&copied, row_bytes as usize, padded_row as usize)
+    }
+
+    /// Every 16-bit value of a 3D texture, columns fastest, copied back from the device.
+    #[cfg(test)]
+    pub(crate) fn halves_of(&self, texture: &wgpu::Texture) -> Vec<u16> {
+        let extent = texture.size();
+        let row_bytes = extent.width * 2;
+        let padded_row = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
+        let rows = extent.height * extent.depth_or_array_layers;
+        let copied = self.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("voxa headless copy"),
+            size: u64::from(padded_row) * u64::from(rows),
+            usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+            mapped_at_creation: false,
+        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor::default());
+        encoder.copy_texture_to_buffer(
+            texture.as_image_copy(),
+            wgpu::TexelCopyBufferInfo {
+                buffer: &copied,
+                layout: wgpu::TexelCopyBufferLayout {
+                    offset: 0,
+                    bytes_per_row: Some(padded_row),
+                    rows_per_image: Some(extent.height),
+                },
+            },
+            extent,
+        );
+        self.queue.submit([encoder.finish()]);
+        let bytes = self
+            .read_back(&copied, row_bytes as usize, padded_row as usize)
+            .expect("the copy comes back");
+        let (pairs, _) = bytes.as_chunks::<2>();
+        pairs.iter().map(|pair| u16::from_le_bytes(*pair)).collect()
     }
 
     /// Wait for the copy to finish and take the picture out of it, dropping the row padding.
