@@ -12,6 +12,9 @@ use crate::scene::MainPanel;
 const SIDE_COLUMN: f32 = 360.0;
 /// The most of the width the column may take.
 const SIDE_SHARE: f32 = 1.0 / 3.0;
+/// The least the column is given while that is no more than half the width: what the
+/// strip along its top needs for three tabs and a button.
+const LEAST_COLUMN: f32 = 260.0;
 /// The height of the strip along the top of the column, which says what the column shows and
 /// holds the button that enlarges it.
 const HEADER: f32 = 24.0;
@@ -26,9 +29,11 @@ pub struct Panels {
 }
 
 /// Divide an area into the large part and the column beside it: the column is 360 points
-/// wide, or a third of the area if that is less, with the gap between viewports between them.
+/// wide, or a third of the area if that is less, but not under 260 points while that is no
+/// more than half the area, with the gap between viewports between them.
 pub fn panels(area: Rect) -> Panels {
-    let column = SIDE_COLUMN.min(area.width() * SIDE_SHARE);
+    let least = LEAST_COLUMN.min(area.width() / 2.0);
+    let column = SIDE_COLUMN.min(area.width() * SIDE_SHARE).max(least);
     let (main, side) = area.split_left_right_at_x(area.right() - column);
     Panels {
         main: main.with_max_x(main.right() - viewport::GAP),
@@ -54,6 +59,8 @@ pub struct Areas {
     pub planes: Option<[Rect; 3]>,
     /// The 2D viewports, when they are shown.
     pub slices: Option<Rect>,
+    /// The list of labelled parts, when it is shown.
+    pub parts: Option<Rect>,
 }
 
 /// Give the large part and the column to what is shown. With the 3D scene large the column
@@ -66,23 +73,34 @@ pub fn areas(large: MainPanel, column: ColumnShows, main: Rect, side: Rect) -> A
             scene: main,
             planes: None,
             slices: Some(side),
+            parts: None,
+        },
+        (MainPanel::Scene, ColumnShows::Parts) => Areas {
+            scene: main,
+            planes: None,
+            slices: None,
+            parts: Some(side),
         },
         (MainPanel::Scene, ColumnShows::Planes) => Areas {
             scene: main,
             planes: Some(stacked(side)),
             slices: None,
+            parts: None,
         },
         (MainPanel::Stack, _) => Areas {
             scene: side,
             planes: None,
             slices: Some(main),
+            parts: None,
         },
         (MainPanel::Planes, _) => {
             let [axial, sagittal, coronal, scene] = quad(main);
+            let listed = column == ColumnShows::Parts;
             Areas {
                 scene,
                 planes: Some([axial, coronal, sagittal]),
-                slices: Some(side),
+                slices: (!listed).then_some(side),
+                parts: listed.then_some(side),
             }
         }
     }
@@ -134,22 +152,26 @@ pub fn header(
     there_is_3d: bool,
     actions: &mut Vec<Action>,
 ) {
+    // A list has nothing to enlarge.
     let enlarged = match (large, column) {
-        (MainPanel::Scene, ColumnShows::Planes) => MainPanel::Planes,
-        (MainPanel::Scene | MainPanel::Planes, _) => MainPanel::Stack,
-        (MainPanel::Stack, _) => MainPanel::Scene,
+        (MainPanel::Scene | MainPanel::Planes, ColumnShows::Parts) => None,
+        (MainPanel::Scene, ColumnShows::Planes) => Some(MainPanel::Planes),
+        (MainPanel::Scene | MainPanel::Planes, _) => Some(MainPanel::Stack),
+        (MainPanel::Stack, _) => Some(MainPanel::Scene),
     };
     let inside = strip.shrink2(vec2(4.0, 0.0));
     let mut strip = ui.new_child(UiBuilder::new().max_rect(inside));
     strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        let can = there_is_3d || large != MainPanel::Stack;
-        let enlarge = ui.add_enabled(can, egui::Button::new("Enlarge").small());
-        let enlarge = enlarge.on_disabled_hover_text("This series has no 3D view to enlarge");
-        if enlarge
-            .on_hover_text("Give this the large part of the window")
-            .clicked()
-        {
-            actions.push(Action::SetMain(enlarged));
+        if let Some(enlarged) = enlarged {
+            let can = there_is_3d || large != MainPanel::Stack;
+            let enlarge = ui.add_enabled(can, egui::Button::new("Enlarge").small());
+            let enlarge = enlarge.on_disabled_hover_text("This series has no 3D view to enlarge");
+            if enlarge
+                .on_hover_text("Give this the large part of the window")
+                .clicked()
+            {
+                actions.push(Action::SetMain(enlarged));
+            }
         }
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
             shown_in_the_column(ui, large, column, actions);
@@ -157,208 +179,42 @@ pub fn header(
     });
 }
 
-/// Say what the column shows; with the 3D scene large, as two tabs to choose between.
+/// Say what the column shows, as tabs to choose between where there is a choice: the
+/// slices, the planes or the parts with the 3D scene large; the slices or the parts with
+/// the planes large, where a column that was showing the planes shows the slices.
 fn shown_in_the_column(
     ui: &mut Ui,
     large: MainPanel,
     column: ColumnShows,
     actions: &mut Vec<Action>,
 ) {
-    let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
-    match large {
-        MainPanel::Stack => drop(ui.label(quiet("3D"))),
-        MainPanel::Planes => drop(ui.label(quiet("Slices"))),
-        MainPanel::Scene => {
-            let tabs = [
-                (ColumnShows::Slices, "Slices", "The series' own slices"),
-                (
-                    ColumnShows::Planes,
-                    "Planes",
-                    "Axial, coronal and sagittal planes through one point",
-                ),
-            ];
-            for (shows, name, hover) in tabs {
-                let tab = ui.selectable_label(column == shows, RichText::new(name).small());
-                if tab.on_hover_text(hover).clicked() && column != shows {
-                    actions.push(Action::SetColumn(shows));
-                }
-            }
+    let slices = (ColumnShows::Slices, "Slices", "The series' own slices");
+    let planes = (
+        ColumnShows::Planes,
+        "Planes",
+        "Axial, coronal and sagittal planes through one point",
+    );
+    let parts = (
+        ColumnShows::Parts,
+        "Parts",
+        "The labelled parts of the head, from a file of labels",
+    );
+    let (tabs, column) = match large {
+        MainPanel::Stack => {
+            ui.label(RichText::new("3D").small().color(theme::QUIET_TEXT));
+            return;
+        }
+        MainPanel::Scene => (vec![slices, planes, parts], column),
+        MainPanel::Planes if column == ColumnShows::Parts => (vec![slices, parts], column),
+        MainPanel::Planes => (vec![slices, parts], ColumnShows::Slices),
+    };
+    for (shows, name, hover) in tabs {
+        let tab = ui.selectable_label(column == shows, RichText::new(name).small());
+        if tab.on_hover_text(hover).clicked() && column != shows {
+            actions.push(Action::SetColumn(shows));
         }
     }
 }
 
 #[cfg(test)]
-mod tests {
-    use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, pos2};
-
-    use super::*;
-    use crate::planes::ColumnShows;
-
-    fn area(width: f32, height: f32) -> Rect {
-        Rect::from_min_size(pos2(100.0, 50.0), vec2(width, height))
-    }
-
-    #[test]
-    fn the_column_is_360_points_wide_at_the_right_with_a_gap_before_it() {
-        let Panels { main, side } = panels(area(1200.0, 700.0));
-        assert_eq!(
-            (side.left(), side.right(), side.width()),
-            (940.0, 1300.0, 360.0)
-        );
-        assert_eq!((main.left(), main.right()), (100.0, 940.0 - viewport::GAP));
-        assert_eq!((main.height(), side.height()), (700.0, 700.0));
-    }
-
-    #[test]
-    fn in_a_narrow_area_the_column_is_a_third_of_it() {
-        let Panels { main, side } = panels(area(600.0, 400.0));
-        assert_eq!(side.width(), 200.0);
-        assert_eq!(main.width(), 400.0 - viewport::GAP);
-    }
-
-    #[test]
-    fn the_column_has_a_strip_along_its_top() {
-        let (strip, rest) = header_and_rest(area(360.0, 700.0));
-        assert_eq!((strip.top(), strip.height()), (50.0, 24.0));
-        assert_eq!((rest.top(), rest.bottom()), (74.0 + viewport::GAP, 750.0));
-        let (strip, rest) = header_and_rest(area(360.0, 10.0));
-        assert!(
-            strip.height() <= 10.0 && rest.height() >= 0.0,
-            "nothing is turned inside out"
-        );
-    }
-
-    /// Click all the way along the strip and gather what was asked for, from left to right.
-    fn sweep(large: MainPanel, column: ColumnShows, there_is_3d: bool) -> Vec<Action> {
-        let ctx = egui::Context::default();
-        let strip = Rect::from_min_size(pos2(0.0, 0.0), vec2(360.0, 24.0));
-        let mut asked = Vec::new();
-        let mut pass = |events: Vec<Event>| {
-            let input = RawInput {
-                events,
-                ..RawInput::default()
-            };
-            let mut output = ctx.run_ui(input, |ui| {
-                header(ui, strip, (large, column), there_is_3d, &mut asked);
-            });
-            // No renderer is behind these passes to take the font texture.
-            output.textures_delta.clear();
-        };
-        pass(Vec::new());
-        for x in (2..360u16).step_by(4) {
-            let pos = Pos2::new(f32::from(x), 12.0);
-            let button = |pressed| Event::PointerButton {
-                pos,
-                button: PointerButton::Primary,
-                pressed,
-                modifiers: Modifiers::NONE,
-            };
-            pass(vec![Event::PointerMoved(pos), button(true)]);
-            pass(vec![button(false)]);
-        }
-        asked.dedup();
-        asked
-    }
-
-    #[test]
-    fn with_the_scene_large_the_strip_has_a_tab_for_slices_and_one_for_planes() {
-        let (slices, planes) = (ColumnShows::Slices, ColumnShows::Planes);
-        assert_eq!(
-            sweep(MainPanel::Scene, slices, true),
-            [Action::SetColumn(planes), Action::SetMain(MainPanel::Stack)],
-            "the tab not shown, then Enlarge for the slices"
-        );
-        assert_eq!(
-            sweep(MainPanel::Scene, planes, true),
-            [
-                Action::SetColumn(slices),
-                Action::SetMain(MainPanel::Planes)
-            ],
-            "Enlarge gives the planes the large part"
-        );
-    }
-
-    #[test]
-    fn the_button_on_the_column_gives_what_it_shows_the_large_part() {
-        let slices = ColumnShows::Slices;
-        assert_eq!(
-            sweep(MainPanel::Stack, slices, true),
-            [Action::SetMain(MainPanel::Scene)]
-        );
-        assert_eq!(
-            sweep(MainPanel::Planes, slices, true),
-            [Action::SetMain(MainPanel::Stack)]
-        );
-        assert_eq!(
-            sweep(MainPanel::Planes, ColumnShows::Planes, true),
-            [Action::SetMain(MainPanel::Stack)],
-            "with the planes large the column holds the slices whatever it held before"
-        );
-    }
-
-    #[test]
-    fn with_no_3d_view_there_is_nothing_for_the_button_to_enlarge() {
-        assert_eq!(sweep(MainPanel::Stack, ColumnShows::Slices, false), []);
-    }
-
-    #[test]
-    fn four_panels_share_the_large_part_two_by_two() {
-        let [top_left, top_right, bottom_left, bottom_right] = quad(area(1000.0, 800.0));
-        let size = vec2(
-            (1000.0 - viewport::GAP) / 2.0,
-            (800.0 - viewport::GAP) / 2.0,
-        );
-        for panel in [top_left, top_right, bottom_left, bottom_right] {
-            assert_eq!(panel.size(), size);
-        }
-        assert_eq!(top_left.min, pos2(100.0, 50.0));
-        assert_eq!(top_right.left(), top_left.right() + viewport::GAP);
-        assert_eq!(bottom_left.top(), top_left.bottom() + viewport::GAP);
-        assert_eq!(bottom_right.max, pos2(1100.0, 850.0));
-    }
-
-    #[test]
-    fn three_panels_share_the_column_one_above_another() {
-        let [first, second, third] = stacked(area(360.0, 700.0));
-        let high = (700.0 - 2.0 * viewport::GAP) / 3.0;
-        assert!(
-            [first, second, third]
-                .iter()
-                .all(|panel| panel.width() == 360.0)
-        );
-        assert!((first.height() - high).abs() < 1.0e-3 && (third.bottom() - 750.0).abs() < 1.0e-3);
-        assert!((second.top() - first.bottom() - viewport::GAP).abs() < 1.0e-3);
-    }
-
-    #[test]
-    fn each_kind_of_view_is_given_its_part_of_the_window() {
-        let (main, side) = (area(900.0, 700.0), area(360.0, 700.0));
-        let (slices, planes) = (ColumnShows::Slices, ColumnShows::Planes);
-        let scene_large = areas(MainPanel::Scene, slices, main, side);
-        assert_eq!(
-            (scene_large.scene, scene_large.slices, scene_large.planes),
-            (main, Some(side), None)
-        );
-        let with_planes = areas(MainPanel::Scene, planes, main, side);
-        assert_eq!((with_planes.scene, with_planes.slices), (main, None));
-        assert_eq!(with_planes.planes, Some(stacked(side)));
-        for column in [slices, planes] {
-            let stack_large = areas(MainPanel::Stack, column, main, side);
-            assert_eq!(
-                (stack_large.scene, stack_large.slices, stack_large.planes),
-                (side, Some(main), None)
-            );
-            let planes_large = areas(MainPanel::Planes, column, main, side);
-            let [top_left, top_right, bottom_left, bottom_right] = quad(main);
-            // Axial, coronal, sagittal: axial top left, sagittal beside it, coronal beneath.
-            assert_eq!(
-                planes_large.planes,
-                Some([top_left, bottom_left, top_right])
-            );
-            assert_eq!(
-                (planes_large.scene, planes_large.slices),
-                (bottom_right, Some(side))
-            );
-        }
-    }
-}
+mod tests;

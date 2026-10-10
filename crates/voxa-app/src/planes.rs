@@ -34,6 +34,8 @@ pub enum ColumnShows {
     Slices,
     /// The axial, coronal and sagittal planes through the position.
     Planes,
+    /// The list of labelled parts.
+    Parts,
 }
 
 /// The plane views.
@@ -94,6 +96,16 @@ pub fn in_sight(state: &AppState) -> bool {
         MainPanel::Scene => state.planes.column == ColumnShows::Planes,
         MainPanel::Stack => false,
     }
+}
+
+/// Whether the 2D viewports are on the screen: with the large part, or in the column when it
+/// is not given to the planes or the parts.
+pub fn slices_in_sight(state: &AppState) -> bool {
+    let shown = (state.main.given(&state.scene.status), state.planes.column);
+    matches!(
+        shown,
+        (MainPanel::Stack, _) | (_, ColumnShows::Slices) | (MainPanel::Planes, ColumnShows::Planes)
+    )
 }
 
 /// Where the volume in the scene lies in the patient, and its columns, rows and slices.

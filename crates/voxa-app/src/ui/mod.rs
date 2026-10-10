@@ -21,6 +21,7 @@ mod labels;
 mod layout;
 mod measure;
 mod overlay;
+mod parts;
 mod pen;
 mod pictures;
 mod planes;
@@ -51,6 +52,7 @@ pub struct VoxaApp {
     help_open: bool,
     tags: tags::Panel,
     measure: measure::Panel,
+    parts: parts::PartsView,
     /// The label file to open, and the one that is open.
     labels: labels::Opening,
     /// When playback in each viewport last moved on.
@@ -98,6 +100,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             measure: measure::Panel::default(),
+            parts: parts::PartsView::default(),
             labels: labels::Opening::waiting_for(labels),
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture,

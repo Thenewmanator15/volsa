@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use super::VoxaApp;
+use super::{VoxaApp, parts};
 use crate::action::Action;
 use crate::labels::is_label_file;
 use crate::planes::grid;
@@ -27,6 +27,11 @@ impl Opening {
         }
     }
 
+    /// Whether a label file named when Voxa was started has still to be opened.
+    pub fn is_waiting(&self) -> bool {
+        self.waiting.is_some()
+    }
+
     /// What opens a file the person chose or dropped on the window: labels if its name says
     /// it is a label file, otherwise a scan.
     pub fn opening(&mut self, path: PathBuf) -> Action {
@@ -45,16 +50,32 @@ impl Opening {
 
     /// What opens the label file last opened again with another table of names. `None` when
     /// no label file has been opened.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "for the Names button of the Parts list, which comes next"
-        )
-    )]
     pub fn renamed(&mut self, table: PathBuf) -> Option<Action> {
         let labels = self.opened.clone()?;
         Some(self.labels(labels, Some(table)))
+    }
+}
+
+impl Opening {
+    /// Ask the person for the file the Parts list wants, and give what opens it: a label
+    /// file, or another table of names for the labels open. `None` when they chose nothing.
+    pub fn chosen(&mut self, asked: parts::Asked) -> Option<Action> {
+        match asked {
+            parts::Asked::OpenLabels => {
+                let labels = rfd::FileDialog::new()
+                    .set_title("Open a file of labels")
+                    .add_filter("NIfTI label volume", &["nii", "gz"])
+                    .pick_file()?;
+                Some(self.labels(labels, None))
+            }
+            parts::Asked::OpenNames => {
+                let table = rfd::FileDialog::new()
+                    .set_title("Choose a table of names for these labels")
+                    .add_filter("Table of names", &["json", "ctbl"])
+                    .pick_file()?;
+                self.renamed(table)
+            }
+        }
     }
 }
 

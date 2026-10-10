@@ -16,6 +16,7 @@ use super::VoxaApp;
 use super::viewport::Gpu;
 use crate::action::Action;
 use crate::annotations::Shape;
+use crate::labels::LabelsStatus;
 use crate::planes::{ColumnShows, plane};
 use crate::scene::MainPanel;
 use crate::scene::SceneStatus;
@@ -62,6 +63,7 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("slice", Action::ShowSliceInScene(true)),
         ("planes", Action::SetColumn(ColumnShows::Planes)),
         ("quad", Action::SetMain(MainPanel::Planes)),
+        ("parts", Action::SetColumn(ColumnShows::Parts)),
         ("smooth", Action::SetSmooth(true)),
     ];
     let wanted = poses.into_iter().filter(|(word, _)| asked(word));
@@ -220,7 +222,11 @@ impl VoxaApp {
         let slices = self.slices_hidden() || self.gpus.first().is_some_and(Gpu::has_picture);
         // And, if the planes are to be drawn smooth, for the curve they are drawn from.
         let curve = !self.session.state().planes.smooth || self.planes.is_smooth();
-        let ready = slices && (no_volume_to_come || self.scene.has_picture() && curve);
+        // And for labels that are still to be opened, or are being read.
+        let reading = self.session.state().labels.status == LabelsStatus::Reading;
+        let waiting = self.labels.is_waiting() && !no_volume_to_come;
+        let labelled = !waiting && !reading;
+        let ready = slices && labelled && (no_volume_to_come || self.scene.has_picture() && curve);
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
             capture.step(ctx, ready && pick.is_none());

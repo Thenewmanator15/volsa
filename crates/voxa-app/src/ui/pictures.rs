@@ -3,9 +3,9 @@
 
 use egui_wgpu::RenderState;
 
-use super::{VoxaApp, layout, planes, scene, viewport};
+use super::{VoxaApp, layout, parts, planes, scene, viewport};
 use crate::action::Action;
-use crate::scene::{MainPanel, SceneStatus};
+use crate::scene::SceneStatus;
 
 impl VoxaApp {
     /// Draw the 3D scene, the planes and the 2D viewports in what is left of the window. One
@@ -65,14 +65,16 @@ impl VoxaApp {
             let frames = |series: &_, slice| session.cached(series, slice);
             viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
         }
+        if let Some(area) = areas.parts {
+            let asked = parts::show(ui, area, state, &mut self.parts, actions);
+            actions.extend(asked.and_then(|asked| self.labels.chosen(asked)));
+        }
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 
     /// Whether the 2D viewports are out of sight, their place in the column taken by the
-    /// planes.
+    /// planes or the parts.
     pub(super) fn slices_hidden(&self) -> bool {
-        let state = self.session.state();
-        let large = state.main.given(&state.scene.status);
-        large == MainPanel::Scene && crate::planes::in_sight(state)
+        !crate::planes::slices_in_sight(self.session.state())
     }
 }
