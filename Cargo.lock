@@ -3909,6 +3909,7 @@ dependencies = [
  "thiserror 2.0.21",
  "voxa-core",
  "voxa-dicom",
+ "voxa-labels",
  "voxa-render",
  "voxa-volume",
  "zip",

@@ -11,6 +11,7 @@ use crate::scene::{MainPanel, Scene};
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod labels;
 mod link;
 mod planes;
 mod scene;
@@ -74,6 +75,10 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             window(state, action);
             Vec::new()
         }
+        // The Parts look has nothing to draw without labels on this series.
+        Action::SceneLook(voxa_render::Look::Parts) if !labels::parts_look_allowed(state) => {
+            Vec::new()
+        }
         Action::SceneResized { .. }
         | Action::SceneOrbit { .. }
         | Action::ScenePan { .. }
@@ -105,6 +110,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         about_annotations if annotations::concerns(&about_annotations) => {
             annotations::reduce(state, about_annotations)
         }
+        about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
 }
@@ -113,8 +119,14 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
 fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
         Action::OpenPath(path) => {
+            // Labels belong to a study of the export that is being left.
+            let labelled = state.labels.status != crate::labels::LabelsStatus::None;
             *state = emptied(state);
-            return vec![Effect::StartIndex(path)];
+            let dropped = labelled.then_some(Effect::DropLabels);
+            return dropped
+                .into_iter()
+                .chain([Effect::StartIndex(path)])
+                .collect();
         }
         Action::IndexProgress(index) => {
             post(state, SKIPPED, skipped_notice(&index.skipped));
@@ -179,6 +191,7 @@ fn emptied(state: &AppState) -> AppState {
             smooth: state.planes.smooth,
             ..Planes::default()
         },
+        labels: labels::emptied(&state.labels),
         ..AppState::default()
     }
 }
@@ -273,6 +286,8 @@ fn settle_window(
 
 #[cfg(test)]
 mod annotations_tests;
+#[cfg(test)]
+mod labels_tests;
 #[cfg(test)]
 mod link_tests;
 #[cfg(test)]

@@ -11,6 +11,7 @@ publish.workspace = true
 voxa-core.workspace = true
 voxa-dicom.workspace = true
 voxa-volume.workspace = true
+voxa-labels.workspace = true
 voxa-render.workspace = true
 rayon.workspace = true
 rfd.workspace = true

@@ -4,10 +4,13 @@ use std::path::PathBuf;
 
 use voxa_core::{Patient, Point, SeriesId, WindowLevel};
 use voxa_dicom::Index;
-use voxa_render::{Look, NamedView};
+use voxa_labels::{Part, Verdict};
+use voxa_render::{Look, NamedView, Overlay};
 use voxa_volume::PlaneKind;
 
 use crate::annotations::{Annotation, Shape, Tool};
+pub use crate::effect::Effect;
+use crate::labels::NamesFrom;
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::state::{Layout, Notice, PresetWindows};
@@ -291,6 +294,59 @@ pub enum Action {
     SetLinked(bool),
     /// Draw the plane views from a curve through the measured values, or plainly.
     SetSmooth(bool),
+    /// Open a file of labels on the study in the scene.
+    OpenLabels {
+        /// The label volume.
+        labels: PathBuf,
+        /// The table that names its parts; `None` to look for one beside it.
+        table: Option<PathBuf>,
+    },
+    /// A worker has read the labels asked for.
+    LabelsRead {
+        /// What they are of, as their table says.
+        title: String,
+        /// Their parts.
+        parts: Vec<Part>,
+        /// The labelling model's own check, if the table carries one.
+        verdict: Option<Verdict>,
+        /// The corners of their box in the patient.
+        corners: [Point<Patient>; 8],
+        /// Where the parts' names came from.
+        names_from: NamesFrom,
+    },
+    /// The labels asked for could not be read; the sentence says why.
+    LabelsFailed(String),
+    /// Close the labels.
+    CloseLabels,
+    /// Show or hide one part.
+    PartShow {
+        /// Its place among the parts.
+        part: usize,
+        /// Whether it is to be shown.
+        shown: bool,
+    },
+    /// Show or hide every part of a group.
+    GroupShow {
+        /// The group's name.
+        group: String,
+        /// Whether its parts are to be shown.
+        shown: bool,
+    },
+    /// Show every part.
+    PartsShowAll,
+    /// Show one part and hide the rest.
+    PartIsolate(usize),
+    /// Make a part more or less solid.
+    PartOpacity {
+        /// Its place among the parts.
+        part: usize,
+        /// How solid, up to 1.
+        opacity: f32,
+    },
+    /// Select a part, or none.
+    PartSelect(Option<usize>),
+    /// Choose how labels are drawn over the plane views.
+    SetOverlay(Overlay),
     /// The curve through a series' volume has been worked out and is kept with the volume.
     /// Nothing in the state changes: the window finds it there at its next frame.
     SmoothReady {
@@ -328,58 +384,4 @@ pub enum Action {
         /// Why, as the system gave it.
         reason: String,
     },
-}
-
-/// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Effect {
-    /// Open this path and index what it holds.
-    StartIndex(PathBuf),
-    /// Decode the slices of a series, those nearest `around` first.
-    RequestFrames {
-        /// The series wanted.
-        series: SeriesId,
-        /// The slice being shown.
-        around: usize,
-    },
-    /// Decode the middle slice of every series, for the pictures in the browser.
-    RequestThumbnails,
-    /// Read the views kept for a series from before.
-    LoadViews {
-        /// The series wanted.
-        series: SeriesId,
-    },
-    /// Write the views of a series to the file they are kept in.
-    StoreViews {
-        /// The series they are of.
-        series: SeriesId,
-        /// All of its views, oldest first.
-        views: Vec<SavedView>,
-    },
-    /// Read the annotations kept for a series.
-    LoadAnnotations {
-        /// The series.
-        series: SeriesId,
-    },
-    /// Keep the annotations of a series, in place of any kept for it before.
-    StoreAnnotations {
-        /// The series.
-        series: SeriesId,
-        /// Its annotations, oldest first.
-        items: Vec<Annotation>,
-    },
-    /// Decode every slice of a series and stack them into a volume for the 3D scene.
-    BuildVolume {
-        /// The series wanted.
-        series: SeriesId,
-    },
-    /// Work out the curve through the volume kept for a series, for planes drawn smooth.
-    BuildSmooth {
-        /// The series whose volume it is to run through.
-        series: SeriesId,
-    },
-    /// Give up the curve, and any being worked out.
-    DropSmooth,
-    /// Nothing to do.
-    None,
 }

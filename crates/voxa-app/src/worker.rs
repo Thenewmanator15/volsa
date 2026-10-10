@@ -145,7 +145,7 @@ impl Workers {
             Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::LoadAnnotations { series } => self.load_annotations(series),
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
-            Effect::None => {}
+            Effect::None | Effect::ReadLabels { .. } | Effect::DropLabels => {}
         }
     }
 

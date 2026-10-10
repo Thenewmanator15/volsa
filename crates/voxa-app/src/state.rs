@@ -8,6 +8,7 @@ use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
 use crate::annotations::{Annotations, Tool};
+use crate::labels::Labels;
 use crate::planes::Planes;
 use crate::scene::{MainPanel, Scene};
 use crate::views::SavedView;
@@ -170,6 +171,8 @@ pub struct AppState {
     pub annotations: Annotations,
     /// What the main button does in the plane views and the 3D scene.
     pub tool: Tool,
+    /// The labelled parts open on a study, and what is shown of them.
+    pub labels: Labels,
 }
 
 impl Default for AppState {
@@ -191,6 +194,7 @@ impl Default for AppState {
             planes: Planes::default(),
             annotations: Annotations::default(),
             tool: Tool::default(),
+            labels: Labels::default(),
         }
     }
 }

@@ -1,0 +1,116 @@
+//! Labelled parts in the state: the labels open on a study, which of their parts are shown
+//! and how solid each is, and which one is selected.
+
+use voxa_core::{Patient, Point, SeriesId, StudyId};
+use voxa_labels::{Part, Verdict};
+use voxa_render::{Look, Overlay, PartLook};
+
+use crate::state::AppState;
+
+/// What is said when labels turn out to lie nowhere near the series they were opened on.
+pub const NOWHERE_NEAR: &str =
+    "These labels lie nowhere near this series. They were probably made from another scan.";
+/// The least solid a part can be faded to. Hiding a part is done by its switch.
+pub const FAINTEST: f32 = 0.1;
+
+/// Whether there are labels, and if not, why.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub enum LabelsStatus {
+    /// None are open.
+    #[default]
+    None,
+    /// A worker is reading them.
+    Reading,
+    /// They are open.
+    Ready,
+    /// They could not be opened; the sentence says why.
+    Failed(String),
+}
+
+/// How one part is shown.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PartShown {
+    /// Whether it is shown at all.
+    pub shown: bool,
+    /// How solid it is when shown, from a tenth to 1.
+    pub opacity: f32,
+}
+
+/// Where the names of the parts came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NamesFrom {
+    /// A table of names found beside the labels, or chosen.
+    Table,
+    /// Nowhere: the parts are called after their numbers.
+    #[default]
+    Nothing,
+}
+
+/// The labels open, and what is shown of them.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Labels {
+    /// Whether there are any.
+    pub status: LabelsStatus,
+    /// What the labels are of, as their table says; empty when it does not.
+    pub title: String,
+    /// The parts, in the order of their table.
+    pub parts: Vec<Part>,
+    /// How each part is shown, in the same order.
+    pub shown: Vec<PartShown>,
+    /// The part selected, by its place in `parts`.
+    pub selected: Option<usize>,
+    /// How the labels are drawn over the plane views.
+    pub overlay: Overlay,
+    /// The labelling model's own check, when the table carries one.
+    pub verdict: Option<Verdict>,
+    /// The study the labels were opened on. They are shown on its series and on no other.
+    pub study: Option<StudyId>,
+    /// The corners of the label volume's box in the patient.
+    pub corners: Option<[Point<Patient>; 8]>,
+    /// Where the parts' names came from.
+    pub names_from: NamesFrom,
+}
+
+impl Labels {
+    /// How each part is to look on the graphics device: its colour, and how solid it is,
+    /// which is not at all for a part that is hidden.
+    pub fn looks(&self) -> Vec<PartLook> {
+        let look = |(part, how): (&Part, &PartShown)| PartLook {
+            colour: part.colour,
+            opacity: if how.shown { how.opacity } else { 0.0 },
+        };
+        self.parts.iter().zip(&self.shown).map(look).collect()
+    }
+
+    /// Whether a part is there and shown.
+    pub fn is_shown(&self, part: usize) -> bool {
+        self.shown.get(part).is_some_and(|how| how.shown)
+    }
+}
+
+/// The study a series belongs to.
+pub fn study_of(state: &AppState, series: &SeriesId) -> Option<StudyId> {
+    let studies = &state.index.as_ref()?.studies;
+    let holds = |study: &&voxa_core::StudyInfo| study.series.iter().any(|one| one.id == *series);
+    studies.iter().find(holds).map(|study| study.id.clone())
+}
+
+/// Whether there are labels to show on the series in the scene: they are open, and that
+/// series is of the study they were opened on.
+pub fn on_this_series(state: &AppState) -> bool {
+    let study = state
+        .scene
+        .series
+        .as_ref()
+        .and_then(|series| study_of(state, series));
+    state.labels.status == LabelsStatus::Ready && study.is_some() && study == state.labels.study
+}
+
+/// The look the scene is drawn in: the one chosen, except that Parts with no labels on this
+/// series, which has nothing to draw, is drawn as Surface.
+pub fn look_drawn(state: &AppState) -> Look {
+    match state.scene.look {
+        Look::Parts if !on_this_series(state) => Look::Surface,
+        chosen => chosen,
+    }
+}
