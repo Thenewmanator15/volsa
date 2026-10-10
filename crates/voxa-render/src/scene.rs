@@ -20,6 +20,10 @@ pub enum Look {
     /// Maximum-intensity projection: each pixel shows the brightest value on its line of
     /// sight, wherever along the line it lies.
     Mip,
+    /// Labelled parts as lit solids, each in its own colour. The scan's values play no
+    /// part; [`PartsPipeline`](crate::PartsPipeline) draws it, and the volume pipeline,
+    /// asked for it, draws a surface.
+    Parts,
 }
 
 /// A plane that cuts the volume open. Everything on the side the normal points to is removed.

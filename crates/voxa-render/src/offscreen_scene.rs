@@ -7,6 +7,7 @@ use voxa_core::WindowLevel;
 
 use crate::gpu::{Gpu, TARGET};
 use crate::labels::{LabelsOnDevice, Overlay, PartLook};
+use crate::parts_pipeline::PartsPipeline;
 use crate::plane_pipeline::PlanePipeline;
 use crate::plane_view::PlaneView;
 use crate::prepared::Prepared;
@@ -20,7 +21,8 @@ pub struct HeadlessScene {
     gpu: Gpu,
     pipeline: VolumePipeline,
     plane: PlanePipeline,
-    /// The labels drawn over the planes, and how.
+    parts: PartsPipeline,
+    /// The labels drawn over the planes and as solids, and how.
     labels: Option<LabelsOnDevice>,
     overlay: Overlay,
 }
@@ -37,10 +39,12 @@ impl HeadlessScene {
         let gpu = Gpu::start()?;
         let pipeline = VolumePipeline::new(&gpu.device, TARGET);
         let plane = PlanePipeline::new(&gpu.device, TARGET);
+        let parts = PartsPipeline::new(&gpu.device, TARGET);
         Ok(Self {
             gpu,
             pipeline,
             plane,
+            parts,
             labels: None,
             overlay: Overlay::default(),
         })
@@ -94,7 +98,31 @@ impl HeadlessScene {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.labels = set.and_then(|set| LabelsOnDevice::put(device, queue, set));
         self.plane.labels(self.labels.as_ref(), self.overlay);
+        self.parts.show(device, self.labels.as_ref());
         self.labels.is_some()
+    }
+
+    /// Whether there are labels to draw as solids.
+    pub fn has_parts(&self) -> bool {
+        self.parts.has_labels()
+    }
+
+    /// Draw the labelled parts that are shown, as lit solids, into a picture `size` (width,
+    /// height) pixels large, and return it as red, green, blue, alpha bytes, row by row
+    /// from the top. Every pixel is opaque, and black where no part is. With no labels the
+    /// picture is black.
+    ///
+    /// # Errors
+    ///
+    /// As [`HeadlessScene::render`].
+    pub fn render_parts(
+        &mut self,
+        params: &SceneParams,
+        size: [u32; 2],
+    ) -> Result<Vec<u8>, RenderError> {
+        let viewport = size.map(|side| side as f32);
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.parts.picture(device, queue, params, viewport, size)
     }
 
     /// Say how each part of the labels is to look, and which is selected.
@@ -149,6 +177,8 @@ mod cut_tests;
 mod haze_tests;
 #[cfg(test)]
 mod label_tests;
+#[cfg(test)]
+mod parts_tests;
 #[cfg(test)]
 mod plane_tests;
 #[cfg(test)]

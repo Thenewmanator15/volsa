@@ -12,6 +12,7 @@ use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
 use voxa_core::{Affine, Point, Volume, WindowLevel};
+use voxa_labels::{LabelSet, Part, Side, Trust};
 use voxa_render::{
     Camera, HeadlessScene, Look, MAX_VOLUME_BYTES, NamedView, Prepared, RenderError, SceneParams,
 };
@@ -185,10 +186,73 @@ fn work_out_the_curve(c: &mut Criterion) {
     });
 }
 
+/// Labelled parts drawn as solids: a made-up label volume the size of a whole-head set at
+/// 1 mm (200 x 230 x 150 voxels), a ball split into eight parts, in a 1280 x 800 picture.
+fn draw_the_parts(c: &mut Criterion) {
+    let Ok(mut gpu) = HeadlessScene::new() else {
+        eprintln!("skipped: no graphics adapter here, not even a software one");
+        return;
+    };
+    let dims = [200_u32, 230, 150];
+    let mut numbers = Vec::new();
+    for slice in 0..150_i32 {
+        for row in 0..230_i32 {
+            for col in 0..200_i32 {
+                let (x, y, z) = (col - 100, row - 115, slice - 75);
+                let inside = x * x + y * y + z * z < 70 * 70;
+                let eighth = 1 + u16::from(x > 0) + 2 * u16::from(y > 0) + 4 * u16::from(z > 0);
+                numbers.push(if inside { eighth } else { 0 });
+            }
+        }
+    }
+    let part = |number: u8| Part {
+        name: format!("Eighth {number}"),
+        group: "Ball".to_owned(),
+        side: Side::Midline,
+        colour: [40 + 20 * number, 200 - 20 * number, 90 + 15 * number],
+        trust: Trust::NotSaid,
+        voxels: 0,
+        ml: 0.0,
+    };
+    let set = LabelSet {
+        dims,
+        numbers,
+        placement: Affine::from_columns(
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [-100.0, -115.0, -75.0],
+        ),
+        parts: (1..=8).map(part).collect(),
+        title: String::new(),
+        verdict: None,
+    };
+    assert!(gpu.label(Some(&set)), "there is room for the labels");
+    let viewport = PICTURE.map(|side| side as f32);
+    let camera =
+        Camera::fitted(NamedView::Anterior, &set.corners(), viewport).orbited([60.0, 30.0]);
+    let scene = |quality| SceneParams {
+        camera,
+        window: WindowLevel::new(0.5, 1.0),
+        look: Look::Parts,
+        cuts: Vec::new(),
+        slice: None,
+        quality,
+        skip_empty: false,
+    };
+    c.bench_function("200 x 230 x 150 parts, still", |b| {
+        b.iter(|| black_box(gpu.render_parts(&scene(1.0), PICTURE).expect("renders")));
+    });
+    let half = PICTURE.map(|side| side / 2);
+    c.bench_function("200 x 230 x 150 parts, moving", |b| {
+        b.iter(|| black_box(gpu.render_parts(&scene(0.5), half).expect("renders")));
+    });
+}
+
 criterion_group! {
     name = benches;
     config = Criterion::default().sample_size(20).measurement_time(Duration::from_secs(4));
     targets = draw_a_head, as_the_window_draws, put_a_large_volume_on_the_device,
-        work_out_the_curve
+        work_out_the_curve, draw_the_parts
 }
 criterion_main!(benches);

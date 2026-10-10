@@ -65,6 +65,7 @@ pub struct LabelsOnDevice {
     held: Arc<Held>,
     dims: [u32; 3],
     patient_to_voxel: Affine<Patient, Voxel>,
+    finest_mm: f64,
     parts: usize,
     number: u64,
 }
@@ -115,6 +116,7 @@ impl LabelsOnDevice {
             }),
             dims: set.dims,
             patient_to_voxel,
+            finest_mm: set.finest_mm(),
             parts: set.parts.len(),
             number: PLACED.fetch_add(1, Ordering::Relaxed) + 1,
         };
@@ -175,6 +177,11 @@ impl LabelsOnDevice {
     /// Columns, rows and slices of the label volume.
     pub(crate) fn dims(&self) -> [u32; 3] {
         self.dims
+    }
+
+    /// The least distance between neighbouring label voxels, in millimetres.
+    pub(crate) fn finest_mm(&self) -> f64 {
+        self.finest_mm
     }
 
     /// From a point of the patient to a place in the label volume, in voxels.

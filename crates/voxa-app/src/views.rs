@@ -48,6 +48,7 @@ impl SavedView {
             Look::Surface => "Surface",
             Look::Vr => "Vr",
             Look::Mip => "Mip",
+            Look::Parts => "Parts",
         };
         Self {
             name,
@@ -83,6 +84,7 @@ impl SavedView {
         match self.look.as_str() {
             "Vr" => Look::Vr,
             "Mip" => Look::Mip,
+            "Parts" => Look::Parts,
             _ => Look::Surface,
         }
     }
@@ -164,6 +166,15 @@ mod tests {
         assert_eq!(view.camera(), scene.camera);
         assert_eq!((view.look(), view.window()), (Look::Mip, window));
         assert_eq!(view.cuts(), scene.cuts);
+    }
+
+    #[test]
+    fn every_look_is_kept_under_its_own_name() {
+        for look in [Look::Surface, Look::Vr, Look::Mip, Look::Parts] {
+            let scene = Scene { look, ..scene() };
+            let view = SavedView::of("", 1, &scene, WindowLevel::new(1.0, 2.0));
+            assert_eq!(view.look(), look);
+        }
     }
 
     #[test]

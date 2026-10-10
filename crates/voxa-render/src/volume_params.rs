@@ -28,7 +28,7 @@ const VR_BEGINS: f32 = SURFACE_BEGINS;
 /// which the brightest tissue stops two thirds of the light, so that no one step stops much.
 const VR_LONGEST_STEP_MM: f64 = 5.0;
 /// The coarsest a picture is drawn: steps ten times as long as at full quality.
-const MIN_QUALITY: f32 = 0.1;
+pub(crate) const MIN_QUALITY: f32 = 0.1;
 /// The narrowest window the shader is given, as a share of the volume's range of values.
 pub(crate) const MIN_WINDOW: f32 = 1.0e-6;
 
@@ -125,7 +125,9 @@ fn drawn_as(look: Look) -> (f32, f32, [f32; 2]) {
     match look {
         Look::Vr => (0.0, VR_STOPPED_PER_MM, [VR_BEGINS, 1.0 - VR_BEGINS]),
         Look::Mip => (1.0, 0.0, [0.0, 1.0]),
-        Look::Surface => (2.0, SURFACE_STOPPED_PER_MM, [SURFACE_BEGINS, SURFACE_RAMP]),
+        Look::Surface | Look::Parts => {
+            (2.0, SURFACE_STOPPED_PER_MM, [SURFACE_BEGINS, SURFACE_RAMP])
+        }
     }
 }
 
@@ -170,7 +172,7 @@ fn step_along(
 
 /// The cut planes as the shader keeps them, and how many there are. Only the first few
 /// count, and of those only the ones that have a direction.
-fn cuts_in_use(scene: &SceneParams) -> ([[f32; 4]; MAX_CUTS], f32) {
+pub(crate) fn cuts_in_use(scene: &SceneParams) -> ([[f32; 4]; MAX_CUTS], f32) {
     let mut cuts = [[0.0; 4]; MAX_CUTS];
     let mut used = 0.0;
     let given = scene.cuts.iter().take(MAX_CUTS);
@@ -198,7 +200,7 @@ fn flag(yes: bool) -> f32 {
 }
 
 /// Three numbers as the four the shader keeps them in.
-fn four([x, y, z]: [f64; 3]) -> [f32; 4] {
+pub(crate) fn four([x, y, z]: [f64; 3]) -> [f32; 4] {
     [single(x), single(y), single(z), 0.0]
 }
 
@@ -207,7 +209,7 @@ fn four([x, y, z]: [f64; 3]) -> [f32; 4] {
     clippy::cast_possible_truncation,
     reason = "millimetres and pixels are small"
 )]
-fn single(value: f64) -> f32 {
+pub(crate) fn single(value: f64) -> f32 {
     value as f32
 }
 
