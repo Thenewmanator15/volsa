@@ -15,14 +15,19 @@ use crate::state::AppState;
 pub const CAPTION: &str =
     "Solids are labels made elsewhere, drawn as given: Voxa did not find them in this scan.";
 
+/// A part at least this solid is what the pointer is on. A fainter one is seen through:
+/// the pointer is on the first solid part behind it, if there is one.
+pub const SOLID_ENOUGH: f32 = 0.5;
+
 /// Whether the scene is drawn as labelled solids now.
 pub fn drawn(state: &AppState) -> bool {
     look_drawn(state) == Look::Parts
 }
 
 /// The part shown at a point of the scene's picture, given in points from its top left
-/// corner, and the point of the patient there: the first shown part on that line of sight,
-/// in what the cuts leave. `None` in any other look, and where the picture shows no part.
+/// corner, and the point of the patient there: the first shown part on that line of sight
+/// that is [`SOLID_ENOUGH`], in what the cuts leave, or the first shown part of any kind
+/// where none is. `None` in any other look, and where the picture shows no part.
 pub fn part_seen(
     state: &AppState,
     set: &LabelSet,
@@ -32,8 +37,14 @@ pub fn part_seen(
     if !drawn(state) {
         return None;
     }
-    let shown: Vec<bool> = state.labels.shown.iter().map(|how| how.shown).collect();
-    pick_part(set, &shown, &scene_params(state, 1.0)?, viewport, at)
+    let scene = scene_params(state, 1.0)?;
+    let at_least = |solid: f32| -> Vec<bool> {
+        let parts = state.labels.shown.iter();
+        parts.map(|how| how.shown && how.opacity >= solid).collect()
+    };
+    // What is solid enough first; a faded part only where nothing solid lies behind it.
+    let solid = pick_part(set, &at_least(SOLID_ENOUGH), &scene, viewport, at);
+    solid.or_else(|| pick_part(set, &at_least(0.0), &scene, viewport, at))
 }
 
 /// What a click in the scene asks of the labels: in the Parts look, with the navigating
@@ -122,6 +133,38 @@ mod tests {
             "labels of another study are not drawn as solids here"
         );
         assert_eq!(part_seen(&state, &set, viewport, at), None);
+    }
+
+    #[test]
+    fn a_faded_part_does_not_take_the_pointer_from_a_solid_one_seen_through_it() {
+        let (mut state, set, viewport) = solids();
+        // From the patient's left, the left half, part 1, is in front of the right, part 0.
+        reduce(&mut state, Action::SceneView(voxa_render::NamedView::Left));
+        let middle = [viewport[0] / 2.0, viewport[1] / 2.0];
+        let seen =
+            |state: &AppState| part_seen(state, &set, viewport, middle).map(|(part, _)| part);
+        assert_eq!(seen(&state), Some(1), "the one in front");
+        let fade = |part, opacity| Action::PartOpacity { part, opacity };
+        reduce(&mut state, fade(1, 0.3));
+        assert_eq!(seen(&state), Some(0), "what is seen through the faded one");
+        reduce(&mut state, fade(1, SOLID_ENOUGH));
+        assert_eq!(
+            seen(&state),
+            Some(1),
+            "solid enough to be what is pointed at"
+        );
+        // With nothing solid behind it, a faded part is still there to point at.
+        reduce(&mut state, fade(1, 0.3));
+        reduce(&mut state, fade(0, 0.3));
+        assert_eq!(seen(&state), Some(1), "both faded: the first met");
+        reduce(
+            &mut state,
+            Action::PartShow {
+                part: 0,
+                shown: false,
+            },
+        );
+        assert_eq!(seen(&state), Some(1), "alone, and faded");
     }
 
     #[test]
