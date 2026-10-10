@@ -15,7 +15,13 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod nifti;
+mod set;
+mod table;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
+mod words;
 
 pub use nifti::{LabelGrid, MAX_LABEL_VOXELS, NiftiError, read_labels};
+pub use set::{LabelSet, NOT_NAMED, Part, SetError, label_set};
+pub use table::{Entry, MAX_NAME, Side, Table, TableError, Trust, Verdict, read_table};
+pub use words::{trust_in_words, verdict_in_words, volume_in_words};
