@@ -165,6 +165,12 @@ impl HeadlessScene {
         self.curve.is_some()
     }
 
+    /// The graphics device this scene draws with, and its queue, for handing it work from
+    /// elsewhere: a volume made ready on another thread, say.
+    pub fn device(&self) -> (wgpu::Device, wgpu::Queue) {
+        (self.gpu.device.clone(), self.gpu.queue.clone())
+    }
+
     /// Which graphics device this is, and how it is driven, in a few words: for saying
     /// what a measurement was made on.
     pub fn device_name(&self) -> String {

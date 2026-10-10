@@ -273,51 +273,6 @@ fn a_volume_is_made_ready_for_the_device_the_window_has() {
 }
 
 #[test]
-fn with_the_blocks_left_to_the_device_a_volume_is_made_ready_without_them() {
-    let made_ready = |leave: bool| {
-        let bench = Bench::with_budget(1 << 20);
-        let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
-        let index = bench.index(folder.path()).expect("indexes");
-        bench.workers.leave_to_the_device(leave, false);
-        build(&bench, &index, THICK_SCAN);
-        until_the_volume_ends(&bench);
-        let ready = lock(&bench.volumes).take_prepared(&id(THICK_SCAN));
-        ready.expect("made ready").has_blocks()
-    };
-    assert!(made_ready(false), "worked out on the worker");
-    assert!(!made_ready(true), "left for the device to work out");
-}
-
-#[test]
-fn a_curve_left_to_the_device_is_worked_out_on_a_worker_only_when_asked_outright() {
-    let bench = Bench::with_budget(1 << 20);
-    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
-    let index = bench.index(folder.path()).expect("indexes");
-    build(&bench, &index, THICK_SCAN);
-    until_the_volume_ends(&bench);
-    bench.drain();
-    let series = id(THICK_SCAN);
-    bench.workers.leave_to_the_device(false, true);
-    let ask = Effect::BuildSmooth {
-        series: series.clone(),
-    };
-    bench.workers.run(ask, Some(&index));
-    assert!(
-        bench.is_quiet(),
-        "the device makes it from the volume it holds"
-    );
-    let taken = || lock(&bench.volumes).take_smoothed(&series);
-    assert!(taken().is_none());
-    // The device had no room after all: a worker is asked outright.
-    bench.workers.work_out_curve(series.clone());
-    let ready = Action::SmoothReady {
-        series: series.clone(),
-    };
-    assert_eq!(bench.next(), ready);
-    assert_eq!(taken().expect("kept").dims(), [4, 4, 30]);
-}
-
-#[test]
 fn the_curve_through_the_volume_kept_is_worked_out_on_a_worker_and_kept_with_it() {
     let bench = Bench::with_budget(1 << 20);
     let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));

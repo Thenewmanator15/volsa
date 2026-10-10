@@ -74,8 +74,11 @@ impl Placed {
         // over: left unwatched, either would stop the program.
         let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
         let halves = wgpu::TextureFormat::R16Float;
-        let values = texture(device, "voxa volume values", ready.dims, halves);
-        write(device, queue, &values, ready.dims, &ready.halves);
+        // Handed over ahead of time, on another thread, or handed over here and now.
+        let values = match ready.handed.take() {
+            Some(values) => values,
+            None => values_on(device, queue, ready),
+        };
         let view = values.create_view(&wgpu::TextureViewDescriptor::default());
         let largest = match (&ready.maxima, blocks) {
             (None, Some(blocks)) => blocks.make((device, queue), &view, ready.blocks),
@@ -121,6 +124,18 @@ impl Drop for Placed {
         self.values.destroy();
         self.largest.destroy();
     }
+}
+
+/// The values of a volume made ready, in a texture of their own on the device.
+pub(crate) fn values_on(
+    device: &wgpu::Device,
+    queue: &wgpu::Queue,
+    ready: &Prepared,
+) -> wgpu::Texture {
+    let halves = wgpu::TextureFormat::R16Float;
+    let values = texture(device, "voxa volume values", ready.dims, halves);
+    write(device, queue, &values, ready.dims, &ready.halves);
+    values
 }
 
 /// A 3D texture of 16-bit numbers of one kind, `dims` texels each way.

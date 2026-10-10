@@ -69,6 +69,20 @@ pub struct VoxaApp {
 }
 
 impl VoxaApp {
+    /// Tell the workers what the window's graphics device is like, and give it to them.
+    fn tell_the_workers_of(&self, render: &egui_wgpu::RenderState) {
+        let workers = self.session.workers();
+        // Volumes are made ready on the workers to fit this device.
+        workers.set_volume_side(render.device.limits().max_texture_dimension_3d);
+        // What this device works out itself is not worked out on a worker first.
+        let pipeline = self.scene.volume_pipeline();
+        let blocks = pipeline.is_some_and(|pipeline| pipeline.makes_blocks(&render.device));
+        let curves = pipeline.is_some_and(|pipeline| pipeline.makes_curves(&render.device));
+        workers.leave_to_the_device(blocks, curves);
+        // And a volume is handed to the device by the worker that made it ready.
+        workers.give_device(render.device.clone(), render.queue.clone());
+    }
+
     /// Set the window up, and open `initial` if a path was given.
     pub fn new(
         creation: &eframe::CreationContext<'_>,
@@ -114,14 +128,7 @@ impl VoxaApp {
             turntable: None,
         };
         if let Some(render) = render {
-            // Volumes are made ready on the workers to fit this device.
-            let longest = render.device.limits().max_texture_dimension_3d;
-            app.session.workers().set_volume_side(longest);
-            // And what this device works out itself is not worked out on a worker first.
-            let pipeline = app.scene.volume_pipeline();
-            let blocks = pipeline.is_some_and(|pipeline| pipeline.makes_blocks(&render.device));
-            let curves = pipeline.is_some_and(|pipeline| pipeline.makes_curves(&render.device));
-            app.session.workers().leave_to_the_device(blocks, curves);
+            app.tell_the_workers_of(render);
         }
         if app.capture.is_some() {
             // A picture is of things as they come to rest, not part-way through fading in.

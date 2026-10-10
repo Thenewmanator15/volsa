@@ -236,3 +236,48 @@ fn a_device_with_nothing_else_in_hand_is_timed_over_a_piece_of_work() {
     gpu.settle();
     assert!(timed(&gpu).is_some(), "idle again");
 }
+
+#[test]
+fn a_volume_handed_to_the_device_beforehand_from_another_thread_is_drawn_the_same() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let volume = scattered();
+    let camera = Camera::fitted(NamedView::Anterior, &volume.corners(), [64.0, 48.0]);
+    let scene = SceneParams {
+        camera,
+        window: WindowLevel::new(500.0, 1000.0),
+        look: Look::Mip,
+        cuts: Vec::new(),
+        slice: None,
+        quality: 1.0,
+        skip_empty: true,
+    };
+    let (_, light) = ready(&volume);
+    assert!(!light.is_handed_over());
+    gpu.upload_prepared(&light).expect("uploads");
+    let as_before = gpu.render(&scene, [64, 48]).expect("renders");
+    // Made ready and handed over on another thread, as a worker does it.
+    let (device, queue) = gpu.device();
+    let early = std::thread::scope(|threads| {
+        let handing = threads.spawn(|| {
+            let mut early = Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES);
+            assert!(early.hand_over(&device, &queue), "there is room");
+            early
+        });
+        handing.join().expect("the thread ends")
+    });
+    assert!(early.is_handed_over());
+    gpu.upload_prepared(&early).expect("taken up");
+    assert!(!early.is_handed_over(), "taken up once");
+    let handed_early = gpu.render(&scene, [64, 48]).expect("renders");
+    assert!(handed_early == as_before, "pixel for pixel");
+    assert!(
+        handed_early.iter().any(|byte| *byte > 40),
+        "and shows something"
+    );
+    // Given a second time it is handed over in the ordinary way, and still the same.
+    gpu.upload_prepared(&early).expect("uploads");
+    let again = gpu.render(&scene, [64, 48]).expect("renders");
+    assert!(again == as_before, "the same picture once more");
+}

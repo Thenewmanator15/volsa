@@ -184,7 +184,27 @@ fn put_a_large_volume_on_the_device(c: &mut Criterion) {
     c.bench_function("512 x 512 x 300 made ready without its blocks", |b| {
         b.iter(|| black_box(Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES)));
     });
+    // What the thread that puts the volume on the device spends doing it: handing the bytes
+    // over itself, and with the bytes handed over beforehand, as a worker does it.
     let light = Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES);
+    c.bench_function("512 x 512 x 300 put on the device, bytes and all", |b| {
+        b.iter(|| black_box(gpu.upload_prepared(&light).expect("uploads")));
+    });
+    let (device, queue) = gpu.device();
+    c.bench_function(
+        "512 x 512 x 300 put on the device, bytes handed over beforehand",
+        |b| {
+            b.iter_batched(
+                || {
+                    let mut early = Prepared::without_blocks(&volume, 2048, MAX_VOLUME_BYTES);
+                    assert!(early.hand_over(&device, &queue), "there is room");
+                    early
+                },
+                |early| black_box(gpu.upload_prepared(&early).expect("taken up")),
+                criterion::BatchSize::PerIteration,
+            );
+        },
+    );
     c.bench_function(
         "512 x 512 x 300 handed to the device, blocks worked out there",
         |b| {

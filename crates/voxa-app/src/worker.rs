@@ -382,6 +382,8 @@ fn lock<T: ?Sized>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 #[cfg(test)]
+mod device_tests;
+#[cfg(test)]
 mod labels_tests;
 #[cfg(test)]
 mod once_tests;

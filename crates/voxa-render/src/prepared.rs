@@ -2,7 +2,9 @@
 //! series in 3D, and it needs no device, so it can be done away from the interface's thread.
 
 use std::borrow::Cow;
+use std::cell::Cell;
 
+use egui_wgpu::wgpu;
 use half::f16;
 use rayon::prelude::*;
 use voxa_core::{Affine, Patient, Volume, Voxel};
@@ -35,6 +37,9 @@ pub struct Prepared {
     /// The span of scan values from the one stored as 0 to the one stored as 1.
     pub(crate) span: f32,
     halved: u32,
+    /// The values on the graphics device already, where they were handed over ahead of
+    /// time; taken up by whatever puts the volume there.
+    pub(crate) handed: Cell<Option<wgpu::Texture>>,
 }
 
 impl Prepared {
@@ -59,10 +64,9 @@ impl Prepared {
             shown = Cow::Owned(halved(&shown));
         }
         let blocks = shown.dims().map(|count| count.div_ceil(BLOCK));
-        Self {
-            maxima: None,
-            ..Self::with_maxima(&shown, (&[], blocks), halvings)
-        }
+        let mut ready = Self::with_maxima(&shown, (&[], blocks), halvings);
+        ready.maxima = None;
+        ready
     }
 
     /// Make a volume ready at the size it is. `halved` is how often it has been halved.
@@ -94,7 +98,38 @@ impl Prepared {
             smallest,
             span,
             halved: times_halved,
+            handed: Cell::new(None),
         }
+    }
+
+    /// Hand the values to the graphics device now, from whatever thread this is, so that
+    /// putting the volume there later has no bytes left to hand over: that is the part
+    /// that takes time, and it need not be the interface's thread that spends it. False,
+    /// with nothing handed over, when the device has no room or the volume is too long a
+    /// side for it.
+    pub fn hand_over(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) -> bool {
+        let longest = device.limits().max_texture_dimension_3d;
+        if self.dims.iter().any(|side| *side == 0 || *side > longest) {
+            return false;
+        }
+        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let values = crate::volume_texture::values_on(device, queue, self);
+        if pollster::block_on(room.pop()).is_some() {
+            values.destroy();
+            return false;
+        }
+        if let Some(before) = self.handed.replace(Some(values)) {
+            before.destroy();
+        }
+        true
+    }
+
+    /// Whether the values are on the graphics device already and have not been taken up.
+    pub fn is_handed_over(&self) -> bool {
+        let handed = self.handed.take();
+        let there = handed.is_some();
+        self.handed.set(handed);
+        there
     }
 
     /// Whether the largest value in each block has been worked out, and is not left for
@@ -111,6 +146,15 @@ impl Prepared {
     /// Columns, rows and slices as they will be stored.
     pub fn dims(&self) -> [u32; 3] {
         self.dims
+    }
+}
+
+impl Drop for Prepared {
+    /// Values handed to the device and never taken up are given back to it at once.
+    fn drop(&mut self) {
+        if let Some(unused) = self.handed.take() {
+            unused.destroy();
+        }
     }
 }
 

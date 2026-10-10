@@ -5,6 +5,7 @@
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+use egui_wgpu::wgpu;
 use rayon::prelude::*;
 use voxa_core::{SeriesId, Volume};
 use voxa_dicom::{Frame, ImageFile, IndexedSeries};
@@ -38,9 +39,19 @@ pub(super) struct DeviceDoes {
     blocks: AtomicBool,
     /// Working out the curve through the values.
     curves: AtomicBool,
+    /// The device itself and its queue, once the window has given them: a volume made
+    /// ready is then handed to the device by the worker that made it.
+    device: Mutex<Option<(wgpu::Device, wgpu::Queue)>>,
 }
 
 impl Workers {
+    /// Give the workers the window's graphics device. From now on the worker that makes a
+    /// volume ready also hands its values to the device, so that the window, when it
+    /// shows the volume, has no bytes left to hand over and does not pause to.
+    pub fn give_device(&self, device: wgpu::Device, queue: wgpu::Queue) {
+        *lock(&self.shared.device_does.device) = Some((device, queue));
+    }
+
     /// Say what the window's graphics device does itself: the largest value in each block
     /// of a volume, and the curve through its values. What it does is left to it from now
     /// on, and not done on a worker first.
@@ -243,11 +254,17 @@ impl Shared {
         // Made ready for the graphics device here, on a worker, so that the window has only
         // to hand it over.
         let side = self.volume_side.load(Ordering::SeqCst);
-        let ready = if self.device_does.blocks.load(Ordering::SeqCst) {
+        let mut ready = if self.device_does.blocks.load(Ordering::SeqCst) {
             Prepared::without_blocks(&volume, side, MAX_VOLUME_BYTES)
         } else {
             Prepared::of(&volume, side, MAX_VOLUME_BYTES)
         };
+        // Handed to the device from here too. With no room there it stays as it is, and
+        // the window deals with that as it always has.
+        let device = lock(&self.device_does.device).clone();
+        if let Some((device, queue)) = device {
+            ready.hand_over(&device, &queue);
+        }
         // Checked with the store locked, so a newer volume is never overwritten.
         let mut store = lock(&self.volumes);
         if !self.ended(build) {
