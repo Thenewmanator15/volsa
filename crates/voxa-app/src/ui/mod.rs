@@ -55,6 +55,8 @@ pub struct VoxaApp {
     parts: parts::PartsView,
     /// The label file to open, and the one that is open.
     labels: labels::Opening,
+    /// The labels on the graphics device.
+    held: labels::Held,
     /// When playback in each viewport last moved on.
     clocks: [cine::Clock; VIEWPORTS],
     capture: Option<capture::Capture>,
@@ -102,6 +104,7 @@ impl VoxaApp {
             measure: measure::Panel::default(),
             parts: parts::PartsView::default(),
             labels: labels::Opening::waiting_for(labels),
+            held: labels::Held::default(),
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture,
             pose: Vec::new(),

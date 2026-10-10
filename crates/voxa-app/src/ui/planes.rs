@@ -6,7 +6,8 @@ use std::sync::Arc;
 
 use egui_wgpu::RenderState;
 use voxa_core::{Volume, WindowLevel};
-use voxa_render::{PlaneView, Smoothed, SmoothedTexture, VolumePipeline};
+use voxa_labels::LabelSet;
+use voxa_render::{LabelsOnDevice, Overlay, PlaneView, Smoothed, SmoothedTexture, VolumePipeline};
 use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
 
 use super::pen::{self, Pen};
@@ -20,6 +21,7 @@ use crate::state::{AppState, Notice, NoticeKind};
 mod gpu;
 mod mouse;
 mod overlay;
+mod parts;
 mod shapes;
 mod tools;
 
@@ -102,6 +104,13 @@ impl PlanesView {
         self.curve.is_some()
     }
 
+    /// Draw these labels over every panel in this way, or none with `None`.
+    pub fn label(&mut self, with: Option<&LabelsOnDevice>, overlay: Overlay) {
+        for gpu in self.gpus.iter().flatten() {
+            gpu.labels(with, overlay);
+        }
+    }
+
     /// Hold a curve, or none, and have every panel draw from it.
     fn set_curve(&mut self, curve: Option<(Arc<Volume>, SmoothedTexture)>) {
         self.curve = curve;
@@ -125,10 +134,12 @@ pub fn no_room_to_smooth() -> Notice {
 }
 
 /// What the panels are drawn from: the scene's volume on the graphics device, with the
-/// window's device, and the same volume on the processor, for measuring.
+/// window's device; the same volume on the processor, for measuring; and the labels read,
+/// for telling which part lies under the pointer.
 pub type Sources<'a> = (
     Option<(&'a VolumePipeline, &'a RenderState)>,
     Option<&'a Volume>,
+    Option<&'a LabelSet>,
 );
 
 /// Draw the three planes into `cells`, in the order of [`PlaneKind::ALL`], and turn what the
@@ -138,7 +149,7 @@ pub fn show(
     ui: &mut Ui,
     cells: [Rect; 3],
     state: &AppState,
-    (on_device, scan): Sources<'_>,
+    (on_device, scan, labels): Sources<'_>,
     view: &mut PlanesView,
     actions: &mut Vec<Action>,
 ) {
@@ -156,6 +167,11 @@ pub fn show(
             let input = mouse::gather(ui, &response, cell, &shown, part_notch);
             let drawn = handled(state, kind, &input, (&shown.plane, scan), &mut view.drawing);
             actions.extend(drawn);
+            // The press that moves the position also selects the part pressed on.
+            actions.extend(parts::selected_by(state, labels, &input));
+            if let Some(name) = parts::named_under(state, labels, &input) {
+                response.on_hover_text_at_pointer(name);
+            }
         }
     }
 }
@@ -304,7 +320,12 @@ fn written_over(
         let spacing = state.series(state.scene.series.as_ref()?)?.info.spacing_mm;
         interpolated_note(spacing, pitch(view.plane.across)?, pitch(view.plane.down)?)
     });
-    if let Some(note) = panel_note(note, smooth) {
+    let of_labels = parts::drawn(state).then(|| parts::LABELS_NOTE.to_owned());
+    let notes: Vec<String> = panel_note(note, smooth)
+        .into_iter()
+        .chain(of_labels)
+        .collect();
+    if let Some(note) = Some(notes.join("\n")).filter(|note| !note.is_empty()) {
         // Kept to its own side of the letter in the middle of the bottom edge.
         pen.write_wrapped_up(inside.left_bottom(), &note, room);
     }

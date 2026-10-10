@@ -64,6 +64,7 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("planes", Action::SetColumn(ColumnShows::Planes)),
         ("quad", Action::SetMain(MainPanel::Planes)),
         ("parts", Action::SetColumn(ColumnShows::Parts)),
+        ("filled", Action::SetOverlay(voxa_render::Overlay::Filled)),
         ("smooth", Action::SetSmooth(true)),
     ];
     let wanted = poses.into_iter().filter(|(word, _)| asked(word));

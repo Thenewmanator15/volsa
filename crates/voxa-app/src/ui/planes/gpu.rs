@@ -5,7 +5,9 @@ use std::sync::{Arc, Mutex, PoisonError};
 use egui::{Rect, Ui};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use voxa_core::WindowLevel;
-use voxa_render::{PlanePipeline, PlaneView, SmoothedTexture, VolumePipeline};
+use voxa_render::{
+    LabelsOnDevice, Overlay, PlanePipeline, PlaneView, SmoothedTexture, VolumePipeline,
+};
 
 /// What one plane's panel keeps on the graphics device between frames.
 pub struct PlaneGpu {
@@ -25,6 +27,12 @@ impl PlaneGpu {
     pub fn smooth(&self, with: Option<&SmoothedTexture>) {
         let mut pipeline = self.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
         pipeline.smooth(with);
+    }
+
+    /// Draw these labels over the plane in this way from now on, or none with `None`.
+    pub fn labels(&self, with: Option<&LabelsOnDevice>, overlay: Overlay) {
+        let mut pipeline = self.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
+        pipeline.labels(with, overlay);
     }
 
     /// Whether the plane last queued is drawn from the curve.

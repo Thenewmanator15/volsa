@@ -2,11 +2,17 @@
 //! window, and remembering which is open so that another table of names can be chosen for it.
 
 use std::path::PathBuf;
+use std::sync::Arc;
+
+use egui_wgpu::RenderState;
+use voxa_labels::LabelSet;
+use voxa_render::{LabelsOnDevice, PartLook};
 
 use super::{VoxaApp, parts};
 use crate::action::Action;
-use crate::labels::is_label_file;
+use crate::labels::{is_label_file, on_this_series};
 use crate::planes::grid;
+use crate::state::{AppState, Notice, NoticeKind};
 
 /// The label file waiting to be opened, and the one last opened. Neither is kept anywhere
 /// but here, for as long as the window is open.
@@ -79,6 +85,84 @@ impl Opening {
     }
 }
 
+/// How every part looks, and which is selected: what the graphics device is told.
+type Looks = (Vec<PartLook>, Option<usize>);
+
+/// Whether these looks differ from the ones last sent to the device. They are kept as the
+/// ones sent, so the same looks asked about twice are fresh once.
+fn fresh(sent: &mut Option<Looks>, now: Looks) -> bool {
+    if sent.as_ref() == Some(&now) {
+        return false;
+    }
+    *sent = Some(now);
+    true
+}
+
+/// What is said when the graphics device has no room for the labels.
+pub fn no_room() -> Notice {
+    let text = "The graphics device has no room for these labels: they are listed, and not drawn.";
+    Notice {
+        kind: NoticeKind::Warning,
+        text: text.to_owned(),
+        details: Vec::new(),
+        key: Some("labels"),
+    }
+}
+
+/// The labels on the graphics device as the window keeps them from one frame to the next:
+/// one copy, which the plane views and the 3D scene both draw from.
+#[derive(Default)]
+pub struct Held {
+    placed: Option<(Arc<LabelSet>, LabelsOnDevice)>,
+    /// A set the device had no room for, so that it is not tried again every frame.
+    refused: Option<Arc<LabelSet>>,
+    /// The looks last sent to the device.
+    sent: Option<Looks>,
+}
+
+impl Held {
+    /// Keep on the device the labels that are drawn on the series in the scene, and tell it
+    /// how each part looks whenever that has changed. `set` is the label set a worker read;
+    /// labels of another study than the one shown are taken off the device. True when the
+    /// device had no room for the labels, said once for each set.
+    pub fn keep(
+        &mut self,
+        render: Option<&RenderState>,
+        state: &AppState,
+        set: Option<&Arc<LabelSet>>,
+    ) -> bool {
+        let Some((set, render)) = set.filter(|_| on_this_series(state)).zip(render) else {
+            (self.placed, self.sent) = (None, None);
+            return false;
+        };
+        let same = |held: &Arc<LabelSet>| Arc::ptr_eq(held, set);
+        if self.placed.as_ref().is_some_and(|(held, _)| !same(held)) {
+            (self.placed, self.sent) = (None, None);
+        }
+        let mut no_room = false;
+        if self.placed.is_none() && !self.refused.as_ref().is_some_and(same) {
+            let placed = LabelsOnDevice::put(&render.device, &render.queue, set);
+            no_room = placed.is_none();
+            self.refused = no_room.then(|| Arc::clone(set));
+            self.placed = placed.map(|placed| (Arc::clone(set), placed));
+            self.sent = None;
+        }
+        let looks = (state.labels.looks(), state.labels.selected);
+        if let Some((_, placed)) = &self.placed
+            && fresh(&mut self.sent, looks)
+            && let Some((looks, selected)) = &self.sent
+        {
+            placed.set_looks(&render.queue, looks, *selected);
+        }
+        no_room
+    }
+
+    /// The labels on the device, if there are any to draw.
+    pub fn on_device(&self) -> Option<&LabelsOnDevice> {
+        self.placed.as_ref().map(|(_, placed)| placed)
+    }
+}
+
 impl VoxaApp {
     /// Open the label file named when Voxa was started, once the scan it was named with has
     /// a volume ready to put labels on.
@@ -122,6 +206,32 @@ mod tests {
         assert_eq!(opening.renamed(PathBuf::from("names.ctbl")), Some(renamed));
         assert!(
             !is_label_file(&PathBuf::from("nii")) && !is_label_file(&PathBuf::from("a.nii.zip"))
+        );
+    }
+
+    #[test]
+    fn the_looks_are_sent_to_the_device_once_and_again_only_when_they_change() {
+        let look = |opacity| voxa_render::PartLook {
+            colour: [1, 2, 3],
+            opacity,
+        };
+        let mut sent = None;
+        assert!(fresh(&mut sent, (vec![look(1.0)], None)), "the first time");
+        assert!(
+            !fresh(&mut sent, (vec![look(1.0)], None)),
+            "nothing has changed"
+        );
+        assert!(
+            fresh(&mut sent, (vec![look(0.0)], None)),
+            "a part was hidden"
+        );
+        assert!(fresh(&mut sent, (vec![look(0.5)], None)), "or faded");
+        assert!(fresh(&mut sent, (vec![look(0.5)], Some(0))), "or selected");
+        assert!(!fresh(&mut sent, (vec![look(0.5)], Some(0))));
+        assert_eq!(
+            sent,
+            Some((vec![look(0.5)], Some(0))),
+            "what was sent last is kept"
         );
     }
 }

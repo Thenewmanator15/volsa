@@ -3,7 +3,7 @@
 
 use egui_wgpu::RenderState;
 
-use super::{VoxaApp, layout, parts, planes, scene, viewport};
+use super::{VoxaApp, labels, layout, parts, planes, scene, viewport};
 use crate::action::Action;
 use crate::scene::SceneStatus;
 
@@ -46,6 +46,13 @@ impl VoxaApp {
         if self.planes.smooth(render, smoothed, take) {
             actions.push(Action::Post(planes::no_room_to_smooth()));
         }
+        // One copy of the labels on the device, for the planes and the scene to draw from.
+        let set = self.session.labels();
+        if self.held.keep(render, state, set.as_ref()) {
+            actions.push(Action::Post(labels::no_room()));
+        }
+        self.planes
+            .label(self.held.on_device(), state.labels.overlay);
         if let Some(cells) = areas.planes {
             // After the scene, which is what puts the volume on the graphics device.
             let held = self.scene.volume_pipeline();
@@ -55,7 +62,7 @@ impl VoxaApp {
                 ui,
                 cells,
                 state,
-                (on_device, scan),
+                (on_device, scan, set.as_deref()),
                 &mut self.planes,
                 actions,
             );
