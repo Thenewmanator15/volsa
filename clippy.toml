@@ -1,2 +1,4 @@
 # Functions longer than this are denied by `clippy::too_many_lines` (see Cargo.toml).
 too-many-lines-threshold = 60
+# Names written in mixed case that are names, not code: the file format label volumes come in.
+doc-valid-idents = ["NIfTI", ".."]

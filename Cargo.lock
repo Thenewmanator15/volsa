@@ -3938,6 +3938,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "voxa-labels"
+version = "0.3.0"
+dependencies = [
+ "flate2",
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "voxa-core",
+]
+
+[[package]]
 name = "voxa-render"
 version = "0.3.0"
 dependencies = [

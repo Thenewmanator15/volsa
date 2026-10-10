@@ -4,6 +4,7 @@ members = [
     "crates/voxa-core",
     "crates/voxa-dicom",
     "crates/voxa-volume",
+    "crates/voxa-labels",
     "crates/voxa-render",
     "crates/voxa-app",
     "xtask",
@@ -21,6 +22,7 @@ publish = false
 voxa-core = { path = "crates/voxa-core" }
 voxa-dicom = { path = "crates/voxa-dicom" }
 voxa-volume = { path = "crates/voxa-volume" }
+voxa-labels = { path = "crates/voxa-labels" }
 voxa-render = { path = "crates/voxa-render" }
 
 thiserror = "2"
@@ -46,6 +48,8 @@ dicom-pixeldata = { version = "0.10", default-features = false, features = ["nat
 dicom-transfer-syntax-registry = { version = "0.10", default-features = false }
 # Stored and deflated entries cover scan exports; the other compressors would only add code to audit.
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs"] }
+# Label volumes are usually gzipped (.nii.gz). The same pure-Rust inflater `zip` already uses.
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 
 # Saved views: an open file format, in the folder the system gives for settings.
 serde = { version = "1", features = ["derive"] }
