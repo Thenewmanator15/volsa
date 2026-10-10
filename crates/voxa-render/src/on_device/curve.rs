@@ -3,7 +3,7 @@
 
 use egui_wgpu::wgpu;
 
-use super::{IntoSlices, if_the_device_can, read_by_texel, texture};
+use super::{IntoSlices, REALS, if_the_device_can, read_by_texel, texture};
 use crate::smoothed::SmoothedTexture;
 
 /// The coefficients as planes are drawn from them: held as the volume's values are.
@@ -49,7 +49,13 @@ impl CurveMaker {
             Self {
                 seed: pipeline("seed"),
                 along: pipeline("along"),
-                copy: IntoSlices::new(device, include_str!("curve_copy.wgsl"), "stored", HALVES),
+                copy: IntoSlices::new(
+                    device,
+                    include_str!("curve_copy.wgsl"),
+                    "stored",
+                    HALVES,
+                    REALS,
+                ),
                 layout,
             }
         })

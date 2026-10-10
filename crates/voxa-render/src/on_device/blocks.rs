@@ -3,7 +3,7 @@
 
 use egui_wgpu::wgpu;
 
-use super::{IntoSlices, if_the_device_can, texture};
+use super::{IntoSlices, REALS, if_the_device_can, texture};
 
 const SOURCE: &str = include_str!("blocks.wgsl");
 /// The blocks are kept as the volume's values are.
@@ -19,8 +19,8 @@ impl BlocksMaker {
     /// `None` on a device that cannot draw into the slices of a 3D texture.
     pub(crate) fn new(device: &wgpu::Device) -> Option<Self> {
         if_the_device_can(device, || Self {
-            within: IntoSlices::new(device, SOURCE, "largest_in_block", HALVES),
-            about: IntoSlices::new(device, SOURCE, "largest_about", HALVES),
+            within: IntoSlices::new(device, SOURCE, "largest_in_block", HALVES, REALS),
+            about: IntoSlices::new(device, SOURCE, "largest_about", HALVES, REALS),
         })
     }
 

@@ -7,9 +7,11 @@ use egui_wgpu::wgpu;
 
 mod blocks;
 mod curve;
+mod filled;
 
 pub(crate) use blocks::{BlocksMaker, largest_in_blocks};
 pub(crate) use curve::CurveMaker;
+pub(crate) use filled::FilledMaker;
 
 /// The vertex shader every drawing into slices shares.
 const SLICES: &str = include_str!("on_device/slices.wgsl");
@@ -52,13 +54,26 @@ fn texture(
     })
 }
 
-/// A 3D texture as a shader reads it with `textureLoad`: one texel at a time, not blended.
+/// The kind a 3D texture of real numbers is read as with `textureLoad`.
+const REALS: wgpu::TextureSampleType = wgpu::TextureSampleType::Float { filterable: false };
+
+/// A 3D texture of real numbers as a shader reads it with `textureLoad`: one texel at a
+/// time, not blended.
 fn read_by_texel(binding: u32, visibility: wgpu::ShaderStages) -> wgpu::BindGroupLayoutEntry {
+    read_as(binding, visibility, REALS)
+}
+
+/// A 3D texture read one texel at a time, as numbers of the kind given.
+fn read_as(
+    binding: u32,
+    visibility: wgpu::ShaderStages,
+    sample_type: wgpu::TextureSampleType,
+) -> wgpu::BindGroupLayoutEntry {
     wgpu::BindGroupLayoutEntry {
         binding,
         visibility,
         ty: wgpu::BindingType::Texture {
-            sample_type: wgpu::TextureSampleType::Float { filterable: false },
+            sample_type,
             view_dimension: wgpu::TextureViewDimension::D3,
             multisampled: false,
         },
@@ -74,15 +89,22 @@ struct IntoSlices {
 }
 
 impl IntoSlices {
-    /// A drawing with the fragment shader `entry` of `source`, into slices of `format`.
-    fn new(device: &wgpu::Device, source: &str, entry: &str, format: wgpu::TextureFormat) -> Self {
+    /// A drawing with the fragment shader `entry` of `source`, into slices of `format`,
+    /// from a texture whose numbers are of the kind `reads`.
+    fn new(
+        device: &wgpu::Device,
+        source: &str,
+        entry: &str,
+        format: wgpu::TextureFormat,
+        reads: wgpu::TextureSampleType,
+    ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("voxa into slices"),
             source: wgpu::ShaderSource::Wgsl(format!("{SLICES}\n{source}").into()),
         });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("voxa into slices"),
-            entries: &[read_by_texel(0, wgpu::ShaderStages::FRAGMENT)],
+            entries: &[read_as(0, wgpu::ShaderStages::FRAGMENT, reads)],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("voxa into slices"),

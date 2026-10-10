@@ -1,11 +1,14 @@
 //! The GPU pipeline that draws labelled parts as lit solids. It reads the labels the planes
 //! read, on the labels' own grid, so showing them in 3D costs no second copy.
 
+use std::sync::OnceLock;
+
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
 
 use crate::gpu::Gpu;
 use crate::labels::LabelsOnDevice;
+use crate::on_device::FilledMaker;
 use crate::scene::{MAX_CUTS, SceneParams};
 use crate::slice_pipeline::RenderError;
 use crate::volume_params::{MIN_QUALITY, cuts_in_use, four, single};
@@ -30,6 +33,17 @@ struct Params {
 struct Shown {
     bind_group: wgpu::BindGroup,
     labels: LabelsOnDevice,
+    /// Which blocks of the label volume hold a part, where the device worked that out.
+    filled: Option<wgpu::Texture>,
+}
+
+impl Drop for Shown {
+    /// Give the device its memory back now, not whenever it gets round to it.
+    fn drop(&mut self) {
+        if let Some(filled) = &self.filled {
+            filled.destroy();
+        }
+    }
 }
 
 /// Draws the parts of a label set that are shown, each as a lit solid in its colour.
@@ -38,6 +52,11 @@ pub struct PartsPipeline {
     layout: wgpu::BindGroupLayout,
     params: wgpu::Buffer,
     shown: Option<Shown>,
+    /// What finds, on the device, the blocks of a label volume that hold no part; made
+    /// when first wanted, and `None` on a device that cannot.
+    filler: OnceLock<Option<FilledMaker>>,
+    /// What the shader is given to read when no blocks have been worked out.
+    no_blocks: wgpu::TextureView,
 }
 
 impl PartsPipeline {
@@ -77,17 +96,27 @@ impl PartsPipeline {
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
+        let one = wgpu::TextureFormat::R16Float;
+        let no_blocks = crate::volume_texture::texture(device, "voxa no label blocks", [1; 3], one);
         Self {
             pipeline,
             layout,
             params,
             shown: None,
+            filler: OnceLock::new(),
+            no_blocks: no_blocks.create_view(&wgpu::TextureViewDescriptor::default()),
         }
     }
 
     /// Draw from these labels, or draw nothing with `None`. It does its work only when they
-    /// are not the ones already drawn from.
-    pub fn show(&mut self, device: &wgpu::Device, labels: Option<&LabelsOnDevice>) {
+    /// are not the ones already drawn from: then the device is also set to find the blocks
+    /// of the label volume that hold no part, which lines of sight step over.
+    pub fn show(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        labels: Option<&LabelsOnDevice>,
+    ) {
         let Some(labels) = labels else {
             self.shown = None;
             return;
@@ -96,11 +125,20 @@ impl PartsPipeline {
         if self.shown.as_ref().is_some_and(same) {
             return;
         }
+        let maker = self
+            .filler
+            .get_or_init(|| FilledMaker::new(device))
+            .as_ref();
+        let filled =
+            maker.map(|maker| maker.make((device, queue), labels.parts_view(), labels.dims()));
+        let whole = wgpu::TextureViewDescriptor::default();
+        let blocks = filled.as_ref().map(|filled| filled.create_view(&whole));
         let view = wgpu::BindingResource::TextureView;
         let resources = [
             self.params.as_entire_binding(),
             view(labels.parts_view()),
             view(labels.looks_view()),
+            view(blocks.as_ref().unwrap_or(&self.no_blocks)),
         ];
         let entries: Vec<wgpu::BindGroupEntry> = (0..)
             .zip(resources)
@@ -114,7 +152,15 @@ impl PartsPipeline {
         self.shown = Some(Shown {
             bind_group,
             labels: labels.clone(),
+            filled,
         });
+    }
+
+    /// The texture that says which blocks of the label volume hold a part, for reading
+    /// it back.
+    #[cfg(test)]
+    pub(crate) fn filled(&self) -> Option<&wgpu::Texture> {
+        self.shown.as_ref()?.filled.as_ref()
     }
 
     /// Whether there are labels to draw solids from.
@@ -151,7 +197,12 @@ impl PartsPipeline {
             across,
             along,
             forward,
-            top_left: four(to_patient.origin()),
+            top_left: {
+                // The fourth number says whether to step over the blocks that hold no part.
+                let [x, y, z, _] = four(to_patient.origin());
+                let stepped_over = scene.skip_empty && shown.filled.is_some();
+                [x, y, z, f32::from(u8::from(stepped_over))]
+            },
             to_col: row(|[col, _, _]| col),
             to_row: row(|[_, line, _]| line),
             to_slice: row(|[_, _, slice]| slice),
@@ -220,8 +271,18 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         view_dimension: wgpu::TextureViewDimension::D2,
         multisampled: false,
     };
+    let blocks = wgpu::BindingType::Texture {
+        sample_type: wgpu::TextureSampleType::Float { filterable: false },
+        view_dimension: wgpu::TextureViewDimension::D3,
+        multisampled: false,
+    };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("voxa parts"),
-        entries: &[entry(0, parameters), entry(1, parts), entry(2, looks)],
+        entries: &[
+            entry(0, parameters),
+            entry(1, parts),
+            entry(2, looks),
+            entry(3, blocks),
+        ],
     })
 }

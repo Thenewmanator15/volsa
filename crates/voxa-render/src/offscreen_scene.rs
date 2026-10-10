@@ -104,7 +104,7 @@ impl HeadlessScene {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.labels = set.and_then(|set| LabelsOnDevice::put(device, queue, set));
         self.plane.labels(self.labels.as_ref(), self.overlay);
-        self.parts.show(device, self.labels.as_ref());
+        self.parts.show(device, queue, self.labels.as_ref());
         self.labels.is_some()
     }
 
@@ -193,6 +193,12 @@ impl HeadlessScene {
     pub(crate) fn blocks_as_held(&self) -> Option<Vec<u16>> {
         let (placed, _) = self.pipeline.placed()?;
         Some(self.gpu.halves_of(placed.largest()))
+    }
+
+    /// Which blocks of the label volume hold a part, as the device worked it out.
+    #[cfg(test)]
+    pub(crate) fn part_blocks_as_held(&self) -> Option<Vec<u16>> {
+        Some(self.gpu.halves_of(self.parts.filled()?))
     }
 
     /// The coefficients of the curve planes are drawn from, as the device holds them.

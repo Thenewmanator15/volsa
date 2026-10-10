@@ -4,7 +4,8 @@
 
 struct Scene {
     // The screen pixel (x, y), z millimetres beyond the camera's target, lies in the patient
-    // at top_left + x * across + y * along + z * forward, in millimetres.
+    // at top_left + x * across + y * along + z * forward, in millimetres. The fourth number
+    // of top_left is 1 when blocks that hold no part are to be stepped over.
     across: vec4<f32>,
     along: vec4<f32>,
     forward: vec4<f32>,
@@ -27,6 +28,12 @@ struct Scene {
 @group(0) @binding(0) var<uniform> scene: Scene;
 @group(0) @binding(1) var parts: texture_3d<u32>;
 @group(0) @binding(2) var looks: texture_2d<f32>;
+// One texel for each block of BLOCK voxels a side: 1 where the block holds a part, 0 where
+// it holds none. Read only when the scene says so (top_left.w).
+@group(0) @binding(3) var filled: texture_3d<f32>;
+
+// The side of a block, in voxels. The same as PART_BLOCK in on_device/filled.rs.
+const BLOCK: i32 = 8;
 
 // The most steps along one line of sight; a longer line is followed in longer steps.
 const MAX_STEPS: f32 = 2048.0;
@@ -181,6 +188,7 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let stride = max(scene.view.z, (leave - enter) / MAX_STEPS);
     let steps = i32(ceil((leave - enter) / stride));
     let chosen = u32(scene.view.w);
+    let stepping_over = scene.top_left.w > 0.5;
     var light = vec3<f32>(0.0);
     var stopped = 0.0;
     // The part the line was last in, so that a part is drawn once where the line enters it.
@@ -188,7 +196,23 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     for (var i = 0; i < steps; i++) {
         let along = min(enter + (f32(i) + 0.5) * stride, leave);
         let at = start + along * step;
-        let part = part_of(vec3<i32>(floor(at + 0.5)));
+        let voxel = vec3<i32>(floor(at + 0.5));
+        if stepping_over {
+            let block = voxel / BLOCK;
+            if textureLoad(filled, block, 0).r == 0.0 {
+                // Nothing in this block: go on from the first step that lies beyond it.
+                // Every step in between would have found nothing, and been passed.
+                within = 0u;
+                let near = vec3<f32>(block * BLOCK) - 0.5;
+                let far = near + f32(BLOCK);
+                let out = (select(near, far, step > vec3<f32>(0.0)) - at) / step;
+                let ways = select(vec3<f32>(FAR), out, abs(step) > vec3<f32>(1.0e-12));
+                let beyond = along + max(min(min(ways.x, ways.y), ways.z), 0.0);
+                i = max(i, i32(floor((beyond - enter) / stride - 0.5)));
+                continue;
+            }
+        }
+        let part = part_of(voxel);
         let look = look_of(part);
         if look.a <= 0.0 {
             within = 0u;

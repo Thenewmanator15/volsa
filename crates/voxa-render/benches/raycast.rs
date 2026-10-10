@@ -277,7 +277,7 @@ fn draw_the_parts(c: &mut Criterion) {
         cuts: Vec::new(),
         slice: None,
         quality,
-        skip_empty: false,
+        skip_empty: true,
     };
     c.bench_function("200 x 230 x 150 parts, still", |b| {
         b.iter(|| black_box(gpu.render_parts(&scene(1.0), PICTURE).expect("renders")));

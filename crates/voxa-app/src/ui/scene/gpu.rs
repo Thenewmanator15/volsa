@@ -91,7 +91,7 @@ impl SceneGpu {
     /// Draw the Parts look from these labels, or have none to draw from. `stamp` moves on
     /// whenever the labels, or how their parts look, change.
     pub fn label(&mut self, render: &RenderState, with: Option<&LabelsOnDevice>, stamp: u64) {
-        self.parts.show(&render.device, with);
+        self.parts.show(&render.device, &render.queue, with);
         self.labels = stamp;
     }
 

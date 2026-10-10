@@ -243,6 +243,65 @@ fn the_selected_part_is_paler_on_a_cuts_face_and_the_other_is_as_it_was() {
 }
 
 #[test]
+fn the_blocks_with_nothing_labelled_in_them_are_found_on_the_device() {
+    let Some((gpu, set)) = labelled() else {
+        return;
+    };
+    let held = gpu.part_blocks_as_held().expect("labels are held");
+    // The same on the processor: whether any voxel of each block of 8 a side holds a part.
+    let mut filled = vec![false; 4 * 4 * 4];
+    for (at, number) in set.numbers.iter().enumerate() {
+        let (col, row, slice) = (at % 30, at / 30 % 30, at / 900);
+        filled[(slice / 8 * 4 + row / 8) * 4 + col / 8] |= *number != 0;
+    }
+    let found: Vec<bool> = held.iter().map(|bits| *bits != 0).collect();
+    assert_eq!(found, filled);
+    let empty = filled.iter().filter(|filled| !**filled).count();
+    assert!(
+        empty > 20 && empty < 60,
+        "some of each: {empty} empty of 64"
+    );
+}
+
+#[test]
+fn stepping_over_the_empty_blocks_draws_the_very_same_picture() {
+    let Some((mut gpu, set)) = labelled() else {
+        return;
+    };
+    let mut faded = all_shown(&set);
+    faded[0].opacity = 0.4;
+    let turned = |view| {
+        let mut scene = seen_from(view);
+        scene.camera = scene.camera.orbited([37.0, 21.0]);
+        scene
+    };
+    let mut cut = turned(NamedView::Left);
+    cut.cuts = vec![CutPlane::facing(&seen_from(NamedView::Anterior).camera)];
+    let scenes = [
+        seen_from(NamedView::Anterior),
+        seen_from(NamedView::Superior),
+        turned(NamedView::Posterior),
+        cut,
+    ];
+    for looks in [all_shown(&set), faded] {
+        gpu.set_looks(&looks, Some(1));
+        for scene in &scenes {
+            let stepped_over = SceneParams {
+                skip_empty: true,
+                ..scene.clone()
+            };
+            let walked = SceneParams {
+                skip_empty: false,
+                ..scene.clone()
+            };
+            let (quick, slow) = (drawn(&mut gpu, &stepped_over), drawn(&mut gpu, &walked));
+            assert!(quick == slow, "pixel for pixel");
+            assert!(count(&quick, BLUE) + count(&quick, RED) > 0 || !quick.is_empty());
+        }
+    }
+}
+
+#[test]
 fn half_quality_is_nearly_the_same_picture_and_no_labels_is_a_black_one() {
     let Some((mut gpu, _)) = labelled() else {
         return;
