@@ -217,6 +217,28 @@ fn the_selected_part_has_a_pale_rim_and_the_others_are_as_they_were() {
 }
 
 #[test]
+fn the_selected_part_is_paler_on_a_cuts_face_and_the_other_is_as_it_was() {
+    let Some((mut gpu, set)) = labelled() else {
+        return;
+    };
+    let mut front = seen_from(NamedView::Anterior);
+    front.cuts = vec![CutPlane::facing(&front.camera)];
+    let plain = drawn(&mut gpu, &front);
+    gpu.set_looks(&all_shown(&set), Some(1));
+    let selected = drawn(&mut gpu, &front);
+    // On the cut's face: the red half on the picture's right, the blue, selected, on its left.
+    let (red, blue) = (pixel(&front, 6.0, 3.0), pixel(&front, -6.0, 3.0));
+    assert_eq!(rgb(&selected, red), rgb(&plain, red), "not the one selected");
+    let (before, after) = (rgb(&plain, blue), rgb(&selected, blue));
+    let sum = |colour: [u8; 3]| colour.iter().map(|part| u32::from(*part)).sum::<u32>();
+    assert!(
+        sum(after) > sum(before) + 60,
+        "paler on the face: {before:?} to {after:?}"
+    );
+    assert!(after[2] > after[0], "and still its own colour: {after:?}");
+}
+
+#[test]
 fn half_quality_is_nearly_the_same_picture_and_no_labels_is_a_black_one() {
     let Some((mut gpu, _)) = labelled() else {
         return;

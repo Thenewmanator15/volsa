@@ -36,6 +36,8 @@ const SOLID: f32 = 0.98;
 const SHADOW: f32 = 0.35;
 // How far the selected part's surface is paled where it turns right away from the viewer.
 const RIM: f32 = 0.75;
+// How far the selected part is paled on a flat face: a cut's, or where another part ends.
+const ON_A_FACE: f32 = 0.3;
 const FAR: f32 = 1.0e30;
 // The least a line of sight must lean towards a plane to be taken as meeting it.
 const ALONGSIDE: f32 = 1.0e-6;
@@ -223,6 +225,9 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
                     colour = mix(colour, vec3<f32>(1.0), RIM * turned * turned);
                 }
             }
+        } else if part == chosen {
+            // A flat face has no rim to pale: the whole of it is paled a little.
+            colour = mix(colour, vec3<f32>(1.0), ON_A_FACE);
         }
         within = part;
         light += (1.0 - stopped) * look.a * colour * shade;
