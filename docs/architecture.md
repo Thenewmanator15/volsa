@@ -39,8 +39,10 @@ The 3D scene follows the series of the active viewport:
    leave the cache and the 2D viewport reads its slices out of the volume. A volume that gives
    way to another, or a build that fails, leaves its slices in the frame cache.
 2. The same worker makes the volume ready for the graphics device: 16-bit values from 0 at the
-   smallest to 1 at the largest, halved first if the device cannot hold it. The window only
-   hands the result over as a 3D texture. The largest value in each block of voxels, which
+   smallest to 1 at the largest, halved first if the device cannot hold it, and hands them
+   to the device itself as a 3D texture: the device and its queue can be used from any
+   thread, and the window, which has only to take the texture up, does not pause to copy
+   bytes. The largest value in each block of voxels, which
    lets a line of sight step over what is empty, is then worked out by the device itself
    from that texture, by drawing into the slices of a second, small one; a worker works it
    out beforehand only for a device that cannot.
@@ -108,7 +110,9 @@ Labelled parts come from files made elsewhere and are kept apart from the scan:
    part there from the nearest label voxel: a line where the part changes, and a tint inside
    it when asked. The Parts look is a second scene shader that walks each line of sight
    through the label volume, finds where it enters a shown part, and lights that surface from
-   how the part's own voxels slope; cuts shorten the line as they do for the scan.
+   how the part's own voxels slope; cuts shorten the line as they do for the scan. The
+   device first finds which blocks of the label volume hold no part at all, and a line of
+   sight goes straight to the far side of such a block.
 5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
    same label set, so naming and selecting a part read nothing back from the device.
 

@@ -6,8 +6,30 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Labels named with `--labels` that cannot be opened yet, because the series shown has no 3D
+  view, now say so in a notice, once. They open on the first series shown that has one.
+
 ### Changed
 
+- In the Parts look the camera is fitted to the labels when they reach beyond the scan, as a
+  whole head's labels do over a thin slab, so that the solids are seen whole; it is fitted to
+  the scan again on leaving the look. The camera keeps the way it faces. Labels no larger
+  than the scan leave it where it is.
+- A part faded to less than half solid no longer takes the pointer from a solid part seen
+  through it: resting on, or clicking, what is seen names and selects that. A faded part with
+  nothing solid behind it is still there to point at.
+- The selected part is paled on a flat face, such as a cut's, where it has no rim to mark it.
+- The labelled solids are drawn faster: a line of sight steps over the blocks of the label
+  volume that hold no part, which the graphics device finds from the labels it holds. The
+  picture is the same, pixel for pixel. A made-up 200 x 230 x 150 label volume on integrated
+  graphics: 37 ms to 18 ms while moving, and about 90 ms to about 73 ms still.
+- A volume's values are handed to the graphics device by the worker that made them ready, and
+  no longer by the window, which paused to do it when a series first appeared in 3D. For
+  512 x 512 x 300 on a discrete card the window's own part went from between 21 and 29 ms to
+  between 3 and 5 ms. On integrated graphics the same change was made and could not be timed
+  cleanly on a busy machine.
 - The curve that Smooth draws the planes from is worked out by the graphics device itself,
   from the volume it already holds, in compute shaders that run on any Vulkan, DirectX 12 or
   Metal device. Nothing is worked out on the processor and nothing is handed across, so
