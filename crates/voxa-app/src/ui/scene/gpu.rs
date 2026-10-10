@@ -5,7 +5,10 @@ use std::sync::{Arc, Weak};
 
 use egui_wgpu::{RenderState, wgpu};
 use voxa_core::Volume;
-use voxa_render::{PICTURE_FORMAT, Prepared, RenderError, SceneParams, VolumePipeline};
+use voxa_render::{
+    LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, Prepared, RenderError, SceneParams,
+    VolumePipeline,
+};
 
 /// The format of the scene's picture: 8-bit greys as they are to be seen, which is how the
 /// interface reads a picture it is handed, and the format a picture is read back in.
@@ -18,13 +21,17 @@ struct Picture {
     id: egui::TextureId,
 }
 
-/// What the picture was last drawn from: the scene, the size it is laid out at, and the
-/// volume, so that it is drawn again only when one of them changes.
-type Drawn = (SceneParams, [f32; 2]);
+/// What the picture was last drawn from: the scene, the size it is laid out at, and how
+/// the labels stood, so that it is drawn again only when one of them changes.
+type Drawn = (SceneParams, [f32; 2], u64);
 
 /// What the scene keeps on the graphics device between frames.
 pub struct SceneGpu {
     pipeline: VolumePipeline,
+    /// Draws the labelled parts as solids, for the Parts look.
+    parts: PartsPipeline,
+    /// A number that moves on when the labels on the device change.
+    labels: u64,
     picture: Option<Picture>,
     /// The volume the device was last given, so it is given once and not every frame.
     given: Weak<Volume>,
@@ -36,6 +43,8 @@ impl SceneGpu {
     pub fn new(render: &RenderState) -> Self {
         Self {
             pipeline: VolumePipeline::new(&render.device, FORMAT),
+            parts: PartsPipeline::new(&render.device, FORMAT),
+            labels: 0,
             picture: None,
             given: Weak::new(),
             drawn: None,
@@ -55,6 +64,18 @@ impl SceneGpu {
     /// The pipeline that holds the volume.
     pub fn volume_pipeline(&self) -> &VolumePipeline {
         &self.pipeline
+    }
+
+    /// Draw the Parts look from these labels, or have none to draw from. `stamp` moves on
+    /// whenever the labels, or how their parts look, change.
+    pub fn label(&mut self, render: &RenderState, with: Option<&LabelsOnDevice>, stamp: u64) {
+        self.parts.show(&render.device, with);
+        self.labels = stamp;
+    }
+
+    /// Whether a scene is drawn as labelled solids: that is its look, and there are labels.
+    fn as_parts(&self, params: &SceneParams) -> bool {
+        params.look == Look::Parts && self.parts.has_labels()
     }
 
     /// Put a volume on the graphics device, unless it is the one already given. `ready` is
@@ -92,6 +113,9 @@ impl SceneGpu {
     ) -> Result<Vec<u8>, RenderError> {
         self.drawn = None;
         let (device, queue) = (&render.device, &render.queue);
+        if self.as_parts(params) {
+            return self.parts.picture(device, queue, params, viewport, pixels);
+        }
         self.pipeline
             .picture(device, queue, params, viewport, pixels)
     }
@@ -125,12 +149,17 @@ impl SceneGpu {
                 Self::picture_of(render, pixels, old.map(|old| old.id))
             }
         };
-        let wanted = (params.clone(), viewport);
+        let wanted = (params.clone(), viewport, self.labels);
         if self.drawn.as_ref() != Some(&wanted) {
-            self.pipeline.set_params(&render.queue, params, viewport);
+            let as_parts = self.as_parts(params);
+            if as_parts {
+                self.parts.set_params(&render.queue, params, viewport);
+            } else {
+                self.pipeline.set_params(&render.queue, params, viewport);
+            }
             let describe = wgpu::CommandEncoderDescriptor::default();
             let mut encoder = render.device.create_command_encoder(&describe);
-            self.draw_into(&mut encoder, &picture.view);
+            self.draw_into(&mut encoder, &picture.view, as_parts);
             render.queue.submit([encoder.finish()]);
             self.drawn = Some(wanted);
         }
@@ -178,8 +207,14 @@ impl SceneGpu {
         }
     }
 
-    /// One render pass that clears the picture to black and draws the volume over it.
-    fn draw_into(&self, encoder: &mut wgpu::CommandEncoder, picture: &wgpu::TextureView) {
+    /// One render pass that clears the picture to black and draws the volume over it, or
+    /// the labelled parts.
+    fn draw_into(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
+        picture: &wgpu::TextureView,
+        as_parts: bool,
+    ) {
         let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("voxa scene"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -196,6 +231,10 @@ impl SceneGpu {
             occlusion_query_set: None,
             multiview_mask: None,
         });
-        self.pipeline.draw(&mut pass);
+        if as_parts {
+            self.parts.draw(&mut pass);
+        } else {
+            self.pipeline.draw(&mut pass);
+        }
     }
 }

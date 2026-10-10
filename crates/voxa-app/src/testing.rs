@@ -109,3 +109,60 @@ pub fn thick_scan_ready() -> crate::state::AppState {
     reduce(&mut state, Action::VolumeReady { series, corners });
     state
 }
+
+/// Labels for the 30-slice series: two label voxels side by side that between them cover it,
+/// the first, part 0, towards the patient's right and the second, part 1, towards their left.
+pub fn halves_of_the_head() -> voxa_labels::LabelSet {
+    use voxa_labels::{LabelSet, Part, Side, Trust};
+    let part = |side| Part {
+        name: "half".to_owned(),
+        group: "Halves".to_owned(),
+        side,
+        colour: [200, 100, 50],
+        trust: Trust::Model,
+        voxels: 1,
+        ml: 1.0,
+    };
+    LabelSet {
+        dims: [2, 1, 1],
+        numbers: vec![1, 2],
+        placement: voxa_core::Affine::from_columns(
+            [1.8, 0.0, 0.0],
+            [0.0, 3.6, 0.0],
+            [0.0, 0.0, 150.0],
+            [0.45, 1.35, 72.5],
+        ),
+        parts: vec![part(Side::Right), part(Side::Left)],
+        title: String::new(),
+        verdict: None,
+    }
+}
+
+/// The 30-slice series with its volume ready and [`halves_of_the_head`] read on it.
+pub fn labelled_head() -> (
+    crate::state::AppState,
+    std::sync::Arc<voxa_labels::LabelSet>,
+) {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let set = std::sync::Arc::new(halves_of_the_head());
+    let mut state = thick_scan_ready();
+    let open = Action::OpenLabels {
+        labels: std::path::PathBuf::from("labels.nii"),
+        table: None,
+    };
+    reduce(&mut state, open);
+    let read = Action::LabelsRead {
+        title: String::new(),
+        parts: set.parts.clone(),
+        verdict: None,
+        corners: set.corners(),
+        names_from: crate::labels::NamesFrom::Nothing,
+    };
+    reduce(&mut state, read);
+    assert!(
+        crate::labels::on_this_series(&state),
+        "the labels meet the scan"
+    );
+    (state, set)
+}

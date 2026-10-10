@@ -10,7 +10,7 @@ fn shown(state: &AppState) -> Vec<Action> {
     let mut actions = Vec::new();
     let area = Rect::from_min_size(pos2(10.0, 20.0), Scene::FIRST_VIEWPORT.into());
     let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
-        show(ui, area, state, None, &mut view, None, &mut actions);
+        show(ui, area, state, (None, None), &mut view, None, &mut actions);
     });
     output.textures_delta.clear();
     assert!(!view.has_picture(), "there is no device to draw one with");
@@ -56,7 +56,7 @@ fn after(state: &AppState, frames: Vec<Vec<egui::Event>>) -> Vec<Action> {
             ..egui::RawInput::default()
         };
         let mut output = ctx.run_ui(input, |ui| {
-            show(ui, area, state, None, &mut view, None, &mut last);
+            show(ui, area, state, (None, None), &mut view, None, &mut last);
         });
         output.textures_delta.clear();
     }

@@ -62,6 +62,8 @@ pub struct VoxaApp {
     capture: Option<capture::Capture>,
     /// What a picture of the window wants done to the 3D scene once its volume is ready.
     pose: Vec<Action>,
+    /// And to the labelled parts, once labels have been read.
+    label_pose: Vec<Action>,
     /// A turntable of the 3D scene that is being drawn, a picture each frame.
     turntable: Option<scene::export::Turntable>,
 }
@@ -108,6 +110,7 @@ impl VoxaApp {
             clocks: [cine::Clock::default(); VIEWPORTS],
             capture,
             pose: Vec::new(),
+            label_pose: Vec::new(),
             turntable: None,
         };
         if let Some(render) = render {
@@ -127,6 +130,7 @@ impl VoxaApp {
             app.help_open = wanted.contains("keys");
             app.about_open = wanted.contains("about");
             app.pose = capture::pose(&wanted);
+            app.label_pose = capture::label_pose(&wanted);
         }
         if let Some(path) = initial {
             app.dispatch(Action::OpenPath(path));

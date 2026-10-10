@@ -118,6 +118,9 @@ pub struct Held {
     refused: Option<Arc<LabelSet>>,
     /// The looks last sent to the device.
     sent: Option<Looks>,
+    /// How many times what the device holds has changed: labels put there or taken off,
+    /// or looks sent. A picture drawn from them is out of date when this has moved on.
+    stamp: u64,
 }
 
 impl Held {
@@ -132,6 +135,7 @@ impl Held {
         set: Option<&Arc<LabelSet>>,
     ) -> bool {
         let Some((set, render)) = set.filter(|_| on_this_series(state)).zip(render) else {
+            self.stamp += u64::from(self.placed.is_some());
             (self.placed, self.sent) = (None, None);
             return false;
         };
@@ -153,8 +157,14 @@ impl Held {
             && let Some((looks, selected)) = &self.sent
         {
             placed.set_looks(&render.queue, looks, *selected);
+            self.stamp += 1;
         }
         no_room
+    }
+
+    /// A number that moves on whenever what the device holds of the labels changes.
+    pub fn stamp(&self) -> u64 {
+        self.stamp
     }
 
     /// The labels on the device, if there are any to draw.

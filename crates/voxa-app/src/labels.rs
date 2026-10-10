@@ -100,6 +100,16 @@ pub fn is_label_file(path: &std::path::Path) -> bool {
         || (ending(path, "gz") && unzipped.is_some_and(|inner| ending(inner, "nii")))
 }
 
+/// A part's name as it is said to the pointer: with its side, if it has one.
+pub fn name_of(part: &Part) -> String {
+    let side = match part.side {
+        voxa_labels::Side::Left => ", left",
+        voxa_labels::Side::Right => ", right",
+        voxa_labels::Side::Midline => "",
+    };
+    format!("{}{side}", part.name)
+}
+
 /// The study a series belongs to.
 pub fn study_of(state: &AppState, series: &SeriesId) -> Option<StudyId> {
     let studies = &state.index.as_ref()?.studies;

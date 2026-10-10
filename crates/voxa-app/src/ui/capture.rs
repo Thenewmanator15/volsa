@@ -71,6 +71,24 @@ pub fn pose(wanted: &str) -> Vec<Action> {
     wanted.map(|(_, action)| action).collect()
 }
 
+/// What to do to the labelled parts, once labels have been read, for a picture that asks
+/// for it by the words in `wanted`: the parts as solids in the scene, the first part faded,
+/// the first part selected.
+pub fn label_pose(wanted: &str) -> Vec<Action> {
+    let asked = |word: &str| wanted.split(',').any(|part| part.trim() == word);
+    let faded = Action::PartOpacity {
+        part: 0,
+        opacity: 0.3,
+    };
+    let poses = [
+        ("solids", Action::SceneLook(Look::Parts)),
+        ("faded", faded),
+        ("chosen", Action::PartSelect(Some(0))),
+    ];
+    let wanted = poses.into_iter().filter(|(word, _)| asked(word));
+    wanted.map(|(_, action)| action).collect()
+}
+
 /// For a picture that asks for the first series listed, whatever Voxa would have opened: what
 /// shows it. `None` until the index is finished, which is when that series' thumbnail is there.
 pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool) -> Option<Action> {
@@ -226,7 +244,15 @@ impl VoxaApp {
         // And for labels that are still to be opened, or are being read.
         let reading = self.session.state().labels.status == LabelsStatus::Reading;
         let waiting = self.labels.is_waiting() && !no_volume_to_come;
-        let labelled = !waiting && !reading;
+        // What the picture wants of the labels is done once they are read, a thing a frame:
+        // the scene is drawn between one and the next, as it is when a person asks.
+        let read = self.session.state().labels.status == LabelsStatus::Ready;
+        if read && !self.label_pose.is_empty() {
+            let next = self.label_pose.remove(0);
+            self.session.dispatch(next);
+        }
+        let posed = self.label_pose.is_empty() || !(waiting || reading || read);
+        let labelled = !waiting && !reading && posed;
         let ready = slices && labelled && (no_volume_to_come || self.scene.has_picture() && curve);
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
@@ -280,6 +306,24 @@ mod tests {
         );
         let (viewport, shown) = (0, first_listed(&state, |_| true));
         assert_eq!(shown, Some(Action::SelectSeries { viewport, series }));
+    }
+
+    #[test]
+    fn a_picture_can_ask_for_the_labelled_parts_to_be_posed_once_they_are_read() {
+        assert_eq!(
+            label_pose("parts, filled, mip"),
+            [],
+            "those wait for no labels"
+        );
+        assert_eq!(label_pose("solids"), [Action::SceneLook(Look::Parts)]);
+        let faded = Action::PartOpacity {
+            part: 0,
+            opacity: 0.3,
+        };
+        let chosen = Action::PartSelect(Some(0));
+        let all = label_pose("chosen, faded, solids");
+        assert_eq!(all, [Action::SceneLook(Look::Parts), faded, chosen]);
+        assert_eq!(pose("solids, faded, chosen"), [], "not before the labels");
     }
 
     #[test]

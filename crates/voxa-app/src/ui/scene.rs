@@ -7,12 +7,14 @@ use std::time::Instant;
 use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
 use voxa_core::{Patient, Point, Volume};
-use voxa_render::{Prepared, RenderError, SceneParams, VolumePipeline, pick};
+use voxa_labels::LabelSet;
+use voxa_render::{LabelsOnDevice, Prepared, RenderError, SceneParams, VolumePipeline, pick};
 
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
 use crate::action::Action;
 use crate::annotations::Tool;
+use crate::labels::name_of;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 
@@ -21,6 +23,7 @@ pub mod export;
 mod gpu;
 mod handles;
 mod input;
+mod parts;
 mod tools;
 pub mod views;
 
@@ -88,6 +91,19 @@ impl SceneView {
         self.gpu.as_ref().map(gpu::SceneGpu::volume_pipeline)
     }
 
+    /// Draw the Parts look from these labels, or have none to draw it from. `stamp` moves
+    /// on whenever the labels, or how their parts look, change.
+    pub fn label(
+        &mut self,
+        render: Option<&RenderState>,
+        with: Option<&LabelsOnDevice>,
+        stamp: u64,
+    ) {
+        if let Some((gpu, render)) = self.gpu.as_mut().zip(render) {
+            gpu.label(render, with, stamp);
+        }
+    }
+
     /// Draw the scene into a picture for saving: `pixels` wide and high, laid out as at
     /// `viewport`. `None` when there is no graphics device to draw with.
     pub fn snapshot(
@@ -149,12 +165,12 @@ impl SceneView {
 }
 
 /// Draw the scene into `area` and turn what the mouse does over it into actions. `volume` is
-/// the volume built for the scene's series, if it is ready.
+/// the volume built for the scene's series, if it is ready, and `labels` the labels read.
 pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
-    volume: Option<&Arc<Volume>>,
+    (volume, labels): (Option<&Arc<Volume>>, Option<&LabelSet>),
     view: &mut SceneView,
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
@@ -191,22 +207,15 @@ pub fn show(
         handles::show(ui, area, state, &mut view.carried, actions);
         tools::draw(ui, area, state, view.ruler_from);
     }
-    // What a click on something drawn does depends on the tool in hand; navigating, a
-    // double-click puts that point in the middle as well.
-    let pointed_at = response.clicked().then(|| {
-        let at = response.interact_pointer_pos()? - area.min;
-        pick(volume?, &scene_params(state, 1.0)?, size, [at.x, at.y])
-    });
-    if state.tool != Tool::Ruler {
-        view.ruler_from = None;
-    }
-    if response.clicked() {
-        let (begun, asked) = tools::clicked(state.tool, view.ruler_from, pointed_at.flatten());
-        view.ruler_from = begun;
-        actions.extend(asked);
-    }
-    let navigating = state.tool == Tool::Navigate && response.double_clicked();
-    let twice = pointed_at.flatten().filter(|_| navigating);
+    let sources = (volume, labels);
+    let twice = pointed(
+        state,
+        sources,
+        &response,
+        area,
+        &mut view.ruler_from,
+        actions,
+    );
     let window_width = state
         .viewports
         .get(state.active)
@@ -217,6 +226,54 @@ pub fn show(
         ..input
     };
     actions.extend(scene_input_to_actions(state.active, &input));
+}
+
+/// Act on a click in the scene and on the pointer resting there. What a click on something
+/// drawn does depends on the tool in hand. In the Parts look what is pointed at is a solid,
+/// which the click also selects and the resting pointer is told the name of; in the others
+/// it is a surface of the scan. Gives the point a double-click landed on while navigating,
+/// which is put in the middle as well.
+fn pointed(
+    state: &AppState,
+    (volume, labels): (Option<&Arc<Volume>>, Option<&LabelSet>),
+    response: &egui::Response,
+    area: Rect,
+    ruler_from: &mut Option<Point<Patient>>,
+    actions: &mut Vec<Action>,
+) -> Option<Point<Patient>> {
+    let size = [area.width(), area.height()];
+    let seen = |at: egui::Pos2| {
+        let at = at - area.min;
+        parts::part_seen(state, labels?, size, [at.x, at.y])
+    };
+    if state.tool != Tool::Ruler {
+        *ruler_from = None;
+    }
+    let mut pointed_at = None;
+    if response.clicked() {
+        let at = response.interact_pointer_pos();
+        let part = at.and_then(seen);
+        pointed_at = if parts::drawn(state) {
+            part.map(|(_, point)| point)
+        } else {
+            at.and_then(|at| {
+                let at = at - area.min;
+                pick(volume?, &scene_params(state, 1.0)?, size, [at.x, at.y])
+            })
+        };
+        let (begun, asked) = tools::clicked(state.tool, *ruler_from, pointed_at);
+        *ruler_from = begun;
+        actions.extend(asked);
+        // The click that moves the position also selects the part clicked.
+        actions.extend(parts::selected_by(state, part.map(|(part, _)| part)));
+    }
+    let rests = response.hover_pos().filter(|_| !response.dragged());
+    let named = rests.and_then(seen);
+    if let Some(part) = named.and_then(|(part, _)| state.labels.parts.get(part)) {
+        response.clone().on_hover_text_at_pointer(name_of(part));
+    }
+    let navigating = state.tool == Tool::Navigate && response.double_clicked();
+    pointed_at.filter(|_| navigating)
 }
 
 /// Write over the picture: a letter at each edge, a scale bar, and beneath them what the
@@ -233,7 +290,12 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
     // At the top left, which nothing else uses, kept clear of the letter at the top.
-    let mut said = captions(spacing, scene.halved);
+    // The solids are not the scan: what is said of the scan's picture does not apply.
+    let mut said = if parts::drawn(state) {
+        vec![parts::CAPTION.to_owned()]
+    } else {
+        captions(spacing, scene.halved)
+    };
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
     let (down, room) = captions::caption_room(inside.width());

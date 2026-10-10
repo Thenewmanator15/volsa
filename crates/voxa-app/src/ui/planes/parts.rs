@@ -2,13 +2,13 @@
 //! asks for, and what the pointer is told when it rests on one.
 
 use voxa_core::{Patient, Point};
-use voxa_labels::{LabelSet, Side};
+use voxa_labels::LabelSet;
 use voxa_render::Overlay;
 
 use super::mouse::PlaneInput;
 use crate::action::Action;
 use crate::annotations::Tool;
-use crate::labels::on_this_series;
+use crate::labels::{name_of, on_this_series};
 use crate::state::AppState;
 
 /// What a panel that draws labels says of them, in its note.
@@ -39,78 +39,15 @@ pub fn selected_by(state: &AppState, set: Option<&LabelSet>, input: &PlaneInput)
 /// its side if it has one.
 pub fn named_under(state: &AppState, set: Option<&LabelSet>, input: &PlaneInput) -> Option<String> {
     let set = set.filter(|_| drawn(state))?;
-    let part = state
-        .labels
-        .parts
-        .get(part_under(state, set, input.hover_at?)?)?;
-    let side = match part.side {
-        Side::Left => ", left",
-        Side::Right => ", right",
-        Side::Midline => "",
-    };
-    Some(format!("{}{side}", part.name))
+    let part = part_under(state, set, input.hover_at?)?;
+    state.labels.parts.get(part).map(name_of)
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-    use std::sync::Arc;
-
-    use voxa_core::Affine;
-    use voxa_labels::{Part, Trust};
-
     use super::*;
-    use crate::labels::NamesFrom;
     use crate::reducer::reduce;
-    use crate::testing::thick_scan_ready;
-
-    /// Two label voxels side by side that between them cover the test series: the first,
-    /// part 0, towards the patient's right; the second, part 1, towards their left.
-    fn halves() -> LabelSet {
-        let part = |side| Part {
-            name: "half".to_owned(),
-            group: "Halves".to_owned(),
-            side,
-            colour: [200, 100, 50],
-            trust: Trust::Model,
-            voxels: 1,
-            ml: 1.0,
-        };
-        LabelSet {
-            dims: [2, 1, 1],
-            numbers: vec![1, 2],
-            placement: Affine::from_columns(
-                [1.8, 0.0, 0.0],
-                [0.0, 3.6, 0.0],
-                [0.0, 0.0, 150.0],
-                [0.45, 1.35, 72.5],
-            ),
-            parts: vec![part(Side::Right), part(Side::Left)],
-            title: String::new(),
-            verdict: None,
-        }
-    }
-
-    /// The test series with its volume ready and those labels read on it.
-    fn labelled() -> (AppState, Arc<LabelSet>) {
-        let set = Arc::new(halves());
-        let mut state = thick_scan_ready();
-        let open = Action::OpenLabels {
-            labels: PathBuf::from("labels.nii"),
-            table: None,
-        };
-        reduce(&mut state, open);
-        let read = Action::LabelsRead {
-            title: String::new(),
-            parts: set.parts.clone(),
-            verdict: None,
-            corners: set.corners(),
-            names_from: NamesFrom::Nothing,
-        };
-        reduce(&mut state, read);
-        assert!(on_this_series(&state), "the labels meet the scan");
-        (state, set)
-    }
+    use crate::testing::labelled_head as labelled;
 
     fn on_the_right() -> Point<Patient> {
         Point::new(0.5, 1.0, 70.0)

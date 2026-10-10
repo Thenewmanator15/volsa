@@ -5,6 +5,7 @@ use voxa_render::{Look, MAX_CUTS, NamedView};
 
 use super::scene::{export, views};
 use crate::action::Action;
+use crate::labels::{look_drawn, on_this_series};
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 
@@ -28,6 +29,10 @@ pub const LOOKS: [(Look, &str, &str); 3] = [
     ),
 ];
 
+/// What the Parts look is, and why it cannot be chosen while there are no labels.
+const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
+pub const PARTS_NEED_LABELS: &str = "Open labels in the Parts tab to see them as solids here";
+
 /// The sides the patient can be seen from, with the letter on each button and what it means.
 pub const VIEWS: [(NamedView, &str, &str); 6] = [
     (NamedView::Anterior, "A", "From the front (anterior)"),
@@ -38,6 +43,31 @@ pub const VIEWS: [(NamedView, &str, &str); 6] = [
     (NamedView::Inferior, "I", "From below the feet (inferior)"),
 ];
 
+/// Why the slice shown in 2D cannot be drawn in the scene while it shows the Parts look.
+const NO_SLICE_AMONG_PARTS: &str =
+    "The slice is a picture of the scan: it is not drawn among the labelled parts";
+
+/// The looks to choose between: the three of the scan, and then the labelled parts as
+/// solids, which can be chosen when there are labels on this series to draw.
+fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+    let drawn = look_drawn(state);
+    for (look, label, hint) in LOOKS {
+        let chosen = drawn == look;
+        let button = ui.selectable_label(chosen, label);
+        if button.on_hover_text(hint).clicked() && !chosen {
+            actions.push(Action::SceneLook(look));
+        }
+    }
+    let chosen = drawn == Look::Parts;
+    let parts = ui.add_enabled_ui(on_this_series(state), |ui| {
+        ui.selectable_label(chosen, "Parts")
+    });
+    let parts = parts.inner.on_disabled_hover_text(PARTS_NEED_LABELS);
+    if parts.on_hover_text(PARTS_HINT).clicked() && !chosen {
+        actions.push(Action::SceneLook(Look::Parts));
+    }
+}
+
 /// Draw the scene's line of the bar: the looks, the sides to see the patient from, the cuts,
 /// whether the slice shown in 2D is drawn in the scene, the saved views, and saving to a
 /// file. Gives what the person asked to save, if anything.
@@ -46,17 +76,7 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<
     let mut saving = None;
     ui.horizontal_wrapped(|ui| {
         ui.label("3D");
-        for (look, label, hint) in LOOKS {
-            let chosen = scene.look == look;
-            if ui
-                .selectable_label(chosen, label)
-                .on_hover_text(hint)
-                .clicked()
-                && !chosen
-            {
-                actions.push(Action::SceneLook(look));
-            }
-        }
+        looks(ui, state, actions);
         ui.separator();
         ui.label("View");
         for (view, letter, hint) in VIEWS {
@@ -85,8 +105,11 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<
             }
         }
         ui.separator();
+        // The slice is a picture of the scan: it is not drawn among the labelled solids.
         let shown = scene.slice_shown;
-        let slice = ui.selectable_label(shown, "Slice in 3D");
+        let scan = look_drawn(state) != Look::Parts;
+        let slice = ui.add_enabled_ui(scan, |ui| ui.selectable_label(shown, "Slice in 3D"));
+        let slice = slice.inner.on_disabled_hover_text(NO_SLICE_AMONG_PARTS);
         if slice
             .on_hover_text("Draw the slice shown in 2D inside the 3D scene")
             .clicked()
@@ -175,6 +198,25 @@ mod tests {
         ];
         assert_eq!(asked[..2], looks);
         assert_eq!(asked.last(), Some(&Action::ShowSliceInScene(false)));
+    }
+
+    #[test]
+    fn the_parts_look_is_offered_when_there_are_labels_on_this_series_and_only_then() {
+        let parts = Action::SceneLook(Look::Parts);
+        let unlabelled = sweep(&AppState::default());
+        assert!(!unlabelled.contains(&parts), "nothing to draw as solids");
+        let (mut state, _) = crate::testing::labelled_head();
+        let scans = [Look::Surface, Look::Vr, Look::Mip].map(Action::SceneLook);
+        let asked = sweep(&state);
+        let offered = [&scans[1..], std::slice::from_ref(&parts)].concat();
+        assert_eq!(asked[..3], offered, "after the looks of the scan");
+        assert!(asked.contains(&Action::ShowSliceInScene(true)));
+        crate::reducer::reduce(&mut state, parts.clone());
+        let asked = sweep(&state);
+        assert_eq!(asked[..3], scans, "the look in use is not asked for again");
+        assert!(!asked.contains(&parts));
+        let slice = Action::ShowSliceInScene(true);
+        assert!(!asked.contains(&slice), "no slice among the solids");
     }
 
     #[test]

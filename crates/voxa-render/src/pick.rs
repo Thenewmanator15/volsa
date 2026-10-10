@@ -1,6 +1,7 @@
 //! Finding the point of a volume a person is pointing at in a picture of it.
 
 use voxa_core::{Patient, Point, Volume, WindowLevel};
+use voxa_labels::{LabelSet, first_part};
 use voxa_volume::{Ray, first_hit};
 
 use crate::scene::{MAX_CUTS, SceneParams};
@@ -35,27 +36,7 @@ pub fn pick(
             [origin.x - point.x, origin.y - point.y, origin.z - point.z],
         )
     };
-    // The line starts where it comes out of the removed side of the last cut it crosses, and
-    // ends where it goes into the removed side of the first.
-    let (mut start, mut end) = (0.0_f64, f64::INFINITY);
-    for cut in scene.cuts.iter().take(MAX_CUTS) {
-        let Some(normal) = unit(cut.normal) else {
-            continue;
-        };
-        let (removed_by, leaning) = (ahead_of(normal, cut.point), leaning(normal));
-        if leaning.abs() < ALONGSIDE {
-            if removed_by > 0.0 {
-                return None;
-            }
-        } else if leaning > 0.0 {
-            end = end.min(-removed_by / leaning);
-        } else {
-            start = start.max(-removed_by / leaning);
-        }
-    }
-    if end <= start {
-        return None;
-    }
+    let (start, end) = between_the_cuts(scene, &sight)?;
     // The slice drawn in the scene is an opaque sheet: nothing behind it can be pointed at.
     let sheet = scene.slice.and_then(|slice| {
         let normal = unit(slice.normal)?;
@@ -77,6 +58,54 @@ pub fn pick(
         ) <= end - start
     });
     reached.or_else(|| sheet.map(|sheet| sight.at(sheet)))
+}
+
+/// How far along a line of sight, in millimetres from its start, what is left by the cuts
+/// begins and ends: the line starts where it comes out of the removed side of the last cut
+/// it crosses, and ends where it goes into the removed side of the first. `None` when the
+/// cuts leave nothing of it.
+fn between_the_cuts(scene: &SceneParams, sight: &Ray) -> Option<(f64, f64)> {
+    let (mut start, mut end) = (0.0_f64, f64::INFINITY);
+    for cut in scene.cuts.iter().take(MAX_CUTS) {
+        let Some(normal) = unit(cut.normal) else {
+            continue;
+        };
+        let (origin, point) = (sight.origin, cut.point);
+        let from_the_cut = [origin.x - point.x, origin.y - point.y, origin.z - point.z];
+        let (removed_by, leaning) = (dot(normal, from_the_cut), dot(normal, sight.direction));
+        if leaning.abs() < ALONGSIDE {
+            if removed_by > 0.0 {
+                return None;
+            }
+        } else if leaning > 0.0 {
+            end = end.min(-removed_by / leaning);
+        } else {
+            start = start.max(-removed_by / leaning);
+        }
+    }
+    (end > start).then_some((start, end))
+}
+
+/// The labelled part shown at `at`, in pixels from the top left corner of a picture of this
+/// width and height drawn in the Parts look, and the point of the patient there: the first
+/// part among those `shown` that the line of sight meets in what the cuts leave. `None`
+/// where the picture shows no part.
+pub fn pick_part(
+    set: &LabelSet,
+    shown: &[bool],
+    scene: &SceneParams,
+    viewport: [f32; 2],
+    at: [f32; 2],
+) -> Option<(usize, Point<Patient>)> {
+    let sight = scene.camera.ray_through(viewport, at);
+    let (start, end) = between_the_cuts(scene, &sight)?;
+    let from = sight.at(start);
+    let (part, met) = first_part(set, shown, from, sight.direction)?;
+    let along = dot(
+        sight.direction,
+        [met.x - from.x, met.y - from.y, met.z - from.z],
+    );
+    (along <= end - start).then_some((part, met))
 }
 
 #[cfg(test)]
@@ -101,6 +130,70 @@ mod tests {
             point: Point::new(0.0, y, 0.0),
             normal: [0.0, -1.0, 0.0],
         }
+    }
+
+    /// The ball's labels seen from one side, as the Parts look draws them.
+    fn parts_from(view: NamedView) -> (voxa_labels::LabelSet, SceneParams) {
+        let scene = scene_of(&ball(), view, Look::Parts);
+        (crate::testing::ball_labels([0.0; 3]), scene)
+    }
+
+    /// The pixel this many millimetres right of, and below, the middle of the picture.
+    #[expect(clippy::cast_possible_truncation, reason = "a few pixels")]
+    fn pixel(scene: &SceneParams, right_mm: f64, down_mm: f64) -> [f32; 2] {
+        let per_mm = 1.0 / scene.camera.mm_per_px;
+        [right_mm, down_mm].map(|mm| 48.0 + (mm * per_mm) as f32)
+    }
+
+    #[test]
+    fn the_part_pointed_at_is_the_first_shown_one_on_the_line_of_sight() {
+        let (set, front) = parts_from(NamedView::Anterior);
+        let all = [true; 3];
+        let at = |right_mm, shown: &[bool]| {
+            let met = pick_part(&set, shown, &front, PICTURE, pixel(&front, right_mm, 0.0));
+            met.map(|(part, _)| part)
+        };
+        // From the front the patient's left, part 0, is on the right of the picture.
+        assert_eq!((at(4.0, &all), at(-4.0, &all)), (Some(0), Some(1)));
+        assert_eq!(at(12.0, &all), Some(2), "the box about the bead");
+        assert_eq!(
+            at(12.0, &[true, true, false]),
+            Some(0),
+            "hidden, what is behind it"
+        );
+        assert_eq!(at(30.0, &all), None, "beside the ball");
+        assert_eq!(at(4.0, &[false; 3]), None);
+        let (met, place) = pick_part(&set, &all, &front, PICTURE, MIDDLE).expect("the ball");
+        assert!(
+            met < 2 && (place.y + 16.0).abs() <= 2.0,
+            "its near face, 16 mm forward: {place:?}"
+        );
+    }
+
+    #[test]
+    fn a_cut_uncovers_the_part_behind_it_to_the_pointer_too() {
+        let (set, mut side) = parts_from(NamedView::Left);
+        let all = [true; 3];
+        let at = |scene: &SceneParams| {
+            let met = pick_part(&set, &all, scene, PICTURE, pixel(scene, 0.0, 6.0));
+            met.map(|(part, point)| (part, point.x.round()))
+        };
+        let (first, _) = at(&side).expect("the left half");
+        assert_eq!(first, 0);
+        // Cut away everything to the patient's left of 4 mm to their right.
+        side.cuts = vec![CutPlane {
+            point: Point::new(-4.0, 0.0, 0.0),
+            normal: [1.0, 0.0, 0.0],
+        }];
+        let (uncovered, x) = at(&side).expect("the right half");
+        assert_eq!(uncovered, 1);
+        assert!((x + 4.0).abs() <= 1.0, "on the cut's face: {x}");
+        // A cut that removes everything the line would meet leaves nothing to point at.
+        side.cuts = vec![CutPlane {
+            point: Point::new(-40.0, 0.0, 0.0),
+            normal: [1.0, 0.0, 0.0],
+        }];
+        assert_eq!(at(&side), None);
     }
 
     #[test]

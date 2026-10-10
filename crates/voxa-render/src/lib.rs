@@ -43,7 +43,7 @@ pub use labels::{FILL, LabelsOnDevice, Overlay, PartLook};
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
 pub use parts_pipeline::PartsPipeline;
-pub use pick::{pick, surface_threshold};
+pub use pick::{pick, pick_part, surface_threshold};
 pub use plane_pipeline::PlanePipeline;
 pub use plane_view::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM, PlaneView};
 pub use prepared::{MAX_VOLUME_BYTES, Prepared};

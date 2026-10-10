@@ -36,9 +36,18 @@ impl VoxaApp {
         let ready = shown.filter(|_| waiting);
         self.scene
             .offer(ready.and_then(|series| self.session.take_prepared(series)));
+        // One copy of the labels on the device, for the planes and the scene to draw from.
+        let set = self.session.labels();
+        if self.held.keep(render, state, set.as_ref()) {
+            actions.push(Action::Post(labels::no_room()));
+        }
+        let (on_device, stamp) = (self.held.on_device(), self.held.stamp());
+        self.planes.label(on_device, state.labels.overlay);
+        self.scene.label(render, on_device, stamp);
         let scene = &mut self.scene;
         let volume = volume.as_ref();
-        scene::show(ui, areas.scene, state, volume, scene, render, actions);
+        let sources = (volume, set.as_deref());
+        scene::show(ui, areas.scene, state, sources, scene, render, actions);
         // In sight or not: a curve that is no longer wanted is given up at once.
         let session = &self.session;
         let smoothed = volume.filter(|_| state.planes.smooth);
@@ -46,13 +55,6 @@ impl VoxaApp {
         if self.planes.smooth(render, smoothed, take) {
             actions.push(Action::Post(planes::no_room_to_smooth()));
         }
-        // One copy of the labels on the device, for the planes and the scene to draw from.
-        let set = self.session.labels();
-        if self.held.keep(render, state, set.as_ref()) {
-            actions.push(Action::Post(labels::no_room()));
-        }
-        self.planes
-            .label(self.held.on_device(), state.labels.overlay);
         if let Some(cells) = areas.planes {
             // After the scene, which is what puts the volume on the graphics device.
             let held = self.scene.volume_pipeline();

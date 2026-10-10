@@ -6,6 +6,7 @@ use voxa_render::{Camera, SceneParams, SlicePlane};
 
 use super::super::overlay::{EdgeLabels, letter};
 use super::super::pen::LETTER_ROOM;
+use crate::labels::look_drawn;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
@@ -117,7 +118,7 @@ pub fn scene_params(state: &AppState, quality: f32) -> Option<SceneParams> {
     Some(SceneParams {
         camera: scene.camera,
         window: viewport.wl,
-        look: scene.look,
+        look: look_drawn(state),
         cuts: scene.cuts.clone(),
         slice: scene.slice_shown.then(plane_of_the_slice).flatten(),
         quality,
