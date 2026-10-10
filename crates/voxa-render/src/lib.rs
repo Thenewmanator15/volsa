@@ -15,6 +15,7 @@
 mod camera;
 mod gpu;
 mod handle;
+mod labels;
 mod offscreen;
 mod offscreen_scene;
 mod pick;
@@ -37,6 +38,7 @@ pub use camera::{
     Camera, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView, ORBIT_DEGREES_PER_PX, turntable,
 };
 pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll, slice_outline};
+pub use labels::{FILL, LabelsOnDevice, Overlay, PartLook};
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
 pub use pick::{pick, surface_threshold};

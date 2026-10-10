@@ -64,8 +64,9 @@ impl Placed {
         // Watched for running out of room from making the textures to the last byte handed
         // over: left unwatched, either would stop the program.
         let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
-        let values = texture(device, "voxa volume values", ready.dims);
-        let largest = texture(device, "voxa volume block maxima", ready.blocks);
+        let halves = wgpu::TextureFormat::R16Float;
+        let values = texture(device, "voxa volume values", ready.dims, halves);
+        let largest = texture(device, "voxa volume block maxima", ready.blocks, halves);
         write(device, queue, &values, ready.dims, &ready.halves);
         write(device, queue, &largest, ready.blocks, &ready.maxima);
         if pollster::block_on(room.pop()).is_some() {
@@ -96,8 +97,13 @@ impl Drop for Placed {
     }
 }
 
-/// A 3D texture of 16-bit floating-point numbers, `dims` texels each way.
-pub(crate) fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgpu::Texture {
+/// A 3D texture of 16-bit numbers of one kind, `dims` texels each way.
+pub(crate) fn texture(
+    device: &wgpu::Device,
+    label: &str,
+    dims: [u32; 3],
+    format: wgpu::TextureFormat,
+) -> wgpu::Texture {
     let [width, height, depth_or_array_layers] = dims;
     device.create_texture(&wgpu::TextureDescriptor {
         label: Some(label),
@@ -109,7 +115,7 @@ pub(crate) fn texture(device: &wgpu::Device, label: &str, dims: [u32; 3]) -> wgp
         mip_level_count: 1,
         sample_count: 1,
         dimension: wgpu::TextureDimension::D3,
-        format: wgpu::TextureFormat::R16Float,
+        format,
         usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         view_formats: &[],
     })

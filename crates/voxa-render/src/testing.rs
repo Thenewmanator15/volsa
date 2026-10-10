@@ -1,6 +1,7 @@
 //! Volumes to draw and ways to measure the pictures drawn of them, for this crate's tests.
 
 use voxa_core::{Affine, Patient, Point, Volume, Voxel, WindowLevel};
+use voxa_labels::{LabelSet, Part, Side, Trust};
 
 use crate::camera::{Camera, NamedView};
 use crate::offscreen_scene::HeadlessScene;
@@ -60,6 +61,66 @@ fn ball_value(at: Point<Patient>) -> f32 {
         100.0
     } else {
         0.0
+    }
+}
+
+/// The colours of the test labels' three parts.
+pub(crate) const RED: [u8; 3] = [230, 40, 40];
+pub(crate) const BLUE: [u8; 3] = [40, 80, 230];
+pub(crate) const GREEN: [u8; 3] = [40, 200, 80];
+
+/// Labels for the test ball on a grid of their own: 30 voxels of 2 mm each way, with x and y
+/// running the other way round from the patient's, as a NIfTI file's do, and the whole set
+/// moved by `shift`. The first part, red, is the half of the ball on the patient's left; the
+/// second, blue, the half on the right; the third, green, a box of 8 mm about the bead.
+pub(crate) fn ball_labels(shift: [f64; 3]) -> LabelSet {
+    let [x, y, z] = shift;
+    let origin = [29.0 + x, 29.0 + y, -29.0 + z];
+    let placement =
+        Affine::from_columns([-2.0, 0.0, 0.0], [0.0, -2.0, 0.0], [0.0, 0.0, 2.0], origin);
+    let mut numbers = Vec::new();
+    for slice in 0..30_u8 {
+        for row in 0..30_u8 {
+            for col in 0..30_u8 {
+                // Where the voxel lies before the shift: the labels are of the ball itself.
+                let x = 29.0 - 2.0 * f64::from(col);
+                let y = 29.0 - 2.0 * f64::from(row);
+                let z = -29.0 + 2.0 * f64::from(slice);
+                let by_bead = (x - 12.0).abs() <= 4.0 && (y + 14.0).abs() <= 4.0 && z.abs() <= 4.0;
+                let in_ball = (x * x + y * y + z * z).sqrt() <= 16.0;
+                numbers.push(match (by_bead, in_ball, x > 0.0) {
+                    (true, _, _) => 3,
+                    (false, true, true) => 1,
+                    (false, true, false) => 2,
+                    (false, false, _) => 0,
+                });
+            }
+        }
+    }
+    let part = |name: &str, side: Side, colour: [u8; 3], number: u16| {
+        let voxels = numbers.iter().filter(|at| **at == number).count() as u64;
+        Part {
+            name: name.to_owned(),
+            group: "Ball".to_owned(),
+            side,
+            colour,
+            trust: Trust::Model,
+            voxels,
+            ml: voxels as f64 * 0.008,
+        }
+    };
+    let parts = vec![
+        part("half", Side::Left, RED, 1),
+        part("half", Side::Right, BLUE, 2),
+        part("bead", Side::Midline, GREEN, 3),
+    ];
+    LabelSet {
+        dims: [30, 30, 30],
+        numbers,
+        placement,
+        parts,
+        title: "Made-up ball".to_owned(),
+        verdict: None,
     }
 }
 

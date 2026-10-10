@@ -54,7 +54,8 @@ impl Smoothed {
     pub fn on(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Option<SmoothedTexture> {
         // Watched for running out of room, as the volume itself is.
         let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
-        let coefficients = texture(device, "voxa volume curve", self.dims);
+        let halves = wgpu::TextureFormat::R16Float;
+        let coefficients = texture(device, "voxa volume curve", self.dims, halves);
         write(device, queue, &coefficients, self.dims, &self.halves);
         if pollster::block_on(room.pop()).is_some() {
             coefficients.destroy();

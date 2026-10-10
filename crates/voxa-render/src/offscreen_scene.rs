@@ -1,10 +1,12 @@
 //! Drawing a volume without a window, for tests and exported pictures.
 
 use voxa_core::Volume;
+use voxa_labels::LabelSet;
 
 use voxa_core::WindowLevel;
 
 use crate::gpu::{Gpu, TARGET};
+use crate::labels::{LabelsOnDevice, Overlay, PartLook};
 use crate::plane_pipeline::PlanePipeline;
 use crate::plane_view::PlaneView;
 use crate::prepared::Prepared;
@@ -18,6 +20,9 @@ pub struct HeadlessScene {
     gpu: Gpu,
     pipeline: VolumePipeline,
     plane: PlanePipeline,
+    /// The labels drawn over the planes, and how.
+    labels: Option<LabelsOnDevice>,
+    overlay: Overlay,
 }
 
 impl HeadlessScene {
@@ -36,6 +41,8 @@ impl HeadlessScene {
             gpu,
             pipeline,
             plane,
+            labels: None,
+            overlay: Overlay::default(),
         })
     }
 
@@ -47,6 +54,7 @@ impl HeadlessScene {
     /// As [`VolumePipeline::upload`].
     pub fn upload(&mut self, volume: &Volume) -> Result<u32, RenderError> {
         self.plane.smooth(None);
+        self.label(None);
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, volume)
     }
@@ -59,6 +67,7 @@ impl HeadlessScene {
     /// As [`VolumePipeline::upload_prepared`].
     pub fn upload_prepared(&mut self, ready: &Prepared) -> Result<u32, RenderError> {
         self.plane.smooth(None);
+        self.label(None);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.upload_prepared(device, queue, ready)
     }
@@ -76,6 +85,29 @@ impl HeadlessScene {
         let viewport = size.map(|side| side as f32);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.picture(device, queue, params, viewport, size)
+    }
+
+    /// Put a label set on the device to be drawn over the planes, every part shown, or take
+    /// the labels away with `None`. Whether there are now labels to draw: false with `None`,
+    /// and when the device has no room for them. Uploading a volume takes them away.
+    pub fn label(&mut self, set: Option<&LabelSet>) -> bool {
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.labels = set.and_then(|set| LabelsOnDevice::put(device, queue, set));
+        self.plane.labels(self.labels.as_ref(), self.overlay);
+        self.labels.is_some()
+    }
+
+    /// Say how each part of the labels is to look, and which is selected.
+    pub fn set_looks(&mut self, looks: &[PartLook], selected: Option<usize>) {
+        if let Some(labels) = &self.labels {
+            labels.set_looks(&self.gpu.queue, looks, selected);
+        }
+    }
+
+    /// Choose how labels are drawn over the planes.
+    pub fn overlay(&mut self, overlay: Overlay) {
+        self.overlay = overlay;
+        self.plane.labels(self.labels.as_ref(), overlay);
     }
 
     /// Draw planes from the curve through the uploaded volume, which `with` must be, or with
@@ -115,6 +147,8 @@ impl HeadlessScene {
 mod cut_tests;
 #[cfg(test)]
 mod haze_tests;
+#[cfg(test)]
+mod label_tests;
 #[cfg(test)]
 mod plane_tests;
 #[cfg(test)]

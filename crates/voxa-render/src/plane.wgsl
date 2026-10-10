@@ -19,6 +19,16 @@ struct View {
     // Columns, rows and slices of the volume, and 1 when the plane is drawn from the curve
     // through its values.
     grid: vec4<f32>,
+    // Where a point of the patient is in the label volume, in voxels counted from voxel
+    // centres, along its columns, rows and slices: dot(row.xyz, point) + row.w.
+    label_u: vec4<f32>,
+    label_v: vec4<f32>,
+    label_w: vec4<f32>,
+    // Columns, rows and slices of the label volume, and how labels are drawn: 0 not at
+    // all, 1 outlined, 2 outlined and tinted inside.
+    label_grid: vec4<f32>,
+    // The number of the part selected (0 for none), and how far the inside is tinted.
+    label_how: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> shown: View;
@@ -28,6 +38,10 @@ struct View {
 // a sampler that reads beyond a face what lies as far inside it.
 @group(0) @binding(3) var curve: texture_3d<f32>;
 @group(0) @binding(4) var mirrored: sampler;
+// The part at every voxel of a label volume, on its own grid (0 is nothing), and a table
+// of each part's colour, with how solid it is as its alpha: 256 parts to a row.
+@group(0) @binding(5) var parts: texture_3d<u32>;
+@group(0) @binding(6) var looks: texture_2d<f32>;
 
 struct Corner {
     @builtin(position) position: vec4<f32>,
@@ -75,6 +89,56 @@ fn smoothed(at: vec3<f32>) -> f32 {
     return sum;
 }
 
+// The part at a point of the patient: that of the nearest label voxel, or 0 where the
+// labels do not reach.
+fn part_at(patient: vec3<f32>) -> u32 {
+    let voxel = vec3<f32>(
+        dot(shown.label_u.xyz, patient) + shown.label_u.w,
+        dot(shown.label_v.xyz, patient) + shown.label_v.w,
+        dot(shown.label_w.xyz, patient) + shown.label_w.w,
+    );
+    let nearest = vec3<i32>(floor(voxel + 0.5));
+    let size = vec3<i32>(shown.label_grid.xyz);
+    if any(nearest < vec3<i32>(0)) || any(nearest >= size) {
+        return 0u;
+    }
+    return textureLoad(parts, nearest, 0).r;
+}
+
+// A part's colour, with how solid it is as alpha. Part 0, nothing, is clear.
+fn look_of(part: u32) -> vec4<f32> {
+    return textureLoad(looks, vec2<i32>(i32(part % 256u), i32(part / 256u)), 0);
+}
+
+// The line between a pixel's part and a neighbouring pixel's, drawn over `under`: in the
+// pixel's own part's colour, or the neighbour's where its own is not shown, and in white
+// where either is the part selected. Nothing where the two are one part.
+fn edged(under: vec3<f32>, here: u32, there: u32) -> vec3<f32> {
+    if here == there {
+        return under;
+    }
+    let mine = look_of(here);
+    let theirs = look_of(there);
+    let chosen = u32(shown.label_how.x);
+    let picked = chosen != 0u
+        && ((here == chosen && mine.a > 0.0) || (there == chosen && theirs.a > 0.0));
+    let line = select(theirs, mine, mine.a > 0.0);
+    return mix(under, select(line.rgb, vec3<f32>(1.0), picked), line.a);
+}
+
+// The labels over a pixel that shows `patient` and is `under` without them.
+fn labelled(under: vec3<f32>, patient: vec3<f32>) -> vec3<f32> {
+    let here = part_at(patient);
+    var colour = under;
+    if shown.label_grid.w > 1.5 {
+        let mine = look_of(here);
+        colour = mix(colour, mine.rgb, shown.label_how.y * mine.a);
+    }
+    // One pixel to the right, and one beneath.
+    colour = edged(colour, here, part_at(patient + shown.across.xyz));
+    return edged(colour, here, part_at(patient + shown.down.xyz));
+}
+
 @fragment
 fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let pixel = corner.across * shown.view.xy;
@@ -92,5 +156,9 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     }
     let outside = any(at < vec3<f32>(0.0)) || any(at > vec3<f32>(1.0));
     let grey = clamp((value - shown.view.z) / shown.view.w, 0.0, 1.0);
-    return vec4<f32>(vec3<f32>(select(grey, 0.0, outside)), 1.0);
+    var colour = vec3<f32>(grey);
+    if shown.label_grid.w > 0.5 {
+        colour = labelled(colour, patient);
+    }
+    return vec4<f32>(select(colour, vec3<f32>(0.0), outside), 1.0);
 }
