@@ -7,11 +7,12 @@ Voxa is a Cargo workspace of small crates that talk only through their public in
 | `voxa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VoxaError` | nothing in the workspace |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
 | `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `voxa-core` |
-| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture | `voxa-core`, `voxa-volume` |
+| `voxa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `voxa-core` |
+| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `voxa-core`, `voxa-volume`, `voxa-labels` |
 | `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
 | `xtask` | `cargo xtask check` and `cargo xtask coverage` | nothing in the workspace |
 
-Dependencies point downward only: core, then dicom and volume, then render, then app. `voxa-app`
+Dependencies point downward only: core, then dicom, volume and labels, then render, then app. `voxa-app`
 contains no image mathematics; anything that computes on pixels or coordinates lives below it,
 where it can be tested without a window.
 
@@ -77,12 +78,35 @@ The plane views and measuring hang on one point, the position:
    the series, and can be saved as a table or as JSON. None of these holds anything that says
    whose scan it was.
 
+Labelled parts come from files made elsewhere and are kept apart from the scan:
+
+1. A worker reads the label file and, if there is one, the table of names beside it.
+   `voxa-labels` turns them into a label set: for every voxel of the label volume the part it
+   belongs to, the transform that places those voxels in the patient, and the parts with their
+   names, colours, volumes and what the table says of how each was made. The workers keep the
+   one set in use, as the volume store keeps the one volume.
+2. The label volume keeps its own grid and is never resampled onto the scan's; see
+   [adr/0004-labels-own-grid.md](adr/0004-labels-own-grid.md). Labels and scan meet in patient
+   space only. The state holds what is shown of the labels (which parts, how solid, which is
+   selected) and the study they were opened on; they are drawn on that study's series and on
+   no other, and labels whose box lies nowhere near the series are refused.
+3. The window puts one copy on the graphics device: the part numbers as a 3D texture of
+   whole numbers, and a small texture of how each part looks, which is all that is sent again
+   when a part is hidden, faded or selected.
+4. The plane shader, for each pixel, finds the point of the patient it shows and reads the
+   part there from the nearest label voxel: a line where the part changes, and a tint inside
+   it when asked. The Parts look is a second scene shader that walks each line of sight
+   through the label volume, finds where it enters a shown part, and lights that surface from
+   how the part's own voxels slope; cuts shorten the line as they do for the scan.
+5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
+   same label set, so naming and selecting a part read nothing back from the device.
+
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled
 by one pure function, `reduce`, which returns the `Effect`s to run (start indexing, request
-frames, build a volume, work out the curve for smooth planes, read and write saved views and
-annotations). Workers report back by sending further `Action`s. This makes every interaction testable
+frames, build a volume, work out the curve for smooth planes, read labels, read and write saved
+views and annotations). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
 
 ## Coordinates
@@ -106,6 +130,10 @@ named on the series card when the scan is indexed, and decoding it returns
 The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
 with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
 error for that one slice.
+
+Label files are made the same way for tests, by the `testkit` feature of `voxa-labels`: NIfTI
+files of every kind of number labels are stored as, in either byte order, placed either way a
+NIfTI file can place its voxels.
 
 Tests build their files in memory with the `testkit` feature of `voxa-dicom`. They cover
 uncompressed pixels (unsigned, signed, 8-bit, `MONOCHROME1`, per-frame rescale in a multi-frame

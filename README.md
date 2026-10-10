@@ -3,9 +3,11 @@
 Voxa is a desktop viewer for MRI scan exports, written in Rust. It opens a folder, a zip or a
 `DICOMDIR`, lists the studies and series inside, and shows any series as a stack of slices with
 correct orientation, contrast controls, overlays, tag inspection and cine playback; shows the
-series being looked at as a 3D volume that can be turned, cut open and saved as a picture; and
+series being looked at as a 3D volume that can be turned, cut open and saved as a picture;
 shows axial, coronal and sagittal planes through any point of it, on which lengths, angles and
-regions can be measured and points marked.
+regions can be measured and points marked; and shows the parts of the head that another program
+has labelled on a scan, over the planes and as solids in 3D, with a list of them and their
+volumes. Voxa shows labels; it does not make them.
 
 **Voxa is not a medical device and is not for diagnostic use.**
 
@@ -18,9 +20,17 @@ turned and cut open in the 3D scene.
 
 ![Voxa showing the same study in 3D, cut open, with the slice shown beside it](docs/images/voxa-phantom-3d.png)
 
-Status: version 0.3.0, the third milestone (Plane views and measurement). What it does and what it does not yet do
-are in the [changelog](CHANGELOG.md); how it was checked is in
-[docs/acceptance-0.3.0.md](docs/acceptance-0.3.0.md). The design and the plan for every
+![Voxa showing the made-up study with made-up labels of its parts, over the planes and as solids](docs/images/voxa-phantom-labels.png)
+
+Last: the same ball with the made-up labels that come with it, tinted over the three planes
+and drawn as solids in 3D, with the list of its parts. The left half of its shell is selected,
+and the list sets it against the right half. The two halves were drawn equal: the 2% between
+them is where the labels' own coarse voxels happen to fall, which is the kind of difference
+Voxa says it cannot tell from noise.
+
+Status: version 0.4.0, the fourth milestone (Labelled parts, from files). What it does and what
+it does not yet do are in the [changelog](CHANGELOG.md); how it was checked is in
+[docs/acceptance-0.4.0.md](docs/acceptance-0.4.0.md). The design and the plan for every
 milestone are in [docs/superpowers](docs/superpowers).
 
 ## Build and run
@@ -29,6 +39,13 @@ Voxa needs the Rust toolchain named in `rust-toolchain.toml`; `rustup` installs 
 
 ```bash
 cargo run --release -p voxa-app -- path/to/export.zip
+```
+
+To show labels made for that scan by another program, name the label file too, or open it from
+the Parts tab, or drop it on the window:
+
+```bash
+cargo run --release -p voxa-app -- path/to/export.zip --labels path/to/labels.nii.gz
 ```
 
 ## Check your work
@@ -45,8 +62,8 @@ advisory checks (`cargo deny`), and the documentation build. It stops at the fir
 cargo xtask coverage
 ```
 
-measures line coverage of `voxa-core`, `voxa-dicom` and `voxa-volume` and fails below 80% on any
-of them. It needs `cargo install --locked cargo-llvm-cov`.
+measures line coverage of `voxa-core`, `voxa-dicom`, `voxa-volume` and `voxa-labels` and fails
+below 80% on any of them. It needs `cargo install --locked cargo-llvm-cov`.
 
 ## Layout
 
@@ -55,11 +72,12 @@ of them. It needs `cargo install --locked cargo-llvm-cov`.
 | `voxa-core` | Data model, typed coordinate spaces, errors |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing, pixel decoding |
 | `voxa-volume` | Volumes from series, sampling and lines of sight, planes through a volume, measuring, histograms and automatic window/level |
-| `voxa-render` | GPU drawing of slices, of volumes and of planes through them; the 3D camera |
+| `voxa-labels` | Label volumes (NIfTI) and their tables of names; which part lies at a point |
+| `voxa-render` | GPU drawing of slices, of volumes, of planes through them and of labelled parts; the 3D camera |
 | `voxa-app` | The application: interface, state, background work |
 | `xtask` | Project tasks (`check`, `coverage`) |
 
-Crates depend only downward: core, then dicom and volume, then render, then app. See
+Crates depend only downward: core, then dicom, volume and labels, then render, then app. See
 [docs/architecture.md](docs/architecture.md) and the decision records in [docs/adr](docs/adr).
 
 ## Privacy
@@ -86,9 +104,13 @@ repository.
 ```
 cargo run -p voxa-app --example write_phantom -- phantom
 cargo run -p voxa-app -- phantom
+cargo run -p voxa-app -- phantom --labels phantom/labels/labels.nii.gz
 ```
 
 The first command writes a small made-up study (a ball, brighter towards the patient's left, with
-a bead near the front) to the folder `phantom`; the second opens it. Setting the environment
+a bead near the front) to the folder `phantom`; the second opens it. The third opens it with the
+made-up labels the first command wrote beside it: the ball's shell in two halves, its core and
+the bead. Voxa then says it skipped two files, which are the labels and their table: they are
+not part of the scan. Setting the environment
 variable `VOXA_CAPTURE` to a `.png` path makes Voxa save one picture of its own window and close,
 which is how the pictures in the documentation are made.

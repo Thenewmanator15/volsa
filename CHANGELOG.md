@@ -6,6 +6,91 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-10
+
+The fourth milestone: labelled parts, from files. Voxa shows labels that another program made
+for a scan; it does not make them, and it runs no labelling model. Voxa is not a medical device
+and is not for diagnostic use.
+
+### Added
+
+- Opening a file of labels on the series shown in 3D: from the Parts tab ("Open labels…"), by
+  dropping the file on the window, or with `--labels FILE` on the command line. A label file is
+  a single-file NIfTI-1 volume (`.nii` or `.nii.gz`) of whole numbers, one number for each part.
+  It is read on a worker thread, and a file that is not that is refused with a sentence that
+  says why.
+- Names for the parts, from a table beside the label file: the table a labelling pipeline
+  writes (names with a group, a colour, a number for each side, how each was made, and the
+  model's own check), a plain list of numbers and names, or a 3D Slicer colour table (`.ctbl`).
+  Another table can be chosen with "Names…". With no table the parts are called by their
+  numbers, and a number the table does not name is listed as not named, never left out.
+- A Parts tab beside the slices and the planes: the parts by group, a name with a left and a
+  right on one row, each with its colour, its volume and a switch for each side. A search box,
+  a switch for a whole group, "Show all", and for the part selected a slider for how solid it
+  is drawn and "Show only this".
+- The list says what the labels are and how far to trust them: that another program made them,
+  where their names came from, which parts their table marks as approximate and why, and, when
+  the table carries the labelling model's own check, whether it passed. A failed check is said
+  in the warning colour above the list.
+- Labels over the plane views: an outline round each part, or the outline and a tint of the
+  part's colour, or nothing. The pointer resting on a part is told its name and side, a click
+  selects it, and the part selected is outlined in white. Each panel that draws labels says
+  "Labels: made elsewhere".
+- A fourth look in the 3D scene, Parts: the labelled parts as lit solids, each in its own
+  colour, drawn from the label volume itself. Parts can be hidden or faded to see what is
+  behind them, cuts open the solids as they open the scan, the pointer is told the name of the
+  part it rests on, a click selects it, and the ruler and marker measure on the solids. The
+  scene says that the solids are labels made elsewhere.
+- Left against right: a selected part that has two sides says the volume of each and how much
+  the left differs from the right, as a percentage of their mean, and that Voxa cannot tell how
+  much of such a difference is noise in the labelling.
+- "Save as CSV…": every part, hidden or not, with its group, name, side, volume in millilitres,
+  count of voxels and how it was made. The table holds nothing of the scan, and a name that a
+  spreadsheet would run as a formula is written as text.
+- Labels keep their own grid. They are never resampled onto the scan: what is drawn and what is
+  counted are the labelling program's own voxels, and a part's volume is its voxels times the
+  size of one. See [docs/adr/0004-labels-own-grid.md](docs/adr/0004-labels-own-grid.md).
+- The made-up study that `write_phantom` writes now comes with made-up labels of its ball, in a
+  folder `labels` beside the series: a shell in two halves, a core and a bead, on a grid of
+  their own, with one part marked approximate and a check that fails.
+- `cargo run -p voxa-app --example check_labels` checks a label file against a whole export
+  without a window and prints nothing from either.
+- A new crate, `voxa-labels`, reads label volumes and their tables and answers which part lies
+  at a point. `cargo xtask coverage` holds it to the same 80% as the other crates below the
+  window.
+
+### Changed
+
+- The column beside the large part of the window is at least 260 points wide where the window
+  allows, so that its three tabs fit. In the smallest window the large part is 40 points
+  narrower than before.
+- The file that writes the made-up study moved from `examples/write_phantom.rs` to
+  `examples/write_phantom/`; it is run as before.
+
+### Known limits
+
+- Voxa does not make labels. It runs no labelling model, and none comes with it.
+- One set of labels at a time. Two files, such as the two inner ears, are opened one after the
+  other, not together.
+- A label file does not say which scan it was made from. Labels that lie nowhere near the
+  series are refused; labels made from another scan of the same head, in the same place in the
+  scanner, are not told apart from the right ones.
+- Labels are bound to the study they were opened on and are forgotten when Voxa closes. They
+  are not drawn on the 2D stack viewports.
+- Choosing the Parts look does not move the camera. Labels that reach beyond the series shown,
+  such as a whole head over a thin slab, run off the picture until it is zoomed out; in the
+  plane views they are drawn only where the series is.
+- The solids are the label volume's voxels, lit: on a smooth shape they show faint bands, like
+  contour lines, where the voxels step. The slice shown in 2D is not drawn among them.
+- A selected part seen flat-on through a cut is not marked: the pale rim that marks it follows
+  its surface, and a cut face has none.
+- A label file named with `--labels` for a scan that has no 3D view is not opened, and nothing
+  says so.
+- No FreeSurfer, NRRD or DICOM SEG files, no meshes, no correcting labels by hand, and no
+  comparing the labels of two studies.
+- Opening the made-up study's folder reports two files skipped: its labels and their table,
+  which are not part of the scan.
+
 ## [0.3.0] - 2026-10-10
 
 The third milestone: plane views and measurement, on top of a pass for speed. Voxa is not a

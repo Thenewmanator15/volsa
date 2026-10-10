@@ -7,11 +7,18 @@
 //!
 //! The study holds two series of a ball that is brighter towards the patient's left, with a
 //! small bright bead near the front, so the orientation of the picture can be told at a
-//! glance.
+//! glance. Beside it, in `labels`, are made-up labels of the ball's parts, as another
+//! program might have written them for the finer series:
+//!
+//! ```text
+//! cargo run -p voxa-app -- some/folder --labels some/folder/labels/labels.nii.gz
+//! ```
 
 use std::path::{Path, PathBuf};
 
 use voxa_dicom::testkit::{SliceOptions, classic_slice};
+
+mod labels;
 
 /// What distinguishes one series of the phantom from another.
 struct Series {
@@ -51,6 +58,13 @@ fn main() -> std::io::Result<()> {
     for series in &SERIES {
         write(&folder, series)?;
     }
+    // The labels are of the finer series, the one Voxa opens first.
+    let [_, fine] = &SERIES;
+    let beside = folder.join("labels");
+    std::fs::create_dir_all(&beside)?;
+    let volume = labels::volume(96.0 / f64::from(fine.side), fine.apart);
+    std::fs::write(beside.join("labels.nii.gz"), volume)?;
+    std::fs::write(beside.join("regions.json"), labels::TABLE)?;
     println!("A made-up study was written to {}", folder.display());
     Ok(())
 }
@@ -95,19 +109,19 @@ fn write(folder: &Path, series: &Series) -> std::io::Result<()> {
 /// towards the patient's left, down towards the back, height towards the head.
 fn brightness(across: f64, down: f64, height: f64) -> u16 {
     let from_centre = (across * across + down * down + height * height).sqrt();
-    let bead = ((across - 0.35).powi(2) + (down + 0.55).powi(2) + height * height).sqrt();
-    let value = if bead < 0.08 {
-        1000.0
-    } else if from_centre < 0.8 {
-        // Brighter towards the patient's left, with a faint ring every fifth of the radius.
-        let ring = if (from_centre * 5.0).fract() < 0.08 {
-            60.0
-        } else {
-            0.0
-        };
-        400.0 + 250.0 * across + ring
-    } else {
-        20.0
+    let value = match labels::part(across, down, height) {
+        labels::BEAD => 1000.0,
+        labels::NOTHING => 20.0,
+        _ => {
+            // Brighter towards the patient's left, with a faint ring every fifth of the
+            // radius.
+            let ring = if (from_centre * 5.0).fract() < 0.08 {
+                60.0
+            } else {
+                0.0
+            };
+            400.0 + 250.0 * across + ring
+        }
     };
     stored(value)
 }

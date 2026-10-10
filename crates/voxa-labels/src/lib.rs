@@ -31,3 +31,6 @@ pub use pairs::{Pair, difference_percent, pairs};
 pub use set::{LabelSet, NOT_NAMED, Part, SetError, label_set};
 pub use table::{Entry, MAX_NAME, Side, Table, TableError, Trust, Verdict, read_table};
 pub use words::{trust_in_words, verdict_in_words, volume_in_words};
+
+#[cfg(test)]
+mod damage_tests;

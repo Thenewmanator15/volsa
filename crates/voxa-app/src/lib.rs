@@ -44,7 +44,8 @@ pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};
 pub use labels::{
-    Labels, LabelsStatus, NamesFrom, PartShown, is_label_file, look_drawn, on_this_series, study_of,
+    Labels, LabelsStatus, NOWHERE_NEAR, NamesFrom, PartShown, is_label_file, look_drawn,
+    on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
