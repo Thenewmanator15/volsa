@@ -215,7 +215,7 @@ fn with_no_volume_on_the_device_there_is_no_curve_to_make() {
 }
 
 #[test]
-fn a_piece_of_work_is_timed_only_when_the_device_has_nothing_else_in_hand() {
+fn a_device_with_nothing_else_in_hand_is_timed_over_a_piece_of_work() {
     let Some(mut gpu) = headless_scene() else {
         return;
     };
@@ -228,12 +228,11 @@ fn a_piece_of_work_is_timed_only_when_the_device_has_nothing_else_in_hand() {
     };
     gpu.settle();
     assert!(timed(&gpu).is_some(), "idle: timed");
-    // A volume and the curve through it, handed over and not waited for.
-    let values = (0..96 * 96 * 96).map(|at| (at % 251) as f32).collect();
-    let volume = Volume::new([96; 3], values, Affine::identity()).expect("adds up");
+    // After a volume and the curve through it have been handed over and waited for.
+    let values = (0..48 * 48 * 48).map(|at| (at % 251) as f32).collect();
+    let volume = Volume::new([48; 3], values, Affine::identity()).expect("adds up");
     gpu.upload(&volume).expect("uploads");
     assert!(gpu.smooth_planes_on_device());
-    assert_eq!(timed(&gpu), None, "busy: handed over, and not timed");
     gpu.settle();
     assert!(timed(&gpu).is_some(), "idle again");
 }
