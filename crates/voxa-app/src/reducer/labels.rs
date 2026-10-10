@@ -4,15 +4,13 @@ use voxa_labels::boxes_meet;
 
 use crate::action::{Action, Effect};
 use crate::labels::{
-    FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOWHERE_NEAR, PartShown, on_this_series,
-    study_of,
+    FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOTHING_TO_LABEL_KEY, NOWHERE_NEAR,
+    PartShown, on_this_series, study_of,
 };
 use crate::planes::grid;
 use crate::state::{AppState, Notice, NoticeKind};
 
-/// The notice that labels were not opened for want of a volume takes the place of an earlier
-/// one, and goes when labels are opened.
-const NOTHING_TO_PUT_THEM_ON: &str = "nothing to label";
+const NOTHING_TO_PUT_THEM_ON: &str = NOTHING_TO_LABEL_KEY;
 
 /// Whether an action is about labels.
 pub(super) fn concerns(action: &Action) -> bool {

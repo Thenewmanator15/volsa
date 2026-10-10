@@ -13,6 +13,13 @@ pub const NOWHERE_NEAR: &str =
 /// What is said when a label file is opened and there is no volume to put its labels on.
 pub const NOTHING_TO_LABEL: &str =
     "Labels are put on the 3D view of a scan. Open the scan first, then its labels.";
+/// What is said when the labels named as Voxa was started cannot be opened yet.
+pub const LABELS_WAIT: &str = "The labels named when Voxa was started are waiting: this series \
+                               has no 3D view to put them on. They open on the first series \
+                               shown that has one.";
+/// A notice about labels there is nothing to put on takes the place of an earlier one,
+/// and goes when labels are opened.
+pub const NOTHING_TO_LABEL_KEY: &str = "nothing to label";
 /// The least solid a part can be faded to. Hiding a part is done by its switch.
 pub const FAINTEST: f32 = 0.1;
 

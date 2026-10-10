@@ -12,9 +12,10 @@ use super::scene::export::said;
 use super::{VoxaApp, parts};
 use crate::action::Action;
 use crate::export::write;
-use crate::labels::{Labels, is_label_file, on_this_series};
+use crate::labels::{LABELS_WAIT, Labels, NOTHING_TO_LABEL_KEY, is_label_file, on_this_series};
 use crate::parts_table::{PARTS_NAME, parts_csv};
 use crate::planes::grid;
+use crate::scene::SceneStatus;
 use crate::state::{AppState, Notice, NoticeKind};
 
 /// The label file waiting to be opened, and the one last opened. Neither is kept anywhere
@@ -25,6 +26,8 @@ pub struct Opening {
     waiting: Option<PathBuf>,
     /// The label file last opened.
     opened: Option<PathBuf>,
+    /// Whether it has been said that the file named at the start is waiting.
+    said_waiting: bool,
 }
 
 impl Opening {
@@ -33,12 +36,29 @@ impl Opening {
         Self {
             waiting: labels,
             opened: None,
+            said_waiting: false,
         }
     }
 
     /// Whether a label file named when Voxa was started has still to be opened.
     pub fn is_waiting(&self) -> bool {
         self.waiting.is_some()
+    }
+
+    /// What to say, once, while a label file named when Voxa was started waits and the
+    /// series shown has no 3D view to open it on. Nothing while a 3D view may yet come.
+    pub fn waiting_notice(&mut self, state: &AppState) -> Option<Notice> {
+        let no_view = matches!(state.scene.status, SceneStatus::Unavailable(_));
+        if self.waiting.is_none() || !no_view || self.said_waiting {
+            return None;
+        }
+        self.said_waiting = true;
+        Some(Notice {
+            kind: NoticeKind::Info,
+            text: LABELS_WAIT.to_owned(),
+            details: Vec::new(),
+            key: Some(NOTHING_TO_LABEL_KEY),
+        })
     }
 
     /// What opens a file the person chose or dropped on the window: labels if its name says
@@ -188,8 +208,12 @@ impl Held {
 
 impl VoxaApp {
     /// Open the label file named when Voxa was started, once the scan it was named with has
-    /// a volume ready to put labels on.
+    /// a volume ready to put labels on; and say so, once, while it waits on a series that
+    /// has no 3D view.
     pub(super) fn open_waiting_labels(&mut self) {
+        if let Some(waiting) = self.labels.waiting_notice(self.session.state()) {
+            self.dispatch(Action::Post(waiting));
+        }
         if self.labels.waiting.is_none() || grid(self.session.state()).is_none() {
             return;
         }
@@ -203,6 +227,37 @@ impl VoxaApp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn labels_named_at_the_start_say_once_that_they_wait_for_a_series_with_a_3d_view() {
+        use crate::scene::SceneStatus;
+        let no_view = || SceneStatus::Unavailable(vec!["why".to_owned()]);
+        let mut state = AppState::default();
+        let mut opening = Opening::waiting_for(Some(PathBuf::from("labels.nii.gz")));
+        assert_eq!(opening.waiting_notice(&state), None, "nothing is shown yet");
+        state.scene.status = SceneStatus::Building { done: 1, of: 9 };
+        assert_eq!(
+            opening.waiting_notice(&state),
+            None,
+            "a 3D view is on its way"
+        );
+        state.scene.status = no_view();
+        let notice = opening.waiting_notice(&state).expect("said");
+        assert_eq!(notice.text, LABELS_WAIT);
+        assert_eq!(
+            notice.key,
+            Some(NOTHING_TO_LABEL_KEY),
+            "it goes when labels are opened"
+        );
+        assert!(LABELS_WAIT.contains("waiting") && LABELS_WAIT.contains("3D view"));
+        assert_eq!(opening.waiting_notice(&state), None, "said once");
+        let mut none_named = Opening::default();
+        assert_eq!(
+            none_named.waiting_notice(&state),
+            None,
+            "no labels were named"
+        );
+    }
 
     #[test]
     fn a_dropped_file_is_opened_as_labels_or_as_a_scan_by_its_name() {
