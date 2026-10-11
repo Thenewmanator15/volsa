@@ -20,8 +20,14 @@ use crate::tidy::tidy;
 /// The robust model is picked for a scan whose voxels are further apart than this along any
 /// of its axes, in millimetres; and labels made from such a scan are a rough map.
 pub const THICK_MM: f64 = 3.0;
-/// The note on a scan that was cut to the head.
-const CUT_NOTE: &str = "The scan was cut to the head to fit. Labels at the very edge may differ.";
+/// The note on a scan that was cut to the head. It says what was measured. A cut lays the
+/// head elsewhere in the box the networks are given, and that alone moves their answer: on a
+/// made-up head about one labelled voxel in a hundred came out otherwise, each of them where
+/// two parts meet or next to it, all through the head, and `SynthSeg`'s own program did the
+/// same when given the head laid otherwise. Neither answer is the truer. The figures are
+/// kept with the project's findings on labelling, and go from there into its decision record.
+const CUT_NOTE: &str = "The scan was cut to the head to fit. Where two parts meet, some voxels \
+                        may be labelled differently than without the cut.";
 
 /// Which model a person has asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

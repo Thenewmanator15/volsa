@@ -9,11 +9,11 @@ use std::sync::{LazyLock, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::{Device, Network, RunError, Stop, bytes_of, each_alone};
-use crate::cards::{Card, CardKind, budget, cards, kind};
+use super::{Device, Network, RunError, Stop, bytes_of, each_alone, right_build};
+use crate::cards::{Card, CardId, CardKind, budget, cards};
 use crate::model::{Model, Role, read_model};
-use crate::runtime::{LIBRARY, Runtime, RuntimeError, right_build};
-use crate::tensor::{Numbers, Tensor};
+use crate::runtime::{LIBRARY, Runtime, RuntimeError};
+use crate::tensor::{Numbers, Tensor, copied};
 use crate::testkit::Canned;
 
 const GIB: u64 = 1 << 30;
@@ -30,6 +30,9 @@ fn a_tensor_holds_as_many_numbers_as_its_shape_says() {
     // One number has no sides. A shape too large to count holds nothing.
     assert!(Tensor::f32(vec![], vec![1.0]).is_some());
     assert_eq!(Tensor::u8(vec![usize::MAX, 2], vec![]), None);
+    // An answer is copied out of the runtime's memory number for number.
+    assert_eq!(copied(&[0.25_f32, 0.75]), Ok(vec![0.25, 0.75]));
+    assert_eq!(copied::<u8>(&[]), Ok(Vec::new()));
 }
 
 #[test]
@@ -91,32 +94,6 @@ fn the_right_build_is_version_one_from_the_interface_asked_for() {
 }
 
 #[test]
-fn the_cards_are_listed_and_each_has_a_name() {
-    let listed = cards();
-    for (place, card) in listed.iter().enumerate() {
-        assert!(!card.name.trim().is_empty(), "a card with no name");
-        let mut earlier = listed.iter().take(place);
-        assert!(
-            earlier.all(|before| before.index < card.index),
-            "out of order"
-        );
-        // Asking what a card has to spare never fails, whether or not the system knows.
-        let _ = budget(card.index);
-    }
-    assert_eq!(budget(u32::MAX), None);
-}
-
-#[test]
-fn a_card_with_little_memory_of_its_own_is_integrated() {
-    assert_eq!(kind(false, 16 * GIB), CardKind::Discrete);
-    assert_eq!(kind(false, 2 * GIB), CardKind::Discrete);
-    assert_eq!(kind(false, 2 * GIB - 1), CardKind::Integrated);
-    assert_eq!(kind(false, 0), CardKind::Integrated);
-    assert_eq!(kind(true, 16 * GIB), CardKind::Software);
-    assert_eq!(kind(true, 0), CardKind::Software);
-}
-
-#[test]
 fn the_runtimes_words_are_sorted_into_what_went_wrong() {
     let sorted = RunError::from_words;
     let no_room = "D3D12 error 8007000E: Not enough memory resources are available";
@@ -129,6 +106,32 @@ fn the_runtimes_words_are_sorted_into_what_went_wrong() {
     for other in ["Got invalid dimensions", "the device said 887A0002"] {
         assert_eq!(sorted(other), RunError::Failed(other.to_owned()));
     }
+}
+
+#[test]
+fn memory_the_runtime_could_not_have_is_no_room_in_whatever_words_it_says_so() {
+    let sorted = RunError::from_words;
+    // The first is what the runtime said when the processor's memory ran out under a real
+    // network. The rest are its other wordings for the same thing, and the one a C++ library
+    // gives elsewhere than on Windows.
+    let refused = [
+        "Non-zero status code returned while running Conv node. Name:'blur' Status Message: \
+         bad allocation",
+        "std::bad_alloc",
+        "Failed to allocate memory for requested buffer of size 4096000",
+        "BFC Arena ran out of memory trying to allocate 4096000 bytes",
+        "Available memory of 128 is smaller than requested bytes of 4096000",
+        "Memory allocation failed. Size=4096000",
+        "Output buffer allocation failed",
+        "VirtualAlloc failed",
+    ];
+    for words in refused {
+        assert_eq!(sorted(words), RunError::NoRoom, "{words}");
+        assert_eq!(sorted(&words.to_lowercase()), RunError::NoRoom, "{words}");
+    }
+    // Words about memory that say nothing of running out stay what they are.
+    let other = "Allocation of tensor types requires a shape.";
+    assert_eq!(sorted(other), RunError::Failed(other.to_owned()));
 }
 
 #[test]
@@ -174,11 +177,12 @@ fn outputs_past_two_gib_on_a_card_are_fetched_each_alone() {
     );
 
     let most = 2 * GIB;
-    assert!(!each_alone(Device::Card(1), 2, Some(most), most));
-    assert!(each_alone(Device::Card(1), 2, Some(most + 1), most));
-    assert!(each_alone(Device::Card(0), 2, None, most));
+    let card = Device::Card(CardId(1));
+    assert!(!each_alone(card, 2, Some(most), most));
+    assert!(each_alone(card, 2, Some(most + 1), most));
+    assert!(each_alone(Device::Card(CardId(0)), 2, None, most));
     // One output is alone already, and nothing is fetched from the processor.
-    assert!(!each_alone(Device::Card(1), 1, Some(most + 1), most));
+    assert!(!each_alone(card, 1, Some(most + 1), most));
     assert!(!each_alone(Device::Processor, 2, Some(most + 1), most));
 }
 
@@ -193,7 +197,8 @@ static REAL: LazyLock<(Runtime, Model)> = LazyLock::new(|| {
 static ONE_AT_A_TIME: Mutex<()> = Mutex::new(());
 
 fn folder(variable: &str) -> PathBuf {
-    env::var_os(variable).map_or_else(|| panic!("{variable} must name a folder"), Into::into)
+    let needed = || panic!("This test needs {variable} to name a folder, and it is not set.");
+    env::var_os(variable).map_or_else(needed, Into::into)
 }
 
 fn turn() -> MutexGuard<'static, ()> {
@@ -260,10 +265,10 @@ fn the_scores_network_runs_on_the_processor() {
 fn the_scores_network_runs_on_each_card() {
     let _turn = turn();
     for card in cards_that_are_not_software() {
-        let (own, spare) = (card.own_bytes / GIB, budget(card.index));
+        let (own, spare) = (card.own_bytes / GIB, budget(card.id));
         let spare = spare.map(|bytes| bytes / GIB);
         println!("{card:?}: {own} GiB of its own, {spare:?} GiB to spare");
-        scores_on(Device::Card(card.index));
+        scores_on(Device::Card(card.id));
     }
 }
 
@@ -291,7 +296,9 @@ fn what_cannot_be_run_or_opened_fails_without_a_panic() {
         let opened = runtime.open(&file, Device::Processor, [32; 3], &stop);
         assert!(failed(&opened), "{file:?} opened");
     }
-    assert!(failed(&scores(Device::Card(4000), &stop)), "no such card");
+    // A card the system does not list is a card that went.
+    let nowhere = scores(Device::Card(CardId(u64::MAX)), &stop);
+    assert_eq!(nowhere.err(), Some(RunError::DeviceLost), "no such card");
 }
 
 #[test]
@@ -353,8 +360,8 @@ fn a_card_gives_the_processors_answer_however_it_is_fetched() {
     let shapes: Vec<&[usize]> = expected.iter().map(|part| part.shape.as_slice()).collect();
     let (first, second) = ([1, side, side, side, 17], [1, side, side, side, 16]);
     assert_eq!(shapes, [first, second]);
-    for Card { index, .. } in cards_that_are_not_software() {
-        let device = Device::Card(index);
+    for Card { id, index, .. } in cards_that_are_not_software() {
+        let device = Device::Card(id);
         let together = runtime.open(standard, device, [side; 3], &stop);
         let alone = runtime.open_with(standard, device, [side; 3], &stop, 0);
         let (mut together, mut alone) = (together.expect("it opens"), alone.expect("it opens"));

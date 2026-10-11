@@ -3,6 +3,13 @@
 //! This is the one module of the crate that may use `unsafe`: on Windows the list is DXGI's,
 //! and every call into it is marked unsafe. Each use says why it is sound. On a system with
 //! no such list there are no cards and nothing is known of their memory.
+//!
+//! A card is known by what it is, a [`CardId`], and not by where it stands in the list. The
+//! list changes its order while a program runs, and a place kept from before is then another
+//! card's. Only this module turns a card into a place, at the moment the place is used.
+
+#[cfg(test)]
+mod tests;
 
 /// A card with less memory of its own than this shares the computer's: 2 GiB.
 const INTEGRATED_BELOW: u64 = 2 << 30;
@@ -18,12 +25,22 @@ pub enum CardKind {
     Software,
 }
 
+/// What a graphics card is, as the system itself tells its cards apart. It is the same for
+/// one card wherever the card stands in the system's list, and for as long as the computer
+/// runs; after a restart it may be another, so it is not for keeping in a file. The number
+/// means nothing in itself.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct CardId(pub u64);
+
 /// One graphics card, as the system describes it now.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Card {
-    /// Its place in the system's list now, which is what a network is opened with
-    /// ([`Device::Card`](crate::Device::Card)). The list can change from one minute to the
-    /// next, so a card is found again by its name, never by a number kept from before.
+    /// What the card is. This is what a card is asked for by
+    /// ([`Device::Card`](crate::Device::Card)), and what is kept of it.
+    pub id: CardId,
+    /// Its place in the system's list at the moment the list was read: for showing, and for
+    /// this module's own use. It must never be kept. The list changes its order, and the
+    /// place is then another card's.
     pub index: u32,
     /// The name the system gives it. It is never empty. The list can hold one card twice.
     pub name: String,
@@ -39,18 +56,38 @@ pub fn cards() -> Vec<Card> {
     system::cards()
 }
 
-/// How many bytes the system lets this program use on the card at that place in its list
-/// now. The figure already allows for what other programs hold on the card. `None` where it
-/// cannot be read: no card at that place, or a system that keeps no such count.
-pub fn budget(index: u32) -> Option<u64> {
-    system::budget(index)
+/// Where a card stands now: its place in `cards`, a list as the system has just given it.
+/// The first card of that identity, when the list holds it twice. `None` when the list no
+/// longer holds the card.
+pub fn place_of(cards: &[Card], id: CardId) -> Option<u32> {
+    let card = cards.iter().find(|card| card.id == id);
+    card.map(|card| card.index)
 }
 
-/// How many bytes of the card at that place in the system's list this program holds now. For
-/// integrated graphics, which have next to none of their own, it is the computer's memory
-/// they hold for this program. `None` where it cannot be read, as for [`budget`].
-pub fn in_use(index: u32) -> Option<u64> {
-    system::in_use(index)
+/// The place a card has in the system's list at this moment; `None` when it is not listed.
+/// For this crate's own use, at the moment the place is needed.
+pub(crate) fn place_now(id: CardId) -> Option<u32> {
+    place_of(&cards(), id)
+}
+
+/// How many bytes the system lets this program use on a card now. The figure already allows
+/// for what other programs hold on the card. `None` where it cannot be read: the card is no
+/// longer listed, or the system keeps no such count.
+pub fn budget(id: CardId) -> Option<u64> {
+    place_now(id).and_then(system::budget)
+}
+
+/// How many bytes of a card this program holds now. For integrated graphics, which have
+/// next to none of their own, it is the computer's memory they hold for this program. `None`
+/// where it cannot be read, as for [`budget`].
+pub fn in_use(id: CardId) -> Option<u64> {
+    place_now(id).and_then(system::in_use)
+}
+
+/// A card's identity from the two halves of the number the system gives it.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+pub(crate) fn identity(high: i32, low: u32) -> CardId {
+    CardId(u64::from(high.cast_unsigned()) << 32 | u64::from(low))
 }
 
 /// What sort of card one is, from what the system says of it: one the system marks as
@@ -75,7 +112,7 @@ mod system {
     };
     use windows::core::Interface;
 
-    use super::{Card, kind};
+    use super::{Card, identity, kind};
 
     /// More adapters than any computer lists: the walk of the list ends here at the latest.
     const MOST_CARDS: u32 = 64;
@@ -110,7 +147,9 @@ mod system {
             let software = u32::try_from(DXGI_ADAPTER_FLAG_SOFTWARE.0)
                 .is_ok_and(|flag| described.Flags & flag != 0);
             let own_bytes = u64::try_from(described.DedicatedVideoMemory).unwrap_or(u64::MAX);
+            let luid = described.AdapterLuid;
             found.push(Card {
+                id: identity(luid.HighPart, luid.LowPart),
                 index,
                 name,
                 kind: kind(software, own_bytes),

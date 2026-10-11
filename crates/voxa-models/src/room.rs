@@ -5,9 +5,11 @@
 //! Nothing here asks the system anything. The card list, the budgets and the free memory all
 //! come in through [`Room`], read by the caller at the moment it asks.
 
-use crate::cards::{Card, CardKind};
+use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
 
+#[cfg(test)]
+mod need_tests;
 #[cfg(test)]
 mod tests;
 
@@ -45,10 +47,9 @@ pub struct Wanted {
 pub enum RunsOn {
     /// Wherever it fits best: each discrete card, then the processor.
     Automatic,
-    /// On this card and no other: the system's own number for it, a [`Card`]'s `index`, which
-    /// is not its place in [`Room::cards`]. An integrated card can be asked for by number; a
+    /// On this card and no other: a [`Card`]'s `id`. An integrated card can be asked for; a
     /// software one cannot.
-    Card(u32),
+    Card(CardId),
     /// On the processor and nowhere else.
     Processor,
 }
@@ -80,11 +81,11 @@ pub struct Room {
     /// The graphics cards, as [`cards`](crate::cards()) lists them.
     pub cards: Vec<Card>,
     /// What the system lets this program use on each card, in bytes: [`budget`](crate::budget)
-    /// of that card's `index`. It lies beside `cards`, in the same order. A `None`, or a place
+    /// of that card's `id`. It lies beside `cards`, in the same order. A `None`, or a place
     /// past the end, is a budget that could not be read.
     pub budgets: Vec<Option<u64>>,
-    /// The card Voxa draws on, by its `index`, if it draws on one.
-    pub drawing_on: Option<u32>,
+    /// The card Voxa draws on, by its `id`, if it draws on one.
+    pub drawing_on: Option<CardId>,
     /// How many bytes of that card Voxa itself holds, for drawing. It matters only when that
     /// card has no budget.
     pub held: u64,
@@ -120,7 +121,7 @@ impl Room {
     /// included. Where it could not be read, the card's own memory less what Voxa holds, if
     /// it is the card Voxa draws on.
     fn discrete_room(&self, place: usize, card: &Card) -> u64 {
-        let held = if self.drawing_on == Some(card.index) {
+        let held = if self.drawing_on == Some(card.id) {
             self.held
         } else {
             0
@@ -146,12 +147,12 @@ impl Room {
         match runs_on {
             RunsOn::Automatic => cards
                 .filter(|(_, card)| card.kind == CardKind::Discrete)
-                .map(|(place, card)| (Device::Card(card.index), self.discrete_room(place, card)))
+                .map(|(place, card)| (Device::Card(card.id), self.discrete_room(place, card)))
                 .chain([on_the_processor])
                 .collect(),
-            RunsOn::Card(index) => cards
-                .filter(|(_, card)| card.index == index)
-                .filter_map(|(place, card)| Some((Device::Card(index), self.room_on(place, card)?)))
+            RunsOn::Card(id) => cards
+                .filter(|(_, card)| card.id == id)
+                .filter_map(|(place, card)| Some((Device::Card(id), self.room_on(place, card)?)))
                 .take(1)
                 .collect(),
             RunsOn::Processor => vec![on_the_processor],
@@ -222,7 +223,7 @@ fn spare_gb(bytes: u64) -> String {
 pub fn why_not(whole: u64, head: u64, wanted: Wanted, room: &Room) -> String {
     let smallest = whole.min(head);
     // Which card makes no difference to what a run needs; only that it is a card.
-    let on_a_card = needs(smallest, wanted, Device::Card(0));
+    let on_a_card = needs(smallest, wanted, Device::Card(CardId(0)));
     let on_the_processor = needs(smallest, wanted, Device::Processor);
     let best_card = room
         .cards

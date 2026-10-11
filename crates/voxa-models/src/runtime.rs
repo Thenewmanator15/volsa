@@ -17,8 +17,11 @@ use ort::session::builder::SessionBuilder;
 use ort::session::{OutputSelector, RunOptions, Session, SessionInputValue, SessionInputs};
 use ort::value::{DynValue, Outlet, TensorElementType, ValueType};
 
-use crate::network::{Device, Network, RunError, SIDES, Stop, bytes_of, each_alone};
-use crate::tensor::{Numbers, Tensor};
+use crate::cards::CardId;
+#[cfg(windows)]
+use crate::cards::place_now;
+use crate::network::{Device, Network, RunError, SIDES, Stop, bytes_of, each_alone, right_build};
+use crate::tensor::{Numbers, Tensor, copied};
 
 /// The file that holds the runtime, by the name this system gives such a file.
 pub(crate) const LIBRARY: &str = if cfg!(windows) {
@@ -102,7 +105,8 @@ impl Runtime {
     /// Opens the network in `file` on `device`, for an input whose free sides have these
     /// `sizes`. The network is told the sizes now, by the names `x`, `y` and `z`, and can
     /// then be run on no other size. On a card it runs through DirectML and follows its
-    /// rules; `device` holds the card's place in the system's list as it is now.
+    /// rules, and where the card stands in the system's list is looked up here, now. On the
+    /// processor the runtime keeps no memory back for later and plans none ahead.
     ///
     /// `stop` is kept. It is looked at before every run, and a run in progress is told to
     /// end when it is set. The runtime ends one where it can, which is between two steps of a
@@ -115,9 +119,9 @@ impl Runtime {
     /// # Errors
     ///
     /// [`RunError::Stopped`] when `stop` is already set, [`RunError::NoRoom`] when the device
-    /// has not the memory, [`RunError::DeviceLost`] when the card went, and
-    /// [`RunError::Failed`] for anything else: no such file, a file that is no network, no
-    /// card at that place, or a system on which a card cannot be used.
+    /// has not the memory, [`RunError::DeviceLost`] when the card went or is no longer in
+    /// the system's list, and [`RunError::Failed`] for anything else: no such file, a file
+    /// that is no network, or a system on which a card cannot be used.
     pub fn open(
         &self,
         file: &Path,
@@ -155,14 +159,6 @@ impl Runtime {
             stop: stop.clone(),
         }))
     }
-}
-
-/// Whether a runtime that gives this as its version is one that loads: version 1, from the
-/// release whose interface `ort` asks for. A newer release is taken; an older one is not.
-pub(crate) fn right_build(found: &str) -> bool {
-    let mut parts = found.trim().split('.').map(str::parse::<u32>);
-    let (major, minor) = (parts.next(), parts.next());
-    matches!((major, minor), (Some(Ok(1)), Some(Ok(minor))) if minor >= ort::MINOR_VERSION)
 }
 
 /// Loads the library and gives the runtime its settings: telemetry off.
@@ -217,16 +213,27 @@ fn session(file: &Path, device: Device, sizes: [usize; 3]) -> Result<Session, Ru
         let size = i64::try_from(size).map_err(|_| failed("a side of the input is too long"))?;
         builder = said(builder.with_dimension_override(name, size))?;
     }
-    if let Device::Card(index) = device {
-        builder = on_card(builder, index)?;
-    }
+    let mut builder = match device {
+        Device::Card(card) => on_card(builder, card)?,
+        Device::Processor => on_the_processor(builder)?,
+    };
     said(builder.commit_from_file(file))
 }
 
-/// Puts a session on the card at this place in the system's list. DirectML asks that a
-/// network's steps run one after another and that memory is not planned ahead.
+/// Puts a session on the processor with the runtime's arena and its memory pattern both
+/// off. With them on it asks the system for several times what the network holds.
+fn on_the_processor(builder: SessionBuilder) -> Result<SessionBuilder, RunError> {
+    let plain = ort::ep::CPU::default().with_arena_allocator(false).build();
+    let builder = said(builder.with_execution_providers([plain.error_on_failure()]))?;
+    said(builder.with_memory_pattern(false))
+}
+
+/// Puts a session on a card, at the place the card has in the system's list now. DirectML
+/// asks that a network's steps run one after another and that memory is not planned ahead.
 #[cfg(windows)]
-fn on_card(builder: SessionBuilder, index: u32) -> Result<SessionBuilder, RunError> {
+fn on_card(builder: SessionBuilder, card: CardId) -> Result<SessionBuilder, RunError> {
+    // A card the system no longer lists is a card that went.
+    let index = place_now(card).ok_or(RunError::DeviceLost)?;
     let index = i32::try_from(index).map_err(|_| failed("there is no card at that place"))?;
     let directml = ort::ep::DirectML::default().with_device_id(index).build();
     let builder = said(builder.with_execution_providers([directml.error_on_failure()]))?;
@@ -236,7 +243,7 @@ fn on_card(builder: SessionBuilder, index: u32) -> Result<SessionBuilder, RunErr
 
 /// Where there is no DirectML a network cannot be put on a card.
 #[cfg(not(windows))]
-fn on_card(_builder: SessionBuilder, _index: u32) -> Result<SessionBuilder, RunError> {
+fn on_card(_builder: SessionBuilder, _card: CardId) -> Result<SessionBuilder, RunError> {
     Err(failed("a card can run a network only on Windows"))
 }
 
@@ -380,13 +387,4 @@ fn tensor(value: Option<&DynValue>) -> Result<Tensor, RunError> {
     let shape: Result<_, _> = shape.iter().map(|&side| usize::try_from(side)).collect();
     let shape = shape.map_err(|_| failed("an output with a side below zero"))?;
     Ok(Tensor { shape, numbers })
-}
-
-/// A copy of some numbers; [`RunError::NoRoom`] when there is no memory for it.
-fn copied<T: Copy>(numbers: &[T]) -> Result<Vec<T>, RunError> {
-    let mut copy = Vec::new();
-    let room = copy.try_reserve_exact(numbers.len());
-    room.map_err(|_| RunError::NoRoom)?;
-    copy.extend_from_slice(numbers);
-    Ok(copy)
 }

@@ -2,61 +2,68 @@
 //! and figure here is made up.
 
 use super::{Cut, Room, Rung, RunsOn, Wanted, needs, rungs, why_not};
-use crate::cards::{Card, CardKind};
+use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
 
-const GIB: u64 = 1 << 30;
+pub(super) const GIB: u64 = 1 << 30;
 const MIB: u64 = 1 << 20;
-const STANDARD: Wanted = Wanted {
+pub(super) const STANDARD: Wanted = Wanted {
     robust: false,
     cortex: false,
 };
-const CORTEX: Wanted = Wanted {
+pub(super) const CORTEX: Wanted = Wanted {
     robust: false,
     cortex: true,
 };
-const WHOLE: u64 = 4_096_000;
-const HEAD: u64 = 2_000_000;
+pub(super) const WHOLE: u64 = 4_096_000;
+pub(super) const HEAD: u64 = 2_000_000;
 /// The scores network's need, worked out here and not taken from the module: 8.2 GiB with a
 /// quarter added.
 const SCORES: u64 = 82 * GIB / 10;
 const SCORES_NEED: u64 = SCORES + SCORES / 4;
 
-fn card(index: u32, kind: CardKind, own_bytes: u64) -> Card {
+/// What the made-up card of a number is. It is never the number of a place in a list.
+pub(super) fn id(card: u32) -> CardId {
+    CardId(100 + u64::from(card))
+}
+
+/// The made-up card of a number, standing at the place of that number in the system's list.
+fn card(number: u32, kind: CardKind, own_bytes: u64) -> Card {
     Card {
-        index,
-        name: format!("Card {index}"),
+        id: id(number),
+        index: number,
+        name: format!("Card {number}"),
         kind,
         own_bytes,
     }
 }
 
-/// An integrated card (index 0) of 128 MiB, a discrete card (index 1) of 16 GiB that Voxa
+/// An integrated card (card 0) of 128 MiB, a discrete card (card 1) of 16 GiB that Voxa
 /// draws on and holds 1 GiB of, no budget read for either, and 20 GiB of ordinary memory free.
-fn room() -> Room {
+pub(super) fn room() -> Room {
     Room {
         cards: vec![
             card(0, CardKind::Integrated, 128 * MIB),
             card(1, CardKind::Discrete, 16 * GIB),
         ],
         budgets: vec![None, None],
-        drawing_on: Some(1),
+        drawing_on: Some(id(1)),
         held: GIB,
         free_memory: 20 * GIB,
     }
 }
 
 /// A rung on a card, the scores network on the same card.
-fn on_card(index: u32, cut: Cut) -> Rung {
+fn on_card(card: u32, cut: Cut) -> Rung {
     Rung {
-        device: Device::Card(index),
+        device: Device::Card(id(card)),
         cut,
-        scores_on: Device::Card(index),
+        scores_on: Device::Card(id(card)),
     }
 }
 
 /// A rung on the processor, the scores network there too.
-fn on_processor(cut: Cut) -> Rung {
+pub(super) fn on_processor(cut: Cut) -> Rung {
     Rung {
         device: Device::Processor,
         cut,
@@ -65,50 +72,12 @@ fn on_processor(cut: Cut) -> Rung {
 }
 
 /// A rung on a card whose scores network goes to the processor.
-fn scored_on_processor(index: u32, cut: Cut) -> Rung {
+fn scored_on_processor(card: u32, cut: Cut) -> Rung {
     Rung {
-        device: Device::Card(index),
+        device: Device::Card(id(card)),
         cut,
         scores_on: Device::Processor,
     }
-}
-
-#[test]
-fn a_run_needs_its_largest_network_per_voxel_with_a_quarter_added() {
-    assert_eq!(
-        needs(WHOLE, STANDARD, Device::Card(1)),
-        4_096_000 * 1_400 * 5 / 4
-    );
-    assert_eq!(
-        needs(WHOLE, STANDARD, Device::Processor),
-        4_096_000 * 2_000 * 5 / 4
-    );
-    // The cortex network is the largest on the processor and no larger than the rest on a card.
-    assert_eq!(
-        needs(WHOLE, CORTEX, Device::Processor),
-        4_096_000 * 2_300 * 5 / 4
-    );
-    assert_eq!(
-        needs(WHOLE, CORTEX, Device::Card(1)),
-        needs(WHOLE, STANDARD, Device::Card(1))
-    );
-    // The robust networks need no more than the standard one.
-    let robust = Wanted {
-        robust: true,
-        cortex: false,
-    };
-    assert_eq!(
-        needs(WHOLE, robust, Device::Processor),
-        needs(WHOLE, STANDARD, Device::Processor)
-    );
-    // The card a run goes to makes no difference to its need, only the kind of device.
-    assert_eq!(
-        needs(WHOLE, STANDARD, Device::Card(0)),
-        needs(WHOLE, STANDARD, Device::Card(7))
-    );
-    assert_eq!(needs(0, STANDARD, Device::Processor), 0);
-    // A count too large to multiply is as much as can be counted, not a wrong small figure.
-    assert_eq!(needs(u64::MAX, STANDARD, Device::Processor), u64::MAX);
 }
 
 #[test]
@@ -144,9 +113,9 @@ fn with_little_ordinary_memory_free_the_head_is_offered_on_the_card_alone() {
     let found = rungs(16_777_216, 8_000_000, STANDARD, &room, RunsOn::Automatic);
     assert_eq!(found.len(), 1);
     let rung = found.first().copied().expect("one rung");
-    assert_eq!(rung.device, Device::Card(1));
+    assert_eq!(rung.device, Device::Card(id(1)));
     assert_eq!(rung.cut, Cut::Head);
-    assert_eq!(rung.scores_on, Device::Card(1));
+    assert_eq!(rung.scores_on, Device::Card(id(1)));
 }
 
 #[test]
@@ -181,17 +150,17 @@ fn automatic_offers_only_discrete_cards_in_the_systems_order() {
 
 #[test]
 fn a_discrete_cards_room_is_its_budget_else_its_memory_less_what_voxa_holds() {
-    let need = needs(WHOLE, STANDARD, Device::Card(1));
+    let need = needs(WHOLE, STANDARD, Device::Card(id(1)));
     assert_eq!(need, 7_168_000_000);
     let cuts = |own: u64, budgets: Vec<Option<u64>>, drawing_on: Option<u32>| {
         let room = Room {
             cards: vec![card(1, CardKind::Discrete, own)],
             budgets,
-            drawing_on,
+            drawing_on: drawing_on.map(id),
             held: GIB,
             free_memory: 20 * GIB,
         };
-        let found = rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(1));
+        let found = rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(1)));
         found.iter().map(|rung| rung.cut).collect::<Vec<_>>()
     };
     let both = vec![Cut::Whole, Cut::Head];
@@ -243,12 +212,12 @@ fn the_scores_network_stays_on_a_device_that_just_holds_it() {
     let mut room = room();
     room.budgets = vec![None, Some(SCORES_NEED)];
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(1)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(1))),
         vec![on_card(1, Cut::Whole), on_card(1, Cut::Head)]
     );
     room.budgets = vec![None, Some(SCORES_NEED - 1)];
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(1)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(1))),
         vec![
             scored_on_processor(1, Cut::Whole),
             scored_on_processor(1, Cut::Head)
@@ -272,18 +241,18 @@ fn a_named_card_is_offered_whole_then_head_and_nothing_else() {
     let room = room();
     // An integrated card has the ordinary memory that is free, and holds a run there.
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(0)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(0))),
         vec![on_card(0, Cut::Whole), on_card(0, Cut::Head)]
     );
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(1)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(1))),
         vec![on_card(1, Cut::Whole), on_card(1, Cut::Head)]
     );
     // With little ordinary memory free, the integrated card has little too.
     let mut tight = room.clone();
     tight.free_memory = 6 * GIB;
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &tight, RunsOn::Card(0)),
+        rungs(WHOLE, HEAD, STANDARD, &tight, RunsOn::Card(id(0))),
         Vec::new()
     );
 }
@@ -294,14 +263,14 @@ fn a_card_that_is_not_there_or_is_software_is_never_offered() {
     room.cards.push(card(2, CardKind::Software, 32 * GIB));
     room.budgets.push(Some(32 * GIB));
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(2)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(2))),
         Vec::new()
     );
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(9)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(9))),
         Vec::new()
     );
-    // The number is the system's own, not a place in the list: here card 5 is second.
+    // A card is asked for by what it is, not by its place in `cards`: here card 5 is second.
     room.cards = vec![
         card(0, CardKind::Integrated, 128 * MIB),
         card(5, CardKind::Discrete, 16 * GIB),
@@ -309,13 +278,62 @@ fn a_card_that_is_not_there_or_is_software_is_never_offered() {
     room.budgets = vec![None, None];
     room.drawing_on = None;
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(5)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(5))),
         vec![on_card(5, Cut::Whole), on_card(5, Cut::Head)]
     );
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(1)),
+        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Card(id(1))),
         Vec::new()
     );
+}
+
+#[test]
+fn a_card_is_the_same_card_wherever_the_systems_list_has_it() {
+    // The two cards of the first set-up after the system has turned its list round: the
+    // discrete card now stands at place 0 and the integrated one at place 1.
+    let turned = |budget: Option<u64>| {
+        let discrete = Card {
+            index: 0,
+            ..card(1, CardKind::Discrete, 16 * GIB)
+        };
+        let integrated = Card {
+            index: 1,
+            ..card(0, CardKind::Integrated, 128 * MIB)
+        };
+        let mut room = room();
+        room.cards = vec![discrete, integrated];
+        room.budgets = vec![budget, None];
+        room
+    };
+    // Every rung is on the card it was on before, by what the card is.
+    let before = rungs(WHOLE, HEAD, STANDARD, &room(), RunsOn::Automatic);
+    assert_eq!(before.first(), Some(&on_card(1, Cut::Whole)));
+    for runs_on in [RunsOn::Automatic, RunsOn::Card(id(1)), RunsOn::Card(id(0))] {
+        let as_before = rungs(WHOLE, HEAD, STANDARD, &room(), runs_on);
+        assert!(!as_before.is_empty(), "{runs_on:?}");
+        let now = rungs(WHOLE, HEAD, STANDARD, &turned(None), runs_on);
+        assert_eq!(now, as_before, "{runs_on:?}");
+    }
+    // No card is asked for by the place it stands at.
+    for place in [0, 1] {
+        let by_place = RunsOn::Card(CardId(place));
+        let found = rungs(WHOLE, HEAD, STANDARD, &turned(None), by_place);
+        assert_eq!(found, Vec::new());
+    }
+    // What Voxa holds is taken off the card it draws on, which is card 1 wherever it stands:
+    // with a byte too little left for the whole scan, only the head is offered there.
+    let need = needs(WHOLE, STANDARD, Device::Card(id(1)));
+    let cuts = |room: &Room| {
+        let found = rungs(WHOLE, HEAD, STANDARD, room, RunsOn::Card(id(1)));
+        found.iter().map(|rung| rung.cut).collect::<Vec<_>>()
+    };
+    let mut tight = turned(None);
+    tight.cards[0].own_bytes = need + GIB - 1;
+    assert_eq!(cuts(&tight), vec![Cut::Head]);
+    tight.drawing_on = Some(id(0));
+    assert_eq!(cuts(&tight), vec![Cut::Whole, Cut::Head]);
+    // A budget lies beside its card in the list as it was read.
+    assert_eq!(cuts(&turned(Some(need - 1))), vec![Cut::Head]);
 }
 
 #[test]
@@ -323,20 +341,6 @@ fn the_processor_alone_is_offered_whole_then_head() {
     assert_eq!(
         rungs(WHOLE, HEAD, STANDARD, &room(), RunsOn::Processor),
         vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
-    );
-}
-
-#[test]
-fn the_cortex_network_asks_more_of_the_processor() {
-    let mut room = room();
-    room.free_memory = 11_500_000_000;
-    assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Processor),
-        vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
-    );
-    assert_eq!(
-        rungs(WHOLE, HEAD, CORTEX, &room, RunsOn::Processor),
-        vec![on_processor(Cut::Head)]
     );
 }
 
@@ -375,7 +379,7 @@ fn why_not_names_the_roomiest_discrete_card_or_says_there_is_none() {
         card(3, CardKind::Software, 64 * GIB),
     ];
     room.budgets = vec![];
-    room.drawing_on = Some(2);
+    room.drawing_on = Some(id(2));
     room.held = GIB / 2;
     room.free_memory = GIB + GIB / 4;
     let said = why_not(16_777_216, 16_777_216, CORTEX, &room);

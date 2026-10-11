@@ -17,7 +17,7 @@ use serde_json::Value;
 use voxa_core::{Affine, Point, Volume};
 use voxa_labels::LabelGrid;
 use voxa_models::{
-    CardKind, Cut, Model, ModelSide, Numbers, Runtime, Tensor, Wanted, budget, read_model,
+    CardKind, Cut, Device, Model, ModelSide, Numbers, Runtime, Tensor, Wanted, budget, read_model,
 };
 use voxa_segment::testing::{Agreement, OnDevice, cards_of, measured, quickest};
 use voxa_segment::{Stage, find, label, prepare, tidy};
@@ -35,6 +35,11 @@ const IMAGE: f32 = 0.000_01;
 const RESAMPLED_IMAGE: f32 = 0.000_1;
 /// A structure of fewer voxels than this has no middle to speak of.
 const ENOUGH: u32 = 100;
+/// What this process holds on a card rises by at least this much while a model runs there:
+/// 1 GiB. The smallest network takes 2.1 GiB of a card and the scores network 8.1, and
+/// before a run the process holds nothing there. A run that went to another card would
+/// leave this one where it was.
+const CARD_ROSE: u64 = 1 << 30;
 
 /// The standard model, as the check folder has its answer: without the areas of the cortex.
 const STANDARD: Wanted = Wanted {
@@ -139,42 +144,53 @@ impl Check {
     }
 }
 
-/// Does a piece of labelling with the real networks, on the graphics card of a name or on
-/// the processor when none is named, and prints what it took.
+/// Does a piece of labelling with the real networks on one device, and prints what it took.
 fn on<T>(
-    card: Option<&str>,
+    (device, name): (Device, &str),
     what: &str,
     work: impl FnOnce(&mut OnDevice, &mut dyn FnMut(Stage)) -> T,
 ) -> T {
-    let mut networks = OnDevice::new(&REAL.0, &REAL.1, card);
+    let mut networks = OnDevice::new(&REAL.0, &REAL.1, device);
     let (answer, took) = measured(&mut networks, work);
-    println!("{what} on {}: {took}", networks.name());
+    println!("{what} on {name}: {}", took.words);
+    // The card that was asked for is the card that worked.
+    if let Some(rose) = took.card_rose {
+        assert!(rose >= CARD_ROSE, "{name} held only {rose} bytes more");
+    }
     answer
 }
 
 /// Runs a model on Python's own image of the check volume, tidies what the networks find
 /// onto the volume's grid, and holds the labels and the scores to Python's by the marks.
-fn held(card: Option<&str>, wanted: Wanted) {
+fn held(device: (Device, &str), wanted: Wanted) {
     let model = if wanted.robust { "robust" } else { "standard" };
     let lists = &REAL.1.lists;
     let volume = CHECK.volume("volume", "volume.f32");
     let prepared = prepare(&volume, Cut::Whole).expect("the volume can be prepared");
     let image = CHECK.image("image", "image.f32");
-    let (grid, scores) = on(card, &format!("the {model} model"), |networks, said| {
+    let (grid, scores) = on(device, &format!("the {model} model"), |networks, said| {
         let found = find(&image, lists, wanted, networks, said).expect("the networks run");
         said(Stage::Tidying);
         let grid = tidy(&found, lists, wanted, &prepared.back).expect("the answer is tidied");
         (grid, found.scores)
     });
-    let agreed = Agreement::of(&CHECK.labels(&format!("{model}.u16")), &grid.ids);
+    let labels = CHECK.labels(&format!("{model}.u16"));
+    let voxels = volume.values().len();
+    assert_eq!(
+        (labels.len(), grid.ids.len()),
+        (voxels, voxels),
+        "the grids"
+    );
+    let agreed = Agreement::of(&labels, &grid.ids);
     let theirs = CHECK.scores(model);
     assert_eq!(scores.len(), theirs.len(), "how many scores there are");
+    let finite = scores.iter().all(|score| score.is_finite());
+    assert!(finite, "a score is not a number: {scores:?}");
     let apart = scores.iter().zip(&theirs);
     let apart = apart.map(|(&ours, theirs)| (f64::from(ours) - theirs).abs());
     let apart = apart.fold(0.0, f64::max);
     println!("  against Python: {agreed}; scores within {apart:.5}");
-    assert_eq!(agreed.voxels, volume.values().len(), "the grid's size");
-    if card.is_none() && !wanted.robust {
+    if device.0 == Device::Processor && !wanted.robust {
         assert_eq!(agreed.differ, 0, "voxels that are not as Python has them");
     }
     let (same, least) = (agreed.same_percent(), agreed.least_dice());
@@ -193,24 +209,24 @@ fn held_on_each(kind: CardKind, wanted: Wanted) {
         println!("skipped: this computer has no graphics card that is {kind:?}");
     }
     for card in found {
-        let spare = budget(card.index).map(|bytes| bytes as f64 / 1_073_741_824.0);
+        let spare = budget(card.id).map(|bytes| bytes as f64 / 1_073_741_824.0);
         println!("{}: the system gives it {spare:.2?} GiB", card.name);
-        held(Some(&card.name), wanted);
+        held((Device::Card(card.id), &card.name), wanted);
     }
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS; the runtime asks the system for 38 GiB of memory"]
+#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS; the runtime asks the system for 16 GiB of memory"]
 fn the_standard_model_on_the_processor_gives_pythons_labels_at_every_voxel() {
     let _turn = turn();
-    held(None, STANDARD);
+    held((Device::Processor, "the processor"), STANDARD);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 10 GiB of memory"]
+#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 4 GiB of memory"]
 fn the_robust_model_on_the_processor_gives_pythons_labels() {
     let _turn = turn();
-    held(None, ROBUST);
+    held((Device::Processor, "the processor"), ROBUST);
 }
 
 #[test]
@@ -284,12 +300,13 @@ fn leftness(grid: &LabelGrid, label: u32) -> Option<f64> {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on a discrete card, or 10 GiB of memory"]
+#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on a discrete card, or 4 GiB of memory"]
 fn the_whole_path_puts_a_left_structure_on_the_patients_left_of_its_twin() {
     let _turn = turn();
     let lists = &REAL.1.lists;
+    let (device, name) = quickest();
     let volume = CHECK.volume("volume", "volume.f32");
-    let ours = on(quickest().as_deref(), "the whole path", |networks, said| {
+    let ours = on((device, &name), "the whole path", |networks, said| {
         let labelled = label(&volume, Cut::Whole, lists, ROBUST, networks, said);
         labelled.expect("the scan is labelled")
     });
@@ -300,6 +317,8 @@ fn the_whole_path_puts_a_left_structure_on_the_patients_left_of_its_twin() {
     };
     // The whole path in one call gives Python's labels as the steps taken one by one do, says
     // nothing of a scan that is neither rough nor cut, and passes the model's own check.
+    assert_eq!(ours.grid.dims, theirs.dims, "the grid's sides");
+    assert_eq!(ours.grid.ids.len(), theirs.ids.len(), "the grid's voxels");
     let agreed = Agreement::of(&theirs.ids, &ours.grid.ids);
     println!("  against Python: {agreed}");
     let held = agreed.same_percent() >= SAME_PERCENT && agreed.least_dice() >= DICE;

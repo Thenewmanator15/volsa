@@ -7,6 +7,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::cards::CardId;
 use crate::tensor::Tensor;
 
 #[cfg(test)]
@@ -14,6 +15,19 @@ mod tests;
 
 /// Windows' code for "not enough memory", as a runtime's words carry it.
 const NO_MEMORY: &str = "8007000E";
+/// What a runtime says, in capitals, when it asked for memory and was refused. The first is
+/// what ONNX Runtime said on the processor when a real network ran out; the rest are the
+/// other wordings its library holds for the same thing, and the C++ library's own elsewhere
+/// than on Windows.
+const REFUSED: [&str; 7] = [
+    "BAD ALLOCATION",
+    "BAD_ALLOC",
+    "FAILED TO ALLOCATE",
+    "ALLOCATION FAILED",
+    "VIRTUALALLOC FAILED",
+    "RAN OUT OF MEMORY",
+    "SMALLER THAN REQUESTED BYTES",
+];
 /// Windows' codes for a graphics device that was removed, that hung and that was reset.
 const DEVICE_GONE: [&str; 3] = ["887A0005", "887A0006", "887A0007"];
 /// The sides of a network's input that are free until it is opened, by the names every
@@ -23,7 +37,8 @@ pub(crate) const SIDES: [&str; 3] = ["x", "y", "z"];
 /// Why a network gave no answer. Each sentence is fit to be shown.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum RunError {
-    /// The device had not the memory the network needs.
+    /// The device had not the memory the network needs: a card, or the computer's ordinary
+    /// memory when the network is on the processor.
     #[error("There was not enough memory to run the network.")]
     NoRoom,
     /// The graphics card was taken away, hung or was reset while the network was on it.
@@ -39,10 +54,12 @@ pub enum RunError {
 }
 
 impl RunError {
-    /// Sorts what a runtime said into what went wrong. Windows' own codes are in its words.
+    /// Sorts what a runtime said into what went wrong. Windows' own codes are in its words,
+    /// and so is what it says of memory it could not have, on a card or on the processor.
     pub(crate) fn from_words(words: &str) -> Self {
         let capitals = words.to_ascii_uppercase();
-        if capitals.contains(NO_MEMORY) {
+        let refused = REFUSED.iter().any(|said| capitals.contains(said));
+        if refused || capitals.contains(NO_MEMORY) {
             RunError::NoRoom
         } else if DEVICE_GONE.iter().any(|code| capitals.contains(code)) {
             RunError::DeviceLost
@@ -90,10 +107,17 @@ impl Stop {
 pub enum Device {
     /// The processor, in ordinary memory.
     Processor,
-    /// The graphics card at this place in the system's list now: a [`Card`](crate::Card)'s
-    /// `index`. The list can change, so the place is looked up when a network is opened and
-    /// not remembered.
-    Card(u32),
+    /// This graphics card: a [`Card`](crate::Card)'s `id`. Where the card stands in the
+    /// system's list is looked up each time a network is opened on it, and is never kept.
+    Card(CardId),
+}
+
+/// Whether a runtime that gives this as its version is one that loads: version 1, from the
+/// release whose interface `ort` asks for. A newer release is taken; an older one is not.
+pub(crate) fn right_build(found: &str) -> bool {
+    let mut parts = found.trim().split('.').map(str::parse::<u32>);
+    let (major, minor) = (parts.next(), parts.next());
+    matches!((major, minor), (Some(Ok(1)), Some(Ok(minor))) if minor >= ort::MINOR_VERSION)
 }
 
 /// How many bytes an output holds, its numbers `width` bytes each. In `shape`, as a network

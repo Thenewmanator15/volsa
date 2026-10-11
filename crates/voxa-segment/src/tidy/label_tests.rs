@@ -25,7 +25,8 @@ const STANDARD: Wanted = Wanted {
     cortex: false,
 };
 const ROUGH_AT_6: &str = "The slices of this scan are 6 mm apart, so this is a rough map.";
-const CUT: &str = "The scan was cut to the head to fit. Labels at the very edge may differ.";
+const CUT: &str = "The scan was cut to the head to fit. Where two parts meet, some voxels may \
+                   be labelled differently than without the cut.";
 
 /// Which structure a stand-in is sure of at a voxel: its place among the three of the lists,
 /// from the voxel's place and the size of the grid, each along x, y and z.

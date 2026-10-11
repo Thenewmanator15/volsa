@@ -1,5 +1,7 @@
 //! The numbers that go into a network and come out of it.
 
+use crate::network::RunError;
+
 /// The numbers of a [`Tensor`], of one of the two kinds the networks take and give.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Numbers {
@@ -60,4 +62,13 @@ fn holds(shape: &[usize]) -> Option<usize> {
     shape
         .iter()
         .try_fold(1_usize, |count, &side| count.checked_mul(side))
+}
+
+/// A copy of some numbers; [`RunError::NoRoom`] when there is no memory for it.
+pub(crate) fn copied<T: Copy>(numbers: &[T]) -> Result<Vec<T>, RunError> {
+    let mut copy = Vec::new();
+    let room = copy.try_reserve_exact(numbers.len());
+    room.map_err(|_| RunError::NoRoom)?;
+    copy.extend_from_slice(numbers);
+    Ok(copy)
 }
