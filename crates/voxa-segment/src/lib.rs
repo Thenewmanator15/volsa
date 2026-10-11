@@ -20,4 +20,4 @@
 
 mod prepare;
 
-pub use prepare::{Back, PrepareError, Prepared, prepare, resampled};
+pub use prepare::{Back, PrepareError, Prepared, Sizes, prepare, resampled, sizes};
