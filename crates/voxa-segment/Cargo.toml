@@ -13,11 +13,21 @@ voxa-labels.workspace = true
 voxa-models.workspace = true
 thiserror.workspace = true
 
+[features]
+# The real networks behind `Networks`, for the tests that are given a runtime and a model
+# folder.
+testing = []
+
 [dev-dependencies]
 # Reads the golden cases SynthSeg's own Python made (tools/golden).
 serde_json.workspace = true
 # Stand-ins for the networks.
 voxa-models = { workspace = true, features = ["testkit"] }
+
+# The whole path against SynthSeg's own answers. Its tests are all ignored unless asked for.
+[[test]]
+name = "with_models"
+required-features = ["testing"]
 
 [lints]
 workspace = true

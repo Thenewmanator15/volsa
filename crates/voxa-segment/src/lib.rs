@@ -26,6 +26,8 @@ mod label;
 mod pieces;
 mod prepare;
 mod table;
+#[cfg(feature = "testing")]
+pub mod testing;
 mod tidy;
 
 pub use find::{Found, Networks, Stage, find};

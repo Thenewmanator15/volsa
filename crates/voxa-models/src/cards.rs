@@ -46,6 +46,13 @@ pub fn budget(index: u32) -> Option<u64> {
     system::budget(index)
 }
 
+/// How many bytes of the card at that place in the system's list this program holds now. For
+/// integrated graphics, which have next to none of their own, it is the computer's memory
+/// they hold for this program. `None` where it cannot be read, as for [`budget`].
+pub fn in_use(index: u32) -> Option<u64> {
+    system::in_use(index)
+}
+
 /// What sort of card one is, from what the system says of it: one the system marks as
 /// software is that whatever its memory, and one with little memory of its own is
 /// integrated.
@@ -114,6 +121,15 @@ mod system {
     }
 
     pub(super) fn budget(index: u32) -> Option<u64> {
+        memory(index).map(|memory| memory.Budget)
+    }
+
+    pub(super) fn in_use(index: u32) -> Option<u64> {
+        memory(index).map(|memory| memory.CurrentUsage)
+    }
+
+    /// What the system says of this program's memory on the card at that place, now.
+    fn memory(index: u32) -> Option<DXGI_QUERY_VIDEO_MEMORY_INFO> {
         let list = list()?;
         // SAFETY: as in `cards`: a live interface, and an error or a counted reference back.
         let adapter = unsafe { list.EnumAdapters1(index) }.ok()?;
@@ -126,7 +142,7 @@ mod system {
             adapter.QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &raw mut memory)
         }
         .ok()?;
-        Some(memory.Budget)
+        Some(memory)
     }
 
     /// The name in a description: the 16-bit units up to the first zero, without the space
@@ -147,6 +163,10 @@ mod system {
     }
 
     pub(super) fn budget(_index: u32) -> Option<u64> {
+        None
+    }
+
+    pub(super) fn in_use(_index: u32) -> Option<u64> {
         None
     }
 }
