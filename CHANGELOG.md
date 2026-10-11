@@ -61,6 +61,9 @@ All notable changes to Voxa are recorded here. The format follows
 
 ### Fixed
 
+- A view saved in the moment before a series' kept views had been read from their file was
+  lost when they arrived. It is now kept, after them. A test that saved a view as soon as a
+  series was ready failed for this on a slow machine.
 - Two tests of the worker that reads label files waited for a quiet moment where they
   should have waited for what they were about, and failed when the machine was slow.
 

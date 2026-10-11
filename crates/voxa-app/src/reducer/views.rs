@@ -14,11 +14,8 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             state.views.remove(at);
             return store(state);
         }
-        Action::ViewsLoaded { series, mut views }
-            if state.scene.series.as_ref() == Some(&series) =>
-        {
-            views.truncate(MAX_VIEWS);
-            state.views = views;
+        Action::ViewsLoaded { series, views } if state.scene.series.as_ref() == Some(&series) => {
+            take_kept(state, views);
         }
         Action::ViewsNotStored { reason } => {
             let notice = Notice {
@@ -33,6 +30,21 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         _ => {}
     }
     Vec::new()
+}
+
+/// Take the views kept from before for the scene's series, as read from their file. A view
+/// saved while the file was being read is not lost to them: it comes after them, unless the
+/// file was read late enough to hold it already. Past the most that are kept, the oldest go.
+fn take_kept(state: &mut AppState, mut kept: Vec<SavedView>) {
+    kept.truncate(MAX_VIEWS);
+    for saved in std::mem::take(&mut state.views) {
+        if !kept.contains(&saved) {
+            kept.push(saved);
+        }
+    }
+    let over = kept.len().saturating_sub(MAX_VIEWS);
+    kept.drain(..over);
+    state.views = kept;
 }
 
 /// Save the scene as it is, seen through the active viewport's window. Only a volume that is

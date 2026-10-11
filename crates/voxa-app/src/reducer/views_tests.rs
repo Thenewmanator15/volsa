@@ -91,6 +91,33 @@ fn views_loaded_for_the_scenes_series_are_taken_and_others_ignored() {
 }
 
 #[test]
+fn a_view_saved_before_the_kept_ones_arrive_is_kept_with_them() {
+    let mut state = ready();
+    save(&mut state, "Just now");
+    let just_now = state.views.clone();
+    let before = |name: &str| SavedView::of(name, 1, &ready().scene, WindowLevel::new(1.0, 2.0));
+    let arrive = |views: &[SavedView]| Action::ViewsLoaded {
+        series: id(THICK_SCAN),
+        views: views.to_vec(),
+    };
+    reduce(&mut state, arrive(&[before("Kept")]));
+    let both = [vec![before("Kept")], just_now.clone()].concat();
+    assert_eq!(state.views, both, "after the ones from before");
+    // The file may hold the new one already, if it was written before it was read.
+    reduce(&mut state, arrive(&both));
+    assert_eq!(state.views, both, "and not twice");
+    // With as many kept as there is room for, it is the oldest that goes.
+    let full: Vec<SavedView> = (0..MAX_VIEWS)
+        .map(|at| before(&format!("Kept {at}")))
+        .collect();
+    state.views.clone_from(&just_now);
+    reduce(&mut state, arrive(&full));
+    assert_eq!(state.views.len(), MAX_VIEWS);
+    assert_eq!(state.views.last(), just_now.last(), "the new one stays");
+    assert_eq!(state.views.first(), full.get(1), "the oldest has gone");
+}
+
+#[test]
 fn a_saved_view_brings_back_the_camera_the_look_the_window_and_the_cuts() {
     let mut state = ready();
     reduce(&mut state, Action::SceneOrbit { by: [30.0, 12.0] });
