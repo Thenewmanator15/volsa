@@ -2,18 +2,18 @@
 //!
 //! This step is Voxa's own: `SynthSeg`'s program has no such cut. The head is the largest
 //! connected piece of the voxels that are brighter than a mark. Voxels are connected when they
-//! share a face, as `SciPy`'s `label` joins them by default. The mark lies a tenth of the way
-//! up from the 0.5th percentile to the 99.5th, both taken over the whole turned grid. The cut
-//! is the smallest box that holds the piece, with 16 voxels added on every side, kept within
-//! the grid. With nothing above the mark, the cut is the whole grid.
-
-use std::collections::VecDeque;
+//! share a face, as `SciPy`'s `label` joins them by default (the module `pieces` finds the
+//! piece). The mark lies a tenth of the way up from the 0.5th percentile to the 99.5th, both
+//! taken over the whole turned grid. The cut is the smallest box that holds the piece, with 16
+//! voxels added on every side, kept within the grid. With nothing above the mark, the cut is
+//! the whole grid.
 
 use voxa_core::Volume;
 use voxa_models::Cut;
 
 use super::align::Turned;
 use super::{PrepareError, make_ready, padded_voxels};
+pub(super) use crate::pieces::Piece;
 
 /// How far up from the low percentile to the high one the mark lies.
 const MARK_PART: f64 = 0.1;
@@ -50,17 +50,6 @@ pub fn sizes(volume: &Volume) -> Result<Sizes, PrepareError> {
     })
 }
 
-/// A connected piece of voxels, and how far it reaches.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct Piece {
-    /// How many voxels the piece has.
-    pub(super) count: usize,
-    /// The least place the piece reaches along x, y and z.
-    pub(super) least: [usize; 3],
-    /// The greatest place the piece reaches along x, y and z.
-    pub(super) most: [usize; 3],
-}
-
 /// A box of the turned grid.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Block {
@@ -84,94 +73,11 @@ pub(super) fn cut_to_head(turned: Turned, low: f64, high: f64) -> (Turned, [usiz
 
 /// The largest piece of the voxels brighter than `mark`, joined by their faces. The first one
 /// found, in the order of the values, is taken when two are as large. `None` when no voxel is
-/// brighter. Each voxel is looked at once, and no function calls itself, so a piece that winds
-/// through the whole grid is followed to its end without growing the stack.
+/// brighter.
 pub(super) fn largest_piece(turned: &Turned, mark: f64) -> Option<Piece> {
     let above = turned.values.iter().map(|&value| f64::from(value) > mark);
     let mut unseen: Vec<bool> = above.collect();
-    let mut largest: Option<Piece> = None;
-    for start in 0..unseen.len() {
-        if !take(&mut unseen, start) {
-            continue;
-        }
-        let piece = follow(start, &mut unseen, turned.size);
-        if largest.as_ref().is_none_or(|held| piece.count > held.count) {
-            largest = Some(piece);
-        }
-    }
-    largest
-}
-
-/// Takes a voxel off the list of those still to be looked at: true when it was on the list.
-fn take(unseen: &mut [bool], place: usize) -> bool {
-    unseen.get_mut(place).is_some_and(std::mem::take)
-}
-
-/// The piece that holds the voxel at `start`, which was on the list. Every voxel of it is taken
-/// off the list. The voxels to look at next wait in a queue, nearest first, so it holds the
-/// edge of what has been seen and not the whole piece.
-fn follow(start: usize, unseen: &mut [bool], size: [usize; 3]) -> Piece {
-    let first = place_of(start, size);
-    let mut piece = Piece {
-        count: 0,
-        least: first,
-        most: first,
-    };
-    let mut waiting = VecDeque::from([start]);
-    while let Some(index) = waiting.pop_front() {
-        let at = place_of(index, size);
-        piece.count += 1;
-        piece.least = merged(piece.least, at, usize::min);
-        piece.most = merged(piece.most, at, usize::max);
-        let next = neighbours(index, at, size).into_iter().flatten();
-        waiting.extend(next.filter(|&place| take(unseen, place)));
-    }
-    piece
-}
-
-/// Each place of `held` and of `at` along x, y and z, made one by `pick`.
-fn merged(held: [usize; 3], at: [usize; 3], pick: fn(usize, usize) -> usize) -> [usize; 3] {
-    let ([held_x, held_y, held_z], [x, y, z]) = (held, at);
-    [pick(held_x, x), pick(held_y, y), pick(held_z, z)]
-}
-
-/// Where the voxel at `index` of the list of values lies: x, y, then z, which is fastest.
-fn place_of(index: usize, [_, size_y, size_z]: [usize; 3]) -> [usize; 3] {
-    let (size_y, size_z) = (size_y.max(1), size_z.max(1));
-    [
-        index / (size_y * size_z),
-        index / size_z % size_y,
-        index % size_z,
-    ]
-}
-
-/// The places in the list of values of the voxels that share a face with the one at `index`,
-/// which lies at `at`: none where the grid ends.
-fn neighbours(index: usize, at: [usize; 3], size: [usize; 3]) -> [Option<usize>; 6] {
-    let ([x, y, z], [size_x, size_y, size_z]) = (at, size);
-    let (along_x, along_y) = (size_y * size_z, size_z);
-    let before = |place: usize, step: usize| {
-        if place > 0 {
-            index.checked_sub(step)
-        } else {
-            None
-        }
-    };
-    let after = |place: usize, size: usize, step: usize| {
-        if place + 1 < size {
-            Some(index + step)
-        } else {
-            None
-        }
-    };
-    [
-        before(x, along_x),
-        after(x, size_x, along_x),
-        before(y, along_y),
-        after(y, size_y, along_y),
-        before(z, 1),
-        after(z, size_z, 1),
-    ]
+    crate::pieces::largest(&mut unseen, turned.size).map(|(_, piece)| piece)
 }
 
 /// The box that holds the head: the largest piece above `mark`, with 16 voxels more on every

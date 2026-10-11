@@ -1,6 +1,6 @@
 [package]
 name = "voxa-segment"
-description = "Everything SynthSeg does around its networks, step for step as its own code does it: preparing a volume for them, and the steps between them."
+description = "Everything SynthSeg does around its networks, step for step as its own code does it: preparing a volume for them, the steps between them, and tidying their answer into a label set."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -9,6 +9,7 @@ publish.workspace = true
 
 [dependencies]
 voxa-core.workspace = true
+voxa-labels.workspace = true
 voxa-models.workspace = true
 thiserror.workspace = true
 

@@ -24,6 +24,7 @@ Voxa is not a medical device and is not for diagnostic use, and neither is anyth
 python make_golden.py PATH\TO\SynthSeg
 python make_golden.py PATH\TO\SynthSeg prepare
 python make_golden.py PATH\TO\SynthSeg box
+python make_golden.py PATH\TO\SynthSeg tidy
 ```
 
 The first makes every group of cases, the others only the group named. Each group is written
@@ -32,15 +33,16 @@ takes under a minute, most of it Python starting.
 
 A second run writes the same bytes, as long as the libraries are the versions that made the
 files before; every `case.json` says which those were (NumPy, SciPy and nibabel for
-`prepare`; NumPy and TensorFlow for `box`). Each case has a seed of its own, made from its
-group's name and its own, so adding a case changes no other. Commit what the script writes
-together with the change to the script.
+`prepare`; NumPy and TensorFlow for `box`; NumPy and SciPy for `tidy`). Each case has a seed
+of its own, made from its group's name and its own, so adding a case changes no other.
+Commit what the script writes together with the change to the script.
 
 ## How to read what it writes
 
 Each case is a folder holding `case.json` and arrays. An array has no header: a file named
-`.f32` is raw little-endian 32-bit floats, and one named `.u8` is one byte a number.
-`case.json` gives its size and repeats its order.
+`.f32` is raw little-endian 32-bit floats, one named `.i32` is little-endian 32-bit whole
+numbers, and one named `.u8` is one byte a number. `case.json` gives its size and repeats its
+order.
 
 - **A volume** (`volume.f32`, `resampled.f32`) is in the order Voxa holds one, which is also
   a NIfTI file's: columns fastest, then rows, then slices. With `dims` as
@@ -139,6 +141,58 @@ In each case folder:
 SynthSeg turns each place of the box into its score class after the cut. The cases stop
 before that, so the box holds places. The script stops if a case no longer shows what it is
 there for.
+
+## The group `tidy`
+
+What SynthSeg makes of its networks' answer: the label of each voxel, on the grid as the
+volume stores it. Each case is the chance of each of SynthSeg's 33 structures at each voxel
+of a small padded grid, made up, and given to SynthSeg's own `postprocess` (in
+`SynthSeg/predict_synthseg.py`), called as its `predict` calls it, with SynthSeg's own
+lists. SynthSeg pads an image to 128 voxels a side at least; these grids are 8 to 16 a side.
+The rule is the same and the files are small.
+
+`postprocess` goes one of two ways. SynthSeg's own program (`SynthSeg_predict.py`) tells it
+`fast` whenever the robust networks run, and not otherwise. The first four cases are made
+with `fast` off, as for the standard network. The three whose names begin `robust_` are made
+with it on: the padding is taken off before the largest piece of everything is looked for,
+no piece of a class is looked for, and every chance but the first structure's that is not
+above 0.2 is put at nought. `case.json` says which way a case was made (`fast`).
+
+| Case | What it is |
+|---|---|
+| `pieces` | A block of white matter with other structures in it, each of a class of its own, so each shows one rule. Of two pieces of a class the smaller goes. Pieces that touch at a corner or along an edge are two. Of two as large, the first met is kept, going x by x, then y, then z. A voxel joins two pieces of a class when the class's chance there is over 0.25, whatever is likelier there; a chance of exactly 0.25 joins nothing. Two structures of one class are one piece where they touch. The lowest class is left alone. Of two chances that are equal the first wins |
+| `speck` | A blob with specks and blobs round it, in faint noise. What is not joined to the largest piece of everything goes. A voxel joins when its chances add to more than 0.25, though none of them is over it; one whose chances add to exactly 0.25 does not. A piece joined to the blob only through the padding stays: the pieces are found before the padding is taken off. A blob that goes does not count when the pieces of its class are found afterwards. Stored as sagittal slices |
+| `cortex` | White matter with cortex on both sides, and an area for every voxel. The cortex takes the labels of the areas, and nothing else does, nor a speck of cortex that went. The image is a box cut from a larger grid, stored as coronal slices: outside the box every label is 0 |
+| `close` | Chances chosen to fall on the edge of SynthSeg's arithmetic. One voxel's chances add to more than 0.25 only in the order NumPy adds them, and another's only when added some other way: what lies beyond the first stays, and beyond the second goes. Two chances one step apart become equal when divided by their voxel's sum, so the first wins; two others stay apart. A voxel of zeros is nothing. And one voxel holds a chance below nought, which no network gives, so that its chances add to nought: divided, those that were nought are no numbers, and the first of them wins |
+| `robust_pieces` | Made with `fast`. A blob with a structure in two pieces: both stay, where the standard way would lose the smaller. More of the blob's own structure joined to it only through the padding goes, where the standard way would keep it. A speck goes. A voxel whose chances add to 0.375 with none over 0.125 joins a piece to the blob and is itself nothing, having no chance over 0.2; one whose chances add to exactly 0.25 joins nothing. Stored as sagittal slices |
+| `robust_marks` | Made with `fast`. Voxels that turn on the mark of 0.2: a chance of 0.22, the only one over the mark, wins over nothing at 0.21; a chance of exactly 0.2, as single precision has it, goes, and the next number above it stays; where no chance is over 0.2 the voxel is nothing. And, as in `close`, sums that are over 0.25 only in NumPy's order or only otherwise, and two chances one step apart that become equal when divided by their sum, and two that do not |
+| `robust_cortex` | Made with `fast`. White matter with cortex on both sides and an area for every voxel, a speck of cortex that goes, and two voxels of left cortex apart from the rest of their class, which stay and take their areas where the standard way would lose them. A box cut from a larger grid, stored as coronal slices |
+
+In each case folder:
+
+| File | What it holds |
+|---|---|
+| `chances.f32` | The made-up chances on the padded grid: `[x, y, z, structure]`, the structure fastest. With `padded` as `[padded_x, padded_y, padded_z]`, the chance of a structure at x, y, z is `values[((x * padded_y + y) * padded_z + z) * 33 + structure]` |
+| `areas.u8` | Only in `cortex` and `robust_cortex`: the area at each voxel of the padded grid as Voxa's cortex network gives it, z fastest. It is 1 plus the place of the largest of the chances of areas 1 to 68. SynthSeg was given the chances themselves, made up for every voxel, and the script stops if the two do not come to the same labels |
+| `labels.i32` | SynthSeg's label at each voxel of the grid as stored, in the order of a volume: columns fastest |
+| `case.json` | `fast`: whether SynthSeg's tidying was told so. `chances`: the `padded` size and how many `structures`. `back`: how to come back from the image to the grid, as Voxa remembers it: `order` and `turned_round` as in `prepare`, `padding_before` (the voxels of padding before the image along x, y and z), `size` (the image's size without its padding), `cut_from` (where the image began in the turned grid; all zero when nothing was cut) and `grid_dims` (the grid's columns, rows and slices). `labels`: the same `dims` |
+
+Beside the cases:
+
+- `lists.json` holds SynthSeg's own lists, as its `predict` prepares them: the `labels` of
+  the 33 structures in the networks' order, the `classes` its tidying gives them, the
+  `area_labels` of the cortex network's 69 answers, and the two `cortex` labels.
+- `sums.json` holds six lists of made-up 32-bit floats (7, 9, 15, 33, 130 and 255 of them),
+  each with its `sum` as NumPy adds along the last axis of an array, which is how SynthSeg
+  adds a voxel's chances. Under eight numbers are added in turn. Up to 128 are added in eight
+  lanes, every eighth number to a lane; the lanes are added in pairs, and what is left over
+  is added in turn. A longer list is halved at a multiple of eight, and its halves are added.
+  The order matters: a sum can fall on either side of 0.25 by it. Each list is one whose sum
+  comes out differently when a part of that rule is broken.
+
+Every block of a scene says what SynthSeg must make of it, and the script stops if SynthSeg
+makes anything else, or if NumPy no longer adds by the rule above. So a case cannot quietly
+stop showing what it is there for.
 
 ## Adding a group
 

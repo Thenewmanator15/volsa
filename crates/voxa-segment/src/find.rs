@@ -212,7 +212,7 @@ fn structures(lists: &Lists) -> Result<usize, RunError> {
 }
 
 /// A failure that carries these words.
-fn failed(why: &str) -> RunError {
+pub(crate) fn failed(why: &str) -> RunError {
     RunError::Failed(why.to_owned())
 }
 
@@ -220,7 +220,7 @@ fn failed(why: &str) -> RunError {
 /// for no more memory. The lists made here are as large as the scan, and a list asked for in
 /// the plain way ends the program when there is not the memory for it. This one says so
 /// instead.
-fn room<T>(count: usize) -> Result<Vec<T>, RunError> {
+pub(crate) fn room<T>(count: usize) -> Result<Vec<T>, RunError> {
     let mut numbers = Vec::new();
     numbers
         .try_reserve_exact(count)
@@ -244,7 +244,7 @@ fn exactly<const N: usize>(answer: Vec<Tensor>) -> Result<[Tensor; N], RunError>
 }
 
 /// How many numbers a shape holds; `None` when that is more than can be counted.
-fn holds(shape: &[usize]) -> Option<usize> {
+pub(crate) fn holds(shape: &[usize]) -> Option<usize> {
     shape
         .iter()
         .try_fold(1_usize, |count, &side| count.checked_mul(side))

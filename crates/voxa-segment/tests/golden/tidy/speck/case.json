@@ -1,0 +1,60 @@
+{
+ "what": "a blob with specks and blobs round it, in faint noise: what is not joined to the largest piece goes, a voxel joins when its chances add to more than 0.25 though none is over it, and a piece may be joined through the padding. Stored as sagittal slices",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1"
+ },
+ "fast": false,
+ "chances": {
+  "file": "chances.f32",
+  "holds": "little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's [x, y, z, structure] with the structure fastest: values[((x * padded_y + y) * padded_z + z) * structures + structure]",
+  "padded": [
+   8,
+   10,
+   12
+  ],
+  "structures": 33
+ },
+ "areas": null,
+ "back": {
+  "order": [
+   2,
+   0,
+   1
+  ],
+  "turned_round": [
+   true,
+   false,
+   false
+  ],
+  "padding_before": [
+   1,
+   1,
+   1
+  ],
+  "size": [
+   6,
+   8,
+   10
+  ],
+  "cut_from": [
+   0,
+   0,
+   0
+  ],
+  "grid_dims": [
+   8,
+   10,
+   6
+  ]
+ },
+ "labels": {
+  "file": "labels.i32",
+  "holds": "little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   8,
+   10,
+   6
+  ]
+ }
+}

@@ -1,0 +1,60 @@
+{
+ "what": "tidied the fast way: voxels in which a chance of 0.22 is the only one over 0.2 and so wins, a chance of exactly 0.2 goes and the next number above it stays, and nothing is left when no chance is over 0.2; with sums and divisions on the edge of the arithmetic, as in `close`",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1"
+ },
+ "fast": true,
+ "chances": {
+  "file": "chances.f32",
+  "holds": "little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's [x, y, z, structure] with the structure fastest: values[((x * padded_y + y) * padded_z + z) * structures + structure]",
+  "padded": [
+   8,
+   8,
+   10
+  ],
+  "structures": 33
+ },
+ "areas": null,
+ "back": {
+  "order": [
+   0,
+   1,
+   2
+  ],
+  "turned_round": [
+   true,
+   true,
+   false
+  ],
+  "padding_before": [
+   1,
+   1,
+   1
+  ],
+  "size": [
+   6,
+   6,
+   8
+  ],
+  "cut_from": [
+   0,
+   0,
+   0
+  ],
+  "grid_dims": [
+   6,
+   6,
+   8
+  ]
+ },
+ "labels": {
+  "file": "labels.i32",
+  "holds": "little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   6,
+   6,
+   8
+  ]
+ }
+}

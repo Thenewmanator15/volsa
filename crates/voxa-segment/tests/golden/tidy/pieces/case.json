@@ -1,0 +1,60 @@
+{
+ "what": "a block of white matter with other structures in it, some in two pieces: the smaller piece of a class goes, pieces are joined by faces only, of two as large the first met is kept, a chance of exactly 0.25 joins nothing, and of two chances that are equal the first wins",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1"
+ },
+ "fast": false,
+ "chances": {
+  "file": "chances.f32",
+  "holds": "little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's [x, y, z, structure] with the structure fastest: values[((x * padded_y + y) * padded_z + z) * structures + structure]",
+  "padded": [
+   10,
+   12,
+   16
+  ],
+  "structures": 33
+ },
+ "areas": null,
+ "back": {
+  "order": [
+   0,
+   1,
+   2
+  ],
+  "turned_round": [
+   false,
+   false,
+   false
+  ],
+  "padding_before": [
+   1,
+   1,
+   2
+  ],
+  "size": [
+   8,
+   10,
+   12
+  ],
+  "cut_from": [
+   0,
+   0,
+   0
+  ],
+  "grid_dims": [
+   8,
+   10,
+   12
+  ]
+ },
+ "labels": {
+  "file": "labels.i32",
+  "holds": "little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   8,
+   10,
+   12
+  ]
+ }
+}

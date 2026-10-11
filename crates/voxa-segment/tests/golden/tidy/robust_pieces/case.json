@@ -1,0 +1,60 @@
+{
+ "what": "tidied the fast way, as SynthSeg's program tidies what its robust networks give: a blob with a structure in two pieces, which both stay, since no piece of a class is looked for; and a piece joined to the blob only through the padding, which goes, since the padding is taken off first. Stored as sagittal slices",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1"
+ },
+ "fast": true,
+ "chances": {
+  "file": "chances.f32",
+  "holds": "little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's [x, y, z, structure] with the structure fastest: values[((x * padded_y + y) * padded_z + z) * structures + structure]",
+  "padded": [
+   8,
+   8,
+   10
+  ],
+  "structures": 33
+ },
+ "areas": null,
+ "back": {
+  "order": [
+   2,
+   0,
+   1
+  ],
+  "turned_round": [
+   true,
+   false,
+   false
+  ],
+  "padding_before": [
+   1,
+   1,
+   1
+  ],
+  "size": [
+   6,
+   6,
+   8
+  ],
+  "cut_from": [
+   0,
+   0,
+   0
+  ],
+  "grid_dims": [
+   6,
+   8,
+   6
+  ]
+ },
+ "labels": {
+  "file": "labels.i32",
+  "holds": "little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   6,
+   8,
+   6
+  ]
+ }
+}

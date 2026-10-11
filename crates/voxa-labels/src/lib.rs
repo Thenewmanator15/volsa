@@ -29,7 +29,7 @@ pub use find::{boxes_meet, first_part};
 pub use nifti::{LabelGrid, MAX_LABEL_VOXELS, NiftiError, read_labels};
 pub use pairs::{Pair, difference_percent, pairs};
 pub use set::{LabelSet, NOT_NAMED, Part, SetError, label_set};
-pub use table::{Entry, MAX_NAME, Side, Table, TableError, Trust, Verdict, read_table};
+pub use table::{Entry, MAX_NAME, Side, Table, TableError, Trust, Verdict, colour_for, read_table};
 pub use words::{trust_in_words, verdict_in_words, volume_in_words};
 
 #[cfg(test)]
