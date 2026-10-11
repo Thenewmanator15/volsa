@@ -261,6 +261,9 @@ are SynthSeg's own, in its order, and each is tested against what SynthSeg's Pyt
 3. **Tidy**, as SynthSeg does: keep the largest connected piece of everything labelled;
    within each of the model's classes of structures keep the largest piece; choose the most
    probable structure at each voxel; put the cortex areas where the cortex is.
+   For the robust model SynthSeg's own program takes a shorter way, and so does Voxa: the
+   largest piece of everything, then a structure's chance of 0.2 or less counts for
+   nothing, and no largest piece within a class.
 4. **Make the label set.** The labels are on the 1 mm grid of step 1, turned back to the
    volume's own axes, with their own place in the patient. They are not resampled onto the
    scan, as decision record 0004 requires. Names and sides come from the model folder. The
