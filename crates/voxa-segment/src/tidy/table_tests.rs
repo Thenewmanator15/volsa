@@ -137,20 +137,21 @@ fn the_title_says_which_model_and_whether_the_cortex_was_divided() {
 
 #[test]
 fn every_structure_and_area_is_named_with_its_group_its_side_and_its_colour() {
-    let entry = |name: &str, group: &str, side: Side, label: u32| Entry {
+    // A name has one colour: the colour of the number that comes first for it.
+    let entry = |name: &str, group: &str, side: Side, label: u32, first: u32| Entry {
         name: name.to_owned(),
         group: group.to_owned(),
         side,
         ids: vec![label],
-        colour: colour_for(label),
+        colour: colour_for(first),
         trust: Trust::Model,
     };
     // Nothing, the first of each list, is no part and has no name.
     let named = [
-        entry("hippocampus", "Brain structures", Side::Left, 17),
-        entry("brain-stem", "Brain structures", Side::Midline, 16),
-        entry("insula", "Cortex areas", Side::Left, 1035),
-        entry("insula", "Cortex areas", Side::Right, 2035),
+        entry("hippocampus", "Brain structures", Side::Left, 17, 17),
+        entry("brain-stem", "Brain structures", Side::Midline, 16, 16),
+        entry("insula", "Cortex areas", Side::Left, 1035, 1035),
+        entry("insula", "Cortex areas", Side::Right, 2035, 1035),
     ];
     for cortex in [false, true] {
         let table = table(&lists(&["one"]), wanted(true, cortex), &[0.9]);

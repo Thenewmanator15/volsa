@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use voxa_core::{Patient, Point, SeriesId, WindowLevel};
 use voxa_dicom::Index;
-use voxa_labels::{Part, Verdict};
+use voxa_labels::{Made, Part, Verdict};
 use voxa_render::{Look, NamedView, Overlay};
 use voxa_volume::PlaneKind;
 
@@ -19,6 +19,10 @@ use crate::views::SavedView;
 /// One thing that happened: something the person did, or something a worker finished.
 /// [`reduce`](crate::reduce) is the only code that acts on these.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::large_enum_variant,
+    reason = "labels are reported once for a study and every other action is small"
+)]
 pub enum Action {
     /// Open a folder, zip or file in place of whatever is open.
     OpenPath(PathBuf),
@@ -313,6 +317,8 @@ pub enum Action {
         corners: [Point<Patient>; 8],
         /// Where the parts' names came from.
         names_from: NamesFrom,
+        /// Who made them, when their table says; `None` for labels made elsewhere.
+        made: Option<Made>,
     },
     /// The labels asked for could not be read; the sentence says why.
     LabelsFailed(String),

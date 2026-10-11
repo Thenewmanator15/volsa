@@ -4,7 +4,7 @@
 use std::path::PathBuf;
 
 use voxa_core::{Patient, Point};
-use voxa_labels::{Part, Side, Trust, Verdict};
+use voxa_labels::{Made, Part, Side, Trust, Verdict};
 use voxa_render::{Look, Overlay};
 
 use super::scene_tests::{corners, ready, select};
@@ -50,6 +50,7 @@ fn read(corners: [Point<Patient>; 8]) -> Action {
         verdict: None,
         corners,
         names_from: NamesFrom::Table,
+        made: None,
     }
 }
 
@@ -360,7 +361,7 @@ fn the_parts_look_needs_labels_on_the_series_and_is_drawn_as_a_surface_without()
 }
 
 #[test]
-fn the_models_check_comes_with_the_labels() {
+fn the_models_check_and_who_made_the_labels_come_with_them_and_go_with_them() {
     let mut state = ready();
     reduce(&mut state, open());
     let verdict = Verdict {
@@ -374,8 +375,16 @@ fn the_models_check_comes_with_the_labels() {
         verdict: Some(verdict.clone()),
         corners: corners(),
         names_from: NamesFrom::Nothing,
+        made: Some(Made {
+            by: "Voxa 9.8.7".to_owned(),
+            ..Made::default()
+        }),
     };
     reduce(&mut state, read);
     assert_eq!(state.labels.verdict, Some(verdict));
     assert_eq!(state.labels.names_from, NamesFrom::Nothing);
+    let by = state.labels.made.as_ref().map(|made| made.by.as_str());
+    assert_eq!(by, Some("Voxa 9.8.7"));
+    reduce(&mut state, Action::CloseLabels);
+    assert_eq!(state.labels.made, None);
 }

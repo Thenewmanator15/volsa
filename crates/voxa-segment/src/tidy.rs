@@ -61,6 +61,8 @@ mod label_tests;
 #[cfg(test)]
 mod pieces_tests;
 #[cfg(test)]
+mod real_lists_tests;
+#[cfg(test)]
 mod refusal_tests;
 mod standard;
 #[cfg(test)]

@@ -34,6 +34,7 @@ fn labelled(of: [Point<Patient>; 8]) -> AppState {
         verdict: None,
         corners: of,
         names_from: NamesFrom::Nothing,
+        made: None,
     };
     reduce(&mut state, read);
     state

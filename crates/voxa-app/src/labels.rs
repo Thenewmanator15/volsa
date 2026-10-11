@@ -2,7 +2,7 @@
 //! and how solid each is, and which one is selected.
 
 use voxa_core::{Patient, Point, SeriesId, StudyId};
-use voxa_labels::{Part, Verdict};
+use voxa_labels::{Made, Part, Verdict};
 use voxa_render::{Look, Overlay, PartLook};
 
 use crate::state::AppState;
@@ -79,6 +79,8 @@ pub struct Labels {
     pub corners: Option<[Point<Patient>; 8]>,
     /// Where the parts' names came from.
     pub names_from: NamesFrom,
+    /// Who made the labels, when their table says; `None` for labels made elsewhere.
+    pub made: Option<Made>,
 }
 
 impl Labels {

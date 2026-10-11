@@ -96,6 +96,7 @@ fn taken_in(state: &mut AppState, read: Action) -> Vec<Effect> {
         verdict,
         corners,
         names_from,
+        made,
     } = read
     else {
         return Vec::new();
@@ -126,6 +127,7 @@ fn taken_in(state: &mut AppState, read: Action) -> Vec<Effect> {
         study,
         corners: Some(corners),
         names_from,
+        made,
     };
     Vec::new()
 }

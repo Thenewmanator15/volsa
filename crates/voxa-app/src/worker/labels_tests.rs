@@ -68,6 +68,7 @@ fn labels_and_the_table_beside_them_are_read_kept_and_reported() {
         verdict,
         corners,
         names_from,
+        made,
     } = bench.next()
     else {
         panic!("the labels are reported");
@@ -75,6 +76,10 @@ fn labels_and_the_table_beside_them_are_read_kept_and_reported() {
     assert_eq!(
         (title.as_str(), names_from, verdict),
         ("A made-up head", NamesFrom::Table, None)
+    );
+    assert_eq!(
+        made, None,
+        "a table made elsewhere says nothing of who made it"
     );
     let said: Vec<_> = parts
         .iter()
@@ -200,6 +205,31 @@ fn a_table_that_is_named_is_the_one_read() {
     };
     let said: Vec<&str> = parts.iter().map(|part| part.name.as_str()).collect();
     assert_eq!(said, ["one", "other"]);
+}
+
+#[test]
+fn a_table_that_says_who_made_the_labels_is_reported_with_it() {
+    let bench = Bench::with_budget(1 << 20);
+    let made = r#"{"regions": {"hippocampus": {"ids": {"left": 17, "right": 53}}},
+        "voxa": {"by": "Voxa 9.8.7", "when": "2099-01-02 03:04", "notes": ["One."]}}"#;
+    let folder = folder(&[
+        ("labels_a.nii.gz", &volume(4)),
+        ("labels_a.json", made.as_bytes()),
+    ]);
+    read(&bench, folder.path().join("labels_a.nii.gz"));
+    let Action::LabelsRead { made, .. } = bench.next() else {
+        panic!("the labels are reported");
+    };
+    let made = made.expect("the table says who made them");
+    assert_eq!(
+        (made.by.as_str(), made.when.as_str()),
+        ("Voxa 9.8.7", "2099-01-02 03:04")
+    );
+    assert_eq!(made.notes, ["One."]);
+    assert_eq!(
+        bench.workers.labels().expect("kept").made.as_ref(),
+        Some(&made)
+    );
 }
 
 #[test]

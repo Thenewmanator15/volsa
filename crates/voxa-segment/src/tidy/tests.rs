@@ -78,7 +78,7 @@ pub(super) fn lists(structures: &[(u32, u32)], areas: &[u32], cortex: [u32; 2]) 
 }
 
 /// `SynthSeg`'s own lists, as the generator wrote them down.
-fn synthsegs_lists() -> Lists {
+pub(super) fn synthsegs_lists() -> Lists {
     let written = json("lists.json");
     let labels = whole_numbers(&written["labels"]);
     let classes = whole_numbers(&written["classes"]);

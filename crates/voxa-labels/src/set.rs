@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use voxa_core::{Affine, Patient, Voxel};
 
+use crate::made::Made;
 use crate::nifti::LabelGrid;
 use crate::table::{Side, Table, Trust, Verdict, colour_for};
 
@@ -48,6 +49,8 @@ pub struct LabelSet {
     pub title: String,
     /// The labelling model's own check, when the table carries one.
     pub verdict: Option<Verdict>,
+    /// Who made the labels, when their table says; `None` for labels made elsewhere.
+    pub made: Option<Made>,
 }
 
 /// Why a label volume cannot be made into a set.
@@ -79,6 +82,7 @@ pub fn label_set(grid: &LabelGrid, table: Option<&Table>) -> Result<LabelSet, Se
         parts,
         title: table.map_or_else(String::new, |table| table.title.clone()),
         verdict: table.and_then(|table| table.verdict.clone()),
+        made: table.and_then(|table| table.made.clone()),
     })
 }
 

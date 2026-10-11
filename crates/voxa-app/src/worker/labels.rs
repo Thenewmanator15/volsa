@@ -84,6 +84,7 @@ impl Workers {
                         verdict: set.verdict.clone(),
                         corners: set.corners(),
                         names_from,
+                        made: set.made.clone(),
                     }
                 }
                 Err(why) => Action::LabelsFailed(why),

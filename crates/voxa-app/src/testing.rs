@@ -135,6 +135,7 @@ pub fn halves_of_the_head() -> voxa_labels::LabelSet {
         parts: vec![part(Side::Right), part(Side::Left)],
         title: String::new(),
         verdict: None,
+        made: None,
     }
 }
 
@@ -156,6 +157,7 @@ pub fn labelled_head() -> (
         title: String::new(),
         parts: set.parts.clone(),
         verdict: None,
+        made: None,
         corners: set.corners(),
         names_from: crate::labels::NamesFrom::Nothing,
     };

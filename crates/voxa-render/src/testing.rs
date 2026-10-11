@@ -121,6 +121,7 @@ pub(crate) fn ball_labels(shift: [f64; 3]) -> LabelSet {
         parts,
         title: "Made-up ball".to_owned(),
         verdict: None,
+        made: None,
     }
 }
 

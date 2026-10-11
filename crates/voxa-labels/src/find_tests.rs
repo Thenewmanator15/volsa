@@ -39,6 +39,7 @@ fn halves() -> LabelSet {
         ],
         title: String::new(),
         verdict: None,
+        made: None,
     }
 }
 

@@ -6,14 +6,16 @@
 use serde::Deserialize;
 use serde::de::{MapAccess, Visitor};
 
+use crate::made::{Made, read_made};
+
 /// The longest a name, a group or a title is kept, in characters.
 pub const MAX_NAME: usize = 80;
 /// The longest an account of how a part was made is kept.
-const MAX_HOW: usize = 300;
+pub(crate) const MAX_HOW: usize = 300;
 /// The longest table read, in bytes.
-const MAX_TABLE_BYTES: usize = 4 << 20;
+pub(crate) const MAX_TABLE_BYTES: usize = 4 << 20;
 /// The most names a table may give.
-const MAX_ENTRIES: usize = 65_535;
+pub(crate) const MAX_ENTRIES: usize = 65_535;
 
 /// Which side of the patient a part is on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -76,6 +78,8 @@ pub struct Table {
     pub entries: Vec<Entry>,
     /// The model's own check, when the table carries one.
     pub verdict: Option<Verdict>,
+    /// Who made the labels, when the table says; `None` for every table made elsewhere.
+    pub made: Option<Made>,
 }
 
 /// Why a file cannot be read as a table of names.
@@ -149,9 +153,11 @@ fn byte(value: f64) -> u8 {
     value.clamp(0.0, 255.0) as u8
 }
 
-/// Words kept to a length, with no space at either end.
-fn kept(text: &str, most: usize) -> String {
-    text.trim().chars().take(most).collect()
+/// Words kept to a length, with no space at either end: trimmed, cut, and trimmed again of
+/// any space the cut left at the end. Kept again, the words do not change.
+pub(crate) fn kept(text: &str, most: usize) -> String {
+    let cut: String = text.trim().chars().take(most).collect();
+    cut.trim_end().to_owned()
 }
 
 /// A colour written as `#rrggbb`.
@@ -198,6 +204,8 @@ struct Written {
     title: String,
     /// Named by the pipeline when a trained model made the labels.
     model: Option<serde_json::Value>,
+    /// Who made the labels, if Voxa did. Any value is taken, so that it can never spoil a table.
+    voxa: Option<serde_json::Value>,
     regions: Option<InOrder<Region>>,
     qc: Option<Check>,
     parts: Option<InOrder<String>>,
@@ -231,7 +239,7 @@ struct Sides {
 #[derive(Debug, Deserialize)]
 struct Check {
     #[serde(default)]
-    scores: InOrder<f64>,
+    scores: InOrder<Option<f64>>,
     fail_below: Option<f64>,
     passed: Option<bool>,
 }
@@ -248,6 +256,7 @@ impl Written {
             title: kept(&self.title, MAX_NAME),
             entries,
             verdict: self.qc.and_then(Check::verdict),
+            made: self.voxa.as_ref().and_then(read_made),
         })
     }
 }
@@ -255,11 +264,13 @@ impl Written {
 impl Check {
     fn verdict(self) -> Option<Verdict> {
         let fail_below = self.fail_below.filter(|score| score.is_finite())?;
+        // A score the file leaves empty is a group that was not scored, and fails.
         let low: Vec<(String, f64)> = self
             .scores
             .0
             .into_iter()
-            .filter(|(_, score)| *score < fail_below)
+            .map(|(name, score)| (name, score.unwrap_or(f64::NAN)))
+            .filter(|(_, score)| score.is_nan() || *score < fail_below)
             .map(|(name, score)| (kept(&name, MAX_NAME), score))
             .collect();
         Some(Verdict {
@@ -356,6 +367,7 @@ fn slicer(text: &str) -> Table {
         title: String::new(),
         entries: lines.filter_map(entry).take(MAX_ENTRIES).collect(),
         verdict: None,
+        made: None,
     }
 }
 

@@ -5,9 +5,15 @@
 //! is not among the labels makes no part of a label set. Nothing, label 0, is the first of
 //! each list and is not named.
 //!
+//! The table is made in the form a reader gives back: each name once, its sides together, left
+//! before right before midline, the names in the order they first come, and one colour for a
+//! name. So a table written to a file and read again is the same table.
+//!
 //! The verdict is made from `SynthSeg`'s own scores, one for each score group of the lists. A
 //! group fails when its score is below 0.65, and when it has no score: nothing is said to
 //! have passed that was not scored.
+
+use std::collections::HashMap;
 
 use voxa_labels::{Entry, MAX_NAME, Side, Table, Trust, Verdict, colour_for};
 use voxa_models::{Lists, ModelSide, Structure, Wanted};
@@ -25,9 +31,10 @@ const PARTS: f64 = 10_000.0;
 /// of the cortex in `lists`, a title that says which model made the labels, and the model's
 /// verdict on its own work.
 ///
-/// Each name is listed under "Brain structures" or "Cortex areas", in the order of the
-/// lists, with the side the lists give it, the colour Voxa gives its number, and the trust
-/// due to a model.
+/// Each name is listed under "Brain structures" or "Cortex areas", with the side the lists
+/// give it and the trust due to a model. A name that has two sides is listed once for each,
+/// together, left before right: names come in the order the lists first give them. A name
+/// has one colour, the one Voxa gives the number that comes first for it in the table.
 ///
 /// `scores` are what the scores network gave: one for each score group of the lists, in
 /// their order. The verdict fails when any is below [`FAIL_BELOW`], and names each group
@@ -49,8 +56,9 @@ pub fn table(lists: &Lists, wanted: Wanted, scores: &[f32]) -> Table {
     };
     Table {
         title: format!("SynthSeg 2.0, {model} model{cortex}"),
-        entries,
+        entries: as_a_reader_gives_them(entries),
         verdict: Some(verdict(&lists.score_groups, scores)),
+        made: None,
     }
 }
 
@@ -70,9 +78,44 @@ fn entry(part: &Structure, group: &str) -> Entry {
     }
 }
 
-/// A name from the lists, no longer than a table keeps one.
+/// The entries gathered by name, in the order the names first come, each name's sides left
+/// before right before midline, and each name in one colour: the colour of the number that
+/// comes first. This is the form in which a table read from a file gives them.
+fn as_a_reader_gives_them(entries: Vec<Entry>) -> Vec<Entry> {
+    let mut names: Vec<Vec<Entry>> = Vec::new();
+    let mut place: HashMap<String, usize> = HashMap::new();
+    for entry in entries {
+        if let Some(sides) = place.get(&entry.name).and_then(|at| names.get_mut(*at)) {
+            sides.push(entry);
+        } else {
+            place.insert(entry.name.clone(), names.len());
+            names.push(vec![entry]);
+        }
+    }
+    names.into_iter().flat_map(in_one_colour).collect()
+}
+
+/// The sides of one name, left before right before midline, each in the colour of the first.
+fn in_one_colour(mut sides: Vec<Entry>) -> Vec<Entry> {
+    sides.sort_by_key(|entry| match entry.side {
+        Side::Left => 0,
+        Side::Right => 1,
+        Side::Midline => 2,
+    });
+    let first = sides.first().and_then(|entry| entry.ids.first());
+    if let Some(colour) = first.map(|label| colour_for(*label)) {
+        for entry in &mut sides {
+            entry.colour = colour;
+        }
+    }
+    sides
+}
+
+/// A name from the lists as a table keeps it: with no space at either end, no longer than
+/// a table keeps one, and again with no space at the end the cut left.
 fn kept(name: &str) -> String {
-    name.chars().take(MAX_NAME).collect()
+    let cut: String = name.trim().chars().take(MAX_NAME).collect();
+    cut.trim_end().to_owned()
 }
 
 /// The model's verdict on its own work: failed when a group scored below the mark, was

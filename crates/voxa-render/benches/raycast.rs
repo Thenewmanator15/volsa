@@ -285,6 +285,7 @@ fn draw_the_parts(c: &mut Criterion) {
         parts: (1..=8).map(part).collect(),
         title: String::new(),
         verdict: None,
+        made: None,
     };
     assert!(gpu.label(Some(&set)), "there is room for the labels");
     let viewport = PICTURE.map(|side| side as f32);
