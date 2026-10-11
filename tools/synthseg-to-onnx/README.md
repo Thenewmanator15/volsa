@@ -1,0 +1,70 @@
+# synthseg-to-onnx
+
+Turns SynthSeg 2.0's files into a model folder that Voxa reads. It is a tool for a person to
+run once; it is no part of Voxa, and cargo neither builds, runs nor tests it.
+
+**It ships nothing.** No weights are in this repository. You bring SynthSeg's files, and what
+this writes stays on your computer.
+
+Voxa is not a medical device and is not for diagnostic use, and neither is anything made here.
+
+## What it needs
+
+- A copy of [SynthSeg](https://github.com/BBillot/SynthSeg) with the four 2.0 files in its
+  `models` folder: `synthseg_2.0.h5`, `synthseg_robust_2.0.h5`, `synthseg_parc_2.0.h5` and
+  `synthseg_qc_2.0.h5`. `docs/models.md` says where they come from.
+- Python 3.13 with the packages in `requirements.txt`, in an environment of its own.
+- On NumPy 2, SynthSeg's own code needs a few one-line fixes. They are proposed to SynthSeg
+  as pull request 127; without them the converter stops inside SynthSeg with a NumPy error.
+- Windows, to check the networks on graphics cards. Elsewhere the check runs on the processor
+  only.
+
+## Running it
+
+```
+python convert.py PATH\TO\SynthSeg PATH\TO\model-folder
+```
+
+It takes a few minutes. It writes, into the model folder:
+
+- `standard.onnx`, `robust_1.onnx`, `robust_2.onnx`, `robust_3.onnx`, `cortex.onnx`,
+  `scores.onnx`: the six networks;
+- `check/`: a made-up head and what SynthSeg's own program made of it, for Voxa's own tests;
+- `model.json`, last: the list Voxa checks the folder against.
+
+## What it does
+
+1. **Converts** each network on its own with tf2onnx (opset 17), built as SynthSeg's
+   `build_model` builds it and loaded by layer name. A layer the `.h5` does not name is an
+   error, not a silent gap.
+2. **Tidies** each graph (`graphs.py`): every upsampling step, which tf2onnx writes as three
+   rounds of work on six-dimensional tensors, becomes one `Resize`.
+3. **Makes each network take and give only what Voxa needs.** A network whose answer feeds
+   another gives a byte for each voxel, not thirty-three probabilities; a map of classes goes
+   in as bytes and is spread inside the file; the last network of each model gives its
+   probabilities in two halves, because DirectML hands back no more than about 2 GiB at once.
+4. **Checks** (`check.py`) the converted networks against SynthSeg's own program on a made-up
+   head, on the processor and on every graphics card DirectML offers. `model.json` is written
+   only if:
+   - the standard model on the processor gives SynthSeg's label at every voxel;
+   - every other model and device agrees at 99.99% of voxels or more, with Dice of at least
+     0.999 for every structure, and scores within 0.001;
+   - the cortex network's byte answer gives the same labels as SynthSeg's own use of its
+     probabilities.
+
+The made-up head is painted from the sample label map that comes with SynthSeg: one grey
+level for each kind of tissue, blurred a little, shaded and made noisy. It is nobody's scan.
+
+## What it does not show
+
+That the labels are right. The check shows that the converted networks say what SynthSeg
+says. Whether SynthSeg is right about a given scan is another question, and the model's own
+scores, which Voxa shows, are only the model's opinion of its own work.
+
+## The files
+
+| File | What it holds |
+|---|---|
+| `convert.py` | The command: SynthSeg's lists, the six networks, `model.json` |
+| `graphs.py` | The changes made to what tf2onnx writes |
+| `check.py` | The made-up head, SynthSeg's own answer, the converted networks' answer, the marks |

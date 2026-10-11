@@ -1,0 +1,10 @@
+# For the converter only. Voxa itself needs none of this.
+# These are the versions the converter was last run and checked with.
+tensorflow==2.21.0
+tf_keras==2.21.0
+tf2onnx==1.17.0
+onnx==1.23.2
+onnxruntime-directml==1.24.4 ; sys_platform == "win32"
+onnxruntime==1.24.4 ; sys_platform != "win32"
+nibabel
+scipy
