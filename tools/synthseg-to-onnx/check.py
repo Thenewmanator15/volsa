@@ -99,8 +99,10 @@ def python_answer(checkout: Path, lists: dict, image: np.ndarray, robust: bool) 
             "scores": np.around(np.clip(np.squeeze(scores)[1:], 0, 1), 4), "seconds": time.perf_counter() - started}
 
 
-def tidied(lists: dict, back: dict, probabilities: np.ndarray, area_probabilities=None, areas=None) -> np.ndarray:
-    """SynthSeg's own tidying. The cortex comes either from the area probabilities, as
+def tidied(lists: dict, back: dict, probabilities: np.ndarray, robust: bool, area_probabilities=None,
+           areas=None) -> np.ndarray:
+    """SynthSeg's own tidying, as its program asks for it: the program forces `fast` for the
+    robust model, and so does this. The cortex comes either from the area probabilities, as
     SynthSeg uses them, or from a byte map of areas, as Voxa will."""
     from ext.lab2im import edit_volumes
     from SynthSeg.predict_synthseg import postprocess
@@ -108,7 +110,7 @@ def tidied(lists: dict, back: dict, probabilities: np.ndarray, area_probabilitie
     labels, _, _ = postprocess(post_patch_seg=probabilities.copy(),
                                post_patch_parc=None if area_probabilities is None else area_probabilities.copy(),
                                shape=back["shape"], pad_idx=back["pad_idx"], crop_idx=None, labels_segmentation=lists["labels"],
-                               labels_parcellation=lists["area_labels"], aff=back["aff"], im_res=back["im_res"], fast=False,
+                               labels_parcellation=lists["area_labels"], aff=back["aff"], im_res=back["im_res"], fast=robust,
                                topology_classes=lists["classes"], v1=False)
     if areas is not None:
         there = edit_volumes.crop_volume_with_idx(np.squeeze(areas), back["pad_idx"], n_dims=3)
@@ -253,9 +255,10 @@ def run(checkout: Path, out: Path, lists: dict) -> dict:
     for robust in (False, True):
         model = "robust" if robust else "standard"
         theirs = python_answer(checkout, lists, image, robust)
-        with_areas = tidied(lists, back, theirs["probabilities"], area_probabilities=theirs["area_probabilities"])
-        without = tidied(lists, back, theirs["probabilities"])
-        by_bytes = tidied(lists, back, theirs["probabilities"], areas=theirs["area_probabilities"][..., 1:].argmax(-1) + 1)
+        with_areas = tidied(lists, back, theirs["probabilities"], robust, area_probabilities=theirs["area_probabilities"])
+        without = tidied(lists, back, theirs["probabilities"], robust)
+        by_bytes = tidied(lists, back, theirs["probabilities"], robust,
+                          areas=theirs["area_probabilities"][..., 1:].argmax(-1) + 1)
         if not np.array_equal(with_areas, by_bytes):
             failed.append(f"{model}: areas as bytes give other labels than SynthSeg's own use of the probabilities")
         python[model] = {"with": with_areas, "without": without, "scores": theirs["scores"]}
@@ -263,14 +266,14 @@ def run(checkout: Path, out: Path, lists: dict) -> dict:
         checked[model] = {}
         for device in devices:
             ours = onnx_answer(out, lists, image, robust, device)
-            labels = tidied(lists, back, ours["probabilities"], areas=ours["areas"])
+            labels = tidied(lists, back, ours["probabilities"], robust, areas=ours["areas"])
             result = agreement(with_areas, labels)
             result["scores_differ_by"] = round(float(np.abs(ours["scores"] - theirs["scores"]).max()), 5)
             result["seconds"] = round(ours["seconds"], 1)
             checked[model][names[device]] = result
             print(f"  {model} on {names[device]}: {result}")
             if device == "processor" and not robust:
-                plain = tidied(lists, back, ours["probabilities"])
+                plain = tidied(lists, back, ours["probabilities"], robust)
                 if not np.array_equal(plain, without):
                     failed.append(f"standard on the processor: {int((plain != without).sum())} voxels differ from Python")
             if result["same_percent"] < SAME_PERCENT or result["dice_least"] < DICE or result["scores_differ_by"] > SCORES:
