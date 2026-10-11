@@ -27,18 +27,28 @@ pub(super) struct Turned {
 }
 
 impl Turn {
-    /// How `SynthSeg` turns this volume.
+    /// How `SynthSeg` turns the grid this volume has at 1 mm, worked out from the volume's
+    /// transform alone: no value is read, and no grid made. `steps` is how many voxels of
+    /// that grid there are to one of the volume's along its columns, rows and slices: its
+    /// spacing in millimetres when it is resampled, 1 when it is left as it is. The two can
+    /// give different turns, since an axis with a long step counts for less as it is stored.
     ///
-    /// For each of right, front and top it takes the volume's axis that lies most along it,
-    /// judged as `SynthSeg` judges it: by the transform back from the patient to the voxels,
-    /// the largest number, whatever its sign, in the column of that direction. An axis is
-    /// turned round when it runs away from its direction.
-    pub(super) fn of(volume: &Volume) -> Self {
-        // Changing the sign of a row of the transform changes the sign of a column of the
-        // transform back, and only the sizes of its numbers are asked for here.
-        let mut order = volume.patient_to_voxel().columns().map(largest);
+    /// For each of right, front and top `SynthSeg` takes the grid's axis that lies most along
+    /// it, judged by the transform back from the patient to the voxels: the largest number,
+    /// whatever its sign, in the column of that direction. An axis is turned round when it
+    /// runs away from its direction.
+    pub(super) fn of(volume: &Volume, steps: [f64; 3]) -> Self {
+        let [across, down, through] = steps;
+        // The grid's transform is the volume's with each step made shorter, so its transform
+        // back has each number made as many times larger. (Changing the sign of a row of a
+        // transform changes the sign of a column of the transform back, and only the sizes
+        // of its numbers are asked for here.)
+        let at_1_mm = |[col, row, slice]: [f64; 3]| [col * across, row * down, slice * through];
+        let back = volume.patient_to_voxel().columns();
+        let mut order = back.map(at_1_mm).map(largest);
         mend(&mut order);
 
+        // A step keeps its direction however long it is.
         let steps = volume.voxel_to_patient().columns().map(right_front_top);
         let mut turned_round = [false; 3];
         for (direction, (round, &axis)) in turned_round.iter_mut().zip(&order).enumerate() {
@@ -49,6 +59,13 @@ impl Turn {
             order,
             turned_round,
         }
+    }
+
+    /// How many voxels a grid with these columns, rows and slices has along the image's z,
+    /// from the bottom of the patient to the top, once it is turned.
+    pub(super) fn tall(&self, sides: [u32; 3]) -> u32 {
+        let [_, _, from] = self.order;
+        sides.get(from).copied().unwrap_or(0)
     }
 
     /// The volume's values in the image's order: `[x, y, z]`, z fastest.

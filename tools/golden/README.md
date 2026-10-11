@@ -67,6 +67,11 @@ side. It is written to a NIfTI file in a temporary folder and given to SynthSeg'
 `preprocess` (in `SynthSeg/predict_synthseg.py`), called as SynthSeg's `predict` calls it:
 nothing cropped, sides padded to at least 128.
 
+Every case has eleven or more slices as stored, and eleven or more voxels from bottom to top
+once it is at 1 mm and turned. On fewer of either, `preprocess` stops (it takes a last side of
+ten or fewer for the channels of a flat picture), so no case can be made of such a volume.
+Voxa refuses one for the same reason.
+
 | Case | What it is |
 |---|---|
 | `iso` | 1 mm, stored as SynthSeg wants it |

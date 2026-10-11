@@ -47,6 +47,18 @@ fn is_needed(spacing: [f64; 3]) -> bool {
         .any(|&step| step > 1.0 + NEAR_ENOUGH_MM || step < 1.0 - NEAR_ENOUGH_MM)
 }
 
+/// How many voxels of the 1 mm grid there are to one voxel of the volume, along its columns,
+/// rows and slices: its spacing in millimetres when it is resampled, 1 when it is left as it
+/// is.
+pub(super) fn steps(volume: &Volume) -> [f64; 3] {
+    let spacing = volume.spacing_mm();
+    if is_needed(spacing) {
+        spacing
+    } else {
+        [1.0; 3]
+    }
+}
+
 /// How many voxels the volume's 1 mm grid has along its columns, rows and slices: the
 /// volume's own counts when it needs no resampling. Worked out from the sizes and the
 /// spacing alone, without reading a value. A spacing far past any scan's gives no voxels, or

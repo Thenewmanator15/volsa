@@ -11,6 +11,11 @@
 //! 5. *Pad* each side with zeros to the next multiple of 32, and at least 128.
 //!
 //! The steps follow `preprocess` in `SynthSeg`'s `predict_synthseg.py`, number for number.
+//!
+//! Where that program stops, Voxa refuses. `SynthSeg` takes a last side of ten or fewer for
+//! the channels of a flat picture, so it stops on a stack of ten or fewer slices as stored,
+//! and on one with ten or fewer voxels from bottom to top once it is at 1 mm and turned.
+//! Neither can be given an image that is `SynthSeg`'s, so neither is given one.
 
 use std::borrow::Cow;
 
@@ -21,11 +26,17 @@ mod align;
 mod resample;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod thin_tests;
 
 use align::{Turn, Turned};
 
-/// A volume needs this many voxels along every side, as given and at 1 mm.
+/// A volume needs this many voxels along every side, as given and at 1 mm. This floor is
+/// Voxa's own: `SynthSeg` has none for a side that is not the last.
 const FEWEST: u32 = 4;
+/// A volume needs this many slices as it is stored, and this many voxels from bottom to top
+/// once it is at 1 mm and turned. Below it `SynthSeg`'s own program stops.
+const FEWEST_SLICES: u32 = 11;
 /// The 1 mm grid may be no longer than this along any side.
 const LONGEST: u32 = 512;
 /// The percentile that becomes 0.
@@ -83,8 +94,13 @@ pub struct Prepared {
 /// Why a volume cannot be prepared. Each says so in words a person can be shown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum PrepareError {
-    /// A side is under four voxels, as given or at 1 mm.
-    #[error("This series has too few slices to label: it needs at least four along every side.")]
+    /// The volume is too thin: under eleven slices as stored, under eleven voxels from
+    /// bottom to top at 1 mm, or under four along any side, as stored or at 1 mm.
+    #[error(
+        "This series is too thin to label. It needs at least eleven slices and at least four \
+         voxels along every side as stored. Counted at 1 mm, it needs at least eleven voxels \
+         from bottom to top and at least four along every side."
+    )]
     TooFewSlices,
     /// The two percentiles are equal: all but a few values are the same, or none is a number.
     #[error("This series holds no values that differ, so there is nothing in it to label.")]
@@ -96,32 +112,23 @@ pub enum PrepareError {
 
 /// Makes a volume ready for `SynthSeg`'s networks, step for step as `SynthSeg`'s own code does.
 ///
-/// Too few slices and too large are decided from the sizes, before any value is read. A
-/// value that is not finite counts as the smallest one that is.
+/// Too thin and too large are decided from the sizes and the transform, before any value is
+/// read. A value that is not finite counts as the smallest one that is.
 ///
 /// `Cut::Head` is not made yet: for now it gives the whole grid, as `Cut::Whole` does, and
 /// `Back::cut_from` is all zeros.
 ///
 /// # Errors
 ///
-/// [`PrepareError::TooFewSlices`] when a side has under four voxels, as given or at 1 mm.
+/// [`PrepareError::TooFewSlices`] when the volume has under eleven slices as stored, or under
+/// eleven voxels from bottom to top at 1 mm, or under four along any side, as stored or at
+/// 1 mm.
 /// [`PrepareError::TooLarge`] when a side would have over 512 at 1 mm.
 /// [`PrepareError::NothingToSee`] when the two percentiles are equal.
 pub fn prepare(volume: &Volume, cut: Cut) -> Result<Prepared, PrepareError> {
-    if volume.dims().iter().any(|&side| side < FEWEST) {
-        return Err(PrepareError::TooFewSlices);
-    }
-    let sides = resample::sides(volume);
-    if sides.iter().any(|&side| side > LONGEST) {
-        return Err(PrepareError::TooLarge);
-    }
-    if sides.iter().any(|&side| side < FEWEST) {
-        return Err(PrepareError::TooFewSlices);
-    }
-
+    let turn = turn_if_it_fits(volume)?;
     let finite = all_finite(volume).ok_or(PrepareError::NothingToSee)?;
     let grid = resample::one_mm(&finite);
-    let turn = Turn::of(&grid);
     let turned = turn.turned(&grid);
     // The cut to the head goes here: after the turn, before the scaling.
     let cut_from = match cut {
@@ -146,11 +153,34 @@ pub fn prepare(volume: &Volume, cut: Cut) -> Result<Prepared, PrepareError> {
     })
 }
 
+/// How the volume's 1 mm grid is turned, or why the volume is refused for its size. Decided
+/// from the sizes and the transform alone: no value is read.
+fn turn_if_it_fits(volume: &Volume) -> Result<Turn, PrepareError> {
+    let [_, _, slices] = volume.dims();
+    if slices < FEWEST_SLICES || volume.dims().iter().any(|&side| side < FEWEST) {
+        return Err(PrepareError::TooFewSlices);
+    }
+    let sides = resample::sides(volume);
+    if sides.iter().any(|&side| side > LONGEST) {
+        return Err(PrepareError::TooLarge);
+    }
+    if sides.iter().any(|&side| side < FEWEST) {
+        return Err(PrepareError::TooFewSlices);
+    }
+    // `SynthSeg` turns the grid it has at 1 mm, so it is that grid's transform that says
+    // which side runs from bottom to top.
+    let turn = Turn::of(volume, resample::steps(volume));
+    if turn.tall(sides) < FEWEST_SLICES {
+        return Err(PrepareError::TooFewSlices);
+    }
+    Ok(turn)
+}
+
 /// The volume at 1 mm along its own axes, resampled as `SynthSeg` resamples it.
 ///
 /// It is the same volume when every spacing is within 0.05 mm of 1 mm: `SynthSeg` leaves such a
-/// volume alone. It is also the same volume when [`prepare`] would refuse it for its size (a
-/// side of its 1 mm grid under 4 voxels or over 512), since there is then no grid to give.
+/// volume alone. It is also the same volume when its 1 mm grid would have a side under 4
+/// voxels or over 512: there is then no grid to give, and [`prepare`] refuses such a volume.
 /// Values that are not finite are not mended here; `prepare` does that first.
 pub fn resampled(volume: &Volume) -> Volume {
     resample::one_mm(volume).into_owned()

@@ -217,7 +217,7 @@ fn the_axes_are_turned_as_synthseg_turns_them() {
     for turn in turns {
         let placed = placement(&turn["to_patient"], true);
         let speck = Volume::new([1, 1, 1], vec![0.0], placed).expect("a volume");
-        let found = Turn::of(&speck);
+        let found = Turn::of(&speck, [1.0; 3]);
         assert_eq!(found.order, triple(&turn["order"]), "{turn}");
         assert_eq!(found.turned_round, flags(&turn["turned_round"]), "{turn}");
     }
@@ -273,7 +273,7 @@ fn the_patients_left_is_at_low_x_however_the_volume_is_stored() {
             let voxel = Point::new(f64::from(col), f64::from(row), f64::from(slice));
             narrowed(placement.apply(voxel).x)
         };
-        let prepared = whole(&volume_of([5, 6, 7], placement, leftness));
+        let prepared = whole(&volume_of([5, 11, 12], placement, leftness));
         let turn = (prepared.back.order, prepared.back.turned_round);
         assert_eq!(turn, (order, turned_round));
         let [across, deep, high] = prepared.back.size;
@@ -288,8 +288,8 @@ fn the_patients_left_is_at_low_x_however_the_volume_is_stored() {
 #[test]
 fn under_four_voxels_on_a_side_is_too_few_slices() {
     assert_eq!(refused(&block([8, 8, 3], [1.0; 3])), TooFewSlices);
-    assert_eq!(refused(&block([3, 8, 8], [1.0; 3])), TooFewSlices);
-    assert_eq!(whole(&block([8, 8, 4], [1.0; 3])).back.size, [8, 8, 4]);
+    assert_eq!(refused(&block([3, 8, 11], [1.0; 3])), TooFewSlices);
+    assert_eq!(whole(&block([4, 8, 11], [1.0; 3])).back.size, [4, 8, 11]);
     // Three slices 5 mm apart would be 15 at 1 mm, and are still too few.
     assert_eq!(refused(&block([8, 8, 3], [1.0, 1.0, 5.0])), TooFewSlices);
     // Twelve slices a fifth of a millimetre apart are under four at 1 mm.
@@ -300,7 +300,7 @@ fn under_four_voxels_on_a_side_is_too_few_slices() {
 
 #[test]
 fn one_value_throughout_is_nothing_to_see() {
-    // One value; one voxel in 512 unlike the rest, too few to move either percentile; and
+    // One value; one voxel in 704 unlike the rest, too few to move either percentile; and
     // no numbers at all.
     let fills: [fn(u32, u32, u32) -> f32; 3] = [
         |_, _, _| 7.0,
@@ -308,48 +308,49 @@ fn one_value_throughout_is_nothing_to_see() {
         |_, _, _| f32::NAN,
     ];
     for fill in fills {
-        let volume = volume_of([8, 8, 8], stepped([1.0; 3]), fill);
+        let volume = volume_of([8, 8, 11], stepped([1.0; 3]), fill);
         assert_eq!(refused(&volume), NothingToSee);
     }
 }
 
 #[test]
 fn a_grid_over_512_voxels_on_a_side_is_too_large() {
-    assert_eq!(refused(&block([600, 8, 8], [1.0; 3])), TooLarge);
-    let just = whole(&block([512, 4, 4], [1.0; 3]));
+    assert_eq!(refused(&block([600, 8, 11], [1.0; 3])), TooLarge);
+    let just = whole(&block([512, 4, 11], [1.0; 3]));
     assert_eq!(just.image.shape, [1, 512, 128, 128, 1]);
     // 300 columns 2 mm apart are 600 at 1 mm.
-    let wide = block([300, 8, 8], [2.0, 1.0, 1.0]);
+    let wide = block([300, 8, 11], [2.0, 1.0, 1.0]);
     assert_eq!(refused(&wide), TooLarge);
     assert_eq!(resampled(&wide), wide, "and it is not resampled");
     // A spacing past all counting is refused like any other, and stops nothing: the last of
     // these is too small for its grid to be counted at all.
-    let vast = block([8, 8, 8], [1e100, 1.0, 1.0]);
-    let minute = block([8, 8, 8], [1e-100, 1.0, 1.0]);
+    let vast = block([8, 8, 11], [1e100, 1.0, 1.0]);
+    let minute = block([8, 8, 11], [1e-100, 1.0, 1.0]);
     assert_eq!((refused(&vast), refused(&minute)), (TooLarge, TooFewSlices));
     assert_eq!(resampled(&minute), minute);
-    assert_eq!(refused(&block([8, 8, 8], [1e-320, 1.0, 1.0])), TooFewSlices);
+    let uncounted = block([8, 8, 11], [1e-320, 1.0, 1.0]);
+    assert_eq!(refused(&uncounted), TooFewSlices);
 }
 
 #[test]
 fn a_volume_within_a_twentieth_of_a_millimetre_of_1_is_not_resampled() {
-    let near = block([6, 5, 4], [1.02, 0.96, 1.04]);
+    let near = block([6, 5, 11], [1.02, 0.96, 1.04]);
     assert_eq!(resampled(&near), near);
     let prepared = whole(&near);
-    assert_eq!(prepared.back.grid_dims, [6, 5, 4]);
+    assert_eq!(prepared.back.grid_dims, [6, 5, 11]);
     assert_eq!(prepared.back.grid_placement, near.voxel_to_patient());
     assert_eq!(prepared.spacing_mm, [1.02, 0.96, 1.04]);
     // A little further from 1 mm along one axis, and every axis is resampled.
-    let far = block([6, 5, 4], [1.02, 0.96, 1.5]);
+    let far = block([6, 5, 11], [1.02, 0.96, 1.5]);
     let at_one_mm = resampled(&far);
-    assert_eq!(at_one_mm.dims(), [7, 5, 6]);
+    assert_eq!(at_one_mm.dims(), [7, 5, 17]);
     let steps = at_one_mm.spacing_mm();
     assert!(
         steps.iter().all(|step| (step - 1.0).abs() < 1e-12),
         "{steps:?}"
     );
     let prepared = whole(&far);
-    assert_eq!(prepared.back.grid_dims, [7, 5, 6]);
+    assert_eq!(prepared.back.grid_dims, [7, 5, 17]);
     assert_eq!(prepared.back.grid_placement, at_one_mm.voxel_to_patient());
     assert_eq!(prepared.spacing_mm, [1.02, 0.96, 1.5], "as it was given");
 }
@@ -368,8 +369,8 @@ fn a_value_that_is_not_finite_counts_as_the_smallest() {
             (3, 3, 3) | (4, 1, 6) | (5, 2, 0) => 10.0,
             _ => ramp(col, row, slice),
         };
-        let prepared = whole(&volume_of([8, 8, 8], stepped(steps), spoiled));
-        let same = whole(&volume_of([8, 8, 8], stepped(steps), mended));
+        let prepared = whole(&volume_of([8, 8, 11], stepped(steps), spoiled));
+        let same = whole(&volume_of([8, 8, 11], stepped(steps), mended));
         assert_eq!(prepared, same);
         assert_eq!(numbers(&prepared).len(), 128 * 128 * 128);
         let [across, deep, high] = prepared.back.size;
