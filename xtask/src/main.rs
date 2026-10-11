@@ -15,7 +15,13 @@ const MAX_FILE_LINES: usize = 400;
 /// Lowest acceptable line coverage, in percent, for each crate in [`COVERED_CRATES`].
 const COVERAGE_FLOOR: &str = "80";
 /// Crates whose tests need no GPU and so carry the coverage floor.
-const COVERED_CRATES: [&str; 4] = ["voxa-core", "voxa-dicom", "voxa-volume", "voxa-labels"];
+const COVERED_CRATES: [&str; 5] = [
+    "voxa-core",
+    "voxa-dicom",
+    "voxa-volume",
+    "voxa-labels",
+    "voxa-models",
+];
 
 fn main() -> ExitCode {
     let task = std::env::args().nth(1).unwrap_or_default();

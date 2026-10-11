@@ -1,0 +1,25 @@
+[package]
+name = "voxa-models"
+description = "The networks Voxa labels a scan with: finding a model folder, reading its list and checking its files."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[features]
+# Builders of made-up model folders, for this crate's tests and for the crates above it.
+testkit = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true
