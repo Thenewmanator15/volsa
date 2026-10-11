@@ -133,6 +133,23 @@ fn a_scan_too_large_whole_is_offered_cut_to_the_head() {
 }
 
 #[test]
+fn with_little_ordinary_memory_free_the_head_is_offered_on_the_card_alone() {
+    // The first set-up (no budget known, so the card has 16 GiB less the 1 GiB Voxa holds),
+    // with the ordinary memory down from 20 GiB to 4 GiB. The head needs 13.04 GiB on the
+    // card, which has 15, and the scores network's 10.25 GiB fits there too, so the 4 GiB
+    // are not asked for it. The processor has too little for the head, and the whole scan
+    // is too large for the card.
+    let mut room = room();
+    room.free_memory = 4 * GIB;
+    let found = rungs(16_777_216, 8_000_000, STANDARD, &room, RunsOn::Automatic);
+    assert_eq!(found.len(), 1);
+    let rung = found.first().copied().expect("one rung");
+    assert_eq!(rung.device, Device::Card(1));
+    assert_eq!(rung.cut, Cut::Head);
+    assert_eq!(rung.scores_on, Device::Card(1));
+}
+
+#[test]
 fn automatic_offers_only_discrete_cards_in_the_systems_order() {
     let mut room = room();
     // The integrated card is first, a software card sits among the discrete ones, and the
