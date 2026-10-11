@@ -1,7 +1,9 @@
-//! Builders of made-up model folders, for tests in this crate and the crates above it.
+//! Builders of made-up model folders and a stand-in network, for tests in this crate and the
+//! crates above it.
 //!
-//! No real network is read or written here. A folder made by [`model_folder`] holds six small
-//! files of made-up bytes and a `model.json` that lists them with their true sizes and sums.
+//! No real network is read, written or run here. A folder made by [`model_folder`] holds six
+//! small files of made-up bytes and a `model.json` that lists them with their true sizes and
+//! sums. A [`Canned`] is a network that answers whatever a test tells it to.
 //!
 //! This is test support code: a mistake in a builder should stop the test at once, so unlike
 //! the rest of the crate it is allowed to panic.
@@ -9,12 +11,15 @@
 
 use std::collections::HashMap;
 use std::fs;
+use std::sync::{Arc, Mutex};
 
 use serde_json::{Map, Value, json};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
 use crate::model::{KIND_SYNTHSEG, MODEL_FORMAT, ModelSide, Role, Structure, hex, is_plain_name};
+use crate::network::{Network, RunError};
+use crate::tensor::Tensor;
 
 /// Everything `model.json` holds that Voxa reads. The default describes a folder that reads
 /// without complaint; change what a test is about.
@@ -170,4 +175,51 @@ pub fn model_folder(options: &FolderOptions) -> TempDir {
     let text = serde_json::to_vec_pretty(&list).expect("a list");
     fs::write(folder.path().join("model.json"), text).expect("a list file");
     folder
+}
+
+/// What answers for a [`Canned`]: it is shown the inputs of a run and gives the run's outcome.
+type Answer = Box<dyn FnMut(&[Tensor]) -> Result<Vec<Tensor>, RunError> + Send>;
+
+/// A stand-in for a network: it answers from a closure and remembers what it was given, so
+/// that what is built on a [`Network`] can be tested with no runtime and no network file.
+pub struct Canned {
+    answer: Answer,
+    given: Given,
+}
+
+/// What a [`Canned`] has been given: the inputs of every run so far. Every copy sees the
+/// same runs, so one taken before the network is handed on can be asked afterwards.
+#[derive(Debug, Clone, Default)]
+pub struct Given(Arc<Mutex<Vec<Vec<Tensor>>>>);
+
+impl Given {
+    /// The inputs of each run so far, the first run first.
+    pub fn runs(&self) -> Vec<Vec<Tensor>> {
+        self.0.lock().expect("no run panicked").clone()
+    }
+}
+
+impl Canned {
+    /// A network whose every run is answered by `answer`, which is shown the inputs.
+    pub fn new(
+        answer: impl FnMut(&[Tensor]) -> Result<Vec<Tensor>, RunError> + Send + 'static,
+    ) -> Self {
+        Self {
+            answer: Box::new(answer),
+            given: Given::default(),
+        }
+    }
+
+    /// What this network has been given, and will be given from now on.
+    pub fn given(&self) -> Given {
+        self.given.clone()
+    }
+}
+
+impl Network for Canned {
+    fn run(&mut self, inputs: Vec<Tensor>) -> Result<Vec<Tensor>, RunError> {
+        let answer = (self.answer)(&inputs);
+        self.given.0.lock().expect("no run panicked").push(inputs);
+        answer
+    }
 }

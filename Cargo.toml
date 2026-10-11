@@ -61,6 +61,13 @@ directories = "6"
 # The sum that tells a network file is the one its list names.
 sha2 = "0.11"
 
+# ONNX Runtime, which runs the networks. Its library is loaded when Voxa runs, from a folder
+# the person names: nothing is linked or fetched when Voxa is built. Pinned to one release,
+# the one the networks were measured with. The crate that uses it adds `directml` on Windows.
+ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
+# The system's own list of graphics adapters, on Windows. The version wgpu already brings.
+windows = { version = "0.62.2", features = ["Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common"] }
+
 # Tests and benchmarks.
 proptest = "1.11"
 tempfile = "3.27"

@@ -3,7 +3,8 @@
 //! `cargo xtask check` runs every quality gate in order and stops at the first failure:
 //! formatting, lints, file length, tests, licence and advisory checks, documentation.
 //! `cargo xtask coverage` measures line coverage of the crates that need no GPU and fails
-//! below the floor.
+//! below the floor. The few files that cannot run without a graphics card or the networks'
+//! runtime are left out of the count.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 
@@ -14,7 +15,7 @@ use std::process::{Command, ExitCode};
 const MAX_FILE_LINES: usize = 400;
 /// Lowest acceptable line coverage, in percent, for each crate in [`COVERED_CRATES`].
 const COVERAGE_FLOOR: &str = "80";
-/// Crates whose tests need no GPU and so carry the coverage floor.
+/// Crates whose tests need no GPU and so carry the coverage floor. See [`NOT_COUNTED`].
 const COVERED_CRATES: [&str; 5] = [
     "voxa-core",
     "voxa-dicom",
@@ -22,6 +23,14 @@ const COVERED_CRATES: [&str; 5] = [
     "voxa-labels",
     "voxa-models",
 ];
+
+/// Source files left out of a crate's count, as a pattern over their paths: what is in them
+/// runs only with the networks' runtime loaded or a graphics card in the computer, and
+/// neither is there when the gate runs. The paths are written with either slash.
+const NOT_COUNTED: [(&str, &str); 1] = [(
+    "voxa-models",
+    r"voxa-models[/\\]src[/\\](runtime|cards)\.rs$",
+)];
 
 fn main() -> ExitCode {
     let task = std::env::args().nth(1).unwrap_or_default();
@@ -68,18 +77,18 @@ fn check() -> Result<(), String> {
 /// Line coverage of each non-GPU crate, each held to the floor on its own.
 fn coverage() -> Result<(), String> {
     for name in COVERED_CRATES {
-        run(
-            "cargo",
-            &[
-                "llvm-cov",
-                "--package",
-                name,
-                "--all-features",
-                "--fail-under-lines",
-                COVERAGE_FLOOR,
-            ],
-            &[],
-        )?;
+        let mut args = vec![
+            "llvm-cov",
+            "--package",
+            name,
+            "--all-features",
+            "--fail-under-lines",
+            COVERAGE_FLOOR,
+        ];
+        if let Some((_, files)) = NOT_COUNTED.iter().find(|(owner, _)| *owner == name) {
+            args.extend(["--ignore-filename-regex", files]);
+        }
+        run("cargo", &args, &[])?;
     }
     Ok(())
 }

@@ -1,7 +1,11 @@
 //! The networks Voxa labels a scan with. This crate finds a model folder, reads the list that
-//! says what the folder should hold and checks every file against that list. It never runs
-//! a network, and it never fetches one: the folder is the person's own.
-#![forbid(unsafe_code)]
+//! says what the folder should hold and checks every file against that list. It lists the
+//! graphics cards of the computer. And it runs a network, on the processor or on a card,
+//! through ONNX Runtime loaded from a folder. It never fetches a network or the runtime: both
+//! folders are the person's own.
+// `unsafe` is allowed in one module, `cards`: the system's list of graphics cards has no
+// other door. Running a network needs none.
+#![deny(unsafe_code)]
 #![deny(missing_docs)]
 #![cfg_attr(
     not(test),
@@ -13,10 +17,19 @@
     )
 )]
 
+#[allow(unsafe_code)]
+mod cards;
 mod model;
+mod network;
+mod runtime;
+mod tensor;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
+pub use cards::{Card, CardKind, budget, cards};
 pub use model::{
     KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,
 };
+pub use network::{Device, Network, RunError, Stop};
+pub use runtime::{Runtime, RuntimeError};
+pub use tensor::{Numbers, Tensor};
