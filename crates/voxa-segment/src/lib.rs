@@ -1,7 +1,8 @@
 //! Everything `SynthSeg` does around its networks, step for step as `SynthSeg`'s own code does
 //! it. A network is only as right as what it is given: this crate turns one of Voxa's volumes
-//! into the image the networks were trained on, and remembers how to come back from it. The
-//! networks themselves are run by `voxa-models`.
+//! into the image the networks were trained on, and remembers how to come back from it. And
+//! it takes the steps between the networks: what each is given, and what is made of its
+//! answer before the next one runs. The networks themselves are run by `voxa-models`.
 //!
 //! Each step is held against arrays that `SynthSeg`'s own Python made from small made-up
 //! volumes (`tools/golden` makes them; they are under `tests/golden`).
@@ -18,6 +19,8 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod find;
 mod prepare;
 
+pub use find::{Found, Networks, Stage, find};
 pub use prepare::{Back, PrepareError, Prepared, Sizes, prepare, resampled, sizes};

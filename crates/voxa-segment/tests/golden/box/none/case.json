@@ -1,0 +1,22 @@
+{
+ "what": "no blob, only the two places that are not counted: the box is the start of the grid along x and z, and along y, where the grid is shorter than the box, the grid lies in its middle",
+ "made_with": {
+  "numpy": "2.5.3",
+  "tensorflow": "2.21.0"
+ },
+ "places": {
+  "file": "places.u8",
+  "holds": "one byte a voxel: the place of the voxel's top structure, as the network's [x, y, z] with z fastest: values[(x * size_y + y) * size_z + z]",
+  "size": [
+   12,
+   6,
+   20
+  ],
+  "structures": 33
+ },
+ "box": {
+  "file": "box.u8",
+  "holds": "one byte a voxel: a place, or 0 where the box lies outside the grid; [x, y, z] with z fastest and `side` voxels along each: values[(x * side + y) * side + z]",
+  "side": 8
+ }
+}

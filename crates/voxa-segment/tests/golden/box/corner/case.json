@@ -1,0 +1,22 @@
+{
+ "what": "a blob in a corner, at the start of x and the end of y and z: the box runs out of the grid on three sides, and is 0 there",
+ "made_with": {
+  "numpy": "2.5.3",
+  "tensorflow": "2.21.0"
+ },
+ "places": {
+  "file": "places.u8",
+  "holds": "one byte a voxel: the place of the voxel's top structure, as the network's [x, y, z] with z fastest: values[(x * size_y + y) * size_z + z]",
+  "size": [
+   16,
+   12,
+   20
+  ],
+  "structures": 33
+ },
+ "box": {
+  "file": "box.u8",
+  "holds": "one byte a voxel: a place, or 0 where the box lies outside the grid; [x, y, z] with z fastest and `side` voxels along each: values[(x * side + y) * side + z]",
+  "side": 8
+ }
+}

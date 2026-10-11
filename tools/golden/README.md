@@ -14,7 +14,7 @@ Voxa is not a medical device and is not for diagnostic use, and neither is anyth
 ## What it needs
 
 - A copy of [SynthSeg](https://github.com/BBillot/SynthSeg). No weights are needed: the steps
-  made here use none.
+  made here use none, and no network is run.
 - The Python environment of `tools/synthseg-to-onnx` (its `requirements.txt`). On NumPy 2,
   SynthSeg's own code needs the few one-line fixes that README speaks of.
 
@@ -23,21 +23,24 @@ Voxa is not a medical device and is not for diagnostic use, and neither is anyth
 ```
 python make_golden.py PATH\TO\SynthSeg
 python make_golden.py PATH\TO\SynthSeg prepare
+python make_golden.py PATH\TO\SynthSeg box
 ```
 
-The first makes every group of cases, the second only the group named. Each group is written
+The first makes every group of cases, the others only the group named. Each group is written
 under `crates/voxa-segment/tests/golden/<group>/` of the repository this script is in. It
 takes under a minute, most of it Python starting.
 
-A second run writes the same bytes, as long as NumPy, SciPy and nibabel are the versions that
-made the files before; every `case.json` says which those were. Each case has a seed of its
-own, made from its group's name and its own, so adding a case changes no other. Commit what
-the script writes together with the change to the script.
+A second run writes the same bytes, as long as the libraries are the versions that made the
+files before; every `case.json` says which those were (NumPy, SciPy and nibabel for
+`prepare`; NumPy and TensorFlow for `box`). Each case has a seed of its own, made from its
+group's name and its own, so adding a case changes no other. Commit what the script writes
+together with the change to the script.
 
 ## How to read what it writes
 
-Each case is a folder holding `case.json` and arrays. An array is raw little-endian 32-bit
-floats with no header; `case.json` gives its size and repeats its order.
+Each case is a folder holding `case.json` and arrays. An array has no header: a file named
+`.f32` is raw little-endian 32-bit floats, and one named `.u8` is one byte a number.
+`case.json` gives its size and repeats its order.
 
 - **A volume** (`volume.f32`, `resampled.f32`) is in the order Voxa holds one, which is also
   a NIfTI file's: columns fastest, then rows, then slices. With `dims` as
@@ -105,8 +108,41 @@ SynthSeg's choices fall on the same axis at first and its code mends them.
 as SynthSeg's `align_volume_to_ref` reads it, and the script checks both against what that
 function does to a block of numbers.
 
+## The group `box`
+
+What SynthSeg cuts from a map of top structures for its scores network: a box of one fixed
+size, laid so that what was found lies in its middle. Each map is given to SynthSeg's own
+layer `MakeShape` (in `SynthSeg/predict_synthseg.py`), fed as SynthSeg's `build_model` feeds
+it, for a box of 8 voxels a side. SynthSeg's own box is 224 a side; the rule is the same and
+the files are small.
+
+A map holds, for each voxel, the place of its top structure among 33: a number from 0 to 32.
+Outside the blob a map is place 0 with a sprinkling of place 24. Those are the two places
+the layer leaves out when it looks for where the structures lie, so they must not move the
+box; they are still copied into it. The blob is a ball of the other places.
+
+| Case | What it is |
+|---|---|
+| `middle` | A blob in the middle of the grid. The box is cut out round it, with one voxel more before the blob than after it where the room to share is odd |
+| `corner` | A blob in a corner: at the start of x and at the end of y and z. The box runs out of the grid on three sides and is 0 there |
+| `longer` | A blob longer than the box along x and z. The box keeps the blob's middle, with one voxel more cut from its end than from its start where what hangs over is odd |
+| `none` | No blob. The box is the start of the grid along x and z. Along y the grid is shorter than the box and lies in its middle |
+
+In each case folder:
+
+| File | What it holds |
+|---|---|
+| `places.u8` | The made-up map, in the order of an image: `[x, y, z]` with z fastest |
+| `box.u8` | What `MakeShape` gives: a cube of places, z fastest, 0 where the box lies outside the grid |
+| `case.json` | `places`: the grid's `size` along x, y and z, and how many `structures` a place is one of. `box`: its `side` |
+
+SynthSeg turns each place of the box into its score class after the cut. The cases stop
+before that, so the box holds places. The script stops if a case no longer shows what it is
+there for.
+
 ## Adding a group
 
 A group is a function like `prepare_group(checkout, out)` and a line in `GROUPS` at the foot
 of the script. Take random numbers from `seeded(group, case)`, write arrays with
-`write_floats` and `case.json` with `write_json`, and say here what the new files hold.
+`write_floats` or `write_bytes` and `case.json` with `write_json`, and say here what the new
+files hold.

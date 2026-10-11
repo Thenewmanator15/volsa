@@ -232,10 +232,104 @@ def prepare_group(checkout: Path, out: Path) -> None:
     turns(out, edit_volumes)
 
 
+# ---------------------------------------------------------------- the group "box"
+
+BOX_SIDE = 8  # the side of the box in these cases; the one SynthSeg's scores network is given is 224
+STRUCTURES = 33  # a voxel's top structure is a place from 0 to 32
+NOT_COUNTED = (0, 24)  # the two places SynthSeg's layer leaves out when it looks for where the structures lie
+
+PLACES_HOLD = ("one byte a voxel: the place of the voxel's top structure, as the network's [x, y, z] with z fastest: "
+               "values[(x * size_y + y) * size_z + z]")
+BOX_HOLDS = ("one byte a voxel: a place, or 0 where the box lies outside the grid; [x, y, z] with z fastest and "
+             "`side` voxels along each: values[(x * side + y) * side + z]")
+
+# name: (what it is, the grid's size along x, y and z, where the blob's block begins and how long it is along each)
+BOXES = {
+    "middle": ("a blob in the middle of the grid: the box is cut out round it, with one voxel more before the blob "
+               "than after it where the room to share is odd", (16, 12, 20), ((6, 4, 7), (3, 4, 5))),
+    "corner": ("a blob in a corner, at the start of x and the end of y and z: the box runs out of the grid on "
+               "three sides, and is 0 there", (16, 12, 20), ((0, 9, 17), (3, 3, 3))),
+    "longer": ("a blob longer than the box along x and z: the box keeps the blob's middle, with one voxel more cut "
+               "from its end than from its start where what hangs over is odd", (16, 12, 20), ((2, 4, 3), (11, 4, 13))),
+    "none": ("no blob, only the two places that are not counted: the box is the start of the grid along x and z, "
+             "and along y, where the grid is shorter than the box, the grid lies in its middle", (12, 6, 20), None),
+}
+
+
+def write_bytes(path: Path, array: np.ndarray) -> None:
+    """One byte a number, the last index fastest."""
+    array = np.asarray(array)
+    if array.min() < 0 or array.max() > 255:
+        raise SystemExit(f"{path.name}: a number that is not a byte.")
+    path.write_bytes(array.astype(np.uint8).tobytes(order="C"))
+
+
+def top_structures(rng, shape, blob) -> np.ndarray:
+    """A made-up map of top structures, indexed [x, y, z]. Outside the blob it is place 0 with a sprinkling of
+    place 24, the two places that are not counted. The blob is a ball of the other places that touches every face
+    of its block, so what counts lies in exactly that block."""
+    places = np.where(rng.random(shape) < 0.125, 24, 0)
+    if blob is not None:
+        start, size = np.array(blob[0]), np.array(blob[1])
+        grid = np.stack(np.meshgrid(*[np.arange(n) for n in shape], indexing="ij"), axis=-1)
+        inside = np.sum(((grid - (start + (size - 1) / 2)) / (size / 2)) ** 2, axis=-1) <= 1
+        counted = [place for place in range(STRUCTURES) if place not in NOT_COUNTED]
+        places[inside] = rng.choice(counted, size=int(inside.sum()))
+        where = np.argwhere(inside)
+        if not (np.array_equal(where.min(axis=0), start) and np.array_equal(where.max(axis=0) + 1, start + size)):
+            raise SystemExit(f"The blob does not touch every face of its block, {blob}.")
+    return places.astype(np.int32)
+
+
+def check_box(name: str, places: np.ndarray, box: np.ndarray, blob) -> None:
+    """Say so if a case stops showing what it is there for: how much of the blob the box holds and where the box
+    is 0 and, with no blob, that the box is the start of the grid with the grid's short side in its middle."""
+    counted = lambda array: int(np.count_nonzero(~np.isin(array, NOT_COUNTED)))
+    side = np.array(places.shape)
+    if box.shape != (BOX_SIDE,) * 3:
+        raise SystemExit(f"{name}: the box is {box.shape}.")
+    if blob is None:
+        # The grid is longer than the box along x and z, and two voxels shorter along y: a slab of zeros before
+        # the grid and one after, and between them the start of the grid as it is.
+        whole = (counted(places) == 0 and np.all(side[[0, 2]] > BOX_SIDE) and side[1] == BOX_SIDE - 2
+                 and not box[:, [0, -1], :].any() and np.array_equal(box[:, 1:-1, :], places[:BOX_SIDE, :, :BOX_SIDE]))
+    else:
+        longer = np.array(blob[1]) > BOX_SIDE
+        # Where the box runs out of the grid it is 0: before the grid along x, after it along y and z.
+        off_the_grid = not (box[0].any() or box[:, -1].any() or box[:, :, -1].any())
+        whole = {"middle": counted(box) == counted(places) and not longer.any(),
+                 "corner": counted(box) == counted(places) and not longer.any() and off_the_grid,
+                 "longer": 0 < counted(box) < counted(places) and longer.sum() == 2}[name]
+    if not whole:
+        raise SystemExit(f"{name}: the case no longer shows what it is there for.")
+
+
+def box_group(checkout: Path, out: Path) -> None:
+    """The box SynthSeg cuts from a map of top structures for its scores network: its layer MakeShape."""
+    import tensorflow as tf
+    from SynthSeg.predict_synthseg import MakeShape
+
+    layer = MakeShape(BOX_SIDE)
+    for name, (what, shape, blob) in BOXES.items():
+        places = top_structures(seeded("box", name), shape, blob)
+        # As SynthSeg's build_model feeds its layer: the map and the grid's size, each with an axis for the batch.
+        box = layer([tf.constant(places[np.newaxis]), tf.constant([shape], dtype=tf.int32)]).numpy()[0]
+        check_box(name, places, box, blob)
+        (out / name).mkdir(parents=True, exist_ok=True)
+        write_bytes(out / name / "places.u8", places)
+        write_bytes(out / name / "box.u8", box)
+        write_json(out / name / "case.json", {
+            "what": what, "made_with": {"numpy": np.__version__, "tensorflow": tf.__version__},
+            "places": {"file": "places.u8", "holds": PLACES_HOLD, "size": list(shape), "structures": STRUCTURES},
+            "box": {"file": "box.u8", "holds": BOX_HOLDS, "side": BOX_SIDE}})
+        print(f"box/{name}: {tuple(shape)} gives a box of {box.shape}, {int(np.count_nonzero(box))} of its voxels "
+              f"not 0")
+
+
 # ---------------------------------------------------------------- every group, by name
 
 # A later group of cases is a function like prepare_group and a line here.
-GROUPS = {"prepare": prepare_group}
+GROUPS = {"prepare": prepare_group, "box": box_group}
 
 
 def main() -> None:

@@ -1,6 +1,6 @@
 [package]
 name = "voxa-segment"
-description = "Everything SynthSeg does around its networks, step for step as its own code does it. First: preparing a volume for them."
+description = "Everything SynthSeg does around its networks, step for step as its own code does it: preparing a volume for them, and the steps between them."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,6 +15,8 @@ thiserror.workspace = true
 [dev-dependencies]
 # Reads the golden cases SynthSeg's own Python made (tools/golden).
 serde_json.workspace = true
+# Stand-ins for the networks.
+voxa-models = { workspace = true, features = ["testkit"] }
 
 [lints]
 workspace = true
