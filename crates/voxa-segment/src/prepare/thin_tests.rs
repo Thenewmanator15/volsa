@@ -78,13 +78,13 @@ fn a_short_side_across_or_from_front_to_back_is_allowed_down_to_four() {
     assert_eq!(made([4, 4, 11], STRAIGHT, ONE_MM), Ok([4, 4, 11]));
     // Under four is Voxa's own refusal, as stored and at 1 mm. `SynthSeg` gives an image of
     // each of the two refused here: three columns 2 mm apart, which are six at 1 mm, and
-    // twelve a fifth of a millimetre apart, which are three.
+    // twelve a quarter of a millimetre apart, which are three.
     let coarse = [2.0, 1.0, 1.0];
     assert_eq!(made([3, 20, 20], STRAIGHT, coarse), Err(TooFewSlices));
     assert_eq!(made([4, 20, 20], STRAIGHT, coarse), Ok([8, 20, 20]));
-    let narrow = [0.2, 1.0, 1.0];
+    let narrow = [0.25, 1.0, 1.0];
     assert_eq!(made([12, 20, 20], STRAIGHT, narrow), Err(TooFewSlices));
-    assert_eq!(made([20, 20, 20], STRAIGHT, narrow), Ok([4, 20, 20]));
+    assert_eq!(made([16, 20, 20], STRAIGHT, narrow), Ok([4, 20, 20]));
 }
 
 #[test]
