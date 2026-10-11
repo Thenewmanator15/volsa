@@ -139,7 +139,7 @@ Three things differ from a file made elsewhere:
   SynthSeg's own scores with a fail mark of 0.65.
 - The caption says the labels were made by Voxa, with which model, on which device, when,
   and "not for diagnostic use". It no longer says "made elsewhere".
-- A **Notes** line lists anything a reader should know: "The slices of this scan are 5 mm
+- A **Notes** line lists anything a reader should know: "The slices of this scan are 6 mm
   apart, so this is a rough map", "Run on the processor: the graphics card did not have
   room", "The scan was cut to the head to fit; labels at the very edge may differ".
 
