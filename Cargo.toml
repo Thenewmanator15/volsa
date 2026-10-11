@@ -6,6 +6,7 @@ members = [
     "crates/voxa-volume",
     "crates/voxa-labels",
     "crates/voxa-models",
+    "crates/voxa-segment",
     "crates/voxa-render",
     "crates/voxa-app",
     "xtask",
@@ -25,6 +26,7 @@ voxa-dicom = { path = "crates/voxa-dicom" }
 voxa-volume = { path = "crates/voxa-volume" }
 voxa-labels = { path = "crates/voxa-labels" }
 voxa-models = { path = "crates/voxa-models" }
+voxa-segment = { path = "crates/voxa-segment" }
 voxa-render = { path = "crates/voxa-render" }
 
 thiserror = "2"

@@ -1,0 +1,104 @@
+{
+ "what": "0.28125 x 1.08 x 2.7 mm, turned 7 degrees about x. Along the columns SynthSeg's rule gives one sample more than the spacing times the count, rounded up. The rows, a little over 1 mm apart, are where a blur would show if one were made there",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "nibabel": "5.4.2"
+ },
+ "to_patient": "voxel (column, row, slice) to the patient in left-posterior-superior millimetres, as Voxa holds it: where a step along each axis leads, and where voxel (0, 0, 0) lies. SynthSeg was given the same with the x and y rows negated (right-anterior-superior). The transform a case starts from holds 32-bit floats, as a NIfTI file does: take each number as one. The transform of a resampled volume is SynthSeg's result, in double precision.",
+ "volume": {
+  "file": "volume.f32",
+  "holds": "little-endian f32; columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   16,
+   10,
+   12
+  ],
+  "to_patient": {
+   "columns": [
+    [
+     -0.28125,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     -1.07194983959198,
+     -0.13161888718605042
+    ],
+    [
+     0.0,
+     -0.32904723286628723,
+     2.6798746585845947
+    ]
+   ],
+   "origin": [
+    6.25,
+    8.5,
+    -15.75
+   ]
+  }
+ },
+ "resampled": {
+  "file": "resampled.f32",
+  "holds": "little-endian f32; columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   6,
+   11,
+   33
+  ],
+  "to_patient": {
+   "columns": [
+    [
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     -0.9925461519972821,
+     -0.12186934050608549
+    ],
+    [
+     0.0,
+     -0.1218693432727569,
+     0.9925461516575776
+    ]
+   ],
+   "origin": [
+    5.890625,
+    8.643290788594115,
+    -16.588789480123527
+   ]
+  }
+ },
+ "image": {
+  "file": "image.f32",
+  "holds": "little-endian f32; the image before padding, as the network's [x, y, z] with z fastest: values[(x * size_y + y) * size_z + z]",
+  "size": [
+   6,
+   11,
+   33
+  ],
+  "padded": [
+   128,
+   128,
+   128
+  ],
+  "padding_before": [
+   61,
+   58,
+   47
+  ],
+  "order": [
+   0,
+   1,
+   2
+  ],
+  "turned_round": [
+   false,
+   false,
+   false
+  ]
+ }
+}

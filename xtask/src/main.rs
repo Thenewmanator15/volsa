@@ -16,12 +16,13 @@ const MAX_FILE_LINES: usize = 400;
 /// Lowest acceptable line coverage, in percent, for each crate in [`COVERED_CRATES`].
 const COVERAGE_FLOOR: &str = "80";
 /// Crates whose tests need no GPU and so carry the coverage floor. See [`NOT_COUNTED`].
-const COVERED_CRATES: [&str; 5] = [
+const COVERED_CRATES: [&str; 6] = [
     "voxa-core",
     "voxa-dicom",
     "voxa-volume",
     "voxa-labels",
     "voxa-models",
+    "voxa-segment",
 ];
 
 /// Source files left out of a crate's count, as a pattern over their paths: what is in them

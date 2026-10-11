@@ -4111,6 +4111,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "voxa-segment"
+version = "0.4.0"
+dependencies = [
+ "serde_json",
+ "thiserror 2.0.21",
+ "voxa-core",
+ "voxa-models",
+]
+
+[[package]]
 name = "voxa-volume"
 version = "0.4.0"
 dependencies = [

@@ -1,0 +1,2 @@
+# Raw arrays of numbers, made by tools/golden: never text, whatever bytes they happen to hold.
+*.f32 binary
