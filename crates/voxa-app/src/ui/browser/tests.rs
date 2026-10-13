@@ -199,7 +199,7 @@ fn a_card_notes_what_a_series_is_and_warns_only_of_a_fault() {
     assert_eq!(note(&of(30, Vec::new())), None, "a volume needs no note");
     assert_eq!(
         note(&of(3, vec![SeriesProblem::MixedOrientations])),
-        Some(("locating images in several planes".to_owned(), false))
+        Some(("locating images".to_owned(), false))
     );
     assert_eq!(
         note(&of(1, Vec::new())),
@@ -207,7 +207,7 @@ fn a_card_notes_what_a_series_is_and_warns_only_of_a_fault() {
     );
     assert_eq!(
         note(&of(30, vec![SeriesProblem::UnevenSpacing])),
-        Some(("! unevenly spaced slices".to_owned(), true))
+        Some(("! uneven spacing".to_owned(), true))
     );
     let unread = SeriesProblem::UnsupportedTransferSyntax("some other way".to_owned());
     assert_eq!(
@@ -236,4 +236,20 @@ fn resting_on_a_card_gives_the_whole_description_and_every_reason() {
         ..SeriesInfo::default()
     };
     assert_eq!(hover(&unnamed), "Series 7\n1 slice · 1 mm");
+}
+
+#[test]
+fn resting_on_a_card_also_says_what_kind_of_scan_it_is() {
+    let info = SeriesInfo {
+        slices: 30,
+        scan: voxa_core::ScanFacts {
+            in_3d: Some(true),
+            echo_ms: Some(21.0),
+            ..voxa_core::ScanFacts::default()
+        },
+        ..SeriesInfo::default()
+    };
+    let text = hover(&info);
+    assert!(text.contains("Acquired as one block (3D)"), "{text}");
+    assert!(text.contains("Echo time 21 ms"), "{text}");
 }

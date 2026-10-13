@@ -259,6 +259,7 @@ fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
             spacing_mm: [between_cols, between_rows, between_slices],
             voxel_to_patient,
             problems,
+            scan: first.scan.clone(),
             ..SeriesInfo::default()
         },
         slices: slices
@@ -323,5 +324,7 @@ fn typical_step(steps_mm: &[f64], problems: &mut Vec<SeriesProblem>) -> Option<f
 
 #[cfg(test)]
 mod placement_tests;
+#[cfg(test)]
+mod scan_tests;
 #[cfg(test)]
 mod tests;

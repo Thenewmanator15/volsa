@@ -31,7 +31,7 @@ impl SeriesKind {
     /// faults, which are described by their reason.
     pub fn says(&self) -> Option<&'static str> {
         match self {
-            Self::Locating => Some("locating images in several planes"),
+            Self::Locating => Some("locating images"),
             Self::Single => Some("a single image"),
             Self::Colour => Some("colour pictures"),
             Self::Volume | Self::Stack(_) | Self::Unreadable(_) => None,
@@ -101,10 +101,7 @@ mod tests {
     fn a_few_images_in_several_planes_are_locating_images_not_a_fault() {
         let planes = [SeriesProblem::MixedOrientations];
         assert_eq!(of(3, &planes), SeriesKind::Locating);
-        assert_eq!(
-            SeriesKind::Locating.says(),
-            Some("locating images in several planes")
-        );
+        assert_eq!(SeriesKind::Locating.says(), Some("locating images"));
         assert!(!SeriesKind::Locating.is_fault());
         let and_sizes = [SeriesProblem::MixedOrientations, SeriesProblem::MixedSizes];
         assert_eq!(of(MOST_LOCATING, &and_sizes), SeriesKind::Locating);
@@ -165,10 +162,7 @@ mod tests {
 
     #[test]
     fn each_problem_has_a_few_words_for_a_narrow_place() {
-        assert_eq!(
-            SeriesProblem::UnevenSpacing.brief(),
-            "unevenly spaced slices"
-        );
+        assert_eq!(SeriesProblem::UnevenSpacing.brief(), "uneven spacing");
         assert_eq!(SeriesProblem::MissingGeometry.brief(), "no position data");
         assert_eq!(
             SeriesProblem::UnsupportedTransferSyntax("x".to_owned()).brief(),

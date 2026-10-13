@@ -124,9 +124,11 @@ fn title(info: &SeriesInfo) -> String {
 }
 
 /// What resting the pointer on a card shows: everything the card may have had no room for.
-/// The whole description, how many slices, and each reason the series is not a volume.
+/// The whole description, how many slices, what kind of scan it is, and each reason the
+/// series is not a volume.
 pub fn hover(info: &SeriesInfo) -> String {
     let mut lines = vec![title(info), caption(info)];
+    lines.extend(info.scan.lines());
     lines.extend(problems_text(info));
     lines.join("\n")
 }
@@ -245,8 +247,9 @@ fn card(
     response.on_hover_text(hover(info))
 }
 
-/// The words on a card, from `at` downwards: what the series is headed, how many slices, and
-/// a note of what it is when it is not a volume (the pointer over the card shows the rest).
+/// The words on a card, from `at` downwards: what the series is headed, how many slices, what
+/// kind of scan it is, and a note of what it is when it is not a volume (the pointer over the
+/// card shows the rest).
 fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2) {
     let body = egui::TextStyle::Body.resolve(ui.style());
     let small = egui::TextStyle::Small.resolve(ui.style());
@@ -256,13 +259,18 @@ fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2) {
     };
     line(4.0, title(info), body, strong);
     line(26.0, caption(info), small.clone(), theme::QUIET_TEXT);
+    let mut down = 42.0;
+    if let Some(scan) = info.scan.line() {
+        line(down, scan, small.clone(), theme::QUIET_TEXT);
+        down += 14.0;
+    }
     if let Some((text, warning)) = note(info) {
         let colour = if warning {
             theme::WARNING
         } else {
             theme::QUIET_TEXT
         };
-        line(44.0, text, small, colour);
+        line(down, text, small, colour);
     }
 }
 

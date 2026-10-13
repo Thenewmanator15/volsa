@@ -74,6 +74,38 @@ pub struct SliceOptions {
     pub transfer_syntax: String,
     /// Leave this many values off the end of the pixel data, as a truncated file would.
     pub drop_pixels: usize,
+    /// What the file says about how it was acquired; nothing unless given.
+    pub scan: ScanTags,
+}
+
+/// What a made-up file says about how it was acquired, and what sets it apart from the
+/// other images at its position. Whatever is left empty or `None` is not written.
+#[derive(Debug, Clone, Default)]
+pub struct ScanTags {
+    /// `ScanningSequence`: codes such as `SE`, `GR`, `IR`, `EP`, separated by a backslash.
+    pub sequence: String,
+    /// `MRAcquisitionType`: `2D` or `3D`.
+    pub acquired: String,
+    /// `RepetitionTime`, in milliseconds.
+    pub repetition_ms: Option<f64>,
+    /// `EchoTime`, in milliseconds.
+    pub echo_ms: Option<f64>,
+    /// `InversionTime`, in milliseconds.
+    pub inversion_ms: Option<f64>,
+    /// `FlipAngle`, in degrees.
+    pub flip_deg: Option<f64>,
+    /// `MagneticFieldStrength`, in tesla.
+    pub field_t: Option<f64>,
+    /// `BodyPartExamined`.
+    pub body_part: String,
+    /// `TemporalPositionIdentifier`.
+    pub temporal: Option<i32>,
+    /// `DiffusionBValue`.
+    pub b_value: Option<f64>,
+    /// `TriggerTime`, in milliseconds.
+    pub trigger_ms: Option<f64>,
+    /// `AcquisitionNumber`.
+    pub acquisition: Option<i32>,
 }
 
 impl Default for SliceOptions {
@@ -102,6 +134,7 @@ impl Default for SliceOptions {
             monochrome1: false,
             transfer_syntax: EXPLICIT_VR_LITTLE_ENDIAN.to_owned(),
             drop_pixels: 0,
+            scan: ScanTags::default(),
         }
     }
 }

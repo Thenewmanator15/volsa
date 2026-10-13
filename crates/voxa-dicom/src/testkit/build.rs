@@ -5,7 +5,9 @@ use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 
-use super::{EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, SliceOptions};
+use super::{EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, ScanTags, SliceOptions};
+
+mod scan;
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";
@@ -80,6 +82,7 @@ fn shared_groups(common: &SliceOptions) -> InMemDicomObject {
         let item = one(decimal(tags::IMAGE_ORIENTATION_PATIENT, &orientation));
         shared.put(sequence(tags::PLANE_ORIENTATION_SEQUENCE, vec![item]));
     }
+    scan::put_shared(&mut shared, &common.scan);
     let mut measures = InMemDicomObject::new_empty();
     if let Some(spacing) = common.pixel_spacing {
         measures.put(decimal(tags::PIXEL_SPACING, &spacing));
@@ -155,6 +158,7 @@ fn common_elements(opts: &SliceOptions, sop_class: &str) -> InMemDicomObject {
     if let Some(date) = &opts.study_date {
         obj.put(element(tags::STUDY_DATE, VR::DA, date.as_str()));
     }
+    scan::put(&mut obj, &opts.scan, sop_class == ENHANCED_MR_IMAGE_STORAGE);
     obj
 }
 

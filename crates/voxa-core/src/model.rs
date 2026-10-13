@@ -51,12 +51,12 @@ impl SeriesProblem {
     /// The problem in a few words, for a place too narrow for its sentence.
     pub fn brief(&self) -> &'static str {
         match self {
-            Self::NotMr(_) => "not an MRI series",
+            Self::NotMr(_) => "not MRI",
             Self::TooFewSlices(_) => "too few slices",
-            Self::MixedSizes => "slices of different sizes",
-            Self::UnevenSpacing => "unevenly spaced slices",
-            Self::RepeatedPositions => "slices that share a position",
-            Self::MixedOrientations => "slices facing different ways",
+            Self::MixedSizes => "mixed sizes",
+            Self::UnevenSpacing => "uneven spacing",
+            Self::RepeatedPositions => "repeated positions",
+            Self::MixedOrientations => "several planes",
             Self::MissingGeometry => "no position data",
             Self::UnsupportedTransferSyntax(_) => "cannot be read yet",
         }
