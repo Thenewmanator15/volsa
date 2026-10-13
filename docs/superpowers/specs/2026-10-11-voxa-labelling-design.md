@@ -141,7 +141,8 @@ Three things differ from a file made elsewhere:
   and "not for diagnostic use". It no longer says "made elsewhere".
 - A **Notes** line lists anything a reader should know: "The slices of this scan are 6 mm
   apart, so this is a rough map", "Run on the processor: the graphics card did not have
-  room", "The scan was cut to the head to fit; labels at the very edge may differ".
+  room", "The scan was cut to the head to fit. Where two parts
+  meet, some voxels may be labelled differently than without the cut."
 
 **Later.** The result is kept (section 8). When the same series is opened again the Parts
 tab says labels made on such a date are kept for it, and offers **Show**, **Make again** and
@@ -303,6 +304,11 @@ networks did convert as one).
   voxel for each network, on a card and on the processor. The figures are measured on
   made-up volumes during the build and kept in the code with a quarter added for safety.
   The check's first figures: 1.4 KB a voxel on a card, 2 KB on the processor.
+  *(Amended after the first real runs: about 0.7 KB a voxel on the processor, once the
+  runtime's arena is off and the standard network's blur is three one-axis convolutions;
+  and every run, on a card too, is held to what it asks the system for in ordinary
+  memory, which a test on the real networks checks. The plan's Conventions have the
+  figures.)*
 - **It knows what each device has**: a card's own memory, less what Voxa itself is holding
   there for the scan and its labels; the computer's free memory.
 - **Automatic** tries, in order:
@@ -323,7 +329,9 @@ networks did convert as one).
 - **If a run fails on a card** for want of memory or because the device was lost, Voxa
   tries the next rung once and the Notes line says so. If the processor fails too, the
   error is shown.
-- **Finding the adapter.** DirectML wants the adapter by its number in the system's own
+- **Finding the adapter.** *(Amended: the system's list changes its order while a program
+  runs, so Voxa knows a card by the system's identity for it and looks its number up each
+  time a network is opened.)* DirectML wants the adapter by its number in the system's own
   list, and Voxa needs each adapter's memory. How Voxa learns both on Windows is the
   builder's choice. If it needs `unsafe`, that goes in one small module of `voxa-models`
   with a comment on each use, and a decision record makes the exception, as the design
@@ -347,7 +355,11 @@ networks did convert as one).
 Said here once, and on the result where it applies:
 
 - Volumes are counted voxels, not added probabilities.
-- The scan may be cut to the head when memory is short (never otherwise).
+- The scan may be cut to the head when memory is short (never otherwise). Measured on a
+  made-up head: where the head lies in the networks' box moves about one labelled voxel in
+  a hundred, along the borders between structures everywhere in the head. SynthSeg's own
+  program does the same when the head lies elsewhere in its box, so neither answer is the
+  truer; the result says that it was cut.
 - The cortex network's answer is reduced to areas inside the file, which gives the same
   labels and no table of soft volumes.
 - Nothing else. In particular the preparing and tidying steps are SynthSeg's, step for step.
