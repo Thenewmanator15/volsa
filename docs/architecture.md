@@ -138,9 +138,15 @@ Nothing a file contains may crash the application; see [adr/0003-errors.md](adr/
 ## Decoding and what the tests cover
 
 `decode_slice` reads images stored uncompressed, with run-length encoding (RLE), as JPEG
-(baseline, extended and lossless) and as JPEG 2000 (lossless and lossy). Any other compression is
+(baseline, extended and lossless) and as JPEG 2000 (lossless and lossy), and files whose data set
+is deflated. Any other compression is
 named on the series card when the scan is indexed, and decoding it returns
-`UnsupportedTransferSyntax` with the same name. Colour images are declined.
+`UnsupportedTransferSyntax` with the same name.
+
+A picture stored in colour, 8 bits a sample, as red, green and blue or as brightness and two
+colour differences, is decoded to a colour for each pixel, with each pixel's brightness as its
+value. Palette colour, deeper colour and the subsampled ways of storing colour are declined in
+a sentence that names them.
 
 The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
 with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
@@ -152,6 +158,8 @@ NIfTI file can place its voxels.
 
 Tests build their files in memory with the `testkit` feature of `voxa-dicom`. They cover
 uncompressed pixels (unsigned, signed, 8-bit, `MONOCHROME1`, per-frame rescale in a multi-frame
-file) and RLE, for which the test writes the compressed frame by hand. No JPEG or JPEG 2000
-encoder is among the development dependencies, so those two are not covered by an automated test;
-they are checked by hand against real exports in the acceptance test at the end of milestone 1.
+file), pictures in colour, and RLE, for which the test writes the compressed frame by hand. A
+JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency. A JPEG 2000
+picture is a small made-up file kept with the tests, written by `tools/fixtures/make_ramp_j2k.py`,
+and is decoded exactly. A deflated file is deflated in its test. Lossless JPEG and lossy
+JPEG 2000 have no test of their own.

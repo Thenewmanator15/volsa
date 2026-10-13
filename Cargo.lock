@@ -3932,6 +3932,8 @@ dependencies = [
  "dicom-object",
  "dicom-pixeldata",
  "dicom-transfer-syntax-registry",
+ "flate2",
+ "jpeg-encoder",
  "proptest",
  "tempfile",
  "voxa-core",
