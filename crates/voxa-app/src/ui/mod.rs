@@ -25,6 +25,7 @@ mod parts;
 mod pen;
 mod pictures;
 mod planes;
+mod remembered;
 mod saving;
 mod scene;
 mod scene_bar;
@@ -67,6 +68,8 @@ pub struct VoxaApp {
     label_pose: Vec<Action>,
     /// A turntable of the 3D scene that is being drawn, a picture each frame.
     turntable: Option<scene::export::Turntable>,
+    /// What is remembered from one run to the next.
+    kept: crate::prefs::Kept,
 }
 
 impl VoxaApp {
@@ -111,6 +114,7 @@ impl VoxaApp {
         let capture = capture::Capture::from_environment();
         let kept = capture::kept_between_runs(capture.is_some(), settings::folder());
         let mut app = Self {
+            kept: crate::prefs::Kept::new(kept.clone()),
             session: Session::new(from_workers, reports, CACHE_BYTES, kept),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
@@ -129,6 +133,7 @@ impl VoxaApp {
             label_pose: Vec::new(),
             turntable: None,
         };
+        app.recall();
         if let Some(render) = render {
             app.tell_the_workers_of(render);
         }
@@ -243,6 +248,7 @@ impl VoxaApp {
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.session.pump();
+        self.remember(ctx);
         self.open_waiting_labels();
         self.play(ctx);
         self.make_thumbnails(ctx);
@@ -346,7 +352,11 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
     let capturing = capture::Capture::from_environment().is_some();
     crate::log::start(capture::kept_between_runs(capturing, crate::log::folder()).as_deref());
     let asked = std::env::var(capture::SIZE_VARIABLE).ok();
-    let size = asked.and_then(|size| capture::size_from(&size));
+    let kept = capture::kept_between_runs(capturing, settings::folder());
+    let remembered = crate::prefs::Kept::new(kept).remembered().window;
+    let size = asked
+        .and_then(|size| capture::size_from(&size))
+        .or(remembered);
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
         .with_inner_size(size.unwrap_or([1440.0, 900.0]))

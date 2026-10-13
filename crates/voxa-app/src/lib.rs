@@ -24,6 +24,7 @@ mod log;
 mod measurements;
 mod parts_table;
 mod planes;
+mod prefs;
 mod reducer;
 mod scene;
 mod session;
