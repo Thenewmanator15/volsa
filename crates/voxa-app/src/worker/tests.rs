@@ -13,7 +13,7 @@ use super::*;
 use crate::testing::{THICK_SCAN, id, series_files, slice_options};
 
 /// Bytes held by one decoded 4 × 4 frame.
-const ONE: usize = 64;
+pub(super) const ONE: usize = 64;
 /// Long enough for any worker on any machine; a test that waits this long has failed.
 const PATIENCE: Duration = Duration::from_secs(60);
 /// Long enough for a worker that was going to say something to have said it.

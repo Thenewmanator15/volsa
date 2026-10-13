@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use voxa_core::SeriesId;
-use voxa_dicom::{Frame, ImageFile, Index, IndexedSeries, SeriesSource, index, open_source};
+use voxa_dicom::{Frame, Index, IndexedSeries, SeriesSource, index, open_source};
 use voxa_labels::LabelSet;
 use voxa_volume::PRESETS;
 
@@ -18,6 +18,7 @@ use crate::volume_store::VolumeStore;
 
 mod annotations;
 mod labels;
+mod opened;
 mod post;
 mod tags;
 mod views;
@@ -46,6 +47,8 @@ struct Shared {
     source: Mutex<Option<Box<dyn SeriesSource>>>,
     /// How many sources have been opened. Work begun for an earlier one stops.
     opened: AtomicU64,
+    /// The file of many frames opened last.
+    kept: opened::Opened,
     /// The newest request for each series. Work begun for an earlier request stops.
     newest: Mutex<HashMap<SeriesId, u64>>,
     requests: AtomicU64,
@@ -105,6 +108,7 @@ impl Workers {
             cache,
             source: Mutex::new(None),
             opened: AtomicU64::new(0),
+            kept: opened::Opened::default(),
             newest: Mutex::new(HashMap::new()),
             requests: AtomicU64::new(0),
             volumes,
@@ -169,6 +173,7 @@ impl Workers {
     fn start_index(&self, path: PathBuf) {
         let opened = self.shared.opened.fetch_add(1, Ordering::SeqCst) + 1;
         *lock(&self.shared.source) = None;
+        self.shared.kept.clear();
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         lock(&self.shared.volumes).clear();
@@ -283,18 +288,16 @@ impl Shared {
         if !self.still_wanted(request) {
             return;
         }
-        let bytes = match lock(&self.source).as_mut() {
-            Some(source) => source.read(&batch.entry),
-            None => return,
+        let Some(file) = self.file_of(batch, request) else {
+            return;
         };
-        let file = bytes.and_then(|bytes| ImageFile::open(&bytes));
         for (slice, frame) in &batch.slices {
             if !self.still_wanted(request) {
                 return;
             }
             let decoded = match &file {
                 Ok(file) => file.decode(*frame).map_err(|error| error.to_string()),
-                Err(error) => Err(error.to_string()),
+                Err(error) => Err(error.clone()),
             };
             self.deliver(request, *slice, decoded);
         }
