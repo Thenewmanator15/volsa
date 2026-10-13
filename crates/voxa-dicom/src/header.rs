@@ -39,6 +39,8 @@ pub(crate) struct Header {
     pub transfer_syntax: String,
     /// `ImagePositionPatient` of each frame; one entry for a single-frame file.
     pub positions: Vec<Option<[f64; 3]>>,
+    /// True when the images are stored in colour: three samples for every pixel.
+    pub colour: bool,
     /// What the file says about how the series was acquired.
     pub scan: ScanFacts,
     /// What each frame says that sets it apart from others at its position; one entry
@@ -94,6 +96,7 @@ fn parse(bytes: &[u8]) -> Option<Header> {
         } else {
             vec![position(obj)]
         },
+        colour: int(obj, tags::SAMPLES_PER_PIXEL) == Some(3),
         scan: scan::facts(obj, orientation),
         told: if multi_frame {
             told::of_frames(obj, frames)

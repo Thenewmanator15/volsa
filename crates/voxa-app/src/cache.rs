@@ -124,6 +124,7 @@ mod tests {
             rows: 4,
             cols: 4,
             values: vec![marker; 16],
+            colour: None,
         })
     }
 

@@ -5,8 +5,11 @@ use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 
-use super::{EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, ScanTags, SliceOptions};
+use super::{
+    Colour, EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, ScanTags, SliceOptions,
+};
 
+mod colour;
 mod scan;
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
@@ -40,6 +43,9 @@ pub fn classic_slice(opts: &SliceOptions) -> Vec<u8> {
     };
     stored.truncate(stored.len().saturating_sub(opts.drop_pixels));
     obj.put(pixels(stored));
+    if let Some(colour) = &opts.colour {
+        colour::put(&mut obj, colour, opts.drop_pixels);
+    }
     write(obj, opts)
 }
 

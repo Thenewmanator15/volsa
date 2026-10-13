@@ -189,3 +189,18 @@ pub fn two_echoes_files() -> Vec<(String, Vec<u8>)> {
         .flat_map(|place| echoes.map(|echo| image(place, echo)))
         .collect()
 }
+
+/// A made-up series of pictures in colour, series number 7.
+pub const COLOUR: &str = "1.2.3.7";
+
+/// The files of the series in colour: two 2 x 2 pictures.
+pub fn colour_files() -> Vec<(String, Vec<u8>)> {
+    let pixels = vec![[200, 10, 20], [10, 190, 30], [20, 30, 180], [240, 240, 240]];
+    (0..2)
+        .map(|place| {
+            let mut options = slice_options(COLOUR, 7, place, 2);
+            options.colour = Some(voxa_dicom::testkit::Colour::of(pixels.clone()));
+            (format!("S7/I{place:04}.dcm"), classic_slice(&options))
+        })
+        .collect()
+}

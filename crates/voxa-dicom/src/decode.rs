@@ -3,7 +3,6 @@
 use std::io::Cursor;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
-use dicom_dictionary_std::tags;
 use dicom_object::{DefaultDicomObject, ReadError};
 use dicom_pixeldata::{PhotometricInterpretation, PixelDecoder};
 use dicom_transfer_syntax_registry::{TransferSyntaxIndex, TransferSyntaxRegistry};
@@ -11,6 +10,8 @@ use voxa_core::VoxaError;
 
 use crate::index::SliceRef;
 use crate::source::SeriesSource;
+
+mod colour;
 
 /// The pixels of one slice as values, row by row.
 #[derive(Debug, Clone, PartialEq)]
@@ -21,6 +22,9 @@ pub struct Frame {
     pub cols: u32,
     /// `rows × cols` values: the one at row `r`, column `c` is `values[r * cols + c]`.
     pub values: Vec<f32>,
+    /// For a picture stored in colour, the red, green and blue of each pixel, in the same
+    /// order; `values` then holds how bright each pixel is. `None` for a grey image.
+    pub colour: Option<Vec<[u8; 3]>>,
 }
 
 /// Decode one slice.
@@ -33,7 +37,8 @@ pub struct Frame {
 ///
 /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
 /// it; [`VoxaError::NotDicom`] when the entry is not a DICOM file; [`VoxaError::Decode`] when
-/// the file is damaged or cut short, is in colour, or lacks the frame asked for; and the
+/// the file is damaged or cut short, is in a kind of colour Voxa does not show, or lacks the
+/// frame asked for; and the
 /// source's own error when the entry cannot be read from it.
 pub fn decode_slice(source: &mut dyn SeriesSource, slice: &SliceRef) -> Result<Frame, VoxaError> {
     let bytes = source.read(&slice.entry)?;
@@ -53,21 +58,15 @@ impl ImageFile {
     ///
     /// [`VoxaError::NotDicom`] when the bytes are not a DICOM file,
     /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
-    /// it, and [`VoxaError::Decode`] when the file is damaged or its images are in colour.
+    /// it, and [`VoxaError::Decode`] when the file is damaged or its images are in a kind of
+    /// colour Voxa does not show.
     pub fn open(bytes: &[u8]) -> Result<Self, VoxaError> {
         guarded(|| {
             let file = open(bytes)?;
             if let Some(name) = unreadable(file.meta().transfer_syntax()) {
                 return Err(VoxaError::UnsupportedTransferSyntax(name));
             }
-            let samples = file
-                .get(tags::SAMPLES_PER_PIXEL)
-                .and_then(|element| element.to_int::<u16>().ok());
-            if samples.is_some_and(|per_pixel| per_pixel != 1) {
-                return Err(VoxaError::Decode(
-                    "colour images are not supported yet".to_owned(),
-                ));
-            }
+            colour::check(&file)?;
             Ok(Self { file })
         })
     }
@@ -88,6 +87,9 @@ impl ImageFile {
             .file
             .decode_pixel_data_frame(frame)
             .map_err(|error| damaged(&error))?;
+        if decoded.samples_per_pixel() == 3 {
+            return colour::frame(&decoded);
+        }
         let mut values: Vec<f32> = decoded.to_vec_frame(0).map_err(|error| damaged(&error))?;
         let (rows, cols) = (decoded.rows(), decoded.columns());
         if values.len() != rows as usize * cols as usize {
@@ -98,7 +100,12 @@ impl ImageFile {
         if *decoded.photometric_interpretation() == PhotometricInterpretation::Monochrome1 {
             invert(&mut values);
         }
-        Ok(Frame { rows, cols, values })
+        Ok(Frame {
+            rows,
+            cols,
+            values,
+            colour: None,
+        })
     }
 }
 
@@ -157,6 +164,8 @@ pub(crate) fn guarded<T>(work: impl FnOnce() -> Result<T, VoxaError>) -> Result<
     })
 }
 
+#[cfg(test)]
+mod colour_tests;
 #[cfg(test)]
 mod compressed_tests;
 #[cfg(test)]

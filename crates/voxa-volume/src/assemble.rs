@@ -5,6 +5,9 @@ use voxa_core::{SeriesInfo, SeriesProblem, Volume};
 /// Why a series cannot be shown in 3D. Each reads as a sentence for the person using Voxa.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum VolumeError {
+    /// The series is of pictures stored in colour, which have no values to make a volume of.
+    #[error("Pictures in colour have no 3D view.")]
+    Colour,
     /// The series has fewer than two slices; the number is given.
     #[error("A 3D view needs at least two slices; this series has {0}.")]
     TooFewSlices(usize),
@@ -29,6 +32,9 @@ pub enum VolumeError {
 ///
 /// The reason it is not, problems first.
 pub fn can_be_volume(info: &SeriesInfo) -> Result<(), VolumeError> {
+    if info.colour {
+        return Err(VolumeError::Colour);
+    }
     if !info.problems.is_empty() {
         return Err(VolumeError::Problems(info.problems.clone()));
     }
@@ -194,6 +200,20 @@ mod tests {
         assert_eq!(
             said(VolumeError::SizeMismatch { slice: 6 }),
             "Slice 7 is not the size the series says, so a 3D view cannot be built."
+        );
+    }
+
+    #[test]
+    fn pictures_in_colour_cannot_be_a_volume_and_say_so_first() {
+        let colour = SeriesInfo {
+            colour: true,
+            problems: vec![SeriesProblem::UnevenSpacing],
+            ..series(3)
+        };
+        assert_eq!(can_be_volume(&colour), Err(VolumeError::Colour));
+        assert_eq!(
+            VolumeError::Colour.to_string(),
+            "Pictures in colour have no 3D view."
         );
     }
 }

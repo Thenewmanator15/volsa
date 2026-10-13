@@ -14,6 +14,7 @@ use crate::action::Action;
 use crate::state::{AppState, Layout};
 
 mod annotate;
+mod colour;
 mod mouse;
 
 pub(super) use mouse::turned as wheel_turned;
@@ -31,6 +32,8 @@ pub struct Gpu {
     pipeline: Arc<Mutex<SlicePipeline>>,
     /// The slice that is uploaded now, so it is uploaded once and not every frame.
     uploaded: Option<(SeriesId, usize)>,
+    /// That slice as a picture in its own colours, when it is stored in colour.
+    coloured: Option<egui::TextureHandle>,
     /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
     part_notch: f32,
 }
@@ -42,6 +45,7 @@ impl Gpu {
         Self {
             pipeline: Arc::new(Mutex::new(pipeline)),
             uploaded: None,
+            coloured: None,
             part_notch: 0.0,
         }
     }
@@ -234,9 +238,12 @@ fn slice(
             return false;
         };
         let (device, queue) = (&render.device, &render.queue);
-        if pipeline
-            .upload(device, queue, frame.rows, frame.cols, &frame.values)
-            .is_err()
+        gpu.coloured = colour::texture(ui.ctx(), &frame);
+        let grey = gpu.coloured.is_none();
+        if grey
+            && pipeline
+                .upload(device, queue, frame.rows, frame.cols, &frame.values)
+                .is_err()
         {
             return false;
         }
@@ -244,6 +251,10 @@ fn slice(
     }
     let size = [pane.cell.width(), pane.cell.height()];
     let aspect = pixel_aspect(pane.state, pane.at);
+    if let Some(picture) = &gpu.coloured {
+        colour::draw(ui, pane.cell, &pane.shown, picture, aspect);
+        return true;
+    }
     pipeline.set_params(&render.queue, viewport.wl, &pane.shown, size, aspect);
     let draw = DrawSlice(Arc::clone(&gpu.pipeline));
     ui.painter()

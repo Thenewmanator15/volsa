@@ -104,6 +104,11 @@ fn window(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         return;
     };
     ui.label("Window");
+    let series = shown.series.as_ref().and_then(|id| state.series(id));
+    if series.is_some_and(|listed| listed.info.colour) {
+        ui.weak("none: in its own colours");
+        return;
+    }
     let (mut width, mut level) = (shown.wl.width, shown.wl.center);
     let step = f64::from((shown.wl.width / 100.0).max(0.1));
     let width_field = egui::DragValue::new(&mut width)

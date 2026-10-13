@@ -76,6 +76,36 @@ pub struct SliceOptions {
     pub drop_pixels: usize,
     /// What the file says about how it was acquired; nothing unless given.
     pub scan: ScanTags,
+    /// Make the image a picture in colour, with these pixels in place of `stored`.
+    pub colour: Option<Colour>,
+}
+
+/// A made-up picture stored in colour.
+#[derive(Debug, Clone)]
+pub struct Colour {
+    /// The three samples of each pixel, row by row.
+    pub pixels: Vec<[u8; 3]>,
+    /// Store all the first samples, then all the second, then all the third.
+    pub planar: bool,
+    /// `PhotometricInterpretation`: what the three samples are.
+    pub photometric: String,
+    /// `BitsAllocated` for each sample.
+    pub bits: u16,
+    /// `SamplesPerPixel`; only this many of each pixel's samples are written.
+    pub samples: u16,
+}
+
+impl Colour {
+    /// These pixels as red, green and blue, 8 bits each, pixel by pixel.
+    pub fn of(pixels: Vec<[u8; 3]>) -> Self {
+        Self {
+            pixels,
+            planar: false,
+            photometric: "RGB".to_owned(),
+            bits: 8,
+            samples: 3,
+        }
+    }
 }
 
 /// What a made-up file says about how it was acquired, and what sets it apart from the
@@ -135,6 +165,7 @@ impl Default for SliceOptions {
             transfer_syntax: EXPLICIT_VR_LITTLE_ENDIAN.to_owned(),
             drop_pixels: 0,
             scan: ScanTags::default(),
+            colour: None,
         }
     }
 }

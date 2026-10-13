@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use voxa_core::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VoxaError};
+use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyId, StudyInfo, VoxaError};
 
 use crate::decode::unreadable;
 use crate::geometry::{
@@ -84,15 +84,15 @@ pub fn index(
     Ok(finished)
 }
 
-/// The series to open first: the one with the most voxels among those with at least ten
-/// slices and no problems. A tie goes to the lower series number, and then to the earlier
+/// The series to open first: the one with the most voxels among the volumes of at least
+/// ten slices. A tie goes to the lower series number, and then to the earlier
 /// volume of a series that holds several. `None` when none qualifies.
 pub fn best_series(index: &Index) -> Option<&IndexedSeries> {
     index
         .series
         .iter()
         .filter(|series| {
-            series.info.slices >= MIN_SLICES_FOR_BEST && series.info.problems.is_empty()
+            series.info.slices >= MIN_SLICES_FOR_BEST && series.info.kind() == SeriesKind::Volume
         })
         .max_by(|a, b| {
             // Of the volumes of one series, which are all alike, the first.
@@ -287,6 +287,7 @@ fn assembled(
             voxel_to_patient,
             problems,
             scan: first.scan.clone(),
+            colour: first.colour,
             ..SeriesInfo::default()
         },
         slices: slices

@@ -290,6 +290,8 @@ fn settle_window(
 #[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
+mod colour_tests;
+#[cfg(test)]
 mod frame_tests;
 #[cfg(test)]
 mod labels_open_tests;

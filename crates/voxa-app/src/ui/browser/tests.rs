@@ -15,6 +15,7 @@ fn a_thumbnail_is_a_small_grey_picture_of_the_frame() {
         rows: 4,
         cols: 4,
         values: (0..16u8).map(f32::from).collect(),
+        colour: None,
     };
     let image = thumbnail(&frame, WindowLevel::new(7.5, 16.0), 2);
     assert_eq!(image.size, [2, 2]);
@@ -35,12 +36,14 @@ fn a_thumbnail_keeps_the_shape_of_the_frame() {
         rows: 4,
         cols: 8,
         values: vec![1.0; 32],
+        colour: None,
     };
     assert_eq!(thumbnail(&wide, WindowLevel::new(0.5, 1.0), 4).size, [4, 2]);
     let tall = Frame {
         rows: 9,
         cols: 3,
         values: vec![1.0; 27],
+        colour: None,
     };
     assert_eq!(thumbnail(&tall, WindowLevel::new(0.5, 1.0), 3).size, [1, 3]);
 }
@@ -51,6 +54,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
         rows: 0,
         cols: 0,
         values: Vec::new(),
+        colour: None,
     };
     let image = thumbnail(&empty, WindowLevel::new(0.0, 1.0), 64);
     assert_eq!(
@@ -61,6 +65,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
         rows: 4,
         cols: 4,
         values: vec![1.0; 3],
+        colour: None,
     };
     assert_eq!(
         thumbnail(&lying, WindowLevel::new(0.0, 1.0), 2).size,
@@ -308,5 +313,28 @@ fn the_card_of_a_series_of_several_volumes_says_how_many() {
     assert_eq!(
         caption(&volume_of("two", 0, 2)),
         "2 volumes · 3 slices · 5 mm"
+    );
+}
+
+#[test]
+fn the_small_picture_of_a_frame_in_colour_keeps_its_colours() {
+    let colours = vec![[200, 10, 20], [10, 190, 30], [20, 30, 180], [240, 240, 240]];
+    let frame = Frame {
+        rows: 2,
+        cols: 2,
+        values: vec![0.0; 4],
+        colour: Some(colours.clone()),
+    };
+    let image = thumbnail(&frame, WindowLevel::new(0.0, 1.0), 2);
+    assert_eq!(image.size, [2, 2]);
+    let shown: Vec<[u8; 3]> = image.pixels.iter().map(|p| [p.r(), p.g(), p.b()]).collect();
+    assert_eq!(shown, colours);
+    // Made smaller, each pixel is the mean of what it covers.
+    let one = thumbnail(&frame, WindowLevel::new(0.0, 1.0), 1);
+    assert_eq!(one.size, [1, 1]);
+    assert_eq!(
+        one.pixels[0].r(),
+        118,
+        "the mean of 200, 10, 20 and 240, rounded"
     );
 }

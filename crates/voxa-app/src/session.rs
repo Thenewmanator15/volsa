@@ -79,7 +79,13 @@ impl Session {
             let volume = self.volume(series)?;
             let [cols, rows, _] = volume.dims();
             let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
-            Some(Arc::new(Frame { rows, cols, values }))
+            let colour = None;
+            Some(Arc::new(Frame {
+                rows,
+                cols,
+                values,
+                colour,
+            }))
         })
     }
 

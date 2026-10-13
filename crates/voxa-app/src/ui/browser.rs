@@ -52,6 +52,9 @@ pub fn thumbnail(frame: &Frame, wl: WindowLevel, size: u32) -> ColorImage {
     if rows == 0 || cols == 0 || size == 0 || frame.values.len() != rows * cols {
         return ColorImage::filled([1, 1], Color32::BLACK);
     }
+    if let Some(colours) = frame.colour.as_ref().filter(|all| all.len() == rows * cols) {
+        return in_colour(colours, [rows, cols], size);
+    }
     let longest = rows.max(cols);
     let wide = (cols * size as usize / longest).max(1);
     let high = (rows * size as usize / longest).max(1);
@@ -71,6 +74,33 @@ pub fn thumbnail(frame: &Frame, wl: WindowLevel, size: u32) -> ColorImage {
     };
     let pixels = (0..high).flat_map(|y| (0..wide).map(move |x| grey(x, y)));
     ColorImage::from_gray_iter([wide, high], pixels)
+}
+
+/// A small picture of a frame stored in colour, as [`thumbnail`] makes of a grey one: each
+/// pixel the mean of the block of the frame it covers.
+fn in_colour(colours: &[[u8; 3]], [rows, cols]: [usize; 2], size: u32) -> ColorImage {
+    let longest = rows.max(cols);
+    let wide = (cols * size as usize / longest).max(1);
+    let high = (rows * size as usize / longest).max(1);
+    let block = |at: usize, of: usize, from: usize| {
+        (at * from / of)..((at + 1) * from / of).max(at * from / of + 1)
+    };
+    let mean = |x: usize, y: usize| {
+        let (mut sum, mut count) = ([0.0_f32; 3], 0.0_f32);
+        for row in block(y, high, rows) {
+            for col in block(x, wide, cols) {
+                let colour = colours.get(row * cols + col).copied().unwrap_or_default();
+                for (total, part) in sum.iter_mut().zip(colour) {
+                    *total += f32::from(part);
+                }
+                count += 1.0;
+            }
+        }
+        let [red, green, blue] = sum.map(|total| grey_level(total / count.max(1.0) / 255.0));
+        Color32::from_rgb(red, green, blue)
+    };
+    let pixels = (0..high).flat_map(|y| (0..wide).map(move |x| mean(x, y)));
+    ColorImage::new([wide, high], pixels.collect())
 }
 
 /// A fraction from black (0) to white (1) as one of 256 greys.
