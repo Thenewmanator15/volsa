@@ -150,6 +150,12 @@ pub struct EnhancedFrame {
     pub slope: f64,
     /// `RescaleIntercept` of this frame.
     pub intercept: f64,
+    /// The frame's diffusion weighting, or absent.
+    pub b_value: Option<f64>,
+    /// The frame's echo time in milliseconds, or absent.
+    pub echo_ms: Option<f64>,
+    /// Which time point the frame is, or absent.
+    pub temporal: Option<i32>,
 }
 
 impl EnhancedFrame {
@@ -160,6 +166,9 @@ impl EnhancedFrame {
             stored: Vec::new(),
             slope: 1.0,
             intercept: 0.0,
+            b_value: None,
+            echo_ms: None,
+            temporal: None,
         }
     }
 }

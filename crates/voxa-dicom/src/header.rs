@@ -8,6 +8,9 @@ use dicom_object::{InMemDicomObject, OpenFileOptions};
 use voxa_core::ScanFacts;
 
 mod scan;
+mod told;
+
+pub(crate) use told::Told;
 
 /// What one image file says about itself.
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +41,9 @@ pub(crate) struct Header {
     pub positions: Vec<Option<[f64; 3]>>,
     /// What the file says about how the series was acquired.
     pub scan: ScanFacts,
+    /// What each frame says that sets it apart from others at its position; one entry
+    /// for a single-frame file.
+    pub told: Vec<Told>,
 }
 
 /// Parse the header of one file. `None` when the bytes are not a DICOM image: not DICOM at
@@ -89,6 +95,11 @@ fn parse(bytes: &[u8]) -> Option<Header> {
             vec![position(obj)]
         },
         scan: scan::facts(obj, orientation),
+        told: if multi_frame {
+            told::of_frames(obj, frames)
+        } else {
+            vec![told::of_file(obj)]
+        },
     })
 }
 

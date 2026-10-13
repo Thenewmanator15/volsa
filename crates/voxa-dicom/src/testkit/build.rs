@@ -104,6 +104,7 @@ fn frame_groups(frame: &EnhancedFrame) -> InMemDicomObject {
     rescale.put(decimal(tags::RESCALE_SLOPE, &[frame.slope]));
     let rescale = vec![rescale];
     groups.put(sequence(tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, rescale));
+    scan::put_frame(&mut groups, frame);
     groups
 }
 

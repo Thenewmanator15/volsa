@@ -4,7 +4,7 @@ use dicom_core::{PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
 
-use super::{ScanTags, decimal, element, one, sequence};
+use super::{EnhancedFrame, ScanTags, decimal, element, one, sequence};
 
 /// The elements at the top of a file. A single-frame file lists its sequence as codes and
 /// states its timings directly; a file of many frames says each thing separately and keeps
@@ -112,5 +112,34 @@ pub(super) fn put_shared(shared: &mut InMemDicomObject, scan: &ScanTags) {
             PrimitiveValue::from(inversion),
         ));
         shared.put(sequence(tags::MR_MODIFIER_SEQUENCE, vec![item]));
+    }
+}
+
+/// What one frame says that sets it apart from others at its position, in its own groups.
+pub(super) fn put_frame(groups: &mut InMemDicomObject, frame: &EnhancedFrame) {
+    if let Some(b_value) = frame.b_value {
+        let item = one(element(
+            tags::DIFFUSION_B_VALUE,
+            VR::FD,
+            PrimitiveValue::from(b_value),
+        ));
+        groups.put(sequence(tags::MR_DIFFUSION_SEQUENCE, vec![item]));
+    }
+    if let Some(echo) = frame.echo_ms {
+        let item = one(element(
+            tags::EFFECTIVE_ECHO_TIME,
+            VR::FD,
+            PrimitiveValue::from(echo),
+        ));
+        groups.put(sequence(tags::MR_ECHO_SEQUENCE, vec![item]));
+    }
+    if let Some(temporal) = frame.temporal {
+        let index = u32::try_from(temporal).unwrap_or(0);
+        let item = one(element(
+            tags::TEMPORAL_POSITION_INDEX,
+            VR::UL,
+            PrimitiveValue::from(index),
+        ));
+        groups.put(sequence(tags::FRAME_CONTENT_SEQUENCE, vec![item]));
     }
 }
