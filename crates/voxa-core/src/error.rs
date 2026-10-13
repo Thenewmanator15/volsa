@@ -27,9 +27,45 @@ pub enum VoxaError {
     MissingEntry(String),
 }
 
+impl VoxaError {
+    /// What kind of failure this is, in a few words that say nothing of the file it happened
+    /// on: for a log, which must not hold a file's name or anything read from one.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Self::Io(_) => "a file could not be read",
+            Self::Archive(_) => "a zip file could not be read",
+            Self::NotDicom => "not a DICOM file",
+            Self::Decode(_) => "an image could not be decoded",
+            Self::UnsupportedTransferSyntax(_) => "a compression Voxa cannot read",
+            Self::EmptySource => "no images were found",
+            Self::MissingEntry(_) => "a file is no longer in the export",
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_kind_of_a_failure_says_nothing_of_the_file() {
+        let named = "Quillfeather.dcm".to_owned();
+        let failures = [
+            VoxaError::Archive(named.clone()),
+            VoxaError::Decode(named.clone()),
+            VoxaError::UnsupportedTransferSyntax(named.clone()),
+            VoxaError::MissingEntry(named),
+        ];
+        for failure in failures {
+            assert!(failure.to_string().contains("Quillfeather"));
+            assert!(
+                !failure.kind().contains("Quillfeather"),
+                "{}",
+                failure.kind()
+            );
+        }
+        assert_eq!(VoxaError::NotDicom.kind(), "not a DICOM file");
+    }
 
     #[test]
     fn messages_are_plain_words() {

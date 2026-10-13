@@ -122,7 +122,9 @@ impl Session {
 
     /// Apply an action and hand the work it calls for to the workers.
     pub fn dispatch(&mut self, action: Action) {
+        let (indexed, before) = (action == Action::IndexDone, self.state.notices.clone());
         let mut effects = reduce(&mut self.state, action);
+        crate::log::what_changed(&before, &self.state, indexed);
         // A volume asked for is made known to the workers before the frames of its series
         // are: the slices are then decoded once, for the volume.
         effects.sort_by_key(|effect| !matches!(effect, Effect::BuildVolume { .. }));

@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use super::{Workers, shielded};
+use super::{Shared, Workers, shielded};
 use crate::action::Action;
 use crate::state::Notice;
 
@@ -18,6 +18,16 @@ impl Workers {
             shielded(|| said = work());
             shared.report(Action::Post(said));
         });
+    }
+}
+
+impl Shared {
+    /// Say that an export could not be opened, and log what kind of failure it was: the
+    /// reason goes to the window in full, where it may name the file, and to the log as its
+    /// kind alone.
+    pub(super) fn could_not_open(&self, error: &voxa_core::VoxaError) {
+        tracing::warn!("an export could not be opened: {}", error.kind());
+        self.report(Action::IndexFailed(error.to_string()));
     }
 }
 

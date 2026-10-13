@@ -279,7 +279,7 @@ impl Shared {
                 self.report(Action::IndexDone);
             }
             Ok((_, found)) => self.report(Action::IndexFailed(nothing_found(path, &found))),
-            Err(error) => self.report(Action::IndexFailed(error.to_string())),
+            Err(error) => self.could_not_open(&error),
         }
     }
 

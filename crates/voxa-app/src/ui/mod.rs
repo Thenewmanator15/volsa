@@ -105,6 +105,7 @@ impl VoxaApp {
             }
         });
         let render = creation.wgpu_render_state.as_ref();
+        crate::log::device(render);
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let capture = capture::Capture::from_environment();
@@ -342,6 +343,8 @@ fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> 
 /// When the window or its graphics device cannot be created.
 pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result {
     // A picture for the documentation may want the window a particular size.
+    let capturing = capture::Capture::from_environment().is_some();
+    crate::log::start(capture::kept_between_runs(capturing, crate::log::folder()).as_deref());
     let asked = std::env::var(capture::SIZE_VARIABLE).ok();
     let size = asked.and_then(|size| capture::size_from(&size));
     let viewport = egui::ViewportBuilder::default()

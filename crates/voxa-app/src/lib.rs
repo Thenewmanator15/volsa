@@ -20,6 +20,7 @@ mod csv;
 mod effect;
 mod export;
 mod labels;
+mod log;
 mod measurements;
 mod parts_table;
 mod planes;

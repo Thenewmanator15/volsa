@@ -12,6 +12,10 @@ pub const LICENCES: [&str; 4] = [
     "This software is based in part on the work of the Independent JPEG Group.",
 ];
 
+/// What is said above the path of the log.
+pub const LOG_SAYS: &str =
+    "A log of what Voxa did is kept here. It holds nothing about a patient and no file names.";
+
 /// Voxa's version, as written in its package.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -34,6 +38,17 @@ pub fn show(ctx: &egui::Context, open: &mut bool) {
             ui.add_space(8.0);
             for line in LICENCES {
                 ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
+            }
+            if let Some(log) = crate::log::path() {
+                ui.add_space(8.0);
+                ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
+                ui.horizontal(|ui| {
+                    let path = log.display().to_string();
+                    ui.label(RichText::new(&path).small().monospace());
+                    if ui.small_button("Copy").clicked() {
+                        ui.ctx().copy_text(path);
+                    }
+                });
             }
         });
 }
