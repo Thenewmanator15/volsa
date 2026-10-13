@@ -171,6 +171,7 @@ fn series() -> SeriesInfo {
         spacing_mm: [0.7, 0.7, 7.5],
         voxel_to_patient: Some(axial()),
         problems: Vec::new(),
+        ..SeriesInfo::default()
     }
 }
 

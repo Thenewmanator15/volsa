@@ -101,6 +101,7 @@ mod tests {
             spacing_mm: [0.5, 0.5, 7.5],
             voxel_to_patient: Some(to_patient),
             problems: Vec::new(),
+            ..SeriesInfo::default()
         }
     }
 

@@ -188,3 +188,52 @@ fn an_export_with_nothing_open_asks_for_one() {
     assert_eq!((actions.len(), cards.len()), (0, 0));
     let _ = THICK_SCAN;
 }
+
+#[test]
+fn a_card_notes_what_a_series_is_and_warns_only_of_a_fault() {
+    let of = |slices: usize, problems: Vec<SeriesProblem>| SeriesInfo {
+        slices,
+        problems,
+        ..SeriesInfo::default()
+    };
+    assert_eq!(note(&of(30, Vec::new())), None, "a volume needs no note");
+    assert_eq!(
+        note(&of(3, vec![SeriesProblem::MixedOrientations])),
+        Some(("locating images in several planes".to_owned(), false))
+    );
+    assert_eq!(
+        note(&of(1, Vec::new())),
+        Some(("a single image".to_owned(), false))
+    );
+    assert_eq!(
+        note(&of(30, vec![SeriesProblem::UnevenSpacing])),
+        Some(("! unevenly spaced slices".to_owned(), true))
+    );
+    let unread = SeriesProblem::UnsupportedTransferSyntax("some other way".to_owned());
+    assert_eq!(
+        note(&of(30, vec![unread])),
+        Some(("! cannot be read yet".to_owned(), true))
+    );
+}
+
+#[test]
+fn resting_on_a_card_gives_the_whole_description_and_every_reason() {
+    let long = "a description that is a good deal longer than any card is wide";
+    let info = SeriesInfo {
+        description: long.to_owned(),
+        slices: 30,
+        spacing_mm: [1.0, 1.0, 5.0],
+        problems: vec![SeriesProblem::UnevenSpacing, SeriesProblem::MixedSizes],
+        ..SeriesInfo::default()
+    };
+    let text = hover(&info);
+    assert!(text.starts_with(long), "{text}");
+    assert!(text.contains("30 slices · 5 mm"), "{text}");
+    assert!(text.contains("The slices are not evenly spaced"), "{text}");
+    assert!(text.contains("not all the same size"), "{text}");
+    let unnamed = SeriesInfo {
+        number: 7,
+        ..SeriesInfo::default()
+    };
+    assert_eq!(hover(&unnamed), "Series 7\n1 slice · 1 mm");
+}

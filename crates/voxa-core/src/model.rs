@@ -1,5 +1,6 @@
 //! What a scan export contains: studies, the series inside them, and anything wrong with a series.
 
+use crate::scan::ScanFacts;
 use crate::space::{Affine, Patient, Voxel};
 
 /// Identifier of a series: its DICOM `SeriesInstanceUID`, followed by the file's own identifier
@@ -47,6 +48,20 @@ pub enum SeriesProblem {
 const SO_A_STACK: &str = ", so this is shown as a plain stack.";
 
 impl SeriesProblem {
+    /// The problem in a few words, for a place too narrow for its sentence.
+    pub fn brief(&self) -> &'static str {
+        match self {
+            Self::NotMr(_) => "not an MRI series",
+            Self::TooFewSlices(_) => "too few slices",
+            Self::MixedSizes => "slices of different sizes",
+            Self::UnevenSpacing => "unevenly spaced slices",
+            Self::RepeatedPositions => "slices that share a position",
+            Self::MixedOrientations => "slices facing different ways",
+            Self::MissingGeometry => "no position data",
+            Self::UnsupportedTransferSyntax(_) => "cannot be read yet",
+        }
+    }
+
     /// The problem alone, without what follows from it: for a place that lists several
     /// problems and says once what follows from them all.
     pub fn what(&self) -> String {
@@ -81,6 +96,49 @@ pub struct SeriesInfo {
     pub voxel_to_patient: Option<Affine<Voxel, Patient>>,
     /// Anything that stops the series being treated as a regular volume.
     pub problems: Vec<SeriesProblem>,
+    /// What kind of scan it is, as far as its files say.
+    pub scan: ScanFacts,
+    /// Which volume this is of a series that holds several; `None` for a series of one.
+    pub set: Option<VolumeSet>,
+    /// True when the images are stored in colour.
+    pub colour: bool,
+}
+
+/// The place of one volume among the volumes of a series that holds several: the weightings
+/// of a diffusion series, the echoes of a multi-echo one, the time points of a dynamic one.
+#[derive(Debug, Clone, PartialEq)]
+pub struct VolumeSet {
+    /// The identifier of the whole series, shared by all its volumes.
+    pub of: SeriesId,
+    /// Which volume this is, counting from 0.
+    pub at: usize,
+    /// How many volumes the series holds.
+    pub count: usize,
+    /// What sets this volume apart, in words ("b 1000", "echo 30 ms"); empty when the files
+    /// do not say.
+    pub what: String,
+}
+
+impl Default for SeriesInfo {
+    /// A series of one 1 mm slice with nothing known about it: a starting point for building
+    /// one field by field.
+    fn default() -> Self {
+        Self {
+            id: SeriesId(String::new()),
+            number: 0,
+            description: String::new(),
+            modality: String::new(),
+            rows: 0,
+            cols: 0,
+            slices: 1,
+            spacing_mm: [1.0; 3],
+            voxel_to_patient: None,
+            problems: Vec::new(),
+            scan: ScanFacts::default(),
+            set: None,
+            colour: false,
+        }
+    }
 }
 
 impl SeriesInfo {
@@ -154,6 +212,7 @@ mod tests {
             spacing_mm: [0.7, 0.7, 7.5],
             voxel_to_patient: geometry.then(Affine::identity),
             problems: Vec::new(),
+            ..SeriesInfo::default()
         }
     }
 

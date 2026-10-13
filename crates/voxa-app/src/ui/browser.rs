@@ -6,7 +6,7 @@ use egui::{
     Align2, Color32, ColorImage, CornerRadius, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2,
     vec2,
 };
-use voxa_core::{SeriesId, SeriesInfo, StudyInfo, WindowLevel};
+use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyInfo, WindowLevel};
 use voxa_dicom::Frame;
 
 use super::theme;
@@ -99,6 +99,36 @@ pub fn caption(info: &SeriesInfo) -> String {
 pub fn problems_text(info: &SeriesInfo) -> Option<String> {
     let lines: Vec<String> = info.problems.iter().map(ToString::to_string).collect();
     (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+/// The third line of a card, and whether it is a warning: what the series is when it is not a
+/// volume, in a few words. Only something that stops Voxa showing a series in full is a
+/// warning; locating images, a single image and colour pictures are as they should be.
+pub fn note(info: &SeriesInfo) -> Option<(String, bool)> {
+    let warning = |problem: &SeriesProblem| Some((format!("! {}", problem.brief()), true));
+    match info.kind() {
+        SeriesKind::Volume => None,
+        SeriesKind::Stack(problem) => warning(&problem),
+        SeriesKind::Unreadable(name) => warning(&SeriesProblem::UnsupportedTransferSyntax(name)),
+        kind => kind.says().map(|words| (words.to_owned(), false)),
+    }
+}
+
+/// What a card is headed: the scanner's description, or the series' number when it has none.
+fn title(info: &SeriesInfo) -> String {
+    if info.description.is_empty() {
+        format!("Series {}", info.number)
+    } else {
+        info.description.clone()
+    }
+}
+
+/// What resting the pointer on a card shows: everything the card may have had no room for.
+/// The whole description, how many slices, and each reason the series is not a volume.
+pub fn hover(info: &SeriesInfo) -> String {
+    let mut lines = vec![title(info), caption(info)];
+    lines.extend(problems_text(info));
+    lines.join("\n")
 }
 
 /// The heading of a study: its date in words, then its description.
@@ -211,43 +241,28 @@ fn card(
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         painter.image(texture.id(), placed, whole, Color32::WHITE);
     }
-    let problems = problems_text(info);
-    words(
-        ui,
-        &painter,
-        info,
-        problems.is_some(),
-        picture.right_top() + vec2(PADDING, 0.0),
-    );
-    match problems {
-        Some(problems) => response.on_hover_text(problems),
-        None => response,
-    }
+    words(ui, &painter, info, picture.right_top() + vec2(PADDING, 0.0));
+    response.on_hover_text(hover(info))
 }
 
-/// The words on a card, from `at` downwards: what the series is, how many slices, and a mark
-/// when something about it needs reading (the pointer over the card shows what).
-fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, marked: bool, at: egui::Pos2) {
-    let title = if info.description.is_empty() {
-        format!("Series {}", info.number)
-    } else {
-        info.description.clone()
-    };
+/// The words on a card, from `at` downwards: what the series is headed, how many slices, and
+/// a note of what it is when it is not a volume (the pointer over the card shows the rest).
+fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2) {
     let body = egui::TextStyle::Body.resolve(ui.style());
     let small = egui::TextStyle::Small.resolve(ui.style());
     let strong = ui.visuals().strong_text_color();
     let line = |down: f32, text: String, font, colour| {
         painter.text(at + vec2(0.0, down), Align2::LEFT_TOP, text, font, colour);
     };
-    line(4.0, title, body, strong);
+    line(4.0, title(info), body, strong);
     line(26.0, caption(info), small.clone(), theme::QUIET_TEXT);
-    if marked {
-        line(
-            44.0,
-            "! this series has a problem".to_owned(),
-            small,
-            theme::WARNING,
-        );
+    if let Some((text, warning)) = note(info) {
+        let colour = if warning {
+            theme::WARNING
+        } else {
+            theme::QUIET_TEXT
+        };
+        line(44.0, text, small, colour);
     }
 }
 

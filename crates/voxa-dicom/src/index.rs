@@ -259,6 +259,7 @@ fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
             spacing_mm: [between_cols, between_rows, between_slices],
             voxel_to_patient,
             problems,
+            ..SeriesInfo::default()
         },
         slices: slices
             .iter()
