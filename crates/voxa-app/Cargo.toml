@@ -15,7 +15,8 @@ voxa-labels.workspace = true
 voxa-render.workspace = true
 rayon.workspace = true
 rfd.workspace = true
-eframe = { workspace = true, features = ["wgpu", "default_fonts", "x11", "wayland"] }
+# `accesskit` describes the interface to screen readers.
+eframe = { workspace = true, features = ["accesskit", "wgpu", "default_fonts", "x11", "wayland"] }
 image.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true

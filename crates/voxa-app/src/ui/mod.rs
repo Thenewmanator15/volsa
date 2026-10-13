@@ -15,6 +15,8 @@ mod about;
 mod browser;
 mod capture;
 mod cine;
+#[cfg(test)]
+mod described_tests;
 mod help;
 mod icon;
 mod keys;
