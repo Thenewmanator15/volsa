@@ -44,6 +44,11 @@ impl Histogram {
         })
     }
 
+    /// How many values were counted.
+    pub fn count(&self) -> u64 {
+        self.total
+    }
+
     /// The span of values one bin covers: how finely percentiles are resolved. 0.0 when every
     /// value is the same.
     pub fn bin_width(&self) -> f32 {
