@@ -16,6 +16,7 @@ mod browser;
 mod capture;
 mod cine;
 mod help;
+mod icon;
 mod keys;
 mod labels;
 mod layout;
@@ -359,6 +360,7 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
         .or(remembered);
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
+        .with_icon(icon::icon())
         .with_inner_size(size.unwrap_or([1440.0, 900.0]))
         .with_min_inner_size([900.0, 600.0]);
     let options = eframe::NativeOptions {

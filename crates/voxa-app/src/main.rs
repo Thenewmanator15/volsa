@@ -1,36 +1,33 @@
 //! Voxa: a viewer for MRI scans. Not a medical device; not for diagnostic use.
 
-use std::path::PathBuf;
+// A release build for Windows opens no console window beside its own. What it would have
+// printed there is said in a message window instead.
+#![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
+
 use std::process::ExitCode;
 
-use voxa_app::{Command, USAGE, parse_args, run, version};
+use voxa_app::{Command, Outcome, outcome, parse_args, run, tell};
 
-/// Open the window and run until it is closed.
-fn started(scan: Option<PathBuf>, labels: Option<PathBuf>) -> ExitCode {
+/// Whether this program was built without a console to print to.
+const WINDOWED: bool = cfg!(all(windows, not(debug_assertions)));
+
+fn main() -> ExitCode {
+    let command = parse_args(std::env::args_os().skip(1));
+    if let Some(said) = outcome(&command) {
+        tell(&said, WINDOWED);
+        return ExitCode::from(said.code);
+    }
+    let (scan, labels) = match command {
+        Ok(Command::RunWith { scan, labels }) => (scan, Some(labels)),
+        Ok(Command::Run(scan)) => (scan, None),
+        _ => (None, None),
+    };
     match run(scan, labels) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
-            eprintln!("Voxa could not start: {error}");
-            ExitCode::FAILURE
-        }
-    }
-}
-
-fn main() -> ExitCode {
-    match parse_args(std::env::args_os().skip(1)) {
-        Ok(Command::Run(scan)) => started(scan, None),
-        Ok(Command::RunWith { scan, labels }) => started(scan, Some(labels)),
-        Ok(Command::Version) => {
-            println!("{}", version());
-            ExitCode::SUCCESS
-        }
-        Ok(Command::Help) => {
-            println!("{USAGE}");
-            ExitCode::SUCCESS
-        }
-        Err(problem) => {
-            eprintln!("{problem}\n\n{USAGE}");
-            ExitCode::from(2)
+            let failed = Outcome::could_not_start(&error);
+            tell(&failed, WINDOWED);
+            ExitCode::from(failed.code)
         }
     }
 }
