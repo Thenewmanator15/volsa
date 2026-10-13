@@ -253,3 +253,60 @@ fn resting_on_a_card_also_says_what_kind_of_scan_it_is() {
     assert!(text.contains("Acquired as one block (3D)"), "{text}");
     assert!(text.contains("Echo time 21 ms"), "{text}");
 }
+
+/// A made-up volume of a series that holds `count`.
+fn volume_of(whole: &str, at: usize, count: usize) -> SeriesInfo {
+    SeriesInfo {
+        id: SeriesId(format!("{whole}@{}", at + 1)),
+        slices: 3,
+        spacing_mm: [1.0, 1.0, 5.0],
+        set: Some(voxa_core::VolumeSet {
+            of: SeriesId(whole.to_owned()),
+            at,
+            count,
+            what: String::new(),
+        }),
+        ..SeriesInfo::default()
+    }
+}
+
+#[test]
+fn a_series_of_several_volumes_has_one_card_whatever_their_number() {
+    let plain = SeriesInfo {
+        id: SeriesId("plain".to_owned()),
+        ..SeriesInfo::default()
+    };
+    let mut series = vec![plain.clone()];
+    series.extend((0..300).map(|at| volume_of("many", at, 300)));
+    series.extend((0..2).map(|at| volume_of("two", at, 2)));
+    let ids = |shown: Option<&SeriesId>| -> Vec<String> {
+        let cards = one_for_each(&series, shown);
+        cards.iter().map(|info| info.id.0.clone()).collect()
+    };
+    assert_eq!(
+        ids(None),
+        ["plain", "many@1", "two@1"],
+        "the first stands for the rest"
+    );
+    let second = SeriesId("two@2".to_owned());
+    assert_eq!(
+        ids(Some(&second)),
+        ["plain", "many@1", "two@2"],
+        "or the one on show does"
+    );
+    assert_eq!(ids(Some(&plain.id)), ["plain", "many@1", "two@1"]);
+    assert_eq!(
+        face_of(&series, &volume_of("two", 1, 2)).id.0,
+        "two@1",
+        "one picture for all"
+    );
+    assert_eq!(face_of(&series, &plain).id.0, "plain");
+}
+
+#[test]
+fn the_card_of_a_series_of_several_volumes_says_how_many() {
+    assert_eq!(
+        caption(&volume_of("two", 0, 2)),
+        "2 volumes · 3 slices · 5 mm"
+    );
+}

@@ -19,7 +19,7 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 13] = [
+pub const SHORTCUTS: [(&str, &str); 14] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -31,6 +31,10 @@ pub const SHORTCUTS: [(&str, &str); 13] = [
     ("2", "Two viewports side by side"),
     ("4", "Four viewports"),
     ("Space", "Play or pause through the slices"),
+    (
+        "[ and ]",
+        "The volume before and the volume after, of a series that holds several",
+    ),
     ("M", "Open or close the measurements"),
     ("Ctrl+Z", "Take back the last change to the measurements"),
     ("Ctrl+Y", "Do it again (Ctrl+Shift+Z too)"),
@@ -191,7 +195,9 @@ pub fn corner_text(
         Some(at) => format!("{at:.1} mm"),
         None => NO_POSITION.to_owned(),
     };
-    let which = vec![format!("Slice {} of {}", slice + 1, series.slices), place];
+    let volume = super::volumes::label(series);
+    let slice = format!("Slice {} of {}", slice + 1, series.slices);
+    let which = volume.into_iter().chain([slice, place]).collect();
     let window = vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)];
     [who_and_when, vec![what], which, window]
 }
@@ -281,6 +287,8 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
         Key::Num2 => Action::SetLayout(Layout::TwoAcross),
         Key::Num4 => Action::SetLayout(Layout::TwoByTwo),
         Key::Space => Action::CineToggle { viewport },
+        Key::OpenBracket => Action::StepVolume { viewport, by: -1 },
+        Key::CloseBracket => Action::StepVolume { viewport, by: 1 },
         Key::Escape => Action::SetMain(MainPanel::Scene),
         _ => return None,
     })
@@ -288,3 +296,5 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod volumes_tests;

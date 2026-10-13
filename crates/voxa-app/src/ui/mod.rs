@@ -32,6 +32,7 @@ mod tags;
 mod theme;
 mod toolbar;
 mod viewport;
+mod volumes;
 
 pub use browser::thumbnail;
 

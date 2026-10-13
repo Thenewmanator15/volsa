@@ -148,7 +148,7 @@ fn no_scale_bar_is_given_when_none_would_be_true() {
     assert_eq!(scale_bar(1.0, 0.0), None);
 }
 
-fn study() -> StudyInfo {
+pub(super) fn study() -> StudyInfo {
     StudyInfo {
         id: StudyId("1.2.3".to_owned()),
         date: Some("20210830".to_owned()),
@@ -159,7 +159,7 @@ fn study() -> StudyInfo {
     }
 }
 
-fn series() -> SeriesInfo {
+pub(super) fn series() -> SeriesInfo {
     SeriesInfo {
         id: SeriesId("1.2.3.4".to_owned()),
         number: 4,
@@ -369,7 +369,7 @@ fn each_key_does_what_the_reference_says() {
     );
     let listed: Vec<&str> = SHORTCUTS.iter().map(|(key, _)| *key).collect();
     let expected = [
-        "H", "V", "R", "F", "1", "2", "4", "Space", "M", "Ctrl+Z", "Ctrl+Y", "Esc", "?",
+        "H", "V", "R", "F", "1", "2", "4", "Space", "[ and ]", "M", "Ctrl+Z", "Ctrl+Y", "Esc", "?",
     ];
     assert_eq!(listed, expected);
 }

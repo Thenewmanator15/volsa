@@ -80,6 +80,7 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Asked {
         switches(ui, state, actions);
         ui.separator();
         playback(ui, state, actions);
+        super::volumes::stepper(ui, state, actions);
         ui.separator();
         let measure = ui.button("Measure");
         asked.measure = measure

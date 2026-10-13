@@ -18,6 +18,7 @@ mod planes;
 mod scene;
 mod viewport;
 mod views;
+mod volumes;
 
 /// The key of the notice that counts skipped files.
 const SKIPPED: &str = "skipped";
@@ -308,5 +309,7 @@ mod tests;
 mod viewport_tests;
 #[cfg(test)]
 mod views_tests;
+#[cfg(test)]
+mod volumes_tests;
 #[cfg(test)]
 mod window_tests;

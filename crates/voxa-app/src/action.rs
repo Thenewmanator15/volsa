@@ -42,6 +42,13 @@ pub enum Action {
         /// How many slices, forwards or backwards.
         delta: i32,
     },
+    /// Show another volume of the series a viewport shows, when that series holds several.
+    StepVolume {
+        /// Which viewport.
+        viewport: usize,
+        /// How many volumes on; less than none goes back.
+        by: i32,
+    },
     /// Go to a slice, stopping at the last.
     SetSlice {
         /// Which viewport.

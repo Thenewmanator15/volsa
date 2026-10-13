@@ -53,9 +53,12 @@ fn built(scene: &mut Scene, report: Action) {
         }
         Action::VolumeReady { series, corners } if building(scene, &series) => {
             scene.status = SceneStatus::Ready;
-            scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
+            // Another volume of the series shown before is seen as that one was.
+            if !std::mem::take(&mut scene.keeps_view) {
+                scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
+                scene.untouched = true;
+            }
             scene.corners = Some(corners);
-            scene.untouched = true;
         }
         Action::VolumeFailed { series, reason } if building(scene, &series) => {
             scene.status = SceneStatus::Unavailable(vec![reason]);
@@ -100,13 +103,41 @@ fn shown_in_the_active_viewport(state: &AppState) -> Option<SeriesId> {
 /// What is said last of a series with no 3D view.
 const AS_A_STACK: &str = "It is shown as a plain stack.";
 
+/// Whether `series` is another volume of the series the scene has been showing, with that
+/// one's volume built: the two then fill the same place and are seen the same way.
+fn another_volume_of_the_same(state: &AppState, series: Option<&SeriesId>) -> bool {
+    let whole = |id: &SeriesId| {
+        let set = state.series(id)?.info.set.as_ref()?;
+        Some(set.of.clone())
+    };
+    let was = state.scene.series.as_ref().and_then(whole);
+    let now = series.and_then(whole);
+    state.scene.corners.is_some() && was.is_some() && was == now
+}
+
 /// An empty scene for `series`: building, if it can be a volume, and otherwise saying in
-/// plain words why it cannot. Only the size of the picture is kept.
+/// plain words why it cannot. Only the size of the picture is kept, unless the series is
+/// another volume of the one shown before: then the camera, the look, the cuts and the box
+/// they were fitted to are kept too.
 fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
-    let fresh = Scene {
+    let mut fresh = Scene {
         viewport: state.scene.viewport,
         ..Scene::default()
     };
+    if another_volume_of_the_same(state, series.as_ref()) {
+        let before = &state.scene;
+        fresh = Scene {
+            camera: before.camera,
+            untouched: before.untouched,
+            corners: before.corners,
+            frame: before.frame,
+            look: before.look,
+            cuts: before.cuts.clone(),
+            slice_shown: before.slice_shown,
+            keeps_view: true,
+            ..fresh
+        };
+    }
     // The views saved of the series before are not this one's.
     state.views.clear();
     let listed = series.as_ref().and_then(|id| state.series(id));

@@ -83,7 +83,38 @@ fn grey_level(fraction: f32) -> u8 {
     (fraction.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
-/// The second line of a card: how many slices, and how far apart.
+/// The series a study's cards stand for, in the study's order: every series of one volume,
+/// and one volume of each series that holds several. That one is the volume `shown`, when it
+/// is of that series, and otherwise the first.
+pub fn one_for_each<'a>(series: &'a [SeriesInfo], shown: Option<&SeriesId>) -> Vec<&'a SeriesInfo> {
+    let on_show = shown
+        .and_then(|shown| series.iter().find(|info| info.id == *shown))
+        .and_then(|info| info.set.as_ref());
+    let stands = |info: &&SeriesInfo| match &info.set {
+        None => true,
+        Some(set) => match on_show {
+            Some(shown) if shown.of == set.of => shown.at == set.at,
+            _ => set.at == 0,
+        },
+    };
+    series.iter().filter(stands).collect()
+}
+
+/// The series whose picture a card carries: the series itself, or the first volume of the
+/// series it is a volume of, so that one small picture does for all of them.
+pub fn face_of<'a>(series: &'a [SeriesInfo], info: &'a SeriesInfo) -> &'a SeriesInfo {
+    let first = info.set.as_ref().and_then(|set| {
+        let leads = |other: &&SeriesInfo| {
+            let found = other.set.as_ref();
+            found.is_some_and(|found| found.of == set.of && found.at == 0)
+        };
+        series.iter().find(leads)
+    });
+    first.unwrap_or(info)
+}
+
+/// The second line of a card: how many volumes when there are several, how many slices, and
+/// how far apart.
 pub fn caption(info: &SeriesInfo) -> String {
     let slices = if info.slices == 1 {
         "1 slice".to_owned()
@@ -92,7 +123,10 @@ pub fn caption(info: &SeriesInfo) -> String {
     };
     // To a hundredth of a millimetre, without trailing zeros.
     let apart = (info.slice_thickness_mm() * 100.0).round() / 100.0;
-    format!("{slices} · {apart} mm")
+    match &info.set {
+        Some(set) => format!("{} volumes · {slices} · {apart} mm", set.count),
+        None => format!("{slices} · {apart} mm"),
+    }
 }
 
 /// What is wrong with a series, one sentence a line; `None` when nothing is.
@@ -186,8 +220,8 @@ pub fn show(
         .show(ui, |ui| {
             for study in &index.studies {
                 ui.label(RichText::new(study_title(study)).strong());
-                for info in &study.series {
-                    let texture = thumbnails.get(&info.id);
+                for info in one_for_each(&study.series, shown) {
+                    let texture = thumbnails.get(&face_of(&study.series, info).id);
                     let response = card(ui, info, texture, shown == Some(&info.id));
                     if response.clicked() {
                         actions.push(Action::SelectSeries {

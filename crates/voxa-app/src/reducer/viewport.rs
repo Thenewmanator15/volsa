@@ -15,6 +15,7 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             from.map_or_else(Vec::new, |from| go_to(state, viewport, moved(from, delta)))
         }
         Action::SetSlice { viewport, slice } => go_to(state, viewport, slice),
+        Action::StepVolume { viewport, by } => super::volumes::step(state, viewport, by),
         Action::CineTick { viewport } => tick(state, viewport),
         other => {
             adjust(state, other);
@@ -48,7 +49,7 @@ fn select(state: &mut AppState, at: usize, series: SeriesId) -> Vec<Effect> {
 }
 
 /// A slice number moved by `delta`, never below zero.
-fn moved(from: usize, delta: i32) -> usize {
+pub(super) fn moved(from: usize, delta: i32) -> usize {
     let by = usize::try_from(delta.unsigned_abs()).unwrap_or(usize::MAX);
     if delta < 0 {
         from.saturating_sub(by)

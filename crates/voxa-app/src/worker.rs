@@ -139,7 +139,9 @@ impl Workers {
                 }
             }
             Effect::RequestThumbnails => {
-                for listed in index.map_or(&[][..], |index| index.series.as_slice()) {
+                // One small picture does for all the volumes of a series that holds several.
+                let series = index.map_or(&[][..], |index| index.series.as_slice());
+                for listed in series.iter().filter(|listed| listed.info.leads_its_set()) {
                     self.request_frames(listed, listed.slices.len() / 2, 1);
                 }
             }

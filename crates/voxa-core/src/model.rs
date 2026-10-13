@@ -153,6 +153,12 @@ impl SeriesInfo {
         between_slices
     }
 
+    /// Whether this series stands at the head of its own: a series of one volume, or the first
+    /// volume of a series that holds several.
+    pub fn leads_its_set(&self) -> bool {
+        self.set.as_ref().is_none_or(|set| set.at == 0)
+    }
+
     /// Total number of voxels: rows × columns × slices.
     pub fn voxel_count(&self) -> u64 {
         u64::from(self.rows) * u64::from(self.cols) * self.slices as u64
@@ -220,6 +226,25 @@ mod tests {
     fn geometry_is_reported_only_when_present() {
         assert!(series(true).has_geometry());
         assert!(!series(false).has_geometry());
+    }
+
+    #[test]
+    fn of_the_volumes_of_a_series_only_the_first_leads() {
+        let volume = |at| SeriesInfo {
+            set: Some(VolumeSet {
+                of: SeriesId("whole".to_owned()),
+                at,
+                count: 3,
+                what: String::new(),
+            }),
+            ..SeriesInfo::default()
+        };
+        assert!(volume(0).leads_its_set());
+        assert!(!volume(2).leads_its_set());
+        assert!(
+            SeriesInfo::default().leads_its_set(),
+            "a series of one leads itself"
+        );
     }
 
     #[test]
