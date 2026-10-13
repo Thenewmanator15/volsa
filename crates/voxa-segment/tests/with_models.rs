@@ -6,7 +6,8 @@
 //! folder, and those that run a network need `VOXA_RUNTIME` to name the folder that holds the
 //! runtime; a test says which is missing and fails. `cargo xtask check-models` runs them one
 //! at a time, each in a process of its own. A test for a kind of graphics card this computer
-//! has not got says so and passes.
+//! has not got says so and passes. Each whole run on the processor or on a discrete card is
+//! also held to a bound on the ordinary memory it may ask the system for.
 
 use std::path::PathBuf;
 use std::sync::{LazyLock, Mutex, MutexGuard, PoisonError};
@@ -19,7 +20,7 @@ use voxa_labels::LabelGrid;
 use voxa_models::{
     CardKind, Cut, Device, Model, ModelSide, Numbers, Runtime, Tensor, Wanted, budget, read_model,
 };
-use voxa_segment::testing::{Agreement, OnDevice, cards_of, measured, quickest};
+use voxa_segment::testing::{Agreement, Bound, OnDevice, cards_of, measured, quickest};
 use voxa_segment::{Stage, find, label, prepare, tidy};
 
 /// Any model and device but the standard model on the processor, which is held to every
@@ -148,6 +149,7 @@ impl Check {
 fn on<T>(
     (device, name): (Device, &str),
     what: &str,
+    bound: &Bound,
     work: impl FnOnce(&mut OnDevice, &mut dyn FnMut(Stage)) -> T,
 ) -> T {
     let mut networks = OnDevice::new(&REAL.0, &REAL.1, device);
@@ -157,6 +159,9 @@ fn on<T>(
     if let Some(rose) = took.card_rose {
         assert!(rose >= CARD_ROSE, "{name} held only {rose} bytes more");
     }
+    // And the process asked the system for no more than the run is allowed.
+    let held = bound.hold(device, took.asked);
+    println!("  {}", held.unwrap_or_else(|over| panic!("{over}")));
     answer
 }
 
@@ -168,7 +173,19 @@ fn held(device: (Device, &str), wanted: Wanted) {
     let volume = CHECK.volume("volume", "volume.f32");
     let prepared = prepare(&volume, Cut::Whole).expect("the volume can be prepared");
     let image = CHECK.image("image", "image.f32");
-    let (grid, scores) = on(device, &format!("the {model} model"), |networks, said| {
+    // Beside the run the test holds the volume, Python's image and the image it prepared.
+    let voxels: usize = image.shape.iter().product();
+    let arrays = [
+        ("the volume", volume.values().len()),
+        ("Python's image", voxels),
+        (
+            "the prepared image",
+            prepared.image.shape.iter().product::<usize>(),
+        ),
+    ];
+    let bound = Bound::new(voxels, wanted, &arrays);
+    let what = format!("the {model} model");
+    let (grid, scores) = on(device, &what, &bound, |networks, said| {
         let found = find(&image, lists, wanted, networks, said).expect("the networks run");
         said(Stage::Tidying);
         let grid = tidy(&found, lists, wanted, &prepared.back).expect("the answer is tidied");
@@ -216,7 +233,7 @@ fn held_on_each(kind: CardKind, wanted: Wanted) {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS; the runtime asks the system for 16 GiB of memory"]
+#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 4 GiB of memory"]
 fn the_standard_model_on_the_processor_gives_pythons_labels_at_every_voxel() {
     let _turn = turn();
     held((Device::Processor, "the processor"), STANDARD);
@@ -306,10 +323,18 @@ fn the_whole_path_puts_a_left_structure_on_the_patients_left_of_its_twin() {
     let lists = &REAL.1.lists;
     let (device, name) = quickest();
     let volume = CHECK.volume("volume", "volume.f32");
-    let ours = on((device, &name), "the whole path", |networks, said| {
-        let labelled = label(&volume, Cut::Whole, lists, ROBUST, networks, said);
-        labelled.expect("the scan is labelled")
-    });
+    // Beside the run the test holds the volume.
+    let voxels: usize = CHECK.sides::<usize>("image").iter().product();
+    let bound = Bound::new(voxels, ROBUST, &[("the volume", volume.values().len())]);
+    let ours = on(
+        (device, &name),
+        "the whole path",
+        &bound,
+        |networks, said| {
+            let labelled = label(&volume, Cut::Whole, lists, ROBUST, networks, said);
+            labelled.expect("the scan is labelled")
+        },
+    );
     let theirs = LabelGrid {
         dims: volume.dims(),
         ids: CHECK.labels("robust.u16"),

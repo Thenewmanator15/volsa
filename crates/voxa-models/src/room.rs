@@ -9,6 +9,8 @@ use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
 
 #[cfg(test)]
+mod ask_tests;
+#[cfg(test)]
 mod need_tests;
 #[cfg(test)]
 mod tests;
@@ -19,26 +21,46 @@ const GIB: u64 = 1 << 30;
 /// What each network but the scores takes of a card's memory for every voxel of its grid, in
 /// bytes. Measured on made-up volumes, not read from any network's file.
 const ON_A_CARD: u64 = 1_400;
-/// What each network but the scores and the cortex one takes of the processor's memory for
-/// every voxel of its grid, in bytes. Measured on made-up volumes.
-const ON_THE_PROCESSOR: u64 = 2_000;
-/// What the cortex network takes of the processor's memory for every voxel, in bytes: the
-/// most of any network. Measured on made-up volumes.
-const CORTEX_ON_THE_PROCESSOR: u64 = 2_300;
-/// What the scores network takes on any device, whatever the size of the scan: 8.2 GiB. Its
-/// input is always the same box. Measured on made-up volumes.
-const SCORES: u64 = 82 * GIB / 10;
-/// What the scores network needs to be given: what it takes, and a quarter more.
-const SCORES_NEED: u64 = with_a_quarter(SCORES);
+/// What each network but the scores and the cortex one asks the system for in ordinary memory
+/// for every voxel of its grid, when it runs on the processor, in bytes. Measured on a made-up
+/// head and rounded up.
+const ON_THE_PROCESSOR: u64 = 700;
+/// The same for the cortex network, the most of any network on the processor. Measured on a
+/// made-up head and rounded up.
+const CORTEX_ON_THE_PROCESSOR: u64 = 900;
+/// What each network but the scores asks the system for in ordinary memory for every voxel of
+/// its grid when it runs on a card, in bytes: Windows promises memory behind what a program
+/// puts on a card. The cortex network asks for no more than the rest. Measured on a made-up
+/// head and rounded up.
+const ORDINARY_FOR_A_CARD: u64 = 1_900;
+/// What Voxa itself holds beside any network for every voxel of its grid, in bytes: one set of
+/// chances and small lists. Measured on a made-up head and rounded up.
+const VOXA_ITSELF: u64 = 200;
+/// What the scores network takes of a card's memory, whatever the size of the scan: 8.2 GiB.
+/// Its input is always the same box. Measured on made-up volumes.
+const SCORES_ON_A_CARD: u64 = 82 * GIB / 10;
+/// What the scores network needs of a card: what it takes, and a quarter more.
+const SCORES_NEED_ON_A_CARD: u64 = with_a_quarter(SCORES_ON_A_CARD);
+/// What the scores network asks the system for in ordinary memory when it runs on the
+/// processor, whatever the size of the scan: 3.1 GiB. Measured on a made-up head and rounded
+/// up.
+const SCORES_ON_THE_PROCESSOR: u64 = 31 * GIB / 10;
+/// What the scores network needs of the processor: what it asks for, and a quarter more.
+const SCORES_NEED_ON_THE_PROCESSOR: u64 = with_a_quarter(SCORES_ON_THE_PROCESSOR);
+/// What the scores network asks the system for in ordinary memory when it runs on a card,
+/// whatever the size of the scan: 8.4 GiB. Measured on a made-up head and rounded up.
+const SCORES_ORDINARY_FOR_A_CARD: u64 = 84 * GIB / 10;
 
 /// What is wanted of a run, as far as it changes what the run needs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Wanted {
     /// The three robust networks stand in for the standard one. Measured, they take no more
-    /// than it does, so this changes nothing in what a run needs.
+    /// than it does, on a card and on the processor, so this changes nothing in what a run
+    /// needs or asks for.
     pub robust: bool,
-    /// The cortex network runs too, to name the areas of the cortex. It is the largest of the
-    /// networks on the processor.
+    /// The cortex network runs too, to name the areas of the cortex. Measured, it asks the
+    /// system for more than the others on the processor (900 bytes a voxel where they ask
+    /// for 700), and no more than them on a card.
     pub cortex: bool,
 }
 
@@ -89,8 +111,10 @@ pub struct Room {
     /// How many bytes of that card Voxa itself holds, for drawing. It matters only when that
     /// card has no budget.
     pub held: u64,
-    /// How many bytes of ordinary memory are free: what the processor has, and what an
-    /// integrated card shares.
+    /// How many more bytes of ordinary memory the system can promise this program now: on
+    /// Windows the commit still available. It is what a refused allocation runs into. The
+    /// processor has it, and so does an integrated card, which shares it; and a run on any
+    /// card asks the system for ordinary memory too (see [`asks`]).
     pub free_memory: u64,
 }
 
@@ -100,16 +124,46 @@ const fn with_a_quarter(bytes: u64) -> u64 {
     bytes.saturating_add(bytes / 4)
 }
 
+/// What the largest labelling network asks the system for on the processor for every voxel
+/// of its grid, in bytes.
+const fn on_the_processor(wanted: Wanted) -> u64 {
+    if wanted.cortex {
+        CORTEX_ON_THE_PROCESSOR
+    } else {
+        ON_THE_PROCESSOR
+    }
+}
+
 /// How many bytes the networks of a run need on a device, to give the labels of a grid of
-/// `voxels`: what the largest of them takes for each voxel, and a quarter more. The scores
-/// network is not counted, since it takes the same whatever the grid; it is checked apart.
+/// `voxels`: what the largest of them takes for each voxel, and a quarter more. Measured on a
+/// made-up head, that is 1 400 bytes of a card, and 700 of the processor's ordinary memory
+/// (900 with the cortex network). The scores network is not counted, since it takes the same
+/// whatever the grid; it is checked apart.
 pub fn needs(voxels: u64, wanted: Wanted, device: Device) -> u64 {
     let a_voxel = match device {
         Device::Card(_) => ON_A_CARD,
-        Device::Processor if wanted.cortex => CORTEX_ON_THE_PROCESSOR,
-        Device::Processor => ON_THE_PROCESSOR,
+        Device::Processor => on_the_processor(wanted),
     };
     with_a_quarter(voxels.saturating_mul(a_voxel))
+}
+
+/// What a whole run on this rung asks the system for in ordinary memory, at its peak: what
+/// Voxa itself holds, and the larger of what its labelling networks and its scores network
+/// ask for where each runs; a quarter added. `voxels` is the grid the rung's cut gives, as
+/// [`rungs`] counts it. A run on a card asks for ordinary memory too, and more than one on
+/// the processor does, since Windows promises memory behind what a program puts on a card.
+pub fn asks(voxels: u64, wanted: Wanted, rung: Rung) -> u64 {
+    let networks = match rung.device {
+        Device::Card(_) => ORDINARY_FOR_A_CARD,
+        Device::Processor => on_the_processor(wanted),
+    };
+    let scores = match rung.scores_on {
+        Device::Card(_) => SCORES_ORDINARY_FOR_A_CARD,
+        Device::Processor => SCORES_ON_THE_PROCESSOR,
+    };
+    let own = voxels.saturating_mul(VOXA_ITSELF);
+    let largest = voxels.saturating_mul(networks).max(scores);
+    with_a_quarter(own.saturating_add(largest))
 }
 
 /// A device a run might go on, and how many bytes it has for the run.
@@ -159,24 +213,33 @@ impl Room {
         }
     }
 
-    /// Where the scores network runs for a rung on `device`, which has `space` bytes: there
-    /// when it fits, otherwise on the processor when that much is free. `None` when it fits
-    /// in neither place.
-    fn scores_on(&self, device: Device, space: u64) -> Option<Device> {
-        if SCORES_NEED <= space {
-            Some(device)
-        } else if SCORES_NEED <= self.free_memory {
-            Some(Device::Processor)
-        } else {
-            None
+    /// Where the scores network may run for a rung on `device`, which has `space` bytes, in
+    /// the order to try: there when it fits there, then on the processor when that much is
+    /// free. Empty when it fits in neither place.
+    fn scores_places(&self, device: Device, space: u64) -> Vec<Device> {
+        let there = match device {
+            Device::Card(_) => SCORES_NEED_ON_A_CARD,
+            Device::Processor => SCORES_NEED_ON_THE_PROCESSOR,
+        };
+        let mut places = Vec::new();
+        if there <= space {
+            places.push(device);
         }
+        if device != Device::Processor && SCORES_NEED_ON_THE_PROCESSOR <= self.free_memory {
+            places.push(Device::Processor);
+        }
+        places
     }
 }
 
 /// The ways to run a scan of `whole` voxels, or of `head` voxels cut to the head, that fit,
-/// in the order to try them. A rung is offered only when the networks fit on its device and
-/// the scores network fits somewhere. An answer over 2 GiB is no bar: it is fetched by two
-/// runs.
+/// in the order to try them. A rung is offered only when the networks fit on its device, the
+/// scores network fits somewhere, and the system can still promise the ordinary memory the
+/// whole run asks for ([`asks`]), on a card as on the processor. The scores network goes on
+/// the rung's own device when it fits there and the system can back the run so; failing that
+/// it goes on the processor, which asks the less of ordinary memory, if the system can back
+/// the run so. A rung that is held back for want of that leaves the order of the others as it
+/// was. An answer over 2 GiB is no bar: it is fetched by two runs.
 ///
 /// With [`RunsOn::Automatic`] the order is the whole scan on each discrete card, then on the
 /// processor, then the head on each discrete card, then on the processor. An integrated card
@@ -190,13 +253,20 @@ pub fn rungs(whole: u64, head: u64, wanted: Wanted, room: &Room, runs_on: RunsOn
             if needs(voxels, wanted, device) > space {
                 continue;
             }
-            if let Some(scores_on) = room.scores_on(device, space) {
-                found.push(Rung {
+            let tries = room
+                .scores_places(device, space)
+                .into_iter()
+                .map(|scores_on| Rung {
                     device,
                     cut,
                     scores_on,
                 });
-            }
+            // The first place for the scores network that the system can back.
+            found.extend(
+                tries
+                    .filter(|&rung| asks(voxels, wanted, rung) <= room.free_memory)
+                    .take(1),
+            );
         }
     }
     found
@@ -216,15 +286,42 @@ fn spare_gb(bytes: u64) -> String {
     format!("{}.{}", tenths / 10, tenths % 10)
 }
 
+/// What a computer without a discrete card has to say of its graphics: none at all, or some
+/// that have no memory of their own.
+fn no_card(room: &Room) -> &'static str {
+    let shares = room
+        .cards
+        .iter()
+        .any(|card| card.kind == CardKind::Integrated);
+    if shares {
+        "There is no graphics card with memory of its own."
+    } else {
+        "There is no graphics card."
+    }
+}
+
 /// Why [`rungs`] gave none, in words fit to show: what the smallest cut needs, what the
-/// scores network needs, and what the best card and the computer have. Rounded so that the
-/// figures never seem to fit when they do not. It describes the computer, not a card asked
-/// for by name.
+/// scores network needs, what the best card and the computer have, and how much of the
+/// computer's ordinary memory the smallest run asks for. Rounded so that the figures never
+/// seem to fit when they do not. It describes the computer, not a card asked for by name.
+/// Only a discrete card is spoken of as a place to run: without one, the processor is the
+/// only place there is, and the words say so.
 pub fn why_not(whole: u64, head: u64, wanted: Wanted, room: &Room) -> String {
     let smallest = whole.min(head);
-    // Which card makes no difference to what a run needs; only that it is a card.
-    let on_a_card = needs(smallest, wanted, Device::Card(CardId(0)));
-    let on_the_processor = needs(smallest, wanted, Device::Processor);
+    let cut = if head < whole { Cut::Head } else { Cut::Whole };
+    // The least a run asks of ordinary memory has the scores network on the processor.
+    let asked = |device| {
+        let scores_on = Device::Processor;
+        let rung = Rung {
+            device,
+            cut,
+            scores_on,
+        };
+        needed_gb(asks(smallest, wanted, rung))
+    };
+    let on_the_processor = needed_gb(needs(smallest, wanted, Device::Processor));
+    let scores_there = needed_gb(SCORES_NEED_ON_THE_PROCESSOR);
+    let asked_there = asked(Device::Processor);
     let best_card = room
         .cards
         .iter()
@@ -232,21 +329,40 @@ pub fn why_not(whole: u64, head: u64, wanted: Wanted, room: &Room) -> String {
         .filter(|(_, card)| card.kind == CardKind::Discrete)
         .map(|(place, card)| room.discrete_room(place, card))
         .max();
-    let card = match best_card {
-        Some(bytes) => format!(
-            "The best graphics card has {} GB to spare.",
-            spare_gb(bytes)
+    // Which card makes no difference to what a run needs; only that it is a card.
+    let on_a_card = Device::Card(CardId(0));
+    let (needing, scoring, asking, card) = match best_card {
+        Some(bytes) => (
+            format!(
+                "{} GB on a graphics card or {on_the_processor} GB on the processor",
+                needed_gb(needs(smallest, wanted, on_a_card))
+            ),
+            format!(
+                "{} GB on a graphics card or {scores_there} GB on the processor",
+                needed_gb(SCORES_NEED_ON_A_CARD)
+            ),
+            format!(
+                "{} GB of that when the networks are on a graphics card, and {asked_there} GB \
+                 when they are on the processor",
+                asked(on_a_card)
+            ),
+            format!(
+                "The best graphics card has {} GB to spare.",
+                spare_gb(bytes)
+            ),
         ),
-        None => "There is no graphics card with memory of its own.".to_owned(),
+        None => (
+            format!("{on_the_processor} GB on the processor"),
+            format!("{scores_there} GB on the processor"),
+            format!("{asked_there} GB of that on the processor"),
+            no_card(room).to_owned(),
+        ),
     };
     format!(
         "There is not enough memory to label this scan. \
-         At its smallest it needs about {} GB on a graphics card or {} GB on the processor, \
-         and scoring the result needs about {} GB on either. \
-         {card} The computer has {} GB of ordinary memory free.",
-        needed_gb(on_a_card),
-        needed_gb(on_the_processor),
-        needed_gb(SCORES_NEED),
+         At its smallest it needs about {needing}, and scoring the result needs about \
+         {scoring}. {card} The computer has {} GB of ordinary memory free. \
+         The smallest run asks for about {asking}.",
         spare_gb(room.free_memory),
     )
 }

@@ -11,6 +11,8 @@ use crate::cards::CardId;
 use crate::tensor::Tensor;
 
 #[cfg(test)]
+mod card_tests;
+#[cfg(test)]
 mod tests;
 
 /// Windows' code for "not enough memory", as a runtime's words carry it.
@@ -55,14 +57,19 @@ pub enum RunError {
 
 impl RunError {
     /// Sorts what a runtime said into what went wrong. Windows' own codes are in its words,
-    /// and so is what it says of memory it could not have, on a card or on the processor.
+    /// and so is what it says of memory it could not have, on a card or on the processor. The
+    /// card's own code for memory it could not have comes first, then its codes for a card
+    /// that was lost, and the runtime's wordings last: a card that was lost may say in the
+    /// same breath that it could not allocate, and then it is the card that is lost.
     pub(crate) fn from_words(words: &str) -> Self {
         let capitals = words.to_ascii_uppercase();
-        let refused = REFUSED.iter().any(|said| capitals.contains(said));
-        if refused || capitals.contains(NO_MEMORY) {
+        let said = |known: &[&str]| known.iter().any(|known| capitals.contains(known));
+        if capitals.contains(NO_MEMORY) {
             RunError::NoRoom
-        } else if DEVICE_GONE.iter().any(|code| capitals.contains(code)) {
+        } else if said(&DEVICE_GONE) {
             RunError::DeviceLost
+        } else if said(&REFUSED) {
+            RunError::NoRoom
         } else {
             RunError::Failed(words.to_owned())
         }

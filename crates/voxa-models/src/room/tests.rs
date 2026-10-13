@@ -1,12 +1,12 @@
 //! Tests of which devices a run fits on and in what order they are tried. Every volume, card
 //! and figure here is made up.
 
-use super::{Cut, Room, Rung, RunsOn, Wanted, needs, rungs, why_not};
+use super::{Cut, Room, Rung, RunsOn, Wanted, needs, rungs};
 use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
 
 pub(super) const GIB: u64 = 1 << 30;
-const MIB: u64 = 1 << 20;
+pub(super) const MIB: u64 = 1 << 20;
 pub(super) const STANDARD: Wanted = Wanted {
     robust: false,
     cortex: false,
@@ -21,6 +21,9 @@ pub(super) const HEAD: u64 = 2_000_000;
 /// quarter added.
 const SCORES: u64 = 82 * GIB / 10;
 const SCORES_NEED: u64 = SCORES + SCORES / 4;
+/// The same for the processor, which it asks 3.1 GiB of, with a quarter added.
+const SCORES_ON_THE_PROCESSOR: u64 = 31 * GIB / 10;
+const SCORES_NEED_ON_THE_PROCESSOR: u64 = SCORES_ON_THE_PROCESSOR + SCORES_ON_THE_PROCESSOR / 4;
 
 /// What the made-up card of a number is. It is never the number of a place in a list.
 pub(super) fn id(card: u32) -> CardId {
@@ -28,7 +31,7 @@ pub(super) fn id(card: u32) -> CardId {
 }
 
 /// The made-up card of a number, standing at the place of that number in the system's list.
-fn card(number: u32, kind: CardKind, own_bytes: u64) -> Card {
+pub(super) fn card(number: u32, kind: CardKind, own_bytes: u64) -> Card {
     Card {
         id: id(number),
         index: number,
@@ -54,7 +57,7 @@ pub(super) fn room() -> Room {
 }
 
 /// A rung on a card, the scores network on the same card.
-fn on_card(card: u32, cut: Cut) -> Rung {
+pub(super) fn on_card(card: u32, cut: Cut) -> Rung {
     Rung {
         device: Device::Card(id(card)),
         cut,
@@ -72,7 +75,7 @@ pub(super) fn on_processor(cut: Cut) -> Rung {
 }
 
 /// A rung on a card whose scores network goes to the processor.
-fn scored_on_processor(card: u32, cut: Cut) -> Rung {
+pub(super) fn scored_on_processor(card: u32, cut: Cut) -> Rung {
     Rung {
         device: Device::Card(id(card)),
         cut,
@@ -95,27 +98,28 @@ fn a_scan_that_fits_everywhere_is_tried_whole_then_head_each_card_before_the_pro
 
 #[test]
 fn a_scan_too_large_whole_is_offered_cut_to_the_head() {
+    // Too large whole for the card, and for the processor's 20 GiB.
     assert_eq!(
-        rungs(16_777_216, 8_000_000, STANDARD, &room(), RunsOn::Automatic),
+        rungs(33_554_432, 8_000_000, STANDARD, &room(), RunsOn::Automatic),
         vec![on_card(1, Cut::Head), on_processor(Cut::Head)]
     );
 }
 
 #[test]
-fn with_little_ordinary_memory_free_the_head_is_offered_on_the_card_alone() {
+fn with_little_ordinary_memory_free_the_head_is_offered_on_the_processor_alone() {
     // The first set-up (no budget known, so the card has 16 GiB less the 1 GiB Voxa holds),
-    // with the ordinary memory down from 20 GiB to 4 GiB. The head needs 13.04 GiB on the
-    // card, which has 15, and the scores network's 10.25 GiB fits there too, so the 4 GiB
-    // are not asked for it. The processor has too little for the head, and the whole scan
-    // is too large for the card.
+    // with the ordinary memory down from 20 GiB to 10 GiB. The head needs 13.04 GiB on the
+    // card, which has 15, and the scores network's 10.25 GiB fits there too, but a run on a
+    // card asks the computer for 19.56 GiB of ordinary memory and one on the processor for
+    // 8.38. The whole scan is too large for the card, and for the processor's 10 GiB.
     let mut room = room();
-    room.free_memory = 4 * GIB;
+    room.free_memory = 10 * GIB;
     let found = rungs(16_777_216, 8_000_000, STANDARD, &room, RunsOn::Automatic);
     assert_eq!(found.len(), 1);
     let rung = found.first().copied().expect("one rung");
-    assert_eq!(rung.device, Device::Card(id(1)));
+    assert_eq!(rung.device, Device::Processor);
     assert_eq!(rung.cut, Cut::Head);
-    assert_eq!(rung.scores_on, Device::Card(id(1)));
+    assert_eq!(rung.scores_on, Device::Processor);
 }
 
 #[test]
@@ -195,10 +199,11 @@ fn the_scores_network_goes_to_the_processor_when_the_card_is_too_small_for_it() 
             on_processor(Cut::Head),
         ]
     );
-    // With too little ordinary memory for it as well, the scores network has nowhere to run,
-    // and no rung is offered, though the networks before it would fit on the card. Less
-    // memory never offers more: 6 GiB and 4 GiB give the same as each other.
-    for free in [6 * GIB, 4 * GIB] {
+    // With too little ordinary memory for it as well (it asks 3.875 GiB of the processor),
+    // the scores network has nowhere to run, and no rung is offered, though the networks
+    // before it would fit on the card. Less memory never offers more: 3 GiB and 2 GiB give
+    // the same as each other.
+    for free in [3 * GIB, 2 * GIB] {
         room.free_memory = free;
         assert_eq!(
             rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Automatic),
@@ -223,17 +228,16 @@ fn the_scores_network_stays_on_a_device_that_just_holds_it() {
             scored_on_processor(1, Cut::Head)
         ]
     );
-    // Ordinary memory holds it to the byte too, where the processor is all there is.
-    room.free_memory = SCORES_NEED;
+    // Ordinary memory holds it to the byte too, where the processor is all there is: it asks
+    // 3.1 GiB of the processor with a quarter added, whatever the scan. The scan here is an
+    // empty one, so that nothing else a run asks for is more.
+    room.free_memory = SCORES_NEED_ON_THE_PROCESSOR;
     assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Processor),
+        rungs(0, 0, STANDARD, &room, RunsOn::Processor),
         vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
     );
-    room.free_memory = SCORES_NEED - 1;
-    assert_eq!(
-        rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Processor),
-        Vec::new()
-    );
+    room.free_memory = SCORES_NEED_ON_THE_PROCESSOR - 1;
+    assert_eq!(rungs(0, 0, STANDARD, &room, RunsOn::Processor), Vec::new());
 }
 
 #[test]
@@ -250,11 +254,31 @@ fn a_named_card_is_offered_whole_then_head_and_nothing_else() {
     );
     // With little ordinary memory free, the integrated card has little too.
     let mut tight = room.clone();
-    tight.free_memory = 6 * GIB;
+    tight.free_memory = 4 * GIB;
     assert_eq!(
         rungs(WHOLE, HEAD, STANDARD, &tight, RunsOn::Card(id(0))),
         Vec::new()
     );
+}
+
+#[test]
+fn an_integrated_cards_room_is_the_free_ordinary_memory_whatever_it_says_of_its_own() {
+    // An integrated card shares the computer's memory: its room is what is free, and not
+    // what it has of its own, nor a budget the system gives it. A software card has none, and
+    // a discrete card has its budget.
+    let mut room = room();
+    room.cards = vec![
+        card(0, CardKind::Integrated, 128 * MIB),
+        card(1, CardKind::Discrete, 16 * GIB),
+        card(2, CardKind::Software, 32 * GIB),
+    ];
+    room.budgets = vec![Some(GIB), Some(3 * GIB), Some(32 * GIB)];
+    for free in [0, GIB, 20 * GIB, u64::MAX] {
+        room.free_memory = free;
+        assert_eq!(room.room_on(0, &room.cards[0]), Some(free));
+    }
+    assert_eq!(room.room_on(1, &room.cards[1]), Some(3 * GIB));
+    assert_eq!(room.room_on(2, &room.cards[2]), None);
 }
 
 #[test]
@@ -342,55 +366,4 @@ fn the_processor_alone_is_offered_whole_then_head() {
         rungs(WHOLE, HEAD, STANDARD, &room(), RunsOn::Processor),
         vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
     );
-}
-
-#[test]
-fn when_nothing_fits_there_are_no_rungs_and_why_not_says_what_is_missing() {
-    let (whole, head) = (16_777_216, 8_000_000);
-    let mut room = room();
-    room.budgets = vec![None, Some(5 * GIB)];
-    room.free_memory = 4 * GIB;
-    assert_eq!(
-        rungs(whole, head, STANDARD, &room, RunsOn::Automatic),
-        Vec::new()
-    );
-    // Needs are rounded up and what there is is rounded down, so the figures never seem to
-    // fit when they do not: the head needs 13.04 GB on a card and 18.63 on the processor, and
-    // the scores network 10.25.
-    assert_eq!(
-        why_not(whole, head, STANDARD, &room),
-        concat!(
-            "There is not enough memory to label this scan. ",
-            "At its smallest it needs about 13.1 GB on a graphics card or 18.7 GB on the ",
-            "processor, and scoring the result needs about 10.3 GB on either. ",
-            "The best graphics card has 5.0 GB to spare. ",
-            "The computer has 4.0 GB of ordinary memory free."
-        )
-    );
-}
-
-#[test]
-fn why_not_names_the_roomiest_discrete_card_or_says_there_is_none() {
-    let mut room = room();
-    room.cards = vec![
-        card(0, CardKind::Integrated, 128 * MIB),
-        card(1, CardKind::Discrete, 6 * GIB),
-        card(2, CardKind::Discrete, 9 * GIB),
-        card(3, CardKind::Software, 64 * GIB),
-    ];
-    room.budgets = vec![];
-    room.drawing_on = Some(id(2));
-    room.held = GIB / 2;
-    room.free_memory = GIB + GIB / 4;
-    let said = why_not(16_777_216, 16_777_216, CORTEX, &room);
-    // Card 2 has 9 GiB less the half held there, which is 8.5 GB, and the software card is
-    // not counted; the cortex network is the larger need on the processor.
-    assert!(said.contains("The best graphics card has 8.5 GB to spare."));
-    assert!(said.contains("The computer has 1.2 GB of ordinary memory free."));
-    assert!(said.contains("about 27.4 GB on a graphics card or 45.0 GB on the processor"));
-
-    room.cards = vec![card(0, CardKind::Integrated, 128 * MIB)];
-    let said = why_not(16_777_216, 16_777_216, STANDARD, &room);
-    assert!(said.contains("There is no graphics card with memory of its own."));
-    assert!(!said.contains("to spare"));
 }

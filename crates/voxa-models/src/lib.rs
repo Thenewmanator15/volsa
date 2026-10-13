@@ -33,6 +33,6 @@ pub use model::{
     KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,
 };
 pub use network::{Device, Network, RunError, Stop};
-pub use room::{Cut, Room, Rung, RunsOn, Wanted, needs, rungs, why_not};
+pub use room::{Cut, Room, Rung, RunsOn, Wanted, asks, needs, rungs, why_not};
 pub use runtime::{Runtime, RuntimeError};
 pub use tensor::{Numbers, Tensor};

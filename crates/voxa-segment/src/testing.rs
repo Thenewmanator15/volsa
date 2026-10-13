@@ -1,7 +1,8 @@
 //! Support for the tests that are given a runtime and a model folder: the real networks
-//! behind [`Networks`], what a piece of labelling with them took, and how far two sets of
-//! labels agree. Nothing here reads a model folder or loads the runtime by itself: a test
-//! hands both over, and says which device the networks go on.
+//! behind [`Networks`], what a piece of labelling with them took, how far two sets of labels
+//! agree, and the most a run may ask the system for ([`Bound`]). Nothing here reads a model
+//! folder or loads the runtime by itself: a test hands both over, and says which device the
+//! networks go on.
 //!
 //! A graphics card is named by what it is, its [`CardId`](voxa_models::CardId), and the
 //! runtime finds where it stands at each opening. A place in the system's list is never kept
@@ -19,6 +20,10 @@ use voxa_models::{
 };
 
 use crate::find::{Networks, Stage};
+
+mod bound;
+
+pub use bound::Bound;
 
 /// How often a card is asked how much of it this process holds.
 const LOOK_EVERY: Duration = Duration::from_millis(20);

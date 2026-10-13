@@ -1,6 +1,8 @@
 //! Tests of everything a network is run through: tensors, the stand-in network, the runtime
-//! and the cards. Those marked `ignore` need the real runtime and a real model folder, named
-//! by `VOXA_RUNTIME` and `VOXA_MODELS`; the scores network needs some 9 GiB wherever it runs.
+//! and the way its words are sorted. Those marked `ignore` need the real runtime and a real
+//! model folder, named by `VOXA_RUNTIME` and `VOXA_MODELS`; the scores network needs some 9
+//! GiB wherever it runs. The tests that put a network on each graphics card are in
+//! `card_tests`.
 
 use std::env;
 use std::fs;
@@ -9,14 +11,14 @@ use std::sync::{LazyLock, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::{Device, Network, RunError, Stop, bytes_of, each_alone, right_build};
-use crate::cards::{Card, CardId, CardKind, budget, cards};
+use super::{DEVICE_GONE, Device, Network, RunError, Stop, bytes_of, each_alone, right_build};
+use crate::cards::CardId;
 use crate::model::{Model, Role, read_model};
 use crate::runtime::{LIBRARY, Runtime, RuntimeError};
 use crate::tensor::{Numbers, Tensor, copied};
 use crate::testkit::Canned;
 
-const GIB: u64 = 1 << 30;
+pub(super) const GIB: u64 = 1 << 30;
 
 #[test]
 fn a_tensor_holds_as_many_numbers_as_its_shape_says() {
@@ -135,6 +137,42 @@ fn memory_the_runtime_could_not_have_is_no_room_in_whatever_words_it_says_so() {
 }
 
 #[test]
+fn a_cards_own_codes_are_sorted_before_the_runtimes_wordings_for_refused_memory() {
+    let sorted = RunError::from_words;
+    // A card that was lost can say, in the same message, that it could not allocate: the
+    // card is what went wrong, so it is the card that is lost, whichever is said first.
+    for lost in DEVICE_GONE {
+        for refused in [
+            "bad allocation",
+            "Failed to allocate memory",
+            "VirtualAlloc failed",
+        ] {
+            for words in [
+                format!("{lost} {refused}"),
+                format!("{refused} after {lost}"),
+            ] {
+                assert_eq!(sorted(&words), RunError::DeviceLost, "{words}");
+            }
+        }
+    }
+    // The card's own code for memory it could not have is no room, with or without the words.
+    for words in [
+        "8007000E",
+        "8007000E bad allocation",
+        "bad allocation 8007000E",
+    ] {
+        assert_eq!(sorted(words), RunError::NoRoom, "{words}");
+    }
+    // And it comes before the codes for a lost card, as it did before the wordings were
+    // sorted: a message that holds both is no room.
+    for lost in DEVICE_GONE {
+        for words in [format!("8007000E {lost}"), format!("{lost} 8007000E")] {
+            assert_eq!(sorted(&words), RunError::NoRoom, "{words}");
+        }
+    }
+}
+
+#[test]
 fn every_error_is_a_plain_sentence_without_the_runtimes_words() {
     use RuntimeError::{NotFound, WouldNotLoad, WrongBuild};
     let failed = RunError::Failed("Non-zero status code in C:\\models\\scores.onnx".to_owned());
@@ -187,7 +225,7 @@ fn outputs_past_two_gib_on_a_card_are_fetched_each_alone() {
 }
 
 /// What the ignored tests need: the runtime loaded and the model read, once for all of them.
-static REAL: LazyLock<(Runtime, Model)> = LazyLock::new(|| {
+pub(super) static REAL: LazyLock<(Runtime, Model)> = LazyLock::new(|| {
     let runtime = Runtime::load(&folder("VOXA_RUNTIME")).expect("the runtime loads");
     let model = read_model(&folder("VOXA_MODELS")).expect("the model folder reads");
     (runtime, model)
@@ -201,14 +239,8 @@ fn folder(variable: &str) -> PathBuf {
     env::var_os(variable).map_or_else(needed, Into::into)
 }
 
-fn turn() -> MutexGuard<'static, ()> {
+pub(super) fn turn() -> MutexGuard<'static, ()> {
     ONE_AT_A_TIME.lock().unwrap_or_else(PoisonError::into_inner)
-}
-
-fn cards_that_are_not_software() -> Vec<Card> {
-    let mut found = cards();
-    found.retain(|card| card.kind != CardKind::Software);
-    found
 }
 
 /// The side of the cube the scores network takes.
@@ -234,7 +266,7 @@ fn failed<T>(outcome: &Result<T, RunError>) -> bool {
 }
 
 /// Opens the scores network on a device, runs it on zeros and checks what comes back.
-fn scores_on(device: Device) {
+pub(super) fn scores_on(device: Device) {
     let started = Instant::now();
     let opened = scores(device, &Stop::new());
     let mut network = opened.unwrap_or_else(|error| panic!("{device:?} does not open: {error:?}"));
@@ -258,18 +290,6 @@ fn scores_on(device: Device) {
 fn the_scores_network_runs_on_the_processor() {
     let _turn = turn();
     scores_on(Device::Processor);
-}
-
-#[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on each graphics card"]
-fn the_scores_network_runs_on_each_card() {
-    let _turn = turn();
-    for card in cards_that_are_not_software() {
-        let (own, spare) = (card.own_bytes / GIB, budget(card.id));
-        let spare = spare.map(|bytes| bytes / GIB);
-        println!("{card:?}: {own} GiB of its own, {spare:?} GiB to spare");
-        scores_on(Device::Card(card.id));
-    }
 }
 
 #[test]
@@ -329,49 +349,6 @@ fn a_stop_set_during_a_run_on_the_processor_ends_it() {
     println!("the run ended {:.2?} after it began", started.elapsed());
     setter.join().expect("the thread that stops");
     assert_eq!(outcome, Err(RunError::Stopped));
-}
-
-/// The largest difference between two answers of the same shapes, number by number.
-fn furthest_apart(ours: &[Tensor], theirs: &[Tensor]) -> f32 {
-    assert_eq!(ours.len(), theirs.len());
-    let mut furthest = 0.0_f32;
-    for (ours, theirs) in ours.iter().zip(theirs) {
-        assert_eq!(ours.shape, theirs.shape);
-        let (Numbers::F32(ours), Numbers::F32(theirs)) = (&ours.numbers, &theirs.numbers) else {
-            panic!("not floating point numbers")
-        };
-        let apart = ours.iter().zip(theirs).map(|(a, b)| (a - b).abs());
-        furthest = apart.fold(furthest, f32::max);
-    }
-    furthest
-}
-
-#[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and a graphics card"]
-fn a_card_gives_the_processors_answer_however_it_is_fetched() {
-    let (runtime, model) = &*REAL;
-    let _turn = turn();
-    let (side, stop, standard) = (64, Stop::new(), model.file(Role::Standard));
-    let made_up = (0..side * side * side).map(|place| (place % 97) as f32 / 97.0);
-    let image = Tensor::f32(vec![1, side, side, side, 1], made_up.collect()).expect("an image");
-    let processor = runtime.open(standard, Device::Processor, [side; 3], &stop);
-    let expected = processor.expect("it opens").run(vec![image.clone()]);
-    let expected = expected.expect("it runs on the processor");
-    let shapes: Vec<&[usize]> = expected.iter().map(|part| part.shape.as_slice()).collect();
-    let (first, second) = ([1, side, side, side, 17], [1, side, side, side, 16]);
-    assert_eq!(shapes, [first, second]);
-    for Card { id, index, .. } in cards_that_are_not_software() {
-        let device = Device::Card(id);
-        let together = runtime.open(standard, device, [side; 3], &stop);
-        let alone = runtime.open_with(standard, device, [side; 3], &stop, 0);
-        let (mut together, mut alone) = (together.expect("it opens"), alone.expect("it opens"));
-        let one_run = together.run(vec![image.clone()]).expect("one run for both");
-        let two_runs = alone.run(vec![image.clone()]).expect("a run for each");
-        let ways = furthest_apart(&two_runs, &one_run);
-        let devices = furthest_apart(&one_run, &expected);
-        println!("card {index}: {ways:e} between the two ways, {devices:e} from the processor");
-        assert!(ways < 1e-4 && devices < 1e-4, "{ways} and {devices}");
-    }
 }
 
 #[test]

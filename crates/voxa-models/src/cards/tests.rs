@@ -102,3 +102,21 @@ fn a_cards_identity_is_both_halves_of_the_systems_number() {
     assert_ne!(identity(0, 128), identity(0, 100));
     assert_eq!(identity(-1, u32::MAX), CardId(u64::MAX));
 }
+
+#[test]
+fn adapters_that_differ_in_only_one_half_of_the_systems_number_are_two_cards() {
+    // Two pairs of numbers that differ only in the high half, and two that differ only in
+    // the low half. Were either half left out of the identity, or the two added and not
+    // joined, one of these pairs would be one card.
+    let high_only = [((0, 100), (1, 100)), ((-1, 128), (2, 128))];
+    let low_only = [((1, 100), (1, 128)), ((0, 0), (0, u32::MAX))];
+    for ((high, low), (other_high, other_low)) in high_only.into_iter().chain(low_only) {
+        let (first, second) = (identity(high, low), identity(other_high, other_low));
+        assert_ne!(
+            first, second,
+            "({high}, {low}) and ({other_high}, {other_low})"
+        );
+    }
+    // The halves are not interchangeable either.
+    assert_ne!(identity(1, 2), identity(2, 1));
+}

@@ -18,12 +18,12 @@ fn a_run_needs_its_largest_network_per_voxel_with_a_quarter_added() {
     );
     assert_eq!(
         needs(WHOLE, STANDARD, Device::Processor),
-        4_096_000 * 2_000 * 5 / 4
+        4_096_000 * 700 * 5 / 4
     );
     // The cortex network is the largest on the processor and no larger than the rest on a card.
     assert_eq!(
         needs(WHOLE, CORTEX, Device::Processor),
-        4_096_000 * 2_300 * 5 / 4
+        4_096_000 * 900 * 5 / 4
     );
     assert_eq!(
         needs(WHOLE, CORTEX, Device::Card(id(1))),
@@ -50,8 +50,10 @@ fn a_run_needs_its_largest_network_per_voxel_with_a_quarter_added() {
 
 #[test]
 fn the_cortex_network_asks_more_of_the_processor() {
+    // The whole scan asks the system for 5 184 749 567 bytes with the standard network and
+    // 5 632 000 000 with the cortex network, as `asks` says; the head asks for less.
     let mut room = room();
-    room.free_memory = 11_500_000_000;
+    room.free_memory = 5_400_000_000;
     assert_eq!(
         rungs(WHOLE, HEAD, STANDARD, &room, RunsOn::Processor),
         vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
