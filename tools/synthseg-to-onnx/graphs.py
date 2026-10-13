@@ -98,21 +98,29 @@ def _take_output(model: onnx.ModelProto) -> str:
     return old
 
 
-def add_blur(model: onnx.ModelProto, kernel: np.ndarray) -> None:
-    """SynthSeg's GaussianBlur(sigma=0.5) of each channel of the answer, as one grouped
-    convolution with its 3 x 3 x 3 kernel, zero beyond the edges."""
+def add_blur(model: onnx.ModelProto, kernels: list[np.ndarray]) -> None:
+    """SynthSeg's GaussianBlur(sigma=0.5) of each channel of the answer, zero beyond the edges,
+    as three grouped convolutions, one along each axis, with SynthSeg's own one-axis kernels:
+    their product is its 3 x 3 x 3 kernel. As one convolution with that kernel the runtime
+    asked the system, on the processor, for some 3 000 bytes more a voxel than the rest of the
+    network together; this way it asks for nothing more, and the labels are the same."""
     graph = model.graph
     channels = [d.dim_value for d in graph.output[0].type.tensor_type.shape.dim][-1]
     old = _take_output(model)
-    weights = np.zeros((channels, 1, 3, 3, 3), np.float32)
-    weights[:, 0] = kernel
-    graph.initializer.append(numpy_helper.from_array(weights, "blur_kernel"))
-    graph.node.extend([
-        helper.make_node("Transpose", [old], ["blur_in"], perm=[0, 4, 1, 2, 3], name="blur_in"),
-        helper.make_node("Conv", ["blur_in", "blur_kernel"], ["blur_out"], group=channels, kernel_shape=[3, 3, 3],
-                         pads=[1] * 6, name="blur"),
-        helper.make_node("Transpose", ["blur_out"], ["blurred"], perm=[0, 2, 3, 4, 1], name="blur_back"),
-    ])
+    graph.node.append(helper.make_node("Transpose", [old], ["blur_in"], perm=[0, 4, 1, 2, 3], name="blur_in"))
+    last = "blur_in"
+    for axis, (name, kernel) in enumerate(zip("xyz", kernels, strict=True)):
+        shape = [1, 1, 1]
+        shape[axis] = 3
+        weights = np.zeros((channels, 1, *shape), np.float32)
+        weights[:, 0] = np.asarray(kernel, np.float32).reshape(shape)
+        graph.initializer.append(numpy_helper.from_array(weights, f"blur_kernel_{name}"))
+        pads = [0] * 6
+        pads[axis] = pads[axis + 3] = 1
+        graph.node.append(helper.make_node("Conv", [last, f"blur_kernel_{name}"], [f"blur_{name}"], group=channels,
+                                           kernel_shape=shape, pads=pads, name=f"blur_{name}"))
+        last = f"blur_{name}"
+    graph.node.append(helper.make_node("Transpose", [last], ["blurred"], perm=[0, 2, 3, 4, 1], name="blur_back"))
     graph.output.append(helper.make_tensor_value_info("blurred", TensorProto.FLOAT, [1, *SIDES, channels]))
 
 

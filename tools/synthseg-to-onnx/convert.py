@@ -26,7 +26,7 @@ os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 
 FORMAT = 1
 KIND = "synthseg-2.0"
-CONVERTER = 1
+CONVERTER = 2
 OPSET = 17
 BOX = 224  # the side of the cube SynthSeg's scores network is given
 H5 = {"standard": "synthseg_2.0.h5", "robust": "synthseg_robust_2.0.h5", "cortex": "synthseg_parc_2.0.h5",
@@ -173,7 +173,8 @@ def write_networks(checkout: Path, out: Path, lists: dict) -> None:
 
     structures, stage = len(lists["structures"]), lists["stage_classes"]
     half = (structures + 1) // 2
-    blur = np.squeeze(edit_tensors.gaussian_kernel([0.5] * 3, separable=False).numpy())
+    blur = [np.squeeze(np.asarray(one)).astype(np.float32)
+            for one in edit_tensors.gaussian_kernel([0.5] * 3, separable=True)]
     for role, (model, channels) in build(checkout, lists).items():
         proto = to_onnx(model, channels)
         if role != "scores" and graphs.use_resize(proto) != 4:
