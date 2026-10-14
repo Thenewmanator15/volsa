@@ -158,7 +158,11 @@ impl Workers {
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
             Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
             Effect::DropLabels => self.drop_labels(),
-            Effect::None => {}
+            // Labelling is carried out by a worker that comes later.
+            Effect::LookForLabelling { .. }
+            | Effect::LabelScan { .. }
+            | Effect::StopLabelling
+            | Effect::None => {}
         }
     }
 

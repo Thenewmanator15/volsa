@@ -10,6 +10,7 @@ use voxa_volume::PlaneKind;
 
 use crate::annotations::{Annotation, Shape, Tool};
 pub use crate::effect::Effect;
+use crate::labelling::LabellingAction;
 use crate::labels::NamesFrom;
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
@@ -390,4 +391,6 @@ pub enum Action {
         /// Why, as the system gave it.
         reason: String,
     },
+    /// Something about labelling the scan with Voxa's own networks.
+    Labelling(LabellingAction),
 }

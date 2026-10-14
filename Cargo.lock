@@ -4040,7 +4040,9 @@ dependencies = [
  "voxa-core",
  "voxa-dicom",
  "voxa-labels",
+ "voxa-models",
  "voxa-render",
+ "voxa-segment",
  "voxa-volume",
  "zip",
 ]

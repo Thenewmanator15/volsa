@@ -12,6 +12,7 @@ use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
 mod frame;
+mod labelling;
 mod labels;
 mod link;
 mod planes;
@@ -112,6 +113,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         about_annotations if annotations::concerns(&about_annotations) => {
             annotations::reduce(state, about_annotations)
         }
+        Action::Labelling(about_labelling) => labelling::reduce(state, about_labelling),
         about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
@@ -121,12 +123,15 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
 fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
         Action::OpenPath(path) => {
-            // Labels belong to a study of the export that is being left.
+            // Labels, and a run of labelling, belong to a study of the export that is being left.
+            let labelling = state.labelling.running.is_some();
             let labelled = state.labels.status != crate::labels::LabelsStatus::None;
             *state = emptied(state);
+            let stopped = labelling.then_some(Effect::StopLabelling);
             let dropped = labelled.then_some(Effect::DropLabels);
-            return dropped
+            return stopped
                 .into_iter()
+                .chain(dropped)
                 .chain([Effect::StartIndex(path)])
                 .collect();
         }
@@ -194,6 +199,7 @@ fn emptied(state: &AppState) -> AppState {
             ..Planes::default()
         },
         labels: labels::emptied(&state.labels),
+        labelling: labelling::emptied(&state.labelling),
         ..AppState::default()
     }
 }
@@ -290,6 +296,12 @@ fn settle_window(
 mod annotations_tests;
 #[cfg(test)]
 mod frame_tests;
+#[cfg(test)]
+mod labelling_result_tests;
+#[cfg(test)]
+mod labelling_tests;
+#[cfg(test)]
+mod labelling_words_tests;
 #[cfg(test)]
 mod labels_open_tests;
 #[cfg(test)]

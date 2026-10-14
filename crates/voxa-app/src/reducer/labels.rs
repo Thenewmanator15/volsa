@@ -1,7 +1,9 @@
 //! Actions about labelled parts: opening and closing labels, and what is shown of them.
 
+use voxa_core::StudyId;
 use voxa_labels::boxes_meet;
 
+use super::labelling;
 use crate::action::{Action, Effect};
 use crate::labels::{
     FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOTHING_TO_LABEL_KEY, NOWHERE_NEAR,
@@ -36,13 +38,19 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::OpenLabels { labels, table } => return open(state, labels, table),
         Action::CloseLabels => {
             state.labels = emptied(&state.labels);
-            return vec![Effect::DropLabels];
+            let stopped = labelling::stop(state);
+            return stopped.into_iter().chain([Effect::DropLabels]).collect();
         }
         Action::LabelsFailed(why) if state.labels.status == LabelsStatus::Reading => {
             state.labels.status = LabelsStatus::Failed(why);
         }
+        // What a run of labelling brings back is not a file that was read.
+        read @ Action::LabelsRead { .. } if state.labelling.running.is_some() => {
+            return labelling::result(state, read);
+        }
         read @ Action::LabelsRead { .. } if state.labels.status == LabelsStatus::Reading => {
-            return taken_in(state, read);
+            let study = state.labels.study.clone();
+            return taken_in(state, read, study);
         }
         Action::SetOverlay(overlay) => state.labels.overlay = overlay,
         about_a_part => shown(&mut state.labels, &about_a_part),
@@ -60,7 +68,8 @@ pub(super) fn emptied(labels: &Labels) -> Labels {
 
 /// Ask for a label file to be read. Labels are put on a volume, so there must be one ready;
 /// they will belong to the study of the series it is of. With no volume nothing is read, and
-/// a notice says what to do first.
+/// a notice says what to do first. A run of labelling that is on is stopped: the labels it
+/// would bring back would take the place of these.
 fn open(
     state: &mut AppState,
     labels: std::path::PathBuf,
@@ -83,13 +92,15 @@ fn open(
         study: Some(study),
         ..emptied(&state.labels)
     };
-    vec![Effect::ReadLabels { labels, table }]
+    let stopped = labelling::stop(state);
+    let read = Effect::ReadLabels { labels, table };
+    stopped.into_iter().chain([read]).collect()
 }
 
-/// Take in labels a worker has read: every part shown, solid. If the scene shows a series of
-/// their study and their box lies nowhere near its volume, they are another scan's and are
-/// refused.
-fn taken_in(state: &mut AppState, read: Action) -> Vec<Effect> {
+/// Take in labels a worker has made or read, as the labels of `study`: every part shown,
+/// solid. If the scene shows a series of that study and their box lies nowhere near its
+/// volume, they are another scan's and are refused.
+pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId>) -> Vec<Effect> {
     let Action::LabelsRead {
         title,
         parts,
@@ -101,7 +112,6 @@ fn taken_in(state: &mut AppState, read: Action) -> Vec<Effect> {
     else {
         return Vec::new();
     };
-    let study = state.labels.study.clone();
     let scene = state.scene.series.as_ref();
     let of_this_study = scene.and_then(|series| study_of(state, series)) == study;
     let volume = state.scene.corners.filter(|_| of_this_study);

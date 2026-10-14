@@ -8,6 +8,7 @@ use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
 use crate::annotations::{Annotations, Tool};
+use crate::labelling::Labelling;
 use crate::labels::Labels;
 use crate::planes::Planes;
 use crate::scene::{MainPanel, Scene};
@@ -173,6 +174,8 @@ pub struct AppState {
     pub tool: Tool,
     /// The labelled parts open on a study, and what is shown of them.
     pub labels: Labels,
+    /// Labelling a scan with Voxa's own networks: what can be done, what is chosen, what runs.
+    pub labelling: Labelling,
 }
 
 impl Default for AppState {
@@ -195,6 +198,7 @@ impl Default for AppState {
             annotations: Annotations::default(),
             tool: Tool::default(),
             labels: Labels::default(),
+            labelling: Labelling::default(),
         }
     }
 }

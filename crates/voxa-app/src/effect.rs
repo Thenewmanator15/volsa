@@ -3,6 +3,7 @@
 use std::path::PathBuf;
 
 use voxa_core::SeriesId;
+use voxa_models::{RunsOn, Wanted};
 
 use crate::annotations::Annotation;
 use crate::views::SavedView;
@@ -66,6 +67,31 @@ pub enum Effect {
     },
     /// Give up the labels kept, and any being read.
     DropLabels,
+    /// Look for the models and the runtime, in these folders or where they are usually kept,
+    /// and for the graphics cards, and report what was found.
+    LookForLabelling {
+        /// The folder of the models, when the person chose one.
+        models: Option<PathBuf>,
+        /// The folder of the runtime, when the person chose one.
+        runtime: Option<PathBuf>,
+    },
+    /// Label a series with the networks.
+    LabelScan {
+        /// The series to label.
+        series: SeriesId,
+        /// Which networks, and whether the cortex is divided into its areas.
+        wanted: Wanted,
+        /// Where the person wants the run to go.
+        runs_on: RunsOn,
+        /// How many bytes of the graphics card Voxa draws on it holds itself.
+        held: u64,
+        /// Whether to keep the result.
+        keep: bool,
+        /// The name of the card Voxa draws on, if it draws on one.
+        drawing_on: Option<String>,
+    },
+    /// Stop the run of labelling, if one is on.
+    StopLabelling,
     /// Nothing to do.
     None,
 }

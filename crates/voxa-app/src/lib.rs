@@ -19,6 +19,7 @@ mod cache;
 mod csv;
 mod effect;
 mod export;
+mod labelling;
 mod labels;
 mod measurements;
 mod parts_table;
@@ -43,6 +44,7 @@ pub use annotations::{
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};
+pub use labelling::{Labelling, LabellingAction, Ready, can_label, what_will_run};
 pub use labels::{
     Labels, LabelsStatus, NOWHERE_NEAR, NamesFrom, PartShown, is_label_file, look_drawn,
     on_this_series, study_of,
