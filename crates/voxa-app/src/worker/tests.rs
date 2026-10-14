@@ -55,6 +55,11 @@ impl Bench {
         std::iter::from_fn(|| self.reports.recv_timeout(QUIET).ok()).collect()
     }
 
+    /// Take reports until one is the one `wanted`, however long the workers take over it.
+    pub(super) fn wait_for(&self, wanted: &Action) {
+        while self.next() != *wanted {}
+    }
+
     /// Wait for something the workers do without reporting it.
     pub(super) fn until(&self, done: impl Fn(&Self) -> bool) {
         let started = std::time::Instant::now();

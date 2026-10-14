@@ -1,6 +1,6 @@
 //! A graphics device with no window, and pictures drawn on it and read back.
 
-use std::sync::mpsc;
+use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 
 use egui_wgpu::wgpu;
 
@@ -10,6 +10,17 @@ use crate::slice_pipeline::RenderError;
 /// the grey read back is the grey the shader wrote.
 pub(crate) const TARGET: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
+
+/// Devices started without a window all come from one adapter, and start one at a time. A
+/// run of the tests on many threads, each looking for an adapter of its own and starting a
+/// device on it, stopped for good on one machine's driver. One adapter was enough to cure
+/// it there; taking turns as well costs little, since starting a device on an adapter
+/// already found is quick.
+static STARTING: Mutex<()> = Mutex::new(());
+
+/// The adapter those devices come from, looked for once: the search is most of the time a
+/// start would otherwise take.
+static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
 
 /// A graphics device with no window.
 pub(crate) struct Gpu {
@@ -34,20 +45,10 @@ impl Gpu {
     /// [`RenderError::NoAdapter`] when the machine has neither, and [`RenderError::Device`]
     /// when the adapter found will not start.
     pub(crate) fn start() -> Result<Self, RenderError> {
-        // Which backend and which adapter can be chosen from outside, to try more than
-        // one graphics device on a machine: `WGPU_BACKEND` and `WGPU_POWER_PREF`.
-        let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-        let instance = wgpu::Instance::new(from_outside);
-        let adapter = |force_fallback_adapter| {
-            let wanted = wgpu::RequestAdapterOptions {
-                power_preference: wgpu::PowerPreference::from_env().unwrap_or_default(),
-                force_fallback_adapter,
-                ..Default::default()
-            };
-            pollster::block_on(instance.request_adapter(&wanted)).ok()
-        };
-        let adapter = adapter(false)
-            .or_else(|| adapter(true))
+        let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
+        let adapter = ADAPTER
+            .get_or_init(find_adapter)
+            .as_ref()
             .ok_or(RenderError::NoAdapter)?;
         let wanted = wgpu::DeviceDescriptor {
             label: Some("voxa headless"),
@@ -197,6 +198,23 @@ impl Gpu {
 }
 
 /// One render pass that clears the picture to black and lets `draw` draw over it.
+/// The machine's own adapter if it has one, otherwise one emulated in software. Which
+/// backend and which adapter can be chosen from outside, to try more than one graphics
+/// device on a machine: `WGPU_BACKEND` and `WGPU_POWER_PREF`.
+fn find_adapter() -> Option<wgpu::Adapter> {
+    let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+    let instance = wgpu::Instance::new(from_outside);
+    let adapter = |force_fallback_adapter| {
+        let wanted = wgpu::RequestAdapterOptions {
+            power_preference: wgpu::PowerPreference::from_env().unwrap_or_default(),
+            force_fallback_adapter,
+            ..Default::default()
+        };
+        pollster::block_on(instance.request_adapter(&wanted)).ok()
+    };
+    adapter(false).or_else(|| adapter(true))
+}
+
 fn draw_into(
     encoder: &mut wgpu::CommandEncoder,
     target: &wgpu::Texture,

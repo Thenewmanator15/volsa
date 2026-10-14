@@ -287,7 +287,8 @@ fn the_curve_through_the_volume_kept_is_worked_out_on_a_worker_and_kept_with_it(
     let ready = Action::SmoothReady {
         series: series.clone(),
     };
-    assert_eq!(bench.drain().last(), Some(&ready));
+    bench.wait_for(&ready);
+    assert!(bench.is_quiet(), "and that is the last of it");
     let taken = || lock(&bench.volumes).take_smoothed(&series);
     assert_eq!(taken().expect("kept").dims(), [4, 4, 30]);
     // Given up, a curve that arrives late is not kept.
