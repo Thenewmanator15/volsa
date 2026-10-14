@@ -85,6 +85,7 @@ impl Workers {
                         corners: set.corners(),
                         names_from,
                         made: set.made.clone(),
+                        run: None,
                     }
                 }
                 Err(why) => Action::LabelsFailed(why),

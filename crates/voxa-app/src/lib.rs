@@ -60,4 +60,5 @@ pub use state::{
 pub use ui::{VoxaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, series_key};
 pub use volume_store::VolumeStore;
+pub use worker::labelling::Labeller;
 pub use worker::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, Workers, table_beside};

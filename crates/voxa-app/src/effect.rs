@@ -70,6 +70,8 @@ pub enum Effect {
     /// Look for the models and the runtime, in these folders or where they are usually kept,
     /// and for the graphics cards, and report what was found.
     LookForLabelling {
+        /// Which look this is: what is found is reported with it.
+        look: u64,
         /// The folder of the models, when the person chose one.
         models: Option<PathBuf>,
         /// The folder of the runtime, when the person chose one.
@@ -77,6 +79,8 @@ pub enum Effect {
     },
     /// Label a series with the networks.
     LabelScan {
+        /// Which run this is: what it says is reported with it.
+        run: u64,
         /// The series to label.
         series: SeriesId,
         /// Which networks, and whether the cortex is divided into its areas.

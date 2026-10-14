@@ -51,6 +51,7 @@ fn read(corners: [Point<Patient>; 8]) -> Action {
         corners,
         names_from: NamesFrom::Table,
         made: None,
+        run: None,
     }
 }
 
@@ -379,6 +380,7 @@ fn the_models_check_and_who_made_the_labels_come_with_them_and_go_with_them() {
             by: "Voxa 9.8.7".to_owned(),
             ..Made::default()
         }),
+        run: None,
     };
     reduce(&mut state, read);
     assert_eq!(state.labels.verdict, Some(verdict));

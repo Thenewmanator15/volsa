@@ -30,8 +30,13 @@ fn parts() -> Vec<Part> {
     vec![part(Side::Left), part(Side::Right)]
 }
 
-/// What a worker reports of labels that fill `corners`, made by Voxa or not.
-fn read_with(corners: [Point<Patient>; 8], made: Option<Made>) -> Action {
+/// What a worker reports of labels that fill `corners`, made by Voxa or not, by a run or
+/// read from a file.
+pub(super) fn read_with(
+    corners: [Point<Patient>; 8],
+    made: Option<Made>,
+    run: Option<u64>,
+) -> Action {
     Action::LabelsRead {
         title: "A made-up head".to_owned(),
         parts: parts(),
@@ -39,16 +44,21 @@ fn read_with(corners: [Point<Patient>; 8], made: Option<Made>) -> Action {
         corners,
         names_from: NamesFrom::Table,
         made,
+        run,
     }
 }
 
-/// What a worker reports of a finished run whose labels fill `corners`.
-fn came_back(corners: [Point<Patient>; 8]) -> Action {
-    let made = Made {
+/// Who made labels: Voxa.
+pub(super) fn by_voxa() -> Made {
+    Made {
         by: "Voxa 9.8.7".to_owned(),
         ..Made::default()
-    };
-    read_with(corners, Some(made))
+    }
+}
+
+/// What a worker reports of the first run, finished, whose labels fill `corners`.
+fn came_back(corners: [Point<Patient>; 8]) -> Action {
+    read_with(corners, Some(by_voxa()), Some(1))
 }
 
 /// A run on, with labels of the same study already open.
@@ -56,7 +66,7 @@ fn running_with_labels() -> AppState {
     let mut state = able();
     reduce(&mut state, open());
     let volume = state.scene.corners.expect("the volume is built");
-    reduce(&mut state, came_back(volume));
+    reduce(&mut state, read_with(volume, Some(by_voxa()), None));
     assert_eq!(state.labels.status, LabelsStatus::Ready);
     assert_eq!(label(&mut state).len(), 1);
     state
@@ -101,13 +111,9 @@ fn labels_that_come_back_are_taken_in_as_those_of_the_study_that_was_labelled() 
 }
 
 #[test]
-fn labels_that_come_back_are_kept_when_the_scene_is_on_the_same_study_or_on_none() {
-    let mut state = running();
-    let box_of_the_volume = state.scene.corners.expect("the volume is built");
-    select(&mut state, 0, FINE_SCAN);
-    reduce(&mut state, came_back(box_of_the_volume));
-    assert_eq!(state.labels.status, LabelsStatus::Ready, "same study");
-    // The scene shows nothing: the labels wait for their study.
+fn labels_that_come_back_are_kept_when_the_scene_shows_nothing() {
+    // The scene shows nothing: the labels wait for their study. (A scene that moves to another
+    // series of the same study ends the run instead: see the series tests.)
     let mut state = running();
     reduce(&mut state, Action::SetLayout(Layout::TwoAcross));
     reduce(&mut state, Action::SetActive(1));
@@ -202,15 +208,11 @@ fn closing_labels_stops_a_run_and_empties_them() {
 fn a_label_file_read_while_no_run_is_on_is_a_file_and_leaves_the_run_state_alone() {
     // A run asked for while the file is being read is refused, so the file's labels are
     // never taken for a run's; with or without the mark of who made them.
-    let made = Made {
-        by: "Voxa 9.8.7".to_owned(),
-        ..Made::default()
-    };
-    for made in [Some(made), None] {
+    for made in [Some(by_voxa()), None] {
         let mut state = reading_labels();
         assert_eq!(label(&mut state), [], "refused while the file is read");
         let volume = state.scene.corners.expect("the volume is built");
-        let effects = reduce(&mut state, read_with(volume, made.clone()));
+        let effects = reduce(&mut state, read_with(volume, made.clone(), None));
         assert_eq!(effects, []);
         assert!(nothing_runs(&state), "{made:?}");
         assert_eq!(state.labels.status, LabelsStatus::Ready);

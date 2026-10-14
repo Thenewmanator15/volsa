@@ -160,6 +160,7 @@ pub fn labelled_head() -> (
         made: None,
         corners: set.corners(),
         names_from: crate::labels::NamesFrom::Nothing,
+        run: None,
     };
     reduce(&mut state, read);
     assert!(

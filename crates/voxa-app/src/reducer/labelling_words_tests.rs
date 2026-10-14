@@ -3,7 +3,9 @@
 use voxa_models::{CardId, CardKind, RunsOn};
 use voxa_segment::ModelChoice;
 
-use super::labelling_tests::{able, card, cards, looked, reading_labels, running, slices_apart};
+use super::labelling_tests::{
+    able, card, cards, looked, looked_on, reading_labels, running, slices_apart,
+};
 use super::tests::showing;
 use super::*;
 use crate::labelling::{LabellingAction, Ready, can_label, what_will_run};
@@ -117,26 +119,14 @@ fn automatic_names_the_first_discrete_card_and_otherwise_the_processor() {
     let mut state = able();
     slices_apart(&mut state, 1.0);
     let by_hand = cards().into_iter().rev().collect();
-    reduce(
-        &mut state,
-        Action::Labelling(LabellingAction::LabellingLooked {
-            ready: Ready::Yes,
-            cards: by_hand,
-        }),
-    );
+    looked_on(&mut state, Ready::Yes, by_hand);
     assert!(what_will_run(&state).contains("on the graphics card (Made-up card B)."));
     let not_discrete = vec![
         card(1, "Made-up shared graphics", CardKind::Integrated),
         card(4, "Made-up software", CardKind::Software),
     ];
     for cards in [not_discrete, Vec::new()] {
-        reduce(
-            &mut state,
-            Action::Labelling(LabellingAction::LabellingLooked {
-                ready: Ready::Yes,
-                cards,
-            }),
-        );
+        looked_on(&mut state, Ready::Yes, cards);
         assert!(
             what_will_run(&state).contains("on the processor."),
             "{}",

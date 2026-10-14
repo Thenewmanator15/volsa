@@ -7,6 +7,7 @@ use std::time::Instant;
 use egui::RichText;
 
 use crate::action::Action;
+use crate::labelling::LabellingAction;
 use crate::session::Session;
 use crate::settings;
 use crate::state::{NoticeKind, VIEWPORTS};
@@ -129,7 +130,13 @@ impl VoxaApp {
         };
         if let Some(render) = render {
             app.tell_the_workers_of(render);
+            // A run on the card Voxa draws on leaves room for what Voxa holds there.
+            let drawing_on = render.adapter.get_info().name;
+            app.dispatch(Action::Labelling(LabellingAction::DrawingOn(drawing_on)));
         }
+        // Whether this computer can label a scan is looked at once as Voxa starts, on a
+        // worker, and again whenever a folder for it is chosen.
+        app.dispatch(Action::Labelling(LabellingAction::Look));
         if app.capture.is_some() {
             // A picture is of things as they come to rest, not part-way through fading in.
             creation

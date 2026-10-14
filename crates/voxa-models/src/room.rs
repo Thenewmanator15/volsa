@@ -92,8 +92,9 @@ pub struct Rung {
     pub device: Device,
     /// How much of the scan they are given.
     pub cut: Cut,
-    /// Where the scores network runs: on `device` when it fits there, otherwise on the
-    /// processor.
+    /// Where the scores network runs: on `device` when it fits there and the system can back
+    /// the run so; otherwise on the processor, even with room for it on the card, when the
+    /// ordinary memory could not back it there.
     pub scores_on: Device,
 }
 
@@ -170,6 +171,21 @@ pub fn asks(voxels: u64, wanted: Wanted, rung: Rung) -> u64 {
 type Place = (Device, u64);
 
 impl Room {
+    /// How many bytes a device has for a run, as [`rungs`] counts them: what the system can
+    /// still promise for the processor and for an integrated card, which shares it, and for a
+    /// discrete card its budget, or its own memory less what Voxa holds of it. `None` for a
+    /// card the computer does not list, and for software standing in for one, which is never
+    /// a place to run.
+    pub fn space_on(&self, device: Device) -> Option<u64> {
+        match device {
+            Device::Processor => Some(self.free_memory),
+            Device::Card(id) => {
+                let (place, card) = self.cards.iter().enumerate().find(|(_, c)| c.id == id)?;
+                self.room_on(place, card)
+            }
+        }
+    }
+
     /// How many bytes a discrete card has for a run. `place` is the card's place in `cards`.
     /// The system's budget already allows for what every program holds on the card, Voxa
     /// included. Where it could not be read, the card's own memory less what Voxa holds, if
@@ -274,14 +290,14 @@ pub fn rungs(whole: u64, head: u64, wanted: Wanted, room: &Room, runs_on: RunsOn
 
 /// The gigabytes of a figure, to one place, rounded up: what is needed is never said to be
 /// less than it is. A GB is a GiB, as the system shows memory.
-fn needed_gb(bytes: u64) -> String {
+pub fn needed_gb(bytes: u64) -> String {
     let tenths = (u128::from(bytes) * 10).div_ceil(u128::from(GIB));
     format!("{}.{}", tenths / 10, tenths % 10)
 }
 
 /// The gigabytes of a figure, to one place, rounded down: what there is is never said to be
-/// more than it is.
-fn spare_gb(bytes: u64) -> String {
+/// more than it is. A GB is a GiB, as the system shows memory.
+pub fn spare_gb(bytes: u64) -> String {
     let tenths = u128::from(bytes) * 10 / u128::from(GIB);
     format!("{}.{}", tenths / 10, tenths % 10)
 }

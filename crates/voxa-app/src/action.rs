@@ -320,6 +320,8 @@ pub enum Action {
         names_from: NamesFrom,
         /// Who made them, when their table says; `None` for labels made elsewhere.
         made: Option<Made>,
+        /// The run of labelling that made them; `None` for labels read from a file.
+        run: Option<u64>,
     },
     /// The labels asked for could not be read; the sentence says why.
     LabelsFailed(String),

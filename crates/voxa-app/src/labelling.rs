@@ -34,14 +34,28 @@ pub enum LabellingAction {
         /// How many bytes of the graphics card Voxa draws on it holds itself.
         held: u64,
     },
-    /// The labelling run has reached a stage.
-    LabellingStage(Stage),
-    /// The labelling run failed; the sentence says why.
-    LabellingFailed(String),
+    /// A labelling run has reached a stage.
+    LabellingStage {
+        /// Which run, by the number it was started with.
+        run: u64,
+        /// The stage it has reached.
+        stage: Stage,
+    },
+    /// A labelling run failed.
+    LabellingFailed {
+        /// Which run, by the number it was started with.
+        run: u64,
+        /// Why, in a sentence.
+        why: String,
+    },
     /// Stop the labelling run.
     StopLabelling,
+    /// Look again at whether this computer can label a scan, in the folders as they are.
+    Look,
     /// A worker has looked at whether this computer can label a scan, and at its cards.
     LabellingLooked {
+        /// Which look, by the number it was asked for with.
+        look: u64,
         /// Whether it can.
         ready: Ready,
         /// Its graphics cards.
@@ -90,6 +104,12 @@ pub struct Labelling {
     pub on: Option<SeriesId>,
     /// The date of a kept result, as it is written for the person.
     pub kept: Option<String>,
+    /// How many runs have been started: the number of the newest. What a worker says of any
+    /// other run is old news.
+    pub runs: u64,
+    /// How many looks at this computer have been asked for: the number of the newest. What a
+    /// worker found on an older look is old news.
+    pub looks: u64,
 }
 
 impl Default for Labelling {
@@ -107,6 +127,8 @@ impl Default for Labelling {
             running: None,
             on: None,
             kept: None,
+            runs: 0,
+            looks: 0,
         }
     }
 }

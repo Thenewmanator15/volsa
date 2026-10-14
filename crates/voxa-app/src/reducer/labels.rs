@@ -44,11 +44,16 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::LabelsFailed(why) if state.labels.status == LabelsStatus::Reading => {
             state.labels.status = LabelsStatus::Failed(why);
         }
-        // What a run of labelling brings back is not a file that was read.
-        read @ Action::LabelsRead { .. } if state.labelling.running.is_some() => {
-            return labelling::result(state, read);
+        // What a run of labelling brings back is not a file that was read, and it is taken
+        // only from the run that is on. Any other run's is old news.
+        read @ Action::LabelsRead { run: Some(run), .. } => {
+            if labelling::waiting_for(&state.labelling, run) {
+                return labelling::result(state, read);
+            }
         }
-        read @ Action::LabelsRead { .. } if state.labels.status == LabelsStatus::Reading => {
+        read @ Action::LabelsRead { run: None, .. }
+            if state.labels.status == LabelsStatus::Reading =>
+        {
             let study = state.labels.study.clone();
             return taken_in(state, read, study);
         }
@@ -108,6 +113,7 @@ pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId
         corners,
         names_from,
         made,
+        run: _,
     } = read
     else {
         return Vec::new();

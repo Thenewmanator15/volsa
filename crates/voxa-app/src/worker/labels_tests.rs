@@ -62,6 +62,7 @@ fn labels_and_the_table_beside_them_are_read_kept_and_reported() {
         ("regions_a.json", TABLE.as_bytes()),
     ]);
     read(&bench, folder.path().join("labels_a.nii.gz"));
+    // Labels read from a file are no run's.
     let Action::LabelsRead {
         title,
         parts,
@@ -69,6 +70,7 @@ fn labels_and_the_table_beside_them_are_read_kept_and_reported() {
         corners,
         names_from,
         made,
+        run: None,
     } = bench.next()
     else {
         panic!("the labels are reported");

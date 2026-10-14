@@ -1,8 +1,10 @@
-//! The graphics cards of this computer, as the system lists them, and what each has to spare.
+//! The graphics cards of this computer, as the system lists them, and what each has to spare;
+//! and how much ordinary memory the system can still give this program.
 //!
 //! This is the one module of the crate that may use `unsafe`: on Windows the list is DXGI's,
-//! and every call into it is marked unsafe. Each use says why it is sound. On a system with
-//! no such list there are no cards and nothing is known of their memory.
+//! and every call into it is marked unsafe, as is the call that says how much memory is left.
+//! Each use says why it is sound. On a system with no such list there are no cards and
+//! nothing is known of their memory.
 //!
 //! A card is known by what it is, a [`CardId`], and not by where it stands in the list. The
 //! list changes its order while a program runs, and a place kept from before is then another
@@ -84,6 +86,37 @@ pub fn in_use(id: CardId) -> Option<u64> {
     place_now(id).and_then(system::in_use)
 }
 
+/// How much more ordinary memory this program can have now, as far as the system says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FreeMemory {
+    /// What the system can still promise this program, in bytes: on Windows the commit still
+    /// available to it. It is what an allocation that is refused runs into.
+    Promised(u64),
+    /// The free physical memory, in bytes: all that could be read on a system that does not
+    /// say what it can still promise.
+    Physical(u64),
+    /// Nothing could be read.
+    Unknown,
+}
+
+/// How much more ordinary memory this program can have now: on Windows the commit still
+/// available to it; elsewhere the free physical memory, where that can be read.
+pub fn free_memory() -> FreeMemory {
+    system::free_memory()
+}
+
+/// The memory Linux says is available, in bytes, from the text of its `/proc/meminfo`: the
+/// line `MemAvailable`, which is in kibibytes. `None` when there is no such line or it holds
+/// no such figure.
+#[cfg_attr(all(windows, not(test)), allow(dead_code))]
+pub(crate) fn available_in(meminfo: &str) -> Option<u64> {
+    let line = meminfo
+        .lines()
+        .find_map(|line| line.strip_prefix("MemAvailable:"))?;
+    let kibibytes: u64 = line.trim().strip_suffix("kB")?.trim().parse().ok()?;
+    kibibytes.checked_mul(1024)
+}
+
 /// A card's identity from the two halves of the number the system gives it.
 #[cfg_attr(not(any(windows, test)), allow(dead_code))]
 pub(crate) fn identity(high: i32, low: u32) -> CardId {
@@ -110,9 +143,10 @@ mod system {
         CreateDXGIFactory1, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_MEMORY_SEGMENT_GROUP_LOCAL,
         DXGI_QUERY_VIDEO_MEMORY_INFO, IDXGIAdapter3, IDXGIFactory1,
     };
+    use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     use windows::core::Interface;
 
-    use super::{Card, identity, kind};
+    use super::{Card, FreeMemory, identity, kind};
 
     /// More adapters than any computer lists: the walk of the list ends here at the latest.
     const MOST_CARDS: u32 = 64;
@@ -191,11 +225,27 @@ mod system {
         let named = end.and_then(|end| units.get(..end)).unwrap_or(units);
         String::from_utf16_lossy(named).trim().to_owned()
     }
+
+    /// The commit still available to this program: what the system says this process can
+    /// still commit, which is never more than the whole system has left to commit.
+    pub(super) fn free_memory() -> FreeMemory {
+        let mut status = MEMORYSTATUSEX {
+            // The call reads the length first, to know the structure it is given.
+            dwLength: u32::try_from(size_of::<MEMORYSTATUSEX>()).unwrap_or_default(),
+            ..MEMORYSTATUSEX::default()
+        };
+        // SAFETY: `status` is a plain structure of ours that outlives the call, with its
+        // length set as the call asks. The call reads that length and writes the rest.
+        match unsafe { GlobalMemoryStatusEx(&raw mut status) } {
+            Ok(()) => FreeMemory::Promised(status.ullAvailPageFile),
+            Err(_) => FreeMemory::Unknown,
+        }
+    }
 }
 
 #[cfg(not(windows))]
 mod system {
-    use super::Card;
+    use super::{Card, FreeMemory, available_in};
 
     pub(super) fn cards() -> Vec<Card> {
         Vec::new()
@@ -207,5 +257,15 @@ mod system {
 
     pub(super) fn in_use(_index: u32) -> Option<u64> {
         None
+    }
+
+    /// The memory Linux says is available, where its list can be read. What the system
+    /// would still promise is not what refuses an allocation there, so it is not read.
+    pub(super) fn free_memory() -> FreeMemory {
+        let listed = std::fs::read_to_string("/proc/meminfo").ok();
+        match listed.as_deref().and_then(available_in) {
+            Some(bytes) => FreeMemory::Physical(bytes),
+            None => FreeMemory::Unknown,
+        }
     }
 }

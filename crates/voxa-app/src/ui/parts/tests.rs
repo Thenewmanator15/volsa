@@ -52,6 +52,7 @@ fn labelled(verdict: Option<Verdict>, names_from: NamesFrom) -> AppState {
         corners: state.scene.corners.expect("the volume's box"),
         names_from,
         made: None,
+        run: None,
     };
     reduce(&mut state, read);
     state

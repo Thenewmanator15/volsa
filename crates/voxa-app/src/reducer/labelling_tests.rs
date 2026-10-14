@@ -35,12 +35,32 @@ pub(super) fn cards() -> Vec<Card> {
     ]
 }
 
+/// What the newest look found: this computer's readiness, and these cards.
+pub(super) fn looked_on(state: &mut AppState, ready: Ready, cards: Vec<Card>) {
+    let look = state.labelling.looks;
+    let found = LabellingAction::LabellingLooked { look, ready, cards };
+    reduce(state, Action::Labelling(found));
+}
+
 pub(super) fn looked(state: &mut AppState, ready: Ready) {
-    let cards = cards();
-    reduce(
-        state,
-        Action::Labelling(LabellingAction::LabellingLooked { ready, cards }),
-    );
+    looked_on(state, ready, cards());
+}
+
+/// What the run on says of itself.
+pub(super) fn stage(state: &mut AppState, reached: Stage) {
+    let run = state.labelling.runs;
+    let said = LabellingAction::LabellingStage {
+        run,
+        stage: reached,
+    };
+    reduce(state, Action::Labelling(said));
+}
+
+/// What the run on says when it fails.
+pub(super) fn failure(state: &mut AppState, why: &str) -> Vec<Effect> {
+    let (run, why) = (state.labelling.runs, why.to_owned());
+    let failed = LabellingAction::LabellingFailed { run, why };
+    reduce(state, Action::Labelling(failed))
 }
 
 /// The 30-slice series with its volume built, on a computer that can label.
@@ -114,6 +134,8 @@ fn a_fresh_state_has_looked_at_nothing_and_has_the_usual_choices() {
         running: None,
         on: None,
         kept: None,
+        runs: 0,
+        looks: 0,
     };
     assert_eq!(AppState::default().labelling, expected);
 }
@@ -127,6 +149,7 @@ fn labelling_starts_when_ready_with_a_volume_and_asks_for_the_run() {
     );
     let effects = label(&mut state);
     let asked = Effect::LabelScan {
+        run: 1,
         series: id(THICK_SCAN),
         wanted: Wanted {
             robust: true,
@@ -155,6 +178,7 @@ fn the_run_carries_every_choice() {
         assert_eq!(reduce(&mut state, action), []);
     }
     let asked = Effect::LabelScan {
+        run: 1,
         series: id(THICK_SCAN),
         wanted: Wanted {
             robust: false,
@@ -220,23 +244,14 @@ fn nothing_starts_unless_ready_idle_and_with_a_volume() {
 fn a_run_says_how_far_it_has_got_and_ignores_news_of_one_that_is_over() {
     let mut state = running();
     let finding = Stage::Finding { step: 2, of: 3 };
-    assert_eq!(
-        reduce(
-            &mut state,
-            Action::Labelling(LabellingAction::LabellingStage(finding))
-        ),
-        []
-    );
+    stage(&mut state, finding);
     assert_eq!(state.labelling.running, Some(finding));
     reduce(
         &mut state,
         Action::Labelling(LabellingAction::StopLabelling),
     );
     let before = state.clone();
-    reduce(
-        &mut state,
-        Action::Labelling(LabellingAction::LabellingStage(Stage::Checking)),
-    );
+    stage(&mut state, Stage::Checking);
     assert_eq!(state, before, "a late word from a run that was stopped");
 }
 
@@ -266,10 +281,7 @@ fn a_stopped_run_is_cleared_with_a_word_and_asked_to_stop_once() {
 fn a_failed_run_is_cleared_and_the_sentence_is_posted_as_an_error() {
     let mut state = running();
     let why = "There is not enough memory to label this scan.";
-    let effects = reduce(
-        &mut state,
-        Action::Labelling(LabellingAction::LabellingFailed(why.to_owned())),
-    );
+    let effects = failure(&mut state, why);
     assert_eq!(effects, []);
     assert!(nothing_runs(&state));
     assert_eq!(said(&state), [(NoticeKind::Error, why.to_owned())]);
@@ -281,10 +293,7 @@ fn a_failed_run_is_cleared_and_the_sentence_is_posted_as_an_error() {
         Action::Labelling(LabellingAction::StopLabelling),
     );
     let before = state.clone();
-    reduce(
-        &mut state,
-        Action::Labelling(LabellingAction::LabellingFailed("Late.".to_owned())),
-    );
+    failure(&mut state, "Late.");
     assert_eq!(state, before);
 }
 
@@ -293,6 +302,7 @@ fn what_was_looked_at_and_each_choice_is_kept() {
     let mut state = AppState::default();
     let ready = Ready::No("No models.".to_owned());
     let looked_at = Action::Labelling(LabellingAction::LabellingLooked {
+        look: 0,
         ready: ready.clone(),
         cards: cards(),
     });
@@ -335,6 +345,7 @@ fn changing_a_folder_keeps_it_and_asks_to_look_again() {
         Action::Labelling(LabellingAction::SetModelsFolder(models.clone())),
     );
     let look = Effect::LookForLabelling {
+        look: 1,
         models: Some(models.clone()),
         runtime: None,
     };
@@ -350,6 +361,7 @@ fn changing_a_folder_keeps_it_and_asks_to_look_again() {
         Action::Labelling(LabellingAction::SetRuntimeFolder(runtime.clone())),
     );
     let look = Effect::LookForLabelling {
+        look: 2,
         models: Some(models),
         runtime: Some(runtime.clone()),
     };

@@ -20,12 +20,22 @@ pub(super) fn reduce(state: &mut AppState, action: LabellingAction) -> Vec<Effec
     match action {
         LabellingAction::LabelScan { held } => return start(state, held),
         LabellingAction::StopLabelling => return stop(state).into_iter().collect(),
-        LabellingAction::LabellingStage(reached) => advance(labelling, reached),
-        LabellingAction::LabellingFailed(why) => failed(state, why),
-        LabellingAction::LabellingLooked { ready, cards } => {
+        LabellingAction::Look => return look_again(labelling),
+        LabellingAction::LabellingStage { run, stage } if waiting_for(labelling, run) => {
+            labelling.running = Some(stage);
+        }
+        LabellingAction::LabellingFailed { run, why } if waiting_for(labelling, run) => {
+            failed(state, why);
+        }
+        LabellingAction::LabellingLooked { look, ready, cards } if look == labelling.looks => {
             labelling.ready = ready;
             labelling.cards = cards;
         }
+        // Old news: what a run says that was stopped or overtaken, and what a look found that
+        // was asked for before the folders last changed.
+        LabellingAction::LabellingStage { .. }
+        | LabellingAction::LabellingFailed { .. }
+        | LabellingAction::LabellingLooked { .. } => {}
         LabellingAction::DrawingOn(name) => {
             labelling.drawing_on = Some(name).filter(|name| !name.is_empty());
         }
@@ -68,7 +78,9 @@ fn start(state: &mut AppState, held: u64) -> Vec<Effect> {
     let labelling = &mut state.labelling;
     labelling.running = Some(Stage::Preparing);
     labelling.on = Some(series.clone());
+    labelling.runs += 1;
     vec![Effect::LabelScan {
+        run: labelling.runs,
         series,
         wanted,
         runs_on: labelling.runs_on,
@@ -78,19 +90,13 @@ fn start(state: &mut AppState, held: u64) -> Vec<Effect> {
     }]
 }
 
-/// Note how far a run has got. News of a run that is over is ignored.
-fn advance(labelling: &mut Labelling, reached: Stage) {
-    if labelling.running.is_some() {
-        labelling.running = Some(reached);
-    }
+/// Whether the run numbered `run` is the one on: news of any other is old news.
+pub(super) fn waiting_for(labelling: &Labelling, run: u64) -> bool {
+    labelling.running.is_some() && labelling.runs == run
 }
 
-/// A run failed: it is over, and the sentence is posted as an error. News of a run that is
-/// over is ignored.
+/// The run on failed: it is over, and the sentence is posted as an error.
 fn failed(state: &mut AppState, why: String) {
-    if state.labelling.running.is_none() {
-        return;
-    }
     end_run(&mut state.labelling);
     let notice = Notice {
         kind: NoticeKind::Error,
@@ -122,11 +128,28 @@ pub(super) fn stop(state: &mut AppState) -> Option<Effect> {
     Some(Effect::StopLabelling)
 }
 
+/// Keep a run on the series it was started on. When the scene has moved to another series, the
+/// worker ends the run too (the volume it was given is no longer the one kept), so the run is
+/// ended here at once and the worker is asked to drop it for certain. The person moved on
+/// themselves, so nothing is said, and what the worker says of the run after is old news. A
+/// scene that shows nothing leaves the run alone: its volume is still kept, and the labels
+/// wait for the series they are of.
+pub(super) fn keep(state: &mut AppState) -> Option<Effect> {
+    let moved = state.scene.series.is_some() && state.scene.series != state.labelling.on;
+    if state.labelling.running.is_none() || !moved {
+        return None;
+    }
+    end_run(&mut state.labelling);
+    Some(Effect::StopLabelling)
+}
+
 /// Ask for another look at the computer, in the folders as they are now. Nothing is known of
 /// it until the answer comes.
 fn look_again(labelling: &mut Labelling) -> Vec<Effect> {
     labelling.ready = Ready::Unknown;
+    labelling.looks += 1;
     vec![Effect::LookForLabelling {
+        look: labelling.looks,
         models: labelling.models.clone(),
         runtime: labelling.runtime.clone(),
     }]

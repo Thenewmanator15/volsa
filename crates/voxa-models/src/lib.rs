@@ -28,11 +28,11 @@ mod tensor;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
-pub use cards::{Card, CardId, CardKind, budget, cards, in_use, place_of};
+pub use cards::{Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of};
 pub use model::{
     KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,
 };
 pub use network::{Device, Network, RunError, Stop};
-pub use room::{Cut, Room, Rung, RunsOn, Wanted, asks, needs, rungs, why_not};
+pub use room::{Cut, Room, Rung, RunsOn, Wanted, asks, needed_gb, needs, rungs, spare_gb, why_not};
 pub use runtime::{Runtime, RuntimeError};
 pub use tensor::{Numbers, Tensor};

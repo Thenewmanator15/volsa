@@ -32,8 +32,9 @@ const VIEWS: &str = "views";
 /// This is the only code that changes [`AppState`], and it does nothing else: no files, no
 /// threads, no clock. Whatever an action refers to that is not there (a viewport, a series, a
 /// preset, a notice, a cut) is ignored. After every action the 3D scene is kept on the series
-/// the active viewport shows, the planes' position inside that scene's volume, the
-/// annotations with the series they were made on, and the linked viewports on the position.
+/// the active viewport shows, a run of labelling on the series it was started on, the planes'
+/// position inside that scene's volume, the annotations with the series they were made on, and
+/// the linked viewports on the position.
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     // Indexing may have added slices to a series chosen before it ended.
     let rebuild = action == Action::IndexDone;
@@ -51,6 +52,8 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     } else {
         scene::follow(state)
     });
+    // A run of labelling belongs to the series it was started on.
+    effects.extend(labelling::keep(state));
     planes::settle(state);
     annotations::settle(state, was.as_ref());
     effects.extend(link::keep(state, &before));
@@ -298,6 +301,10 @@ mod annotations_tests;
 mod frame_tests;
 #[cfg(test)]
 mod labelling_result_tests;
+#[cfg(test)]
+mod labelling_series_tests;
+#[cfg(test)]
+mod labelling_stale_tests;
 #[cfg(test)]
 mod labelling_tests;
 #[cfg(test)]

@@ -43,7 +43,7 @@ impl Session {
         let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
         let (kept, built) = (Arc::clone(&cache), Arc::clone(&volumes));
-        let workers = Workers::new(to_reports, kept, built, settings);
+        let workers = Workers::new(to_reports, kept, built, settings, None);
         Self {
             state: AppState::default(),
             workers,

@@ -17,6 +17,7 @@ use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+pub(crate) mod labelling;
 mod labels;
 mod post;
 mod tags;
@@ -30,8 +31,7 @@ pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
 const DEFAULT_VOLUME_SIDE: u32 = 2048;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
-/// with further [`Action`]s. Nothing here writes to a log, so nothing a file contains can end
-/// up in one.
+/// with further [`Action`]s. Only labelling writes to a log, and never what a file contains.
 pub struct Workers {
     /// The threads the work runs on; the shared pool of the process when none could be made.
     pool: Option<rayon::ThreadPool>,
@@ -68,9 +68,10 @@ struct Shared {
     /// The same two counts for the kept annotations.
     notes: AtomicU64,
     noted: Mutex<u64>,
-    /// The labels kept, and how many reads of labels have been asked for or given up.
+    /// The labels kept, and how many reads (and runs) of labels have been asked for or given up.
     labels: Mutex<Option<Arc<LabelSet>>>,
     label_reads: AtomicU64,
+    labelling: labelling::Kit,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -91,13 +92,14 @@ struct Request {
 }
 
 impl Workers {
-    /// Workers that report through `reports`, keep decoded slices in `cache`, keep the volume
-    /// they build in `volumes`, and keep saved views in the folder `settings`, if one is given.
+    /// Workers that report through `reports`, keep slices in `cache`, volumes in `volumes` and
+    /// views in the folder `settings` if one is given, and label with `labeller` or the runtime.
     pub fn new(
         reports: Sender<Action>,
         cache: Arc<Mutex<FrameCache>>,
         volumes: Arc<Mutex<VolumeStore>>,
         settings: Option<PathBuf>,
+        labeller: Option<Arc<dyn labelling::Labeller>>,
     ) -> Self {
         let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
         let shared = Shared {
@@ -119,6 +121,7 @@ impl Workers {
             noted: Mutex::new(0),
             labels: Mutex::new(None),
             label_reads: AtomicU64::new(0),
+            labelling: labelling::Kit::new(labeller),
         };
         Self {
             pool: named.build().ok(),
@@ -158,11 +161,10 @@ impl Workers {
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
             Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
             Effect::DropLabels => self.drop_labels(),
-            // Labelling is carried out by a worker that comes later.
-            Effect::LookForLabelling { .. }
+            labelling @ (Effect::LookForLabelling { .. }
             | Effect::LabelScan { .. }
-            | Effect::StopLabelling
-            | Effect::None => {}
+            | Effect::StopLabelling) => self.labelling(labelling),
+            Effect::None => {}
         }
     }
 

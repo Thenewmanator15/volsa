@@ -1,8 +1,11 @@
 //! Tests of the list of graphics cards: what sort a card is, what it is known by, and where a
 //! card stands in a list. The lists of the last are made up; the first test reads this
-//! computer's own, whatever it holds.
+//! computer's own, whatever it holds. And of the ordinary memory the system can still give.
 
-use super::{Card, CardId, CardKind, budget, cards, identity, in_use, kind, place_of};
+use super::{
+    Card, CardId, CardKind, FreeMemory, available_in, budget, cards, free_memory, identity, in_use,
+    kind, place_of,
+};
 
 const GIB: u64 = 1 << 30;
 
@@ -119,4 +122,28 @@ fn adapters_that_differ_in_only_one_half_of_the_systems_number_are_two_cards() {
     }
     // The halves are not interchangeable either.
     assert_ne!(identity(1, 2), identity(2, 1));
+}
+
+#[test]
+fn what_the_system_can_still_promise_is_read_and_on_windows_it_is_the_commit() {
+    let free = free_memory();
+    match free {
+        FreeMemory::Promised(bytes) | FreeMemory::Physical(bytes) => assert!(bytes > 0, "{free:?}"),
+        FreeMemory::Unknown => {}
+    }
+    if cfg!(windows) {
+        assert!(matches!(free, FreeMemory::Promised(_)), "{free:?}");
+    }
+}
+
+#[test]
+fn the_memory_available_is_read_from_the_list_linux_keeps() {
+    let listed = "MemTotal:       32000000 kB\nMemFree:         1000000 kB\n\
+                  MemAvailable:   12000000 kB\nBuffers:           20000 kB\n";
+    assert_eq!(available_in(listed), Some(12_000_000 * 1024));
+    // A list without the line, or with a line that holds no number of kibibytes, says nothing.
+    assert_eq!(available_in("MemTotal: 32000000 kB\n"), None);
+    assert_eq!(available_in("MemAvailable: plenty\n"), None);
+    assert_eq!(available_in("MemAvailable: 12000000 MB\n"), None);
+    assert_eq!(available_in(""), None);
 }
