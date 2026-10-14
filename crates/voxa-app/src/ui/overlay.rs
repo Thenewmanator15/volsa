@@ -186,20 +186,27 @@ pub fn corner_text(
     if !study.description.is_empty() {
         who_and_when.push(study.description.clone());
     }
-    let what = if series.description.is_empty() {
+    let named = if series.description.is_empty() {
         format!("Series {}", series.number)
     } else {
         series.description.clone()
     };
+    // Which volume of several, under the name: the corner below has the scale beside it.
+    let what = std::iter::once(named)
+        .chain(super::volumes::label(series))
+        .collect();
     let place = match position_mm {
         Some(at) => format!("{at:.1} mm"),
         None => NO_POSITION.to_owned(),
     };
-    let volume = super::volumes::label(series);
-    let slice = format!("Slice {} of {}", slice + 1, series.slices);
-    let which = volume.into_iter().chain([slice, place]).collect();
-    let window = vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)];
-    [who_and_when, vec![what], which, window]
+    let which = vec![format!("Slice {} of {}", slice + 1, series.slices), place];
+    // A picture in colour is shown in its own colours, through no window.
+    let window = if series.colour {
+        Vec::new()
+    } else {
+        vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)]
+    };
+    [who_and_when, what, which, window]
 }
 
 /// What the mouse did over one viewport since the last frame.

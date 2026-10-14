@@ -146,6 +146,15 @@ pub fn face_of<'a>(series: &'a [SeriesInfo], info: &'a SeriesInfo) -> &'a Series
 /// The second line of a card: how many volumes when there are several, how many slices, and
 /// how far apart.
 pub fn caption(info: &SeriesInfo) -> String {
+    // Pictures in colour, such as a page or a screenshot, are no slices of the body.
+    if info.colour {
+        let one = info.slices == 1;
+        return if one {
+            "1 picture".to_owned()
+        } else {
+            format!("{} pictures", info.slices)
+        };
+    }
     let slices = if info.slices == 1 {
         "1 slice".to_owned()
     } else {

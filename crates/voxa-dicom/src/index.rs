@@ -232,6 +232,16 @@ fn slices_of(image: &Image) -> impl Iterator<Item = Slice<'_>> {
         })
 }
 
+/// What the files say of how a series was acquired, from the header it is described from.
+/// Images in several planes are in none of them as a series.
+fn facts(first: &Header, problems: &[SeriesProblem]) -> voxa_core::ScanFacts {
+    let mut scan = first.scan.clone();
+    if problems.contains(&SeriesProblem::MixedOrientations) {
+        scan.plane = None;
+    }
+    scan
+}
+
 /// Put slices in order and say what is known about the stack they make. `first` is the header
 /// the series is described from, and `images` are all the files it was found in.
 fn assembled(
@@ -274,6 +284,7 @@ fn assembled(
     let between_slices = step
         .or(first.slice_thickness.filter(|mm| *mm > 0.0))
         .unwrap_or(1.0);
+    let scan = facts(first, &problems);
     IndexedSeries {
         info: SeriesInfo {
             id: SeriesId(id),
@@ -286,7 +297,7 @@ fn assembled(
             spacing_mm: [between_cols, between_rows, between_slices],
             voxel_to_patient,
             problems,
-            scan: first.scan.clone(),
+            scan,
             colour: first.colour,
             ..SeriesInfo::default()
         },

@@ -80,6 +80,15 @@ fn a_card_says_how_many_slices_and_how_far_apart() {
     let mut one = index.series[0].info.clone();
     (one.slices, one.spacing_mm) = (1, [0.7, 0.7, 7.5]);
     assert_eq!(caption(&one), "1 slice · 7.5 mm");
+    let mut pictures = one.clone();
+    (pictures.slices, pictures.colour) = (2, true);
+    assert_eq!(
+        caption(&pictures),
+        "2 pictures",
+        "a picture has no thickness"
+    );
+    pictures.slices = 1;
+    assert_eq!(caption(&pictures), "1 picture");
 }
 
 #[test]

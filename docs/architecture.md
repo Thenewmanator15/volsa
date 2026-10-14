@@ -116,6 +116,35 @@ Labelled parts come from files made elsewhere and are kept apart from the scan:
 5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
    same label set, so naming and selecting a part read nothing back from the device.
 
+## Kinds of series, and volumes of a series
+
+An export holds more than volumes: locating images, single images, pictures in colour, stacks
+that are not regular. `SeriesInfo::kind` names what a series is, from what the index found,
+and the series list says it in words; only a stack that cannot be shown in 3D and images that
+cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
+family of sequence, times, flip angle, field strength) is kept in `ScanFacts`, read from the
+first image; images in several planes are given no plane.
+
+A series that fills every position more than once, the same number of times, holds several
+volumes. The index splits it, telling the volumes apart by the first of the temporal position,
+the diffusion weighting, the echo time, the trigger time and the acquisition number that does
+so, and lists each volume as a series of its own whose `VolumeSet` says which volume it is of
+how many, and what sets it apart. Everything made for a series works on a volume unchanged;
+the list shows one card for the set, and a viewport steps between its volumes. See
+[adr/0005-volumes-of-a-series.md](adr/0005-volumes-of-a-series.md).
+
+A picture in colour is decoded with a colour for each pixel beside its brightness. A viewport
+draws it as a texture in its own colours; it has no window, and no 3D view.
+
+## What is kept on this machine
+
+In the folder the system gives Voxa: the saved views and annotations of each study,
+`preferences.json` (the window's size, the layout, orientation, linking and how labels are
+drawn), and `voxa.log`. The log is written by Voxa's own `tracing` subscriber, which takes
+only Voxa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
+file says can reach it. A picture of the window taken with `VOXA_CAPTURE` reads none of these
+and writes none.
+
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled

@@ -27,8 +27,11 @@ pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, and `first` for the first series listed in place of the one Voxa opens itself.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, and `stepped` for the next volume of a series that holds several.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
+/// The environment variable giving words from the description of the series to show in
+/// place of the one Voxa opens itself: the first listed whose description holds them.
+pub const SERIES_VARIABLE: &str = "VOXA_CAPTURE_SERIES";
 /// The environment variable giving the size of the window for the picture, in points, as
 /// width `x` height: `900x600`.
 pub const SIZE_VARIABLE: &str = "VOXA_CAPTURE_SIZE";
@@ -66,6 +69,7 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("parts", Action::SetColumn(ColumnShows::Parts)),
         ("filled", Action::SetOverlay(voxa_render::Overlay::Filled)),
         ("smooth", Action::SetSmooth(true)),
+        ("stepped", Action::StepVolume { viewport: 0, by: 1 }),
     ];
     let wanted = poses.into_iter().filter(|(word, _)| asked(word));
     wanted.map(|(_, action)| action).collect()
@@ -128,6 +132,31 @@ pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool)
     })
 }
 
+/// The words a picture asks for a series by, from the variable's `value`: none when it is
+/// not set, or set to nothing.
+pub fn asked_for(value: Option<String>) -> Option<String> {
+    value.filter(|words| !words.trim().is_empty())
+}
+
+/// For a picture that asks for a series by `words` from its description: what shows the
+/// first listed whose description holds them. `None` until that series' thumbnail is there.
+pub fn listed_as(
+    state: &AppState,
+    words: &str,
+    has_thumbnail: impl Fn(&SeriesId) -> bool,
+) -> Option<Action> {
+    let index = state.index.as_ref()?;
+    let listed = index
+        .series
+        .iter()
+        .find(|listed| listed.info.description.contains(words))?;
+    let series = listed.info.id.clone();
+    has_thumbnail(&series).then_some(Action::SelectSeries {
+        viewport: 0,
+        series,
+    })
+}
+
 /// For a picture that asks for it with the word `measured`: a ruler, an angle, a region and
 /// a marker in the axial plane through the position, as the tools would have made them from
 /// `scan`, the scene's volume. Nothing while there is no volume ready.
@@ -178,6 +207,8 @@ pub struct Capture {
     asked: bool,
     /// Whether the first series listed has still to be shown for the picture.
     first: bool,
+    /// Words from the description of a series still to be shown for the picture.
+    series: Option<String>,
     /// Whether one of each kind of annotation has still to be made for the picture.
     measured: bool,
     /// Whether the picture is to be of the 3D scene at rest or while it moves.
@@ -194,6 +225,7 @@ impl Capture {
             settled: 0,
             asked: false,
             first: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("first")),
+            series: asked_for(std::env::var(SERIES_VARIABLE).ok()),
             measured: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("measured")),
             scene: if std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("moving")) {
                 Motion::Moving
@@ -205,9 +237,18 @@ impl Capture {
 
     /// What shows the series the picture asks for, when it asks for one: given once.
     pub fn pick(&mut self, state: &AppState, has: impl Fn(&SeriesId) -> bool) -> Option<Action> {
-        let pick = first_listed(state, has).filter(|_| self.first)?;
+        let pick = match &self.series {
+            Some(words) => listed_as(state, words, has),
+            None => first_listed(state, has).filter(|_| self.first),
+        }?;
         self.first = false;
+        self.series = None;
         Some(pick)
+    }
+
+    /// Whether the series the picture asks for, if any, has been shown.
+    pub fn has_picked(&self) -> bool {
+        !self.first && self.series.is_none()
     }
 
     /// The annotations the picture asks for, when it asks for them: given once, when the
@@ -263,7 +304,9 @@ impl VoxaApp {
     /// scene and make the annotations the picture wants, once the volume is ready; show the
     /// series it wants; and take the picture when everything asked for is on the screen.
     pub(super) fn for_a_picture(&mut self, ctx: &egui::Context) {
-        if self.session.state().scene.status == SceneStatus::Ready {
+        // The scene is posed once it shows the series the picture asks for.
+        let picked = self.capture.as_ref().is_none_or(Capture::has_picked);
+        if picked && self.session.state().scene.status == SceneStatus::Ready {
             for action in std::mem::take(&mut self.pose) {
                 self.session.dispatch(action);
             }

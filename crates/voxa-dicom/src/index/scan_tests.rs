@@ -85,3 +85,30 @@ fn a_file_of_many_frames_says_the_same_things_in_its_own_way() {
         (Some(612.0), Some(21.0), Some(17.0))
     );
 }
+
+#[test]
+fn images_in_several_planes_are_said_to_be_in_none_of_them() {
+    let planes = [
+        [1.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        [1.0, 0.0, 0.0, 0.0, 0.0, -1.0],
+        [0.0, 1.0, 0.0, 0.0, 0.0, -1.0],
+    ];
+    let files = (1..)
+        .zip(planes)
+        .map(|(place, orientation)| {
+            let options = SliceOptions {
+                instance_number: place,
+                orientation: Some(orientation),
+                ..SliceOptions::default()
+            };
+            (format!("I{place}.dcm"), classic_slice(&options))
+        })
+        .collect();
+    let index = indexed(files);
+    let planes: Vec<_> = index
+        .series
+        .iter()
+        .map(|listed| listed.info.scan.plane)
+        .collect();
+    assert_eq!(planes, [None], "the first image's plane is not the series'");
+}

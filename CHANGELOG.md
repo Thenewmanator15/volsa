@@ -8,11 +8,48 @@ All notable changes to Voxa are recorded here. The format follows
 
 ### Added
 
+- The series list says what a series is when it is not a volume: locating images, a single
+  image, pictures in colour, a stack that cannot be shown in 3D with the first reason why, or
+  images compressed in a way Voxa cannot read, with the way named. A card shows the plane,
+  whether the scan was acquired in 2D or 3D and the family of sequence, when the files say.
+  Resting the pointer on a card shows everything known, with the repetition, echo and inversion
+  times, the flip angle and the field strength. A plane more than 15 degrees from the nearest
+  is called oblique. Images in several planes are said to be in none. No weighting is guessed.
+- A series that holds several volumes, such as two echoes, diffusion weightings, time points,
+  trigger times or repeated acquisitions, is listed once, as "2 volumes". A viewport shows one
+  volume at a time, says which under the series' name, and steps to the volume before or after
+  with the buttons either side of it in the toolbar, or `[` and `]`, keeping the slice, the
+  view and the 3D camera. See [docs/adr/0005-volumes-of-a-series.md](docs/adr/0005-volumes-of-a-series.md).
+- Pictures stored in colour, as red, green and blue or as brightness and two colour
+  differences, 8 bits a sample, are shown in their own colours, through no window. They have
+  no 3D view, and their card counts pictures, not slices.
+- Voxa keeps a log, `voxa.log`, in the folder the system gives it: what it opened, what it
+  could not open and why, and the graphics device it draws with. It holds Voxa's own words
+  only, never a patient's details or a tag's value, and is cut back when it passes 1 MB. The
+  About window says where it is.
+- Voxa remembers between runs the window's size, how many viewports there are, which way
+  round left and right are shown, whether the viewports are linked, and how labels are drawn
+  over the planes.
+- The release program for Windows opens no console window beside its own. Its help, its
+  version and a failure to start are said in a message window. The window has an icon.
+- Screen readers are told what the interface holds, through AccessKit.
+- The made-up study that `write_phantom` writes also holds a series of two volumes of the ball
+  at two echo times, three locating images in three planes, and a picture in colour. A picture
+  of the window can ask for a series by words from its description (`VOXA_CAPTURE_SERIES`) and
+  for its next volume (`stepped`).
 - Labels named with `--labels` that cannot be opened yet, because the series shown has no 3D
   view, now say so in a notice, once. They open on the first series shown that has one.
 
 ### Changed
 
+- Automatic contrast counts the values again, over a narrower range, when its first count
+  leaves the window across only a few of its bins, as a few very bright voxels make it do; it
+  looks again at most three times.
+- A file holding many frames is opened once for all of them, not once a frame.
+- Tests now read a JPEG picture, a JPEG 2000 picture and a deflated file.
+- In the tests, graphics devices without a window come from one adapter and start one at a
+  time. The drawing tests stopped for good on one machine when every thread started its own;
+  they run on every thread again.
 - In the Parts look the camera is fitted to the labels when they reach beyond the scan, as a
   whole head's labels do over a thin slab, so that the solids are seen whole; it is fitted to
   the scan again on leaving the look. The camera keeps the way it faces. Labels no larger
