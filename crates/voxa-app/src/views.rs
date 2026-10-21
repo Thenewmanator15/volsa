@@ -13,6 +13,34 @@ pub const MAX_VIEWS: usize = 20;
 /// The most characters a view's name may have.
 const MAX_NAME: usize = 40;
 
+/// Everything that can happen to the saved views of the scene's series: what the person asks
+/// for, and what a worker reports of the file they are kept in. It is carried by
+/// [`Action::Views`](crate::Action::Views).
+#[derive(Debug, Clone, PartialEq)]
+pub enum ViewsAction {
+    /// Save the scene as it is now, under a name; with no name it is numbered.
+    Save {
+        /// What to call it.
+        name: String,
+    },
+    /// Put the scene back as a saved view has it, by the view's place in the list.
+    Apply(usize),
+    /// Forget a saved view, by its place in the list.
+    Delete(usize),
+    /// The views kept for a series from before have been read.
+    Loaded {
+        /// The series they are of.
+        series: SeriesId,
+        /// The views, oldest first.
+        views: Vec<SavedView>,
+    },
+    /// The saved views could not be written to their file.
+    NotStored {
+        /// Why, in plain words.
+        reason: String,
+    },
+}
+
 /// One saved view of the scene.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SavedView {

@@ -21,10 +21,13 @@ mod effect;
 mod export;
 mod labelling;
 mod labels;
+mod log;
 mod measurements;
 mod parts_table;
 mod planes;
+mod prefs;
 mod reducer;
+mod said;
 mod scene;
 mod session;
 mod settings;
@@ -52,13 +55,14 @@ pub use labels::{
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
 pub use reducer::reduce;
+pub use said::{Outcome, outcome, tell};
 pub use scene::{MainPanel, Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
 pub use ui::{VoxaApp, run, thumbnail};
-pub use views::{MAX_VIEWS, SavedView, series_key};
+pub use views::{MAX_VIEWS, SavedView, ViewsAction, series_key};
 pub use volume_store::VolumeStore;
 pub use worker::labelling::Labeller;
 pub use worker::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, Workers, table_beside};

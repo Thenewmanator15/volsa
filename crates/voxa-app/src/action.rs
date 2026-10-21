@@ -15,7 +15,7 @@ use crate::labels::NamesFrom;
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::state::{Layout, Notice, PresetWindows};
-use crate::views::SavedView;
+use crate::views::ViewsAction;
 
 /// One thing that happened: something the person did, or something a worker finished.
 /// [`reduce`](crate::reduce) is the only code that acts on these.
@@ -46,6 +46,13 @@ pub enum Action {
         viewport: usize,
         /// How many slices, forwards or backwards.
         delta: i32,
+    },
+    /// Show another volume of the series a viewport shows, when that series holds several.
+    StepVolume {
+        /// Which viewport.
+        viewport: usize,
+        /// How many volumes on; less than none goes back.
+        by: i32,
     },
     /// Go to a slice, stopping at the last.
     SetSlice {
@@ -236,27 +243,8 @@ pub enum Action {
         /// Its eight outer corners in the patient.
         corners: [Point<Patient>; 8],
     },
-    /// Save the scene as it is now, under a name; with no name it is numbered.
-    ViewSave {
-        /// What to call it.
-        name: String,
-    },
-    /// Put the scene back as a saved view has it, by the view's place in the list.
-    ViewApply(usize),
-    /// Forget a saved view, by its place in the list.
-    ViewDelete(usize),
-    /// The views kept for a series from before have been read.
-    ViewsLoaded {
-        /// The series they are of.
-        series: SeriesId,
-        /// The views, oldest first.
-        views: Vec<SavedView>,
-    },
-    /// The saved views could not be written to their file.
-    ViewsNotStored {
-        /// Why, in plain words.
-        reason: String,
-    },
+    /// Something about the saved views of the scene's series.
+    Views(ViewsAction),
     /// A volume could not be built.
     VolumeFailed {
         /// The series it was to be built from.

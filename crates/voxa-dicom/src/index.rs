@@ -2,14 +2,16 @@
 
 use std::collections::BTreeMap;
 
-use voxa_core::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VoxaError};
+use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyId, StudyInfo, VoxaError};
 
 use crate::decode::unreadable;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
-use crate::header::{Header, read_header};
+use crate::header::{Header, Told, read_header};
 use crate::source::SeriesSource;
+
+mod volumes;
 
 /// A gap further than this fraction from the typical gap makes a stack uneven.
 const UNEVEN_FRACTION: f64 = 0.1;
@@ -82,18 +84,23 @@ pub fn index(
     Ok(finished)
 }
 
-/// The series to open first: the one with the most voxels among those with at least ten
-/// slices and no problems. A tie goes to the lower series number. `None` when none qualifies.
+/// The series to open first: the one with the most voxels among the volumes of at least
+/// ten slices. A tie goes to the lower series number, and then to the earlier
+/// volume of a series that holds several. `None` when none qualifies.
 pub fn best_series(index: &Index) -> Option<&IndexedSeries> {
     index
         .series
         .iter()
         .filter(|series| {
-            series.info.slices >= MIN_SLICES_FOR_BEST && series.info.problems.is_empty()
+            series.info.slices >= MIN_SLICES_FOR_BEST && series.info.kind() == SeriesKind::Volume
         })
         .max_by(|a, b| {
+            // Of the volumes of one series, which are all alike, the first.
+            let place = |series: &IndexedSeries| series.info.set.as_ref().map_or(0, |set| set.at);
             let by_size = a.info.voxel_count().cmp(&b.info.voxel_count());
-            by_size.then(b.info.number.cmp(&a.info.number))
+            by_size
+                .then(b.info.number.cmp(&a.info.number))
+                .then(place(b).cmp(&place(a)))
         })
 }
 
@@ -136,7 +143,7 @@ impl Found {
             let (_, listed) = by_study
                 .entry(first.study_uid.as_str())
                 .or_insert_with(|| (study_info(first), Vec::new()));
-            listed.push(series(id, first, images));
+            listed.extend(volumes::listed(id, images));
         }
         let mut studies: Vec<_> = by_study.into_values().collect();
         studies.sort_by(|(a, _), (b, _)| {
@@ -148,12 +155,21 @@ impl Found {
         };
         index.skipped.sort();
         for (mut study, mut listed) in studies {
-            listed.sort_by(|a, b| (a.info.number, &a.info.id).cmp(&(b.info.number, &b.info.id)));
+            listed.sort_by(|a, b| in_the_list(&a.info).cmp(&in_the_list(&b.info)));
             study.series = listed.iter().map(|series| series.info.clone()).collect();
             index.studies.push(study);
             index.series.append(&mut listed);
         }
         index
+    }
+}
+
+/// Where a series comes in its study's list: by its number, then its identifier, with the
+/// volumes of a series that holds several kept together and in their own order.
+fn in_the_list(info: &SeriesInfo) -> (i32, &SeriesId, usize) {
+    match &info.set {
+        Some(set) => (info.number, &set.of, set.at),
+        None => (info.number, &info.id, 0),
     }
 }
 
@@ -189,6 +205,10 @@ struct Slice<'a> {
     position: Option<[f64; 3]>,
     instance: i32,
     size: (u32, u32),
+    /// What the image says that sets it apart from another at its position.
+    told: Told,
+    /// The header of the file it is in.
+    header: &'a Header,
 }
 
 fn slices_of(image: &Image) -> impl Iterator<Item = Slice<'_>> {
@@ -207,12 +227,29 @@ fn slices_of(image: &Image) -> impl Iterator<Item = Slice<'_>> {
             position: *position,
             instance: header.instance_number,
             size: (header.rows, header.cols),
+            told: header.told.get(number).copied().unwrap_or_default(),
+            header,
         })
 }
 
-/// Put the images of one series in order and say what is known about the stack.
-fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
-    let mut slices: Vec<Slice<'_>> = images.iter().flat_map(slices_of).collect();
+/// What the files say of how a series was acquired, from the header it is described from.
+/// Images in several planes are in none of them as a series.
+fn facts(first: &Header, problems: &[SeriesProblem]) -> voxa_core::ScanFacts {
+    let mut scan = first.scan.clone();
+    if problems.contains(&SeriesProblem::MixedOrientations) {
+        scan.plane = None;
+    }
+    scan
+}
+
+/// Put slices in order and say what is known about the stack they make. `first` is the header
+/// the series is described from, and `images` are all the files it was found in.
+fn assembled(
+    id: String,
+    first: &Header,
+    images: &[Image],
+    mut slices: Vec<Slice<'_>>,
+) -> IndexedSeries {
     let mut problems = Vec::new();
     let mut step = None;
     let mut voxel_to_patient = None;
@@ -247,9 +284,10 @@ fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
     let between_slices = step
         .or(first.slice_thickness.filter(|mm| *mm > 0.0))
         .unwrap_or(1.0);
+    let scan = facts(first, &problems);
     IndexedSeries {
         info: SeriesInfo {
-            id: SeriesId(id.to_owned()),
+            id: SeriesId(id),
             number: first.series_number,
             description: first.series_description.clone(),
             modality: first.modality.clone(),
@@ -259,6 +297,9 @@ fn series(id: &str, first: &Header, images: &[Image]) -> IndexedSeries {
             spacing_mm: [between_cols, between_rows, between_slices],
             voxel_to_patient,
             problems,
+            scan,
+            colour: first.colour,
+            ..SeriesInfo::default()
         },
         slices: slices
             .iter()
@@ -323,4 +364,8 @@ fn typical_step(steps_mm: &[f64], problems: &mut Vec<SeriesProblem>) -> Option<f
 #[cfg(test)]
 mod placement_tests;
 #[cfg(test)]
+mod scan_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod volumes_tests;

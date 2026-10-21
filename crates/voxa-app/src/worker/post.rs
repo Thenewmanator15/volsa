@@ -1,9 +1,12 @@
 //! Work for the window that no action asks for: done on a worker, with how it went posted as
 //! a notice.
 
+use std::path::Path;
 use std::sync::Arc;
 
-use super::{Workers, shielded};
+use voxa_dicom::Index;
+
+use super::{Shared, Workers, shielded};
 use crate::action::Action;
 use crate::state::Notice;
 
@@ -18,6 +21,30 @@ impl Workers {
             shielded(|| said = work());
             shared.report(Action::Post(said));
         });
+    }
+}
+
+impl Shared {
+    /// Say that an export could not be opened, and log what kind of failure it was: the
+    /// reason goes to the window in full, where it may name the file, and to the log as its
+    /// kind alone.
+    pub(super) fn could_not_open(&self, error: &voxa_core::VoxaError) {
+        tracing::warn!("an export could not be opened: {}", error.kind());
+        self.report(Action::IndexFailed(error.to_string()));
+    }
+}
+
+/// What to say when a source opened but held no images.
+pub(super) fn nothing_found(path: &Path, found: &Index) -> String {
+    let name = path
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned());
+    let name = name.unwrap_or_else(|| path.display().to_string());
+    // A lone file that is not a zip is read as a source of that one file.
+    if path.is_file() && found.skipped == [name.clone()] {
+        "That file is not a zip or DICOM export".to_owned()
+    } else {
+        format!("No images were found in {name}")
     }
 }
 

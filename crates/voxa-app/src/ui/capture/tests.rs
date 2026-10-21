@@ -20,6 +20,43 @@ fn a_picture_can_ask_for_the_scene_to_be_posed() {
     );
     assert_eq!(pose("vr"), [Action::SceneLook(Look::Vr)]);
     assert_eq!(pose("smooth"), [Action::SetSmooth(true)]);
+    let next = Action::StepVolume { viewport: 0, by: 1 };
+    assert_eq!(pose("stepped"), [next]);
+}
+
+#[test]
+fn a_picture_can_ask_for_a_series_by_words_from_its_description() {
+    let mut index = crate::testing::with_odd_series();
+    let named = ["ball, fine", "ball, two echoes", "a picture in colour"];
+    for (listed, name) in index.series.iter_mut().zip(named) {
+        listed.info.description = name.to_owned();
+    }
+    let second = index.series.get(1).map(|listed| listed.info.id.clone());
+    let series = second.expect("listed");
+    let state = AppState {
+        index: Some(index),
+        ..AppState::default()
+    };
+    let shown = listed_as(&state, "two echoes", |_| true);
+    assert_eq!(
+        shown,
+        Some(Action::SelectSeries {
+            viewport: 0,
+            series
+        })
+    );
+    let early = listed_as(&state, "two echoes", |_| false);
+    assert_eq!(early, None, "not before its thumbnail is there");
+    let missing = listed_as(&state, "sideways", |_| true);
+    assert_eq!(missing, None, "nothing is called that");
+}
+
+#[test]
+fn no_words_for_a_series_is_not_asking_for_one() {
+    assert_eq!(asked_for(None), None);
+    assert_eq!(asked_for(Some(" ".to_owned())), None);
+    let words = Some("two echoes".to_owned());
+    assert_eq!(asked_for(words.clone()), words);
 }
 
 #[test]

@@ -15,12 +15,38 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             from.map_or_else(Vec::new, |from| go_to(state, viewport, moved(from, delta)))
         }
         Action::SetSlice { viewport, slice } => go_to(state, viewport, slice),
+        Action::StepVolume { viewport, by } => super::volumes::step(state, viewport, by),
         Action::CineTick { viewport } => tick(state, viewport),
         other => {
-            adjust(state, other);
+            if !(about_the_window(&other) && in_colour(state, &other)) {
+                adjust(state, other);
+            }
             Vec::new()
         }
     }
+}
+
+/// Whether an action sets the window or level of a viewport.
+fn about_the_window(action: &Action) -> bool {
+    matches!(
+        action,
+        Action::AdjustWindow { .. } | Action::SetWindow { .. } | Action::ApplyPreset { .. }
+    )
+}
+
+/// Whether the viewport a window action names shows pictures in colour, which are drawn in
+/// their own colours and have no window to set.
+fn in_colour(state: &AppState, action: &Action) -> bool {
+    let (Action::AdjustWindow { viewport, .. }
+    | Action::SetWindow { viewport, .. }
+    | Action::ApplyPreset { viewport, .. }) = action
+    else {
+        return false;
+    };
+    let shown = state.viewports.get(*viewport);
+    let series = shown.and_then(|shown| shown.series.as_ref());
+    let listed = series.and_then(|series| state.series(series));
+    listed.is_some_and(|listed| listed.info.colour)
 }
 
 /// Show a series: its middle slice, fitted, with the window still to be chosen.
@@ -48,7 +74,7 @@ fn select(state: &mut AppState, at: usize, series: SeriesId) -> Vec<Effect> {
 }
 
 /// A slice number moved by `delta`, never below zero.
-fn moved(from: usize, delta: i32) -> usize {
+pub(super) fn moved(from: usize, delta: i32) -> usize {
     let by = usize::try_from(delta.unsigned_abs()).unwrap_or(usize::MAX);
     if delta < 0 {
         from.saturating_sub(by)

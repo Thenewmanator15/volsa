@@ -79,7 +79,13 @@ impl Session {
             let volume = self.volume(series)?;
             let [cols, rows, _] = volume.dims();
             let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
-            Some(Arc::new(Frame { rows, cols, values }))
+            let colour = None;
+            Some(Arc::new(Frame {
+                rows,
+                cols,
+                values,
+                colour,
+            }))
         })
     }
 
@@ -116,7 +122,9 @@ impl Session {
 
     /// Apply an action and hand the work it calls for to the workers.
     pub fn dispatch(&mut self, action: Action) {
+        let (indexed, before) = (action == Action::IndexDone, self.state.notices.clone());
         let mut effects = reduce(&mut self.state, action);
+        crate::log::what_changed(&before, &self.state, indexed);
         // A volume asked for is made known to the workers before the frames of its series
         // are: the slices are then decoded once, for the volume.
         effects.sort_by_key(|effect| !matches!(effect, Effect::BuildVolume { .. }));

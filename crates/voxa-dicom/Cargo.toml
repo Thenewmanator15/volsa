@@ -21,6 +21,8 @@ zip.workspace = true
 testkit = []
 
 [dev-dependencies]
+flate2.workspace = true
+jpeg-encoder.workspace = true
 proptest.workspace = true
 tempfile.workspace = true
 

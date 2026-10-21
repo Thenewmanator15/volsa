@@ -15,6 +15,7 @@ fn a_thumbnail_is_a_small_grey_picture_of_the_frame() {
         rows: 4,
         cols: 4,
         values: (0..16u8).map(f32::from).collect(),
+        colour: None,
     };
     let image = thumbnail(&frame, WindowLevel::new(7.5, 16.0), 2);
     assert_eq!(image.size, [2, 2]);
@@ -35,12 +36,14 @@ fn a_thumbnail_keeps_the_shape_of_the_frame() {
         rows: 4,
         cols: 8,
         values: vec![1.0; 32],
+        colour: None,
     };
     assert_eq!(thumbnail(&wide, WindowLevel::new(0.5, 1.0), 4).size, [4, 2]);
     let tall = Frame {
         rows: 9,
         cols: 3,
         values: vec![1.0; 27],
+        colour: None,
     };
     assert_eq!(thumbnail(&tall, WindowLevel::new(0.5, 1.0), 3).size, [1, 3]);
 }
@@ -51,6 +54,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
         rows: 0,
         cols: 0,
         values: Vec::new(),
+        colour: None,
     };
     let image = thumbnail(&empty, WindowLevel::new(0.0, 1.0), 64);
     assert_eq!(
@@ -61,6 +65,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
         rows: 4,
         cols: 4,
         values: vec![1.0; 3],
+        colour: None,
     };
     assert_eq!(
         thumbnail(&lying, WindowLevel::new(0.0, 1.0), 2).size,
@@ -75,6 +80,15 @@ fn a_card_says_how_many_slices_and_how_far_apart() {
     let mut one = index.series[0].info.clone();
     (one.slices, one.spacing_mm) = (1, [0.7, 0.7, 7.5]);
     assert_eq!(caption(&one), "1 slice · 7.5 mm");
+    let mut pictures = one.clone();
+    (pictures.slices, pictures.colour) = (2, true);
+    assert_eq!(
+        caption(&pictures),
+        "2 pictures",
+        "a picture has no thickness"
+    );
+    pictures.slices = 1;
+    assert_eq!(caption(&pictures), "1 picture");
 }
 
 #[test]
@@ -187,4 +201,149 @@ fn an_export_with_nothing_open_asks_for_one() {
     let (actions, cards) = pass(&ctx, &AppState::default(), Vec::new());
     assert_eq!((actions.len(), cards.len()), (0, 0));
     let _ = THICK_SCAN;
+}
+
+#[test]
+fn a_card_notes_what_a_series_is_and_warns_only_of_a_fault() {
+    let of = |slices: usize, problems: Vec<SeriesProblem>| SeriesInfo {
+        slices,
+        problems,
+        ..SeriesInfo::default()
+    };
+    assert_eq!(note(&of(30, Vec::new())), None, "a volume needs no note");
+    assert_eq!(
+        note(&of(3, vec![SeriesProblem::MixedOrientations])),
+        Some(("locating images".to_owned(), false))
+    );
+    assert_eq!(
+        note(&of(1, Vec::new())),
+        Some(("a single image".to_owned(), false))
+    );
+    assert_eq!(
+        note(&of(30, vec![SeriesProblem::UnevenSpacing])),
+        Some(("! uneven spacing".to_owned(), true))
+    );
+    let unread = SeriesProblem::UnsupportedTransferSyntax("some other way".to_owned());
+    assert_eq!(
+        note(&of(30, vec![unread])),
+        Some(("! cannot be read yet".to_owned(), true))
+    );
+}
+
+#[test]
+fn resting_on_a_card_gives_the_whole_description_and_every_reason() {
+    let long = "a description that is a good deal longer than any card is wide";
+    let info = SeriesInfo {
+        description: long.to_owned(),
+        slices: 30,
+        spacing_mm: [1.0, 1.0, 5.0],
+        problems: vec![SeriesProblem::UnevenSpacing, SeriesProblem::MixedSizes],
+        ..SeriesInfo::default()
+    };
+    let text = hover(&info);
+    assert!(text.starts_with(long), "{text}");
+    assert!(text.contains("30 slices · 5 mm"), "{text}");
+    assert!(text.contains("The slices are not evenly spaced"), "{text}");
+    assert!(text.contains("not all the same size"), "{text}");
+    let unnamed = SeriesInfo {
+        number: 7,
+        ..SeriesInfo::default()
+    };
+    assert_eq!(hover(&unnamed), "Series 7\n1 slice · 1 mm");
+}
+
+#[test]
+fn resting_on_a_card_also_says_what_kind_of_scan_it_is() {
+    let info = SeriesInfo {
+        slices: 30,
+        scan: voxa_core::ScanFacts {
+            in_3d: Some(true),
+            echo_ms: Some(21.0),
+            ..voxa_core::ScanFacts::default()
+        },
+        ..SeriesInfo::default()
+    };
+    let text = hover(&info);
+    assert!(text.contains("Acquired as one block (3D)"), "{text}");
+    assert!(text.contains("Echo time 21 ms"), "{text}");
+}
+
+/// A made-up volume of a series that holds `count`.
+fn volume_of(whole: &str, at: usize, count: usize) -> SeriesInfo {
+    SeriesInfo {
+        id: SeriesId(format!("{whole}@{}", at + 1)),
+        slices: 3,
+        spacing_mm: [1.0, 1.0, 5.0],
+        set: Some(voxa_core::VolumeSet {
+            of: SeriesId(whole.to_owned()),
+            at,
+            count,
+            what: String::new(),
+        }),
+        ..SeriesInfo::default()
+    }
+}
+
+#[test]
+fn a_series_of_several_volumes_has_one_card_whatever_their_number() {
+    let plain = SeriesInfo {
+        id: SeriesId("plain".to_owned()),
+        ..SeriesInfo::default()
+    };
+    let mut series = vec![plain.clone()];
+    series.extend((0..300).map(|at| volume_of("many", at, 300)));
+    series.extend((0..2).map(|at| volume_of("two", at, 2)));
+    let ids = |shown: Option<&SeriesId>| -> Vec<String> {
+        let cards = one_for_each(&series, shown);
+        cards.iter().map(|info| info.id.0.clone()).collect()
+    };
+    assert_eq!(
+        ids(None),
+        ["plain", "many@1", "two@1"],
+        "the first stands for the rest"
+    );
+    let second = SeriesId("two@2".to_owned());
+    assert_eq!(
+        ids(Some(&second)),
+        ["plain", "many@1", "two@2"],
+        "or the one on show does"
+    );
+    assert_eq!(ids(Some(&plain.id)), ["plain", "many@1", "two@1"]);
+    assert_eq!(
+        face_of(&series, &volume_of("two", 1, 2)).id.0,
+        "two@1",
+        "one picture for all"
+    );
+    assert_eq!(face_of(&series, &plain).id.0, "plain");
+}
+
+#[test]
+fn the_card_of_a_series_of_several_volumes_says_how_many() {
+    assert_eq!(
+        caption(&volume_of("two", 0, 2)),
+        "2 volumes · 3 slices · 5 mm"
+    );
+}
+
+#[test]
+fn the_small_picture_of_a_frame_in_colour_keeps_its_colours() {
+    let colours = vec![[200, 10, 20], [10, 190, 30], [20, 30, 180], [240, 240, 240]];
+    let frame = Frame {
+        rows: 2,
+        cols: 2,
+        values: vec![0.0; 4],
+        colour: Some(colours.clone()),
+    };
+    let image = thumbnail(&frame, WindowLevel::new(0.0, 1.0), 2);
+    assert_eq!(image.size, [2, 2]);
+    let shown: Vec<[u8; 3]> = image.pixels.iter().map(|p| [p.r(), p.g(), p.b()]).collect();
+    assert_eq!(shown, colours);
+    // Made smaller, each pixel is the mean of what it covers.
+    let one = thumbnail(&frame, WindowLevel::new(0.0, 1.0), 1);
+    assert_eq!(one.size, [1, 1]);
+    assert_eq!(
+        one.pixels[0].r(),
+        118,
+        "the mean of 200, 10, 20 and 240, rounded"
+    );
 }

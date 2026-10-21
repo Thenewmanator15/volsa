@@ -299,6 +299,7 @@ impl Shared {
                 rows,
                 cols,
                 values: values.to_vec(),
+                colour: None,
             };
             if !self.hold(series, slice as usize, Arc::new(frame), middle, opened) {
                 return;

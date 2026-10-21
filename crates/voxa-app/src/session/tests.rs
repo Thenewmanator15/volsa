@@ -15,6 +15,7 @@ use crate::state::NoticeKind;
 use crate::testing::{
     FINE_SCAN, LOCALISER, THICK_SCAN, id, odd_series_files, series_files, three_series_files,
 };
+use crate::views::ViewsAction;
 
 /// Long enough for any worker on any machine; a test that waits this long has failed.
 const PATIENCE: Duration = Duration::from_secs(60);
@@ -271,7 +272,7 @@ fn a_saved_view_is_there_the_next_time_the_scan_is_opened_and_names_nothing_of_i
     });
     session.dispatch(Action::SceneOrbit { by: [40.0, 10.0] });
     let name = "Turned a little".to_owned();
-    session.dispatch(Action::ViewSave { name });
+    session.dispatch(Action::Views(ViewsAction::Save { name }));
     let saved_from = session.state().scene.camera;
     until(&mut session, |_| file.exists());
 
@@ -311,9 +312,9 @@ fn with_nowhere_to_keep_them_views_last_as_long_as_the_window() {
     open_until(&mut session, &path, |session| {
         ready_in_3d(session, FINE_SCAN)
     });
-    session.dispatch(Action::ViewSave {
+    session.dispatch(Action::Views(ViewsAction::Save {
         name: String::new(),
-    });
+    }));
     assert_eq!(session.state().views.len(), 1);
     session.wait(Duration::from_millis(300));
     assert!(
@@ -334,9 +335,9 @@ fn views_that_cannot_be_written_are_said_to_be_lost_next_time() {
     open_until(&mut session, &path, |session| {
         ready_in_3d(session, FINE_SCAN)
     });
-    session.dispatch(Action::ViewSave {
+    session.dispatch(Action::Views(ViewsAction::Save {
         name: String::new(),
-    });
+    }));
     until(&mut session, |session| !session.state().notices.is_empty());
     let notice = &session.state().notices[0];
     assert_eq!(notice.kind, NoticeKind::Warning);

@@ -322,6 +322,7 @@ fn listed(
             spacing_mm: [1.0, 1.0, 1.0],
             voxel_to_patient: None,
             problems,
+            ..SeriesInfo::default()
         },
         slices: Vec::new(),
     }

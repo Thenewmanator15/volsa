@@ -1,7 +1,7 @@
 # Voxa
 
 Voxa is a desktop viewer for MRI scan exports, written in Rust. It opens a folder, a zip or a
-`DICOMDIR`, lists the studies and series inside, and shows any series as a stack of slices with
+`DICOMDIR`, lists the studies and series inside and says what kind each is, and shows any series as a stack of slices with
 correct orientation, contrast controls, overlays, tag inspection and cine playback; shows the
 series being looked at as a 3D volume that can be turned, cut open and saved as a picture;
 shows axial, coronal and sagittal planes through any point of it, on which lengths, angles and
@@ -28,10 +28,19 @@ and the list sets it against the right half. The two halves were drawn equal: th
 them is where the labels' own coarse voxels happen to fall, which is the kind of difference
 Voxa says it cannot tell from noise.
 
+![Voxa listing a series of each kind in the made-up study, showing the second of two volumes of one](docs/images/voxa-phantom-kinds.png)
+
+An export holds more than plain stacks of slices, and the list says what each series is. Here
+the made-up study also holds a series of two volumes of the ball, taken at two echo times,
+listed once and shown on its second volume, as the toolbar and the viewport say; three
+locating images in three planes; and a picture in colour, which is shown in its own colours.
+
 Status: version 0.4.0, the fourth milestone (Labelled parts, from files). What it does and what
 it does not yet do are in the [changelog](CHANGELOG.md); how it was checked is in
 [docs/acceptance-0.4.0.md](docs/acceptance-0.4.0.md). The design and the plan for every
-milestone are in [docs/superpowers](docs/superpowers).
+milestone are in [docs/superpowers](docs/superpowers). Work since 0.4.0, on reading more kinds
+of MRI export, is listed under Unreleased in the changelog, and how it was checked is in
+[docs/acceptance-any-mri.md](docs/acceptance-any-mri.md).
 
 ## Build and run
 
@@ -108,9 +117,12 @@ cargo run -p voxa-app -- phantom --labels phantom/labels/labels.nii.gz
 ```
 
 The first command writes a small made-up study (a ball, brighter towards the patient's left, with
-a bead near the front) to the folder `phantom`; the second opens it. The third opens it with the
+a bead near the front, with a series of two volumes of it at two echo times, three locating
+images and a picture in colour) to the folder `phantom`; the second opens it. The third opens it with the
 made-up labels the first command wrote beside it: the ball's shell in two halves, its core and
 the bead. Voxa then says it skipped two files, which are the labels and their table: they are
 not part of the scan. Setting the environment
 variable `VOXA_CAPTURE` to a `.png` path makes Voxa save one picture of its own window and close,
-which is how the pictures in the documentation are made.
+which is how the pictures in the documentation are made. `VOXA_CAPTURE_SERIES` names the series
+to show by words from its description, and the word `stepped` in `VOXA_CAPTURE_SHOW` shows the
+next volume of a series that holds several.

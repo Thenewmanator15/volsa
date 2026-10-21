@@ -19,7 +19,7 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 13] = [
+pub const SHORTCUTS: [(&str, &str); 14] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -31,6 +31,10 @@ pub const SHORTCUTS: [(&str, &str); 13] = [
     ("2", "Two viewports side by side"),
     ("4", "Four viewports"),
     ("Space", "Play or pause through the slices"),
+    (
+        "[ and ]",
+        "The volume before and the volume after, of a series that holds several",
+    ),
     ("M", "Open or close the measurements"),
     ("Ctrl+Z", "Take back the last change to the measurements"),
     ("Ctrl+Y", "Do it again (Ctrl+Shift+Z too)"),
@@ -182,18 +186,27 @@ pub fn corner_text(
     if !study.description.is_empty() {
         who_and_when.push(study.description.clone());
     }
-    let what = if series.description.is_empty() {
+    let named = if series.description.is_empty() {
         format!("Series {}", series.number)
     } else {
         series.description.clone()
     };
+    // Which volume of several, under the name: the corner below has the scale beside it.
+    let what = std::iter::once(named)
+        .chain(super::volumes::label(series))
+        .collect();
     let place = match position_mm {
         Some(at) => format!("{at:.1} mm"),
         None => NO_POSITION.to_owned(),
     };
     let which = vec![format!("Slice {} of {}", slice + 1, series.slices), place];
-    let window = vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)];
-    [who_and_when, vec![what], which, window]
+    // A picture in colour is shown in its own colours, through no window.
+    let window = if series.colour {
+        Vec::new()
+    } else {
+        vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)]
+    };
+    [who_and_when, what, which, window]
 }
 
 /// What the mouse did over one viewport since the last frame.
@@ -281,6 +294,8 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
         Key::Num2 => Action::SetLayout(Layout::TwoAcross),
         Key::Num4 => Action::SetLayout(Layout::TwoByTwo),
         Key::Space => Action::CineToggle { viewport },
+        Key::OpenBracket => Action::StepVolume { viewport, by: -1 },
+        Key::CloseBracket => Action::StepVolume { viewport, by: 1 },
         Key::Escape => Action::SetMain(MainPanel::Scene),
         _ => return None,
     })
@@ -288,3 +303,5 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod volumes_tests;

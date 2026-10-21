@@ -6,7 +6,7 @@ use egui::{
     Align2, Color32, ColorImage, CornerRadius, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2,
     vec2,
 };
-use voxa_core::{SeriesId, SeriesInfo, StudyInfo, WindowLevel};
+use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyInfo, WindowLevel};
 use voxa_dicom::Frame;
 
 use super::theme;
@@ -52,6 +52,9 @@ pub fn thumbnail(frame: &Frame, wl: WindowLevel, size: u32) -> ColorImage {
     if rows == 0 || cols == 0 || size == 0 || frame.values.len() != rows * cols {
         return ColorImage::filled([1, 1], Color32::BLACK);
     }
+    if let Some(colours) = frame.colour.as_ref().filter(|all| all.len() == rows * cols) {
+        return in_colour(colours, [rows, cols], size);
+    }
     let longest = rows.max(cols);
     let wide = (cols * size as usize / longest).max(1);
     let high = (rows * size as usize / longest).max(1);
@@ -73,6 +76,33 @@ pub fn thumbnail(frame: &Frame, wl: WindowLevel, size: u32) -> ColorImage {
     ColorImage::from_gray_iter([wide, high], pixels)
 }
 
+/// A small picture of a frame stored in colour, as [`thumbnail`] makes of a grey one: each
+/// pixel the mean of the block of the frame it covers.
+fn in_colour(colours: &[[u8; 3]], [rows, cols]: [usize; 2], size: u32) -> ColorImage {
+    let longest = rows.max(cols);
+    let wide = (cols * size as usize / longest).max(1);
+    let high = (rows * size as usize / longest).max(1);
+    let block = |at: usize, of: usize, from: usize| {
+        (at * from / of)..((at + 1) * from / of).max(at * from / of + 1)
+    };
+    let mean = |x: usize, y: usize| {
+        let (mut sum, mut count) = ([0.0_f32; 3], 0.0_f32);
+        for row in block(y, high, rows) {
+            for col in block(x, wide, cols) {
+                let colour = colours.get(row * cols + col).copied().unwrap_or_default();
+                for (total, part) in sum.iter_mut().zip(colour) {
+                    *total += f32::from(part);
+                }
+                count += 1.0;
+            }
+        }
+        let [red, green, blue] = sum.map(|total| grey_level(total / count.max(1.0) / 255.0));
+        Color32::from_rgb(red, green, blue)
+    };
+    let pixels = (0..high).flat_map(|y| (0..wide).map(move |x| mean(x, y)));
+    ColorImage::new([wide, high], pixels.collect())
+}
+
 /// A fraction from black (0) to white (1) as one of 256 greys.
 #[expect(
     clippy::cast_possible_truncation,
@@ -83,8 +113,48 @@ fn grey_level(fraction: f32) -> u8 {
     (fraction.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
-/// The second line of a card: how many slices, and how far apart.
+/// The series a study's cards stand for, in the study's order: every series of one volume,
+/// and one volume of each series that holds several. That one is the volume `shown`, when it
+/// is of that series, and otherwise the first.
+pub fn one_for_each<'a>(series: &'a [SeriesInfo], shown: Option<&SeriesId>) -> Vec<&'a SeriesInfo> {
+    let on_show = shown
+        .and_then(|shown| series.iter().find(|info| info.id == *shown))
+        .and_then(|info| info.set.as_ref());
+    let stands = |info: &&SeriesInfo| match &info.set {
+        None => true,
+        Some(set) => match on_show {
+            Some(shown) if shown.of == set.of => shown.at == set.at,
+            _ => set.at == 0,
+        },
+    };
+    series.iter().filter(stands).collect()
+}
+
+/// The series whose picture a card carries: the series itself, or the first volume of the
+/// series it is a volume of, so that one small picture does for all of them.
+pub fn face_of<'a>(series: &'a [SeriesInfo], info: &'a SeriesInfo) -> &'a SeriesInfo {
+    let first = info.set.as_ref().and_then(|set| {
+        let leads = |other: &&SeriesInfo| {
+            let found = other.set.as_ref();
+            found.is_some_and(|found| found.of == set.of && found.at == 0)
+        };
+        series.iter().find(leads)
+    });
+    first.unwrap_or(info)
+}
+
+/// The second line of a card: how many volumes when there are several, how many slices, and
+/// how far apart.
 pub fn caption(info: &SeriesInfo) -> String {
+    // Pictures in colour, such as a page or a screenshot, are no slices of the body.
+    if info.colour {
+        let one = info.slices == 1;
+        return if one {
+            "1 picture".to_owned()
+        } else {
+            format!("{} pictures", info.slices)
+        };
+    }
     let slices = if info.slices == 1 {
         "1 slice".to_owned()
     } else {
@@ -92,13 +162,48 @@ pub fn caption(info: &SeriesInfo) -> String {
     };
     // To a hundredth of a millimetre, without trailing zeros.
     let apart = (info.slice_thickness_mm() * 100.0).round() / 100.0;
-    format!("{slices} · {apart} mm")
+    match &info.set {
+        Some(set) => format!("{} volumes · {slices} · {apart} mm", set.count),
+        None => format!("{slices} · {apart} mm"),
+    }
 }
 
 /// What is wrong with a series, one sentence a line; `None` when nothing is.
 pub fn problems_text(info: &SeriesInfo) -> Option<String> {
     let lines: Vec<String> = info.problems.iter().map(ToString::to_string).collect();
     (!lines.is_empty()).then(|| lines.join("\n"))
+}
+
+/// The third line of a card, and whether it is a warning: what the series is when it is not a
+/// volume, in a few words. Only something that stops Voxa showing a series in full is a
+/// warning; locating images, a single image and colour pictures are as they should be.
+pub fn note(info: &SeriesInfo) -> Option<(String, bool)> {
+    let warning = |problem: &SeriesProblem| Some((format!("! {}", problem.brief()), true));
+    match info.kind() {
+        SeriesKind::Volume => None,
+        SeriesKind::Stack(problem) => warning(&problem),
+        SeriesKind::Unreadable(name) => warning(&SeriesProblem::UnsupportedTransferSyntax(name)),
+        kind => kind.says().map(|words| (words.to_owned(), false)),
+    }
+}
+
+/// What a card is headed: the scanner's description, or the series' number when it has none.
+fn title(info: &SeriesInfo) -> String {
+    if info.description.is_empty() {
+        format!("Series {}", info.number)
+    } else {
+        info.description.clone()
+    }
+}
+
+/// What resting the pointer on a card shows: everything the card may have had no room for.
+/// The whole description, how many slices, what kind of scan it is, and each reason the
+/// series is not a volume.
+pub fn hover(info: &SeriesInfo) -> String {
+    let mut lines = vec![title(info), caption(info)];
+    lines.extend(info.scan.lines());
+    lines.extend(problems_text(info));
+    lines.join("\n")
 }
 
 /// The heading of a study: its date in words, then its description.
@@ -154,8 +259,8 @@ pub fn show(
         .show(ui, |ui| {
             for study in &index.studies {
                 ui.label(RichText::new(study_title(study)).strong());
-                for info in &study.series {
-                    let texture = thumbnails.get(&info.id);
+                for info in one_for_each(&study.series, shown) {
+                    let texture = thumbnails.get(&face_of(&study.series, info).id);
                     let response = card(ui, info, texture, shown == Some(&info.id));
                     if response.clicked() {
                         actions.push(Action::SelectSeries {
@@ -211,43 +316,34 @@ fn card(
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         painter.image(texture.id(), placed, whole, Color32::WHITE);
     }
-    let problems = problems_text(info);
-    words(
-        ui,
-        &painter,
-        info,
-        problems.is_some(),
-        picture.right_top() + vec2(PADDING, 0.0),
-    );
-    match problems {
-        Some(problems) => response.on_hover_text(problems),
-        None => response,
-    }
+    words(ui, &painter, info, picture.right_top() + vec2(PADDING, 0.0));
+    response.on_hover_text(hover(info))
 }
 
-/// The words on a card, from `at` downwards: what the series is, how many slices, and a mark
-/// when something about it needs reading (the pointer over the card shows what).
-fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, marked: bool, at: egui::Pos2) {
-    let title = if info.description.is_empty() {
-        format!("Series {}", info.number)
-    } else {
-        info.description.clone()
-    };
+/// The words on a card, from `at` downwards: what the series is headed, how many slices, what
+/// kind of scan it is, and a note of what it is when it is not a volume (the pointer over the
+/// card shows the rest).
+fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2) {
     let body = egui::TextStyle::Body.resolve(ui.style());
     let small = egui::TextStyle::Small.resolve(ui.style());
     let strong = ui.visuals().strong_text_color();
     let line = |down: f32, text: String, font, colour| {
         painter.text(at + vec2(0.0, down), Align2::LEFT_TOP, text, font, colour);
     };
-    line(4.0, title, body, strong);
+    line(4.0, title(info), body, strong);
     line(26.0, caption(info), small.clone(), theme::QUIET_TEXT);
-    if marked {
-        line(
-            44.0,
-            "! this series has a problem".to_owned(),
-            small,
-            theme::WARNING,
-        );
+    let mut down = 42.0;
+    if let Some(scan) = info.scan.line() {
+        line(down, scan, small.clone(), theme::QUIET_TEXT);
+        down += 14.0;
+    }
+    if let Some((text, warning)) = note(info) {
+        let colour = if warning {
+            theme::WARNING
+        } else {
+            theme::QUIET_TEXT
+        };
+        line(down, text, small, colour);
     }
 }
 

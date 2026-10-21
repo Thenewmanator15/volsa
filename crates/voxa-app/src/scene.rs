@@ -74,6 +74,9 @@ pub struct Scene {
     pub cuts: Vec<CutPlane>,
     /// Whether the slice shown in the 2D viewport is drawn in the scene.
     pub slice_shown: bool,
+    /// True while the scene waits for another volume of the series it was showing: the
+    /// camera is then left where it is when that volume arrives.
+    pub keeps_view: bool,
 }
 
 impl Scene {
@@ -95,6 +98,7 @@ impl Default for Scene {
             look: Look::Surface,
             cuts: Vec::new(),
             slice_shown: false,
+            keeps_view: false,
         }
     }
 }

@@ -116,6 +116,35 @@ Labelled parts come from files made elsewhere and are kept apart from the scan:
 5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
    same label set, so naming and selecting a part read nothing back from the device.
 
+## Kinds of series, and volumes of a series
+
+An export holds more than volumes: locating images, single images, pictures in colour, stacks
+that are not regular. `SeriesInfo::kind` names what a series is, from what the index found,
+and the series list says it in words; only a stack that cannot be shown in 3D and images that
+cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
+family of sequence, times, flip angle, field strength) is kept in `ScanFacts`, read from the
+first image; images in several planes are given no plane.
+
+A series that fills every position more than once, the same number of times, holds several
+volumes. The index splits it, telling the volumes apart by the first of the temporal position,
+the diffusion weighting, the echo time, the trigger time and the acquisition number that does
+so, and lists each volume as a series of its own whose `VolumeSet` says which volume it is of
+how many, and what sets it apart. Everything made for a series works on a volume unchanged;
+the list shows one card for the set, and a viewport steps between its volumes. See
+[adr/0005-volumes-of-a-series.md](adr/0005-volumes-of-a-series.md).
+
+A picture in colour is decoded with a colour for each pixel beside its brightness. A viewport
+draws it as a texture in its own colours; it has no window, and no 3D view.
+
+## What is kept on this machine
+
+In the folder the system gives Voxa: the saved views and annotations of each study,
+`preferences.json` (the window's size, the layout, orientation, linking and how labels are
+drawn), and `voxa.log`. The log is written by Voxa's own `tracing` subscriber, which takes
+only Voxa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
+file says can reach it. A picture of the window taken with `VOXA_CAPTURE` reads none of these
+and writes none.
+
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled
@@ -138,9 +167,15 @@ Nothing a file contains may crash the application; see [adr/0003-errors.md](adr/
 ## Decoding and what the tests cover
 
 `decode_slice` reads images stored uncompressed, with run-length encoding (RLE), as JPEG
-(baseline, extended and lossless) and as JPEG 2000 (lossless and lossy). Any other compression is
+(baseline, extended and lossless) and as JPEG 2000 (lossless and lossy), and files whose data set
+is deflated. Any other compression is
 named on the series card when the scan is indexed, and decoding it returns
-`UnsupportedTransferSyntax` with the same name. Colour images are declined.
+`UnsupportedTransferSyntax` with the same name.
+
+A picture stored in colour, 8 bits a sample, as red, green and blue or as brightness and two
+colour differences, is decoded to a colour for each pixel, with each pixel's brightness as its
+value. Palette colour, deeper colour and the subsampled ways of storing colour are declined in
+a sentence that names them.
 
 The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
 with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
@@ -152,6 +187,8 @@ NIfTI file can place its voxels.
 
 Tests build their files in memory with the `testkit` feature of `voxa-dicom`. They cover
 uncompressed pixels (unsigned, signed, 8-bit, `MONOCHROME1`, per-frame rescale in a multi-frame
-file) and RLE, for which the test writes the compressed frame by hand. No JPEG or JPEG 2000
-encoder is among the development dependencies, so those two are not covered by an automated test;
-they are checked by hand against real exports in the acceptance test at the end of milestone 1.
+file), pictures in colour, and RLE, for which the test writes the compressed frame by hand. A
+JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency. A JPEG 2000
+picture is a small made-up file kept with the tests, written by `tools/fixtures/make_ramp_j2k.py`,
+and is decoded exactly. A deflated file is deflated in its test. Lossless JPEG and lossy
+JPEG 2000 have no test of their own.

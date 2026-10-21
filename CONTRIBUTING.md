@@ -5,7 +5,8 @@
 - Voxa is not a medical device and is not for diagnostic use. Nothing in it may claim otherwise.
 - Never commit scan data or anything derived from a real person's scan, including screenshots.
   Tests build synthetic DICOM with `voxa_dicom::testkit`.
-- The repository is local for now: do not add a remote or push.
+- The repository is private for now. Nothing is pushed to it, and nothing is merged into
+  `main`, without its owner's word.
 
 ## How work is done
 

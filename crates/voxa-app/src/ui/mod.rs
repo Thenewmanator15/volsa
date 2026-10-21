@@ -16,7 +16,10 @@ mod about;
 mod browser;
 mod capture;
 mod cine;
+#[cfg(test)]
+mod described_tests;
 mod help;
+mod icon;
 mod keys;
 mod labels;
 mod layout;
@@ -26,6 +29,7 @@ mod parts;
 mod pen;
 mod pictures;
 mod planes;
+mod remembered;
 mod saving;
 mod scene;
 mod scene_bar;
@@ -33,6 +37,7 @@ mod tags;
 mod theme;
 mod toolbar;
 mod viewport;
+mod volumes;
 
 pub use browser::thumbnail;
 
@@ -67,6 +72,8 @@ pub struct VoxaApp {
     label_pose: Vec<Action>,
     /// A turntable of the 3D scene that is being drawn, a picture each frame.
     turntable: Option<scene::export::Turntable>,
+    /// What is remembered from one run to the next.
+    kept: crate::prefs::Kept,
 }
 
 impl VoxaApp {
@@ -82,6 +89,19 @@ impl VoxaApp {
         workers.leave_to_the_device(blocks, curves);
         // And a volume is handed to the device by the worker that made it ready.
         workers.give_device(render.device.clone(), render.queue.clone());
+    }
+
+    /// Tell labelling the name of the graphics card the window draws on, if it draws on one,
+    /// and look on a worker at whether this computer can label a scan.
+    fn look_for_labelling(&mut self, render: Option<&egui_wgpu::RenderState>) {
+        if let Some(render) = render {
+            // A run on the card Voxa draws on leaves room for what Voxa holds there.
+            let drawing_on = render.adapter.get_info().name;
+            self.dispatch(Action::Labelling(LabellingAction::DrawingOn(drawing_on)));
+        }
+        // Whether this computer can label a scan is looked at once as Voxa starts, on a
+        // worker, and again whenever a folder for it is chosen.
+        self.dispatch(Action::Labelling(LabellingAction::Look));
     }
 
     /// Set the window up, and open `initial` if a path was given.
@@ -105,11 +125,13 @@ impl VoxaApp {
             }
         });
         let render = creation.wgpu_render_state.as_ref();
+        crate::log::device(render);
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let capture = capture::Capture::from_environment();
         let kept = capture::kept_between_runs(capture.is_some(), settings::folder());
         let mut app = Self {
+            kept: crate::prefs::Kept::new(kept.clone()),
             session: Session::new(from_workers, reports, CACHE_BYTES, kept),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
@@ -128,15 +150,11 @@ impl VoxaApp {
             label_pose: Vec::new(),
             turntable: None,
         };
+        app.recall();
         if let Some(render) = render {
             app.tell_the_workers_of(render);
-            // A run on the card Voxa draws on leaves room for what Voxa holds there.
-            let drawing_on = render.adapter.get_info().name;
-            app.dispatch(Action::Labelling(LabellingAction::DrawingOn(drawing_on)));
         }
-        // Whether this computer can label a scan is looked at once as Voxa starts, on a
-        // worker, and again whenever a folder for it is chosen.
-        app.dispatch(Action::Labelling(LabellingAction::Look));
+        app.look_for_labelling(render);
         if app.capture.is_some() {
             // A picture is of things as they come to rest, not part-way through fading in.
             creation
@@ -248,6 +266,7 @@ impl VoxaApp {
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.session.pump();
+        self.remember(ctx);
         self.open_waiting_labels();
         self.play(ctx);
         self.make_thumbnails(ctx);
@@ -348,10 +367,17 @@ fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> 
 /// When the window or its graphics device cannot be created.
 pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result {
     // A picture for the documentation may want the window a particular size.
+    let capturing = capture::Capture::from_environment().is_some();
+    crate::log::start(capture::kept_between_runs(capturing, crate::log::folder()).as_deref());
     let asked = std::env::var(capture::SIZE_VARIABLE).ok();
-    let size = asked.and_then(|size| capture::size_from(&size));
+    let kept = capture::kept_between_runs(capturing, settings::folder());
+    let remembered = crate::prefs::Kept::new(kept).remembered().window;
+    let size = asked
+        .and_then(|size| capture::size_from(&size))
+        .or(remembered);
     let viewport = egui::ViewportBuilder::default()
         .with_title("Voxa")
+        .with_icon(icon::icon())
         .with_inner_size(size.unwrap_or([1440.0, 900.0]))
         .with_min_inner_size([900.0, 600.0]);
     let options = eframe::NativeOptions {

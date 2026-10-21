@@ -5,6 +5,12 @@ use std::io::Cursor;
 use dicom_core::Tag;
 use dicom_dictionary_std::tags;
 use dicom_object::{InMemDicomObject, OpenFileOptions};
+use voxa_core::ScanFacts;
+
+mod scan;
+mod told;
+
+pub(crate) use told::Told;
 
 /// What one image file says about itself.
 #[derive(Debug, Clone, PartialEq)]
@@ -33,6 +39,13 @@ pub(crate) struct Header {
     pub transfer_syntax: String,
     /// `ImagePositionPatient` of each frame; one entry for a single-frame file.
     pub positions: Vec<Option<[f64; 3]>>,
+    /// True when the images are stored in colour: three samples for every pixel.
+    pub colour: bool,
+    /// What the file says about how the series was acquired.
+    pub scan: ScanFacts,
+    /// What each frame says that sets it apart from others at its position; one entry
+    /// for a single-frame file.
+    pub told: Vec<Told>,
 }
 
 /// Parse the header of one file. `None` when the bytes are not a DICOM image: not DICOM at
@@ -55,6 +68,8 @@ fn parse(bytes: &[u8]) -> Option<Header> {
     let multi_frame = stated.is_some_and(|n| n > 1) || groups > 0;
     // A file cannot hold more frames than it has bytes, whatever its header claims.
     let frames = stated.unwrap_or(groups.max(1)).min(bytes.len());
+    let orientation = of_the_plane(obj, tags::PLANE_ORIENTATION_SEQUENCE, IMAGE_ORIENTATION)
+        .and_then(|v| <[f64; 6]>::try_from(v).ok());
     Some(Header {
         study_uid: text(obj, tags::STUDY_INSTANCE_UID)?,
         study_date: text(obj, tags::STUDY_DATE),
@@ -69,8 +84,7 @@ fn parse(bytes: &[u8]) -> Option<Header> {
         instance_number: int(obj, tags::INSTANCE_NUMBER).unwrap_or(0),
         rows: u32::try_from(int(obj, tags::ROWS)?).ok()?,
         cols: u32::try_from(int(obj, tags::COLUMNS)?).ok()?,
-        orientation: of_the_plane(obj, tags::PLANE_ORIENTATION_SEQUENCE, IMAGE_ORIENTATION)
-            .and_then(|v| <[f64; 6]>::try_from(v).ok()),
+        orientation,
         pixel_spacing: of_the_plane(obj, tags::PIXEL_MEASURES_SEQUENCE, tags::PIXEL_SPACING)
             .and_then(|v| <[f64; 2]>::try_from(v).ok()),
         slice_thickness: of_the_plane(obj, tags::PIXEL_MEASURES_SEQUENCE, tags::SLICE_THICKNESS)
@@ -81,6 +95,13 @@ fn parse(bytes: &[u8]) -> Option<Header> {
             frame_positions(obj, frames)
         } else {
             vec![position(obj)]
+        },
+        colour: int(obj, tags::SAMPLES_PER_PIXEL) == Some(3),
+        scan: scan::facts(obj, orientation),
+        told: if multi_frame {
+            told::of_frames(obj, frames)
+        } else {
+            vec![told::of_file(obj)]
         },
     })
 }

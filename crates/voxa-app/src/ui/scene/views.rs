@@ -6,6 +6,7 @@ use egui::Ui;
 use crate::action::Action;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
+use crate::views::ViewsAction;
 
 /// The menu itself, closed until it is pressed.
 pub fn menu(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
@@ -34,9 +35,9 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
             .on_disabled_hover_text("There is no 3D view to save yet")
             .clicked()
         {
-            actions.push(Action::ViewSave {
+            actions.push(Action::Views(ViewsAction::Save {
                 name: std::mem::take(&mut name),
-            });
+            }));
         }
     });
     ui.data_mut(|data| data.insert_temp(typed, name));
@@ -50,14 +51,14 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
                 .on_hover_text("See the scene as it was when this was saved")
                 .clicked()
             {
-                actions.push(Action::ViewApply(at));
+                actions.push(Action::Views(ViewsAction::Apply(at)));
             }
             if ui
                 .small_button("Delete")
                 .on_hover_text("Forget this view")
                 .clicked()
             {
-                actions.push(Action::ViewDelete(at));
+                actions.push(Action::Views(ViewsAction::Delete(at)));
             }
         });
     }
@@ -121,13 +122,13 @@ mod tests {
     fn the_menu_saves_the_scene_and_offers_each_saved_view_with_a_way_to_forget_it() {
         let asked = sweep(&with_views(&["Front", "Ear"]));
         let expected = [
-            Action::ViewSave {
+            Action::Views(ViewsAction::Save {
                 name: String::new(),
-            },
-            Action::ViewApply(0),
-            Action::ViewDelete(0),
-            Action::ViewApply(1),
-            Action::ViewDelete(1),
+            }),
+            Action::Views(ViewsAction::Apply(0)),
+            Action::Views(ViewsAction::Delete(0)),
+            Action::Views(ViewsAction::Apply(1)),
+            Action::Views(ViewsAction::Delete(1)),
         ];
         assert_eq!(asked, expected);
     }
@@ -137,9 +138,9 @@ mod tests {
         let mut state = with_views(&[]);
         assert_eq!(
             sweep(&state),
-            [Action::ViewSave {
+            [Action::Views(ViewsAction::Save {
                 name: String::new()
-            }]
+            })]
         );
         state.scene.status = SceneStatus::Building { done: 1, of: 9 };
         assert_eq!(sweep(&state), []);

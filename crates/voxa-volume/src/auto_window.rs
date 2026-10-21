@@ -6,6 +6,11 @@ use crate::histogram::Histogram;
 
 /// Bins used to read percentiles off an image.
 const BINS: usize = 4096;
+/// A window narrower than this many bins was read too coarsely to be trusted: a few values far
+/// outside the rest stretch the bins until nearly every other value falls into one of them.
+const TOO_FEW_BINS: f32 = 16.0;
+/// How many times, at most, the values about the window found are counted again more finely.
+const LOOKS_AGAIN: usize = 3;
 
 /// A named way of choosing a window: from one percentile of the image's values to another.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -42,12 +47,42 @@ impl Preset {
     /// The window this preset gives for an image with these values. An image with no finite
     /// values gets centre 0 and width 1; one whose values are all the same gets width 1.
     pub fn window(&self, values: &[f32]) -> WindowLevel {
-        let Some(histogram) = Histogram::from_values(values, BINS) else {
+        let Some((low, high)) = self.ends(values) else {
             return WindowLevel::new(0.0, 1.0);
         };
-        let low = histogram.percentile(self.low_pct);
-        let high = histogram.percentile(self.high_pct);
         WindowLevel::new(low + (high - low) / 2.0, high - low)
+    }
+
+    /// The values at this preset's two percentiles; `None` when there is nothing to count.
+    ///
+    /// Percentiles are read off a count of the values into equal bins from the smallest to
+    /// the largest. When the window that gives is only a few bins wide, the values about it
+    /// are counted again by themselves, more finely; the percentiles are still those of the
+    /// whole image.
+    fn ends(&self, values: &[f32]) -> Option<(f32, f32)> {
+        let all = Histogram::from_values(values, BINS)?;
+        let last_rank = all.count().saturating_sub(1) as f64;
+        let mut bin = all.bin_width();
+        let (mut low, mut high) = (all.percentile(self.low_pct), all.percentile(self.high_pct));
+        for _ in 0..LOOKS_AGAIN {
+            if bin <= 0.0 || high - low >= TOO_FEW_BINS * bin {
+                break;
+            }
+            let (from, to) = (low - bin, high + bin);
+            let finite = values.iter().copied().filter(|value| value.is_finite());
+            let below = finite.clone().filter(|value| *value < from).count() as f64;
+            let about: Vec<f32> = finite.filter(|value| (from..=to).contains(value)).collect();
+            let Some(finer) = Histogram::from_values(&about, BINS) else {
+                break;
+            };
+            // The same rank in the whole image, as a percentile of the values counted again.
+            let last_here = (finer.count().saturating_sub(1) as f64).max(1.0);
+            let here = |pct: f64| (pct / 100.0 * last_rank - below) / last_here * 100.0;
+            low = finer.percentile(here(self.low_pct));
+            high = finer.percentile(here(self.high_pct));
+            bin = finer.bin_width();
+        }
+        Some((low, high))
     }
 }
 
@@ -91,6 +126,28 @@ mod tests {
         let mut dirty = ramp();
         dirty.extend([f32::NAN, f32::INFINITY, f32::NEG_INFINITY]);
         assert_eq!(auto_window(&dirty), auto_window(&ramp()));
+    }
+
+    #[test]
+    fn one_value_far_outside_the_rest_does_not_collapse_the_window() {
+        // A thousand million times the step of the ramp: every other value falls in one bin
+        // of the first count.
+        for far in [1.0e9_f32, -1.0e9] {
+            let mut values = ramp();
+            values.push(far);
+            let window = auto_window(&values);
+            assert!((window.low() - 10.0).abs() <= 2.0, "{far}: {window:?}");
+            assert!((window.high() - 995.0).abs() <= 2.0, "{far}: {window:?}");
+        }
+    }
+
+    #[test]
+    fn values_far_outside_on_both_sides_and_at_two_scales_are_seen_past() {
+        let mut values = ramp();
+        values.extend([1.0e9, -1.0e9, 1.0e6, -1.0e6]);
+        let window = auto_window(&values);
+        assert!(window.low() > 0.0 && window.high() < 1000.0, "{window:?}");
+        assert!(window.width > 950.0, "{window:?}");
     }
 
     #[test]

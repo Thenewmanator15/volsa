@@ -169,3 +169,41 @@ pub fn labelled_head() -> (
     );
     (state, set)
 }
+
+/// The whole series of the made-up scan of two echoes: three positions, each filled twice.
+pub const TWO_ECHOES: &str = "1.2.3.6";
+/// Its first volume, the echo at 21 ms.
+pub const FIRST_ECHO: &str = "1.2.3.6@1";
+/// Its second volume, the echo at 83 ms.
+pub const SECOND_ECHO: &str = "1.2.3.6@2";
+
+/// The files of the scan of two echoes: 4 x 4 slices at three positions 5 mm apart, an image
+/// of each echo at each, series number 6.
+pub fn two_echoes_files() -> Vec<(String, Vec<u8>)> {
+    let echoes = [(1, 21.0), (2, 83.0)];
+    let image = |place: i32, (which, echo_ms): (i32, f64)| {
+        let mut options = slice_options(TWO_ECHOES, 6, place, 4);
+        options.instance_number = place * 2 + which;
+        options.scan.echo_ms = Some(echo_ms);
+        let name = format!("S6/I{place}-{which}.dcm");
+        (name, classic_slice(&options))
+    };
+    (0..3)
+        .flat_map(|place| echoes.map(|echo| image(place, echo)))
+        .collect()
+}
+
+/// A made-up series of pictures in colour, series number 7.
+pub const COLOUR: &str = "1.2.3.7";
+
+/// The files of the series in colour: two 2 x 2 pictures.
+pub fn colour_files() -> Vec<(String, Vec<u8>)> {
+    let pixels = vec![[200, 10, 20], [10, 190, 30], [20, 30, 180], [240, 240, 240]];
+    (0..2)
+        .map(|place| {
+            let mut options = slice_options(COLOUR, 7, place, 2);
+            options.colour = Some(voxa_dicom::testkit::Colour::of(pixels.clone()));
+            (format!("S7/I{place:04}.dcm"), classic_slice(&options))
+        })
+        .collect()
+}

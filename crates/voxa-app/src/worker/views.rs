@@ -8,7 +8,7 @@ use voxa_core::SeriesId;
 use super::{Workers, lock};
 use crate::action::Action;
 use crate::settings;
-use crate::views::{SavedView, series_key};
+use crate::views::{SavedView, ViewsAction, series_key};
 
 impl Workers {
     /// Read the views kept for a series and report them. With nowhere to keep settings there
@@ -22,7 +22,7 @@ impl Workers {
             // Not while the file is half written.
             let _written = lock(&shared.stored);
             let views = settings::load(&folder, &series_key(&series));
-            shared.report(Action::ViewsLoaded { series, views });
+            shared.report(Action::Views(ViewsAction::Loaded { series, views }));
         });
     }
 
@@ -42,7 +42,7 @@ impl Workers {
             *newest_written = number;
             if let Err(why) = settings::save(&folder, &key, &views) {
                 let reason = why.to_string();
-                shared.report(Action::ViewsNotStored { reason });
+                shared.report(Action::Views(ViewsAction::NotStored { reason }));
             }
         });
     }

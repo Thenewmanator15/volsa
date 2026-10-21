@@ -1,23 +1,23 @@
 //! Actions about the saved views of the scene's series.
 
 use super::{VIEWS, post};
-use crate::action::{Action, Effect};
+use crate::action::Effect;
 use crate::scene::SceneStatus;
 use crate::state::{AppState, Notice, NoticeKind};
-use crate::views::{MAX_VIEWS, SavedView};
+use crate::views::{MAX_VIEWS, SavedView, ViewsAction};
 
-pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
+pub(super) fn reduce(state: &mut AppState, action: ViewsAction) -> Vec<Effect> {
     match action {
-        Action::ViewSave { name } => return save(state, &name),
-        Action::ViewApply(at) => apply(state, at),
-        Action::ViewDelete(at) if at < state.views.len() => {
+        ViewsAction::Save { name } => return save(state, &name),
+        ViewsAction::Apply(at) => apply(state, at),
+        ViewsAction::Delete(at) if at < state.views.len() => {
             state.views.remove(at);
             return store(state);
         }
-        Action::ViewsLoaded { series, views } if state.scene.series.as_ref() == Some(&series) => {
+        ViewsAction::Loaded { series, views } if state.scene.series.as_ref() == Some(&series) => {
             take_kept(state, views);
         }
-        Action::ViewsNotStored { reason } => {
+        ViewsAction::NotStored { reason } => {
             let notice = Notice {
                 kind: NoticeKind::Warning,
                 text: "Saved views could not be written, so they will not be there next time"

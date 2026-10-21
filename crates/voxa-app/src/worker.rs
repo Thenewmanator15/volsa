@@ -8,7 +8,7 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use voxa_core::SeriesId;
-use voxa_dicom::{Frame, ImageFile, Index, IndexedSeries, SeriesSource, index, open_source};
+use voxa_dicom::{Frame, Index, IndexedSeries, SeriesSource, index, open_source};
 use voxa_labels::LabelSet;
 use voxa_volume::PRESETS;
 
@@ -19,6 +19,7 @@ use crate::volume_store::VolumeStore;
 mod annotations;
 pub(crate) mod labelling;
 mod labels;
+mod opened;
 mod post;
 mod tags;
 mod views;
@@ -31,7 +32,7 @@ pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
 const DEFAULT_VOLUME_SIDE: u32 = 2048;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
-/// with further [`Action`]s. Only labelling writes to a log, and never what a file contains.
+/// with further [`Action`]s. What they write to the log never holds what a file contains.
 pub struct Workers {
     /// The threads the work runs on; the shared pool of the process when none could be made.
     pool: Option<rayon::ThreadPool>,
@@ -46,6 +47,8 @@ struct Shared {
     source: Mutex<Option<Box<dyn SeriesSource>>>,
     /// How many sources have been opened. Work begun for an earlier one stops.
     opened: AtomicU64,
+    /// The file of many frames opened last.
+    kept: opened::Opened,
     /// The newest request for each series. Work begun for an earlier request stops.
     newest: Mutex<HashMap<SeriesId, u64>>,
     requests: AtomicU64,
@@ -107,6 +110,7 @@ impl Workers {
             cache,
             source: Mutex::new(None),
             opened: AtomicU64::new(0),
+            kept: opened::Opened::default(),
             newest: Mutex::new(HashMap::new()),
             requests: AtomicU64::new(0),
             volumes,
@@ -142,7 +146,9 @@ impl Workers {
                 }
             }
             Effect::RequestThumbnails => {
-                for listed in index.map_or(&[][..], |index| index.series.as_slice()) {
+                // One small picture does for all the volumes of a series that holds several.
+                let series = index.map_or(&[][..], |index| index.series.as_slice());
+                for listed in series.iter().filter(|listed| listed.info.leads_its_set()) {
                     self.request_frames(listed, listed.slices.len() / 2, 1);
                 }
             }
@@ -173,6 +179,7 @@ impl Workers {
     fn start_index(&self, path: PathBuf) {
         let opened = self.shared.opened.fetch_add(1, Ordering::SeqCst) + 1;
         *lock(&self.shared.source) = None;
+        self.shared.kept.clear();
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         lock(&self.shared.volumes).clear();
@@ -277,8 +284,8 @@ impl Shared {
                 *kept = Some(source);
                 self.report(Action::IndexDone);
             }
-            Ok((_, found)) => self.report(Action::IndexFailed(nothing_found(path, &found))),
-            Err(error) => self.report(Action::IndexFailed(error.to_string())),
+            Ok((_, found)) => self.report(Action::IndexFailed(post::nothing_found(path, &found))),
+            Err(error) => self.could_not_open(&error),
         }
     }
 
@@ -287,18 +294,16 @@ impl Shared {
         if !self.still_wanted(request) {
             return;
         }
-        let bytes = match lock(&self.source).as_mut() {
-            Some(source) => source.read(&batch.entry),
-            None => return,
+        let Some(file) = self.file_of(batch, request) else {
+            return;
         };
-        let file = bytes.and_then(|bytes| ImageFile::open(&bytes));
         for (slice, frame) in &batch.slices {
             if !self.still_wanted(request) {
                 return;
             }
             let decoded = match &file {
                 Ok(file) => file.decode(*frame).map_err(|error| error.to_string()),
-                Err(error) => Err(error.to_string()),
+                Err(error) => Err(error.clone()),
             };
             self.deliver(request, *slice, decoded);
         }
@@ -366,20 +371,6 @@ fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> {
         }
     }
     batches
-}
-
-/// What to say when a source opened but held no images.
-fn nothing_found(path: &Path, found: &Index) -> String {
-    let name = path
-        .file_name()
-        .map(|name| name.to_string_lossy().into_owned());
-    let name = name.unwrap_or_else(|| path.display().to_string());
-    // A lone file that is not a zip is read as a source of that one file.
-    if path.is_file() && found.skipped == [name.clone()] {
-        "That file is not a zip or DICOM export".to_owned()
-    } else {
-        format!("No images were found in {name}")
-    }
 }
 
 /// Lock a mutex, carrying on with what it holds even if a thread panicked while holding it.

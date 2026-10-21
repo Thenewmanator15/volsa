@@ -7,14 +7,14 @@ use super::scene_tests::{build, ready, select};
 use super::tests::{frames_around, loaded};
 use super::*;
 use crate::testing::{FINE_SCAN, LOCALISER, THICK_SCAN, id, with_odd_series};
-use crate::views::{MAX_VIEWS, SavedView};
+use crate::views::{MAX_VIEWS, SavedView, ViewsAction};
 
 fn save(state: &mut AppState, name: &str) -> Vec<Effect> {
     reduce(
         state,
-        Action::ViewSave {
+        Action::Views(ViewsAction::Save {
             name: name.to_owned(),
-        },
+        }),
     )
 }
 
@@ -61,27 +61,27 @@ fn views_loaded_for_the_scenes_series_are_taken_and_others_ignored() {
     )];
     reduce(
         &mut state,
-        Action::ViewsLoaded {
+        Action::Views(ViewsAction::Loaded {
             series: id(FINE_SCAN),
             views: kept.clone(),
-        },
+        }),
     );
     assert!(state.views.is_empty(), "those belong to another series");
     reduce(
         &mut state,
-        Action::ViewsLoaded {
+        Action::Views(ViewsAction::Loaded {
             series: id(THICK_SCAN),
             views: kept.clone(),
-        },
+        }),
     );
     assert_eq!(state.views, kept);
     let too_many = vec![kept[0].clone(); MAX_VIEWS + 5];
     reduce(
         &mut state,
-        Action::ViewsLoaded {
+        Action::Views(ViewsAction::Loaded {
             series: id(THICK_SCAN),
             views: too_many,
-        },
+        }),
     );
     assert_eq!(
         state.views.len(),
@@ -96,9 +96,11 @@ fn a_view_saved_before_the_kept_ones_arrive_is_kept_with_them() {
     save(&mut state, "Just now");
     let just_now = state.views.clone();
     let before = |name: &str| SavedView::of(name, 1, &ready().scene, WindowLevel::new(1.0, 2.0));
-    let arrive = |views: &[SavedView]| Action::ViewsLoaded {
-        series: id(THICK_SCAN),
-        views: views.to_vec(),
+    let arrive = |views: &[SavedView]| {
+        Action::Views(ViewsAction::Loaded {
+            series: id(THICK_SCAN),
+            views: views.to_vec(),
+        })
     };
     reduce(&mut state, arrive(&[before("Kept")]));
     let both = [vec![before("Kept")], just_now.clone()].concat();
@@ -152,7 +154,7 @@ fn a_saved_view_brings_back_the_camera_the_look_the_window_and_the_cuts() {
         },
     );
     assert!(
-        reduce(&mut state, Action::ViewApply(0)).is_empty(),
+        reduce(&mut state, Action::Views(ViewsAction::Apply(0))).is_empty(),
         "nothing to write"
     );
     assert_eq!(state.scene.camera, as_it_was.camera, "exactly where it was");
@@ -192,15 +194,15 @@ fn a_view_is_deleted_by_its_place_and_one_that_is_not_there_is_left_alone() {
     save(&mut state, "B");
     let before = state.clone();
     assert!(
-        reduce(&mut state, Action::ViewDelete(5)).is_empty(),
+        reduce(&mut state, Action::Views(ViewsAction::Delete(5))).is_empty(),
         "no such view"
     );
     assert!(
-        reduce(&mut state, Action::ViewApply(5)).is_empty(),
+        reduce(&mut state, Action::Views(ViewsAction::Apply(5))).is_empty(),
         "no such view"
     );
     assert_eq!(state, before);
-    let effects = reduce(&mut state, Action::ViewDelete(0));
+    let effects = reduce(&mut state, Action::Views(ViewsAction::Delete(0)));
     assert_eq!(state.views.len(), 1);
     assert_eq!(state.views[0].name, "B");
     assert_eq!(effects, stored(&state));

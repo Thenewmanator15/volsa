@@ -5,7 +5,12 @@ use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
 
-use super::{EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, SliceOptions};
+use super::{
+    Colour, EXPLICIT_VR_LITTLE_ENDIAN, EnhancedFrame, EnhancedOptions, ScanTags, SliceOptions,
+};
+
+mod colour;
+mod scan;
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";
@@ -38,6 +43,9 @@ pub fn classic_slice(opts: &SliceOptions) -> Vec<u8> {
     };
     stored.truncate(stored.len().saturating_sub(opts.drop_pixels));
     obj.put(pixels(stored));
+    if let Some(colour) = &opts.colour {
+        colour::put(&mut obj, colour, opts.drop_pixels);
+    }
     write(obj, opts)
 }
 
@@ -80,6 +88,7 @@ fn shared_groups(common: &SliceOptions) -> InMemDicomObject {
         let item = one(decimal(tags::IMAGE_ORIENTATION_PATIENT, &orientation));
         shared.put(sequence(tags::PLANE_ORIENTATION_SEQUENCE, vec![item]));
     }
+    scan::put_shared(&mut shared, &common.scan);
     let mut measures = InMemDicomObject::new_empty();
     if let Some(spacing) = common.pixel_spacing {
         measures.put(decimal(tags::PIXEL_SPACING, &spacing));
@@ -101,6 +110,7 @@ fn frame_groups(frame: &EnhancedFrame) -> InMemDicomObject {
     rescale.put(decimal(tags::RESCALE_SLOPE, &[frame.slope]));
     let rescale = vec![rescale];
     groups.put(sequence(tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, rescale));
+    scan::put_frame(&mut groups, frame);
     groups
 }
 
@@ -155,6 +165,7 @@ fn common_elements(opts: &SliceOptions, sop_class: &str) -> InMemDicomObject {
     if let Some(date) = &opts.study_date {
         obj.put(element(tags::STUDY_DATE, VR::DA, date.as_str()));
     }
+    scan::put(&mut obj, &opts.scan, sop_class == ENHANCED_MR_IMAGE_STORAGE);
     obj
 }
 

@@ -74,6 +74,68 @@ pub struct SliceOptions {
     pub transfer_syntax: String,
     /// Leave this many values off the end of the pixel data, as a truncated file would.
     pub drop_pixels: usize,
+    /// What the file says about how it was acquired; nothing unless given.
+    pub scan: ScanTags,
+    /// Make the image a picture in colour, with these pixels in place of `stored`.
+    pub colour: Option<Colour>,
+}
+
+/// A made-up picture stored in colour.
+#[derive(Debug, Clone)]
+pub struct Colour {
+    /// The three samples of each pixel, row by row.
+    pub pixels: Vec<[u8; 3]>,
+    /// Store all the first samples, then all the second, then all the third.
+    pub planar: bool,
+    /// `PhotometricInterpretation`: what the three samples are.
+    pub photometric: String,
+    /// `BitsAllocated` for each sample.
+    pub bits: u16,
+    /// `SamplesPerPixel`; only this many of each pixel's samples are written.
+    pub samples: u16,
+}
+
+impl Colour {
+    /// These pixels as red, green and blue, 8 bits each, pixel by pixel.
+    pub fn of(pixels: Vec<[u8; 3]>) -> Self {
+        Self {
+            pixels,
+            planar: false,
+            photometric: "RGB".to_owned(),
+            bits: 8,
+            samples: 3,
+        }
+    }
+}
+
+/// What a made-up file says about how it was acquired, and what sets it apart from the
+/// other images at its position. Whatever is left empty or `None` is not written.
+#[derive(Debug, Clone, Default)]
+pub struct ScanTags {
+    /// `ScanningSequence`: codes such as `SE`, `GR`, `IR`, `EP`, separated by a backslash.
+    pub sequence: String,
+    /// `MRAcquisitionType`: `2D` or `3D`.
+    pub acquired: String,
+    /// `RepetitionTime`, in milliseconds.
+    pub repetition_ms: Option<f64>,
+    /// `EchoTime`, in milliseconds.
+    pub echo_ms: Option<f64>,
+    /// `InversionTime`, in milliseconds.
+    pub inversion_ms: Option<f64>,
+    /// `FlipAngle`, in degrees.
+    pub flip_deg: Option<f64>,
+    /// `MagneticFieldStrength`, in tesla.
+    pub field_t: Option<f64>,
+    /// `BodyPartExamined`.
+    pub body_part: String,
+    /// `TemporalPositionIdentifier`.
+    pub temporal: Option<i32>,
+    /// `DiffusionBValue`.
+    pub b_value: Option<f64>,
+    /// `TriggerTime`, in milliseconds.
+    pub trigger_ms: Option<f64>,
+    /// `AcquisitionNumber`.
+    pub acquisition: Option<i32>,
 }
 
 impl Default for SliceOptions {
@@ -102,6 +164,8 @@ impl Default for SliceOptions {
             monochrome1: false,
             transfer_syntax: EXPLICIT_VR_LITTLE_ENDIAN.to_owned(),
             drop_pixels: 0,
+            scan: ScanTags::default(),
+            colour: None,
         }
     }
 }
@@ -117,6 +181,12 @@ pub struct EnhancedFrame {
     pub slope: f64,
     /// `RescaleIntercept` of this frame.
     pub intercept: f64,
+    /// The frame's diffusion weighting, or absent.
+    pub b_value: Option<f64>,
+    /// The frame's echo time in milliseconds, or absent.
+    pub echo_ms: Option<f64>,
+    /// Which time point the frame is, or absent.
+    pub temporal: Option<i32>,
 }
 
 impl EnhancedFrame {
@@ -127,6 +197,9 @@ impl EnhancedFrame {
             stored: Vec::new(),
             slope: 1.0,
             intercept: 0.0,
+            b_value: None,
+            echo_ms: None,
+            temporal: None,
         }
     }
 }

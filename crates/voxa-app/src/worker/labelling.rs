@@ -243,7 +243,7 @@ impl Shared {
                 Err(LabelError::Run(RunError::Stopped)) => return,
                 Err(LabelError::Run(RunError::Failed(words))) => {
                     let words = logged_words(&words, model);
-                    tracing::warn!(words, "a network of the labelling model could not be run");
+                    tracing::warn!("a network of the labelling model could not be run: {words}");
                     let device = place(rung.device, room);
                     return self.fail(job, &format!("The model could not be run on {device}."));
                 }

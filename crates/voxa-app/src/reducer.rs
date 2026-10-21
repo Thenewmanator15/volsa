@@ -19,6 +19,7 @@ mod planes;
 mod scene;
 mod viewport;
 mod views;
+mod volumes;
 
 /// The key of the notice that counts skipped files.
 const SKIPPED: &str = "skipped";
@@ -104,11 +105,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             scene::reduce(state, action);
             Vec::new()
         }
-        Action::ViewSave { .. }
-        | Action::ViewApply(_)
-        | Action::ViewDelete(_)
-        | Action::ViewsLoaded { .. }
-        | Action::ViewsNotStored { .. } => views::reduce(state, action),
+        Action::Views(about_views) => views::reduce(state, about_views),
         about_the_planes if planes::concerns(&about_the_planes) => {
             planes::reduce(state, &about_the_planes);
             Vec::new()
@@ -298,6 +295,8 @@ fn settle_window(
 #[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
+mod colour_tests;
+#[cfg(test)]
 mod frame_tests;
 #[cfg(test)]
 mod labelling_result_tests;
@@ -327,5 +326,7 @@ mod tests;
 mod viewport_tests;
 #[cfg(test)]
 mod views_tests;
+#[cfg(test)]
+mod volumes_tests;
 #[cfg(test)]
 mod window_tests;
