@@ -6,7 +6,7 @@ use super::overlay::SHORTCUTS;
 use super::theme;
 
 /// What the mouse does over a viewport, for the same window.
-pub const MOUSE: [(&str, &str); 12] = [
+pub const MOUSE: [(&str, &str); 14] = [
     ("Wheel", "Move through the slices"),
     ("Ctrl + wheel", "Zoom about the pointer"),
     ("Middle drag", "Move the picture"),
@@ -30,6 +30,14 @@ pub const MOUSE: [(&str, &str); 12] = [
     (
         "Click, on a labelled part",
         "Select it. Rest the pointer on a part for its name",
+    ),
+    (
+        "Click Label this scan, in the Parts tab",
+        "Label the scan with Voxa's own networks. The menu beside it chooses how",
+    ),
+    (
+        "Click Stop, in the Parts tab",
+        "Stop labelling the scan now. No labels are made",
     ),
 ];
 
@@ -65,12 +73,20 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 26);
+        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 28);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
         let (_, does) = parts.expect("what a click on a part does is listed");
         assert!(does.contains("Select") && does.contains("name"), "{does}");
+        let label = MOUSE
+            .iter()
+            .find(|(input, _)| input.contains("Label this scan"));
+        let (_, does) = label.expect("what the button that labels does is listed");
+        assert!(does.contains("Voxa's own networks"), "{does}");
+        let stop = MOUSE.iter().find(|(input, _)| input.contains("Stop"));
+        let (_, does) = stop.expect("what Stop does is listed");
+        assert!(does.contains("Stop labelling"), "{does}");
         let in_3d = MOUSE
             .iter()
             .filter(|(input, _)| input.ends_with("in 3D"))

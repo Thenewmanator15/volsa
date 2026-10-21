@@ -301,7 +301,7 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     // At the top left, which nothing else uses, kept clear of the letter at the top.
     // The solids are not the scan: what is said of the scan's picture does not apply.
     let mut said = if parts::drawn(state) {
-        vec![parts::CAPTION.to_owned()]
+        vec![captions::solids(state)]
     } else {
         captions(spacing, scene.halved)
     };

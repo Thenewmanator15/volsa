@@ -4,13 +4,13 @@
 use std::path::PathBuf;
 
 use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
-use voxa_labels::{Part, Verdict};
+use voxa_labels::{Made, Part, Verdict};
 
 use super::*;
 use crate::reducer::reduce;
 use crate::testing::thick_scan_ready;
 
-fn part(name: &str, group: &str, side: Side, trust: Trust) -> Part {
+pub(super) fn part(name: &str, group: &str, side: Side, trust: Trust) -> Part {
     Part {
         name: name.to_owned(),
         group: group.to_owned(),
@@ -22,7 +22,7 @@ fn part(name: &str, group: &str, side: Side, trust: Trust) -> Part {
     }
 }
 
-fn parts() -> Vec<Part> {
+pub(super) fn parts() -> Vec<Part> {
     let rules = Trust::Approximate("Rules.".to_owned());
     vec![
         part("hippocampus", "Deep brain", Side::Left, Trust::Model),
@@ -39,6 +39,15 @@ fn parts() -> Vec<Part> {
 
 /// A series with its volume ready and labels of it read.
 fn labelled(verdict: Option<Verdict>, names_from: NamesFrom) -> AppState {
+    labelled_by(verdict, names_from, None)
+}
+
+/// As [`labelled`], with the labels made by `made`, if anyone.
+pub(super) fn labelled_by(
+    verdict: Option<Verdict>,
+    names_from: NamesFrom,
+    made: Option<Made>,
+) -> AppState {
     let mut state = thick_scan_ready();
     let open = Action::OpenLabels {
         labels: PathBuf::from("labels.nii.gz"),
@@ -51,23 +60,39 @@ fn labelled(verdict: Option<Verdict>, names_from: NamesFrom) -> AppState {
         verdict,
         corners: state.scene.corners.expect("the volume's box"),
         names_from,
-        made: None,
+        made,
         run: None,
     };
     reduce(&mut state, read);
     state
 }
 
-fn named() -> AppState {
+pub(super) fn named() -> AppState {
     labelled(None, NamesFrom::Table)
 }
 
 /// The list on a screen of its own, as it is kept between passes.
 #[derive(Default)]
-struct Shown {
+pub(super) struct Shown {
     ctx: egui::Context,
     view: PartsView,
-    words: String,
+    pub(super) words: String,
+    /// How many bytes of the graphics card the window holds, as the strip is told.
+    pub(super) held: u64,
+    /// Whether the strip's menu is held open for every pass.
+    pub(super) menu: bool,
+}
+
+impl Shown {
+    /// A screen told that the window holds `held` bytes of its graphics card, with the
+    /// strip's menu held open if `menu`.
+    pub(super) fn with(held: u64, menu: bool) -> Self {
+        Self {
+            held,
+            menu,
+            ..Self::default()
+        }
+    }
 }
 
 fn words_of(shape: &egui::Shape, into: &mut String) {
@@ -85,7 +110,11 @@ fn words_of(shape: &egui::Shape, into: &mut String) {
     }
 }
 
-fn pass(shown: &mut Shown, state: &AppState, events: Vec<Event>) -> (Vec<Action>, Option<Asked>) {
+pub(super) fn pass(
+    shown: &mut Shown,
+    state: &AppState,
+    events: Vec<Event>,
+) -> (Vec<Action>, Option<Asked>) {
     let (mut actions, mut asked) = (Vec::new(), None);
     let screen = Rect::from_min_size(Pos2::ZERO, vec2(360.0, 420.0));
     let input = RawInput {
@@ -93,9 +122,12 @@ fn pass(shown: &mut Shown, state: &AppState, events: Vec<Event>) -> (Vec<Action>
         events,
         ..RawInput::default()
     };
-    let (ctx, view) = (shown.ctx.clone(), &mut shown.view);
+    if shown.menu {
+        egui::Popup::open_id(&shown.ctx, labelling::menu_id());
+    }
+    let (ctx, view, held) = (shown.ctx.clone(), &mut shown.view, shown.held);
     let mut output = ctx.run_ui(input, |ui| {
-        asked = show(ui, screen, state, view, &mut actions);
+        asked = show(ui, screen, state, held, view, &mut actions);
     });
     // No renderer is behind these passes to take the font texture.
     output.textures_delta.clear();
@@ -108,7 +140,11 @@ fn pass(shown: &mut Shown, state: &AppState, events: Vec<Event>) -> (Vec<Action>
 
 /// Click all over the list and gather everything that was asked for, each thing once.
 fn sweep(state: &AppState) -> (Vec<Action>, Vec<Asked>) {
-    let mut shown = Shown::default();
+    sweep_with(state, Shown::default())
+}
+
+/// As [`sweep`], on a screen set up as `shown` says.
+pub(super) fn sweep_with(state: &AppState, mut shown: Shown) -> (Vec<Action>, Vec<Asked>) {
     let _ = pass(&mut shown, state, Vec::new());
     let (mut actions, mut asked) = (Vec::new(), Vec::new());
     for y in (3..420_u16).step_by(6) {
@@ -137,7 +173,7 @@ fn sweep(state: &AppState) -> (Vec<Action>, Vec<Asked>) {
     (actions, asked)
 }
 
-fn written(state: &AppState) -> String {
+pub(super) fn written(state: &AppState) -> String {
     let mut shown = Shown::default();
     let _ = pass(&mut shown, state, Vec::new());
     shown.words
@@ -285,7 +321,9 @@ fn with_no_labels_the_tab_says_what_they_are_and_offers_to_open_some() {
     let state = thick_scan_ready();
     let (actions, asked) = sweep(&state);
     assert_eq!((actions, asked), (vec![], vec![Asked::OpenLabels]));
-    assert!(written(&state).contains("Voxa shows them; it does not make them."));
+    assert!(
+        written(&state).contains("with a table of names beside it if it has one. Voxa shows them.")
+    );
     // With no volume there is nothing to put labels on.
     let (actions, asked) = sweep(&AppState::default());
     assert_eq!((actions, asked), (vec![], vec![]));

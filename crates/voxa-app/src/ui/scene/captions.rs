@@ -5,7 +5,9 @@ use std::time::Duration;
 use voxa_render::{Camera, SceneParams, SlicePlane};
 
 use super::super::overlay::{EdgeLabels, letter};
+use super::super::parts::labelling::solids_in_words;
 use super::super::pen::LETTER_ROOM;
+use super::parts::CAPTION;
 use crate::labels::look_drawn;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
@@ -42,6 +44,16 @@ pub fn captions(spacing_mm: [f64; 3], halved: u32) -> Vec<String> {
         share.map(|share| format!("Shown at {share} resolution to fit this graphics device.")),
     );
     lines
+}
+
+/// What the scene says of its solids in the Parts look: that they are labels made elsewhere,
+/// drawn as given, or, for labels that Voxa made, with what, where and when.
+pub fn solids(state: &AppState) -> String {
+    state
+        .labels
+        .made
+        .as_ref()
+        .map_or_else(|| CAPTION.to_owned(), solids_in_words)
 }
 
 /// A picture narrower than this, inside its margins, has its words beneath the letter at its
@@ -168,6 +180,24 @@ mod tests {
         let corners = [Point::new(0.0, 0.0, 0.0); 8];
         reduce(&mut state, Action::VolumeReady { series, corners });
         state
+    }
+
+    #[test]
+    fn the_solids_are_said_to_be_made_elsewhere_or_by_voxa_as_their_labels_say() {
+        let (mut state, _) = crate::testing::labelled_head();
+        assert_eq!(solids(&state), CAPTION);
+        state.labels.made = Some(voxa_labels::Made {
+            by: "Voxa 9.8.7".to_owned(),
+            model: "Made-up model".to_owned(),
+            device: "Made-up card A".to_owned(),
+            when: "2099-01-02".to_owned(),
+            ..voxa_labels::Made::default()
+        });
+        assert_eq!(
+            solids(&state),
+            "Solids are labels made by Voxa with Made-up model, on Made-up card A, 2099-01-02. \
+             Not for diagnostic use."
+        );
     }
 
     #[test]

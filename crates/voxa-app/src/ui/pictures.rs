@@ -75,7 +75,8 @@ impl VoxaApp {
             viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
         }
         if let Some(area) = areas.parts {
-            let asked = parts::show(ui, area, state, &mut self.parts, actions);
+            let held = parts::labelling::held_on_card(state, render);
+            let asked = parts::show(ui, area, state, held, &mut self.parts, actions);
             let open = &state.labels;
             actions.extend(asked.and_then(|asked| self.labels.chosen(asked, open)));
         }

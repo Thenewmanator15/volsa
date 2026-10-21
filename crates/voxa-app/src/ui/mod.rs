@@ -100,8 +100,10 @@ impl VoxaApp {
             self.dispatch(Action::Labelling(LabellingAction::DrawingOn(drawing_on)));
         }
         // Whether this computer can label a scan is looked at once as Voxa starts, on a
-        // worker, and again whenever a folder for it is chosen.
-        self.dispatch(Action::Labelling(LabellingAction::Look));
+        // worker, and again whenever a folder for it is chosen. A picture of the strip is
+        // taken as if on a computer that can, and makes no look.
+        let look = capture::made_up_look().unwrap_or(LabellingAction::Look);
+        self.dispatch(Action::Labelling(look));
     }
 
     /// Set the window up, and open `initial` if a path was given.

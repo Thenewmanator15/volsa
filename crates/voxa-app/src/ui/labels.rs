@@ -114,6 +114,7 @@ impl Opening {
                 let outcome = write(&path, parts_csv(open).as_bytes());
                 Some(Action::Post(said(&path, outcome)))
             }
+            parts::Asked::Labelling(wants) => parts::labelling::chosen(wants),
         }
     }
 }

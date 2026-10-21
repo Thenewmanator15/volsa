@@ -284,7 +284,7 @@ fn written_over(
         let spacing = state.series(state.scene.series.as_ref()?)?.info.spacing_mm;
         interpolated_note(spacing, pitch(view.plane.across)?, pitch(view.plane.down)?)
     });
-    let of_labels = parts::drawn(state).then(|| parts::LABELS_NOTE.to_owned());
+    let of_labels = parts::drawn(state).then(|| parts::labels_note(state).to_owned());
     let notes: Vec<String> = panel_note(note, smooth)
         .into_iter()
         .chain(of_labels)

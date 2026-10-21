@@ -13,6 +13,16 @@ use crate::state::AppState;
 
 /// What a panel that draws labels says of them, in its note.
 pub const LABELS_NOTE: &str = "Labels: made elsewhere";
+/// What it says of labels that Voxa made.
+pub const LABELS_NOTE_BY_VOXA: &str = "Labels: made by Voxa";
+
+/// What a panel that draws labels says of them: that another program made them, or that Voxa did.
+pub fn labels_note(state: &AppState) -> &'static str {
+    match state.labels.made {
+        Some(_) => LABELS_NOTE_BY_VOXA,
+        None => LABELS_NOTE,
+    }
+}
 
 /// Whether the plane views draw labels now: there are labels on this series, and they are
 /// not switched off over the planes.
@@ -66,6 +76,14 @@ mod tests {
             hover_at: Some(at),
             ..PlaneInput::default()
         }
+    }
+
+    #[test]
+    fn labels_that_voxa_made_are_not_said_to_be_made_elsewhere() {
+        let (mut state, _) = labelled();
+        assert_eq!(labels_note(&state), "Labels: made elsewhere");
+        state.labels.made = Some(voxa_labels::Made::default());
+        assert_eq!(labels_note(&state), "Labels: made by Voxa");
     }
 
     #[test]

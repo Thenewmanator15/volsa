@@ -21,13 +21,18 @@ use crate::planes::{ColumnShows, plane};
 use crate::scene::MainPanel;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
+use labelling::Run;
+
+mod labelling;
+
+pub use labelling::made_up_look;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, and `stepped` for the next volume of a series that holds several.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
@@ -213,6 +218,8 @@ pub struct Capture {
     measured: bool,
     /// Whether the picture is to be of the 3D scene at rest or while it moves.
     scene: Motion,
+    /// The run of labelling the picture waits for, if it asks for one.
+    run: Run,
 }
 
 impl Capture {
@@ -232,6 +239,7 @@ impl Capture {
             } else {
                 Motion::Still
             },
+            run: Run::asked(&std::env::var(SHOW_VARIABLE).unwrap_or_default()),
         })
     }
 
@@ -262,6 +270,17 @@ impl Capture {
         made
     }
 
+    /// What starts the run of labelling the picture asks for, once labelling can run: given
+    /// once.
+    pub fn label(&mut self, state: &AppState) -> Option<Action> {
+        self.run.start(state)
+    }
+
+    /// Whether the run of labelling the picture asks for, if any, is over.
+    pub fn has_labelled(&self, state: &AppState) -> bool {
+        self.run.is_over(state)
+    }
+
     /// For a picture of the scene while it moves: how to turn it this frame, a little one
     /// way and then back, once it has had time to come to rest and be drawn in full.
     pub fn turn(&self) -> Option<Action> {
@@ -290,7 +309,8 @@ impl Capture {
             self.settled += 1;
         }
         let frames = frames_before(self.scene);
-        let due = self.settled >= frames || self.started.elapsed() >= PATIENCE;
+        let patience = self.run.patience(PATIENCE);
+        let due = self.settled >= frames || self.started.elapsed() >= patience;
         if due && !self.asked {
             self.asked = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(egui::UserData::default()));
@@ -322,6 +342,12 @@ impl VoxaApp {
                 self.session.dispatch(turn);
             }
         }
+        // A picture of a result that Voxa makes starts the run once it can, and waits for it.
+        let state = self.session.state();
+        let capture = self.capture.as_mut().filter(|_| picked);
+        if let Some(start) = capture.and_then(|capture| capture.label(state)) {
+            self.session.dispatch(start);
+        }
         // A picture of the window waits for the slice and, if there is to be one, the volume.
         let no_volume_to_come = !matches!(
             self.session.state().scene.status,
@@ -341,7 +367,12 @@ impl VoxaApp {
             self.session.dispatch(next);
         }
         let posed = self.label_pose.is_empty() || !(waiting || reading || read);
-        let labelled = !waiting && !reading && posed;
+        let state = self.session.state();
+        let ran = self
+            .capture
+            .as_ref()
+            .is_none_or(|capture| capture.has_labelled(state));
+        let labelled = !waiting && !reading && posed && ran;
         let ready = slices && labelled && (no_volume_to_come || self.scene.has_picture() && curve);
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));

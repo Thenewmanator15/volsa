@@ -1,9 +1,10 @@
 //! The Parts list: the labelled parts of the head as a label file gives them, by group, to
 //! search, show, hide, fade and select. It says where the names came from and how far each
-//! can be trusted: Voxa shows these labels and did not make them.
+//! can be trusted, and who made the labels: another program, or Voxa, which the strip at the
+//! top of the tab labels a scan with.
 
 use egui::{Align, Layout, Rect, RichText, ScrollArea, Sense, Ui, UiBuilder, vec2};
-use voxa_labels::{Pair, Side, Trust, pairs, trust_in_words, verdict_in_words, volume_in_words};
+use voxa_labels::{Pair, Side, Trust, pairs, trust_in_words, volume_in_words};
 use voxa_render::Overlay;
 
 use super::theme;
@@ -13,10 +14,12 @@ use crate::parts_table::sides_compared;
 use crate::planes::grid;
 use crate::state::AppState;
 
+pub mod labelling;
+
 /// What labels are, said where there are none.
 pub const WHAT_LABELS_ARE: &str = "Labels are parts of the head that another program has outlined on \
                                    this scan: a NIfTI file (.nii or .nii.gz), with a table of names \
-                                   beside it if it has one. Voxa shows them; it does not make them.";
+                                   beside it if it has one. Voxa shows them.";
 /// Said above every list of parts.
 pub const MADE_ELSEWHERE: &str = "Made by another program. Voxa shows these labels as given.";
 const NAMED: &str = "Names from the table beside the labels.";
@@ -37,6 +40,8 @@ pub enum Asked {
     OpenNames,
     /// To save the list of parts as a table.
     SaveCsv,
+    /// Something the labelling strip needs chosen: a folder, or where to save the labels.
+    Labelling(labelling::Wants),
 }
 
 /// What the list keeps between frames.
@@ -76,27 +81,33 @@ pub fn rows(labels: &Labels, search: &str) -> Vec<Group> {
     groups
 }
 
-/// Draw the list in `area`. Gives what was asked for that needs a file chosen.
+/// Draw the list in `area`. `held` is how many bytes of the graphics card the window draws
+/// on it holds itself (see [`labelling::held_on_card`]). Gives what was asked for that needs a
+/// file chosen.
 pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
+    held: u64,
     view: &mut PartsView,
     actions: &mut Vec<Action>,
 ) -> Option<Asked> {
     ui.painter().rect_filled(area, 0, theme::PANEL);
     let mut inside = ui.new_child(UiBuilder::new().max_rect(area.shrink(6.0)));
     inside.set_clip_rect(area);
-    contents(&mut inside, state, view, actions)
+    contents(&mut inside, state, held, view, actions)
 }
 
-/// What the Parts tab holds: the list, or why there is none.
+/// What the Parts tab holds: the strip that labels the scan, then the list, or why there is
+/// none.
 pub fn contents(
     ui: &mut Ui,
     state: &AppState,
+    held: u64,
     view: &mut PartsView,
     actions: &mut Vec<Action>,
 ) -> Option<Asked> {
+    let strip = labelling::strip(ui, state, held, actions).map(Asked::Labelling);
     let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
     let open = |ui: &mut Ui| {
         let can = grid(state).is_some();
@@ -104,7 +115,7 @@ pub fn contents(
         let button = button.on_disabled_hover_text(NO_VOLUME);
         button.clicked().then_some(Asked::OpenLabels)
     };
-    match &state.labels.status {
+    let tab = match &state.labels.status {
         LabelsStatus::None => {
             ui.label(quiet(WHAT_LABELS_ARE));
             open(ui)
@@ -125,7 +136,8 @@ pub fn contents(
             None
         }
         LabelsStatus::Ready => list(ui, &state.labels, view, actions),
-    }
+    };
+    strip.or(tab)
 }
 
 /// The list itself: the switches that act on all the labels, the search box and the part
@@ -176,32 +188,31 @@ fn list(
     asked
 }
 
-/// What the labels are: what they are of, that another program made them, where their
-/// names came from, and the labelling model's own check of them; and, beneath that, the
-/// button that saves the list as a table. Gives that it was asked for.
+/// What the labels are: what they are of, who made them, where their names came from, and
+/// the labelling model's own check of them; and, beneath that, the
+/// button that saves the list as a table, and for labels that Voxa made, the one that saves
+/// them as a file. Gives what was asked for.
 fn about(ui: &mut Ui, labels: &Labels) -> Option<Asked> {
     let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
     if !labels.title.is_empty() {
         ui.label(RichText::new(&labels.title).strong());
     }
-    ui.label(quiet(MADE_ELSEWHERE));
+    // Labels that Voxa made say so, and what they cannot show, with the model's check first.
+    match &labels.made {
+        Some(made) => labelling::made_by(ui, labels.verdict.as_ref(), made),
+        None => {
+            ui.label(quiet(MADE_ELSEWHERE));
+        }
+    }
     let named = labels.names_from == NamesFrom::Table;
     ui.label(quiet(if named { NAMED } else { NOT_NAMED }));
-    if let Some(verdict) = &labels.verdict {
-        let colour = if verdict.passed {
-            theme::QUIET_TEXT
-        } else {
-            theme::WARNING
-        };
-        ui.label(
-            RichText::new(verdict_in_words(verdict))
-                .small()
-                .color(colour),
-        );
+    if let Some(verdict) = labels.verdict.as_ref().filter(|_| labels.made.is_none()) {
+        labelling::verdict_line(ui, verdict);
     }
     let save = ui.small_button("Save as CSV…");
     let hint = "Save every part, with its volume, as a table for a spreadsheet";
-    save.on_hover_text(hint).clicked().then_some(Asked::SaveCsv)
+    let csv = save.on_hover_text(hint).clicked().then_some(Asked::SaveCsv);
+    csv.or(labelling::save_as(ui, labels).map(Asked::Labelling))
 }
 
 /// The switches that act on all the labels: show every part, close the labels, choose

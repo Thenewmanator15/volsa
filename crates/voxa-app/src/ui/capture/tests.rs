@@ -170,3 +170,80 @@ fn a_picture_of_the_scene_moving_turns_it_to_and_fro_once_it_has_come_to_rest() 
     let frames = (frames_before(Motion::Still), frames_before(Motion::Moving));
     assert_eq!(frames, (30, 60));
 }
+
+#[test]
+fn a_picture_can_ask_for_the_strip_as_it_is_on_a_computer_that_can_label() {
+    use super::labelling::looked;
+    use crate::labelling::{LabellingAction, Ready};
+    use crate::reducer::reduce;
+    use voxa_models::CardKind;
+    assert_eq!(looked("tags,keys"), None);
+    assert_eq!(looked("parts, solids"), None);
+    let asked = looked("parts, labelling").expect("a look is made up");
+    let LabellingAction::LabellingLooked { look, ready, cards } = asked.clone() else {
+        panic!("not a look: {asked:?}");
+    };
+    assert_eq!(
+        (look, ready),
+        (0, Ready::Yes),
+        "the look nobody has asked for yet"
+    );
+    let kinds: Vec<CardKind> = cards.iter().map(|card| card.kind).collect();
+    assert!(kinds.contains(&CardKind::Discrete) && kinds.contains(&CardKind::Integrated));
+    assert_eq!(
+        looked("labelled"),
+        None,
+        "that asks for a run, not for a made-up look"
+    );
+    // The state takes it in as the answer to the first look.
+    let mut state = AppState::default();
+    reduce(&mut state, Action::Labelling(asked));
+    assert_eq!(state.labelling.ready, Ready::Yes);
+    assert_eq!(state.labelling.cards, cards);
+}
+
+#[test]
+fn a_picture_of_a_result_made_by_voxa_starts_a_run_once_it_can_and_waits_for_it() {
+    use super::labelling::Run;
+    use crate::labelling::{LabellingAction, Ready};
+    use crate::reducer::reduce;
+    assert_eq!(Run::asked("parts, solids"), Run::Not);
+    let mut run = Run::asked("solids, labelled");
+    assert_eq!(run, Run::ToStart);
+    let mut state = crate::testing::thick_scan_ready();
+    assert_eq!(
+        run.start(&state),
+        None,
+        "it is not known yet that labelling can run"
+    );
+    assert!(!run.is_over(&state));
+    state.labelling.ready = Ready::Yes;
+    let start = Action::Labelling(LabellingAction::LabelScan { held: 0 });
+    assert_eq!(run.start(&state), Some(start.clone()));
+    reduce(&mut state, start);
+    assert_eq!(run, Run::On);
+    assert!(!run.is_over(&state), "the run is on");
+    assert_eq!(run.start(&state), None, "a run is started once");
+    reduce(
+        &mut state,
+        Action::Labelling(LabellingAction::StopLabelling),
+    );
+    assert!(run.is_over(&state), "the run has ended");
+}
+
+#[test]
+fn a_picture_does_not_wait_for_a_run_that_this_computer_cannot_make() {
+    use super::labelling::Run;
+    use crate::labelling::Ready;
+    let mut run = Run::asked("labelled");
+    let mut state = crate::testing::thick_scan_ready();
+    state.labelling.ready = Ready::No("Made-up: the runtime files are not there.".to_owned());
+    assert_eq!(run.start(&state), None);
+    assert!(run.is_over(&state), "the strip is pictured as it is");
+    let usual = Duration::from_secs(20);
+    assert!(
+        Run::asked("labelled").patience(usual) > usual,
+        "a run takes longer"
+    );
+    assert_eq!(Run::Not.patience(usual), usual);
+}
