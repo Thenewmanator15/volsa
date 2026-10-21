@@ -14,10 +14,8 @@ use std::sync::{Arc, Mutex};
 
 use voxa_core::{SeriesId, Volume};
 use voxa_labels::{MAX_MADE_LINE, MAX_NOTE, MAX_NOTES, Made, Table, label_set};
-use voxa_models::{
-    Device, Model, Network, Role, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs,
-};
-use voxa_segment::{LabelError, Labelled, Networks, Stage, label, sizes};
+use voxa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
+use voxa_segment::{LabelError, Labelled, Stage, label, sizes};
 
 use super::{Shared, Workers, lock, shielded};
 use crate::action::{Action, Effect};
@@ -29,11 +27,17 @@ mod look;
 mod room;
 
 pub use labeller::Labeller;
-use labeller::ThisComputer;
+use labeller::{OnRung, ThisComputer};
 use room::{PROCESSOR, card_name, does_not_fit, logged_words, place, room_of};
 #[cfg(test)]
 use room::{card_named, free_bytes, without_paths};
 
+#[cfg(test)]
+#[path = "kept_saved_tests.rs"]
+mod kept_saved_tests;
+#[cfg(test)]
+#[path = "kept_tests.rs"]
+mod kept_tests;
 #[cfg(test)]
 #[path = "labelling_lab.rs"]
 mod lab;
@@ -123,6 +127,8 @@ struct Job {
     held: u64,
     drawing_on: Option<String>,
     stop: Stop,
+    /// Whether the result is kept for the series.
+    keep: bool,
     /// The series it labels.
     series: SeriesId,
     /// The volume kept for the series when the run was asked for. It is let go when the run
@@ -157,7 +163,7 @@ impl Workers {
             wanted,
             runs_on,
             held,
-            keep: _,
+            keep,
             drawing_on,
         } = scan
         else {
@@ -175,6 +181,7 @@ impl Workers {
             held,
             drawing_on,
             stop,
+            keep,
             volume: lock(&shared.volumes).get(&series),
             series,
             model: shared.labelling.model(),
@@ -260,8 +267,9 @@ impl Shared {
     }
 
     /// A rung gave labels: say on them who made them, where, and anything the labels cannot
-    /// show of how; then keep the label set and report it, unless the run is no longer the one
-    /// waited for.
+    /// show of how; then hold the label set and report it, unless the run is no longer the one
+    /// waited for. Once it is reported its files are made, and kept if the run is to keep them
+    /// (see `kept.rs`).
     fn done(
         &self,
         job: &Job,
@@ -295,7 +303,8 @@ impl Shared {
             Ok(set) => Arc::new(set),
             Err(why) => return self.fail(job, &why.to_string()),
         };
-        drop(grid);
+        // A save waits for the files of these labels from here until they are made.
+        let _making = self.keeping.making();
         let mut kept = lock(&self.labels);
         if !self.current(job) {
             return;
@@ -311,6 +320,7 @@ impl Shared {
             made: set.made.clone(),
             run: Some(job.run),
         });
+        self.after_report(&set, &grid, &table, job.keep.then_some(&job.series));
     }
 
     /// Whether a run is still the one waited for: not stopped, not overtaken by another run
@@ -361,26 +371,6 @@ impl Shared {
         let (run, why) = (job.run, why.to_owned());
         let failed = LabellingAction::LabellingFailed { run, why };
         self.report(Action::Labelling(failed));
-    }
-}
-
-/// The networks of one rung: the scores network on the rung's `scores_on`, every other on its
-/// device.
-struct OnRung<'a> {
-    labeller: &'a dyn Labeller,
-    model: &'a Model,
-    rung: Rung,
-    stop: &'a Stop,
-}
-
-impl Networks for OnRung<'_> {
-    fn open(&mut self, role: Role, sizes: [usize; 3]) -> Result<Box<dyn Network>, RunError> {
-        let device = match role {
-            Role::Scores => self.rung.scores_on,
-            _ => self.rung.device,
-        };
-        self.labeller
-            .open(self.model, role, device, sizes, self.stop)
     }
 }
 

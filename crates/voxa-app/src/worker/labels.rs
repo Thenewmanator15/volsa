@@ -7,6 +7,7 @@ use std::sync::atomic::Ordering;
 
 use voxa_labels::{LabelSet, Table, label_set, read_labels, read_table};
 
+use super::kept::{MAX_SAVED_BYTES, Saved};
 use super::{Shared, Workers, lock, shielded};
 use crate::action::Action;
 use crate::labels::NamesFrom;
@@ -75,9 +76,10 @@ impl Workers {
                 return;
             }
             let report = match outcome {
-                Ok((set, names_from)) => {
+                Ok((set, names_from, saved)) => {
                     let set = Arc::new(set);
                     *kept = Some(Arc::clone(&set));
+                    shared.keeping.read(&set, saved);
                     Action::LabelsRead {
                         title: set.title.clone(),
                         parts: set.parts.clone(),
@@ -99,20 +101,22 @@ impl Workers {
     pub(super) fn drop_labels(&self) {
         self.shared.label_reads.fetch_add(1, Ordering::SeqCst);
         *lock(&self.shared.labels) = None;
+        self.shared.keeping.give_up();
     }
 }
 
 impl Shared {
     /// Read a label file and its table into a label set, and say where its names came from.
-    /// What goes wrong is a sentence for the person, with no path in it.
+    /// If Voxa made the labels, their two files are given too, as they were read, so that the
+    /// labels can be saved again exactly as they were. What goes wrong is a sentence for the
+    /// person, with no path in it.
     fn labels_from(
         &self,
         labels: &Path,
         table: Option<&Path>,
-    ) -> Result<(LabelSet, NamesFrom), String> {
+    ) -> Result<(LabelSet, NamesFrom, Option<Saved>), String> {
         let bytes = whole_file(labels, MAX_LABEL_FILE_BYTES)?;
         let grid = read_labels(&bytes).map_err(|why| why.to_string())?;
-        drop(bytes);
         let named = table.map(Path::to_path_buf);
         let found = named.or_else(|| table_beside(labels, Path::is_file));
         let table = found.map(|table| table_from(&table));
@@ -125,14 +129,27 @@ impl Shared {
             }));
         }
         let table = table.and_then(Result::ok);
+        let saved = saved_from(bytes, table.as_ref());
         let names_from = if table.is_some() {
             NamesFrom::Table
         } else {
             NamesFrom::Nothing
         };
-        let set = label_set(&grid, table.as_ref()).map_err(|why| why.to_string())?;
-        Ok((set, names_from))
+        let named = table.as_ref().map(|(table, _)| table);
+        let set = label_set(&grid, named).map_err(|why| why.to_string())?;
+        Ok((set, names_from, saved))
     }
+}
+
+/// The two files of labels Voxa made, as they were read; labels from elsewhere, and any that
+/// are too long to be Voxa's, have none, and are not saved from here.
+fn saved_from(labels: Vec<u8>, table: Option<&(Table, String)>) -> Option<Saved> {
+    let (table, text) = table?;
+    let voxas = table.made.is_some() && labels.len() <= MAX_SAVED_BYTES;
+    voxas.then(|| Saved {
+        labels,
+        table: text.clone(),
+    })
 }
 
 /// Everything in a file no larger than `most` bytes.
@@ -146,10 +163,12 @@ fn whole_file(path: &Path, most: u64) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|_| NOT_READ.to_owned())
 }
 
-/// The table of names in a file, or nothing but the fact that it could not be read.
-fn table_from(path: &Path) -> Result<Table, ()> {
+/// The table of names in a file, with its text, or nothing but the fact that it could not be
+/// read.
+fn table_from(path: &Path) -> Result<(Table, String), ()> {
     let bytes = whole_file(path, MAX_TABLE_FILE_BYTES).map_err(|_| ())?;
     let text = String::from_utf8(bytes).map_err(|_| ())?;
     let name = path.file_name().ok_or(())?.to_string_lossy();
-    read_table(&name, &text).map_err(|_| ())
+    let table = read_table(&name, &text).map_err(|_| ())?;
+    Ok((table, text))
 }

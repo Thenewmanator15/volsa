@@ -6,6 +6,7 @@ use voxa_core::SeriesId;
 use voxa_models::{RunsOn, Wanted};
 
 use crate::annotations::Annotation;
+use crate::choices::Choices;
 use crate::views::SavedView;
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
@@ -96,6 +97,23 @@ pub enum Effect {
     },
     /// Stop the run of labelling, if one is on.
     StopLabelling,
+    /// Look for the result kept for a series, and report it if there is one.
+    FindKept {
+        /// The series.
+        series: SeriesId,
+    },
+    /// Delete the result kept for a series.
+    ForgetKept {
+        /// The series.
+        series: SeriesId,
+    },
+    /// Write the labels that are open to a file, and their table beside it.
+    SaveLabels {
+        /// The file for the labels; the table goes beside it, under the same name with `.json`.
+        to: PathBuf,
+    },
+    /// Keep what the person has chosen for labelling, for the next run of Voxa.
+    StoreChoices(Choices),
     /// Nothing to do.
     None,
 }

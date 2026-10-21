@@ -207,3 +207,52 @@ pub fn colour_files() -> Vec<(String, Vec<u8>)> {
         })
         .collect()
 }
+
+/// Labels of a made-up head, four voxels each way, the first half 17 and the rest 53, and the
+/// table that names them and says who made them, and when.
+pub fn made_up_labels() -> (voxa_labels::LabelGrid, voxa_labels::Table) {
+    use voxa_labels::{Entry, LabelGrid, Made, Side, Table, Trust};
+    let entry = |side, id| Entry {
+        name: "hippocampus".to_owned(),
+        group: "Deep brain".to_owned(),
+        side,
+        ids: vec![id],
+        colour: [220, 216, 20],
+        trust: Trust::Model,
+    };
+    let grid = LabelGrid {
+        dims: [4, 4, 4],
+        ids: (0..64).map(|at| if at < 32 { 17 } else { 53 }).collect(),
+        placement: voxa_core::Affine::from_columns(
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [6.25, 6.75, 8.5],
+        ),
+    };
+    let table = Table {
+        title: "A made-up head".to_owned(),
+        entries: vec![entry(Side::Left, 17), entry(Side::Right, 53)],
+        verdict: None,
+        made: Some(Made {
+            by: "Voxa 0.4.0".to_owned(),
+            model: "SynthSeg 2.0, robust model".to_owned(),
+            model_sum: "0123456789abcdef".repeat(4),
+            device: "the processor".to_owned(),
+            when: "2099-01-02".to_owned(),
+            notes: vec!["A made-up note.".to_owned()],
+        }),
+    };
+    (grid, table)
+}
+
+/// The bytes of the label file and the text of the table of [`made_up_labels`], as a run
+/// keeps them.
+pub fn written_labels() -> (Vec<u8>, String) {
+    let (grid, table) = made_up_labels();
+    let labels = voxa_labels::write_labels(&grid).expect("the labels are written");
+    (
+        labels,
+        voxa_labels::write_table(&table).expect("the table is written"),
+    )
+}

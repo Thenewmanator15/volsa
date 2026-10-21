@@ -17,6 +17,7 @@ use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+mod kept;
 pub(crate) mod labelling;
 mod labels;
 mod opened;
@@ -75,6 +76,8 @@ struct Shared {
     labels: Mutex<Option<Arc<LabelSet>>>,
     label_reads: AtomicU64,
     labelling: labelling::Kit,
+    /// The files of the labels held, and the choices written.
+    keeping: kept::Keeping,
 }
 
 /// Some slices to decode from one file: (place in the series, frame within the file).
@@ -126,6 +129,7 @@ impl Workers {
             labels: Mutex::new(None),
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),
+            keeping: kept::Keeping::default(),
         };
         Self {
             pool: named.build().ok(),
@@ -170,6 +174,10 @@ impl Workers {
             labelling @ (Effect::LookForLabelling { .. }
             | Effect::LabelScan { .. }
             | Effect::StopLabelling) => self.labelling(labelling),
+            kept @ (Effect::FindKept { .. }
+            | Effect::ForgetKept { .. }
+            | Effect::SaveLabels { .. }
+            | Effect::StoreChoices(_)) => self.kept(kept),
             Effect::None => {}
         }
     }

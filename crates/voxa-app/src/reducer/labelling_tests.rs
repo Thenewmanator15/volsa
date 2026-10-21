@@ -134,6 +134,8 @@ fn a_fresh_state_has_looked_at_nothing_and_has_the_usual_choices() {
         running: None,
         on: None,
         kept: None,
+        kept_files: None,
+        card_kept: None,
         runs: 0,
         looks: 0,
     };
@@ -175,7 +177,9 @@ fn the_run_carries_every_choice() {
         Action::Labelling(LabellingAction::SetKeep(false)),
     ];
     for action in chosen {
-        assert_eq!(reduce(&mut state, action), []);
+        // Each choice is asked to be kept (see the tests of what is kept) and nothing more.
+        let effects = reduce(&mut state, action);
+        assert!(matches!(effects.as_slice(), [Effect::StoreChoices(_)]));
     }
     let asked = Effect::LabelScan {
         run: 1,
@@ -319,7 +323,7 @@ fn what_was_looked_at_and_each_choice_is_kept() {
         Action::Labelling(LabellingAction::DrawingOn("Made-up card B".to_owned())),
     ];
     for action in chosen {
-        assert_eq!(reduce(&mut state, action), []);
+        reduce(&mut state, action);
     }
     let labelling = &state.labelling;
     assert_eq!(labelling.choice, ModelChoice::Standard);
@@ -349,7 +353,8 @@ fn changing_a_folder_keeps_it_and_asks_to_look_again() {
         models: Some(models.clone()),
         runtime: None,
     };
-    assert_eq!(effects, [look]);
+    assert_eq!(effects.last(), Some(&look));
+    assert_eq!(effects.len(), 2, "and the folder is asked to be kept");
     assert_eq!(state.labelling.models, Some(models.clone()));
     assert_eq!(
         state.labelling.ready,
@@ -365,6 +370,7 @@ fn changing_a_folder_keeps_it_and_asks_to_look_again() {
         models: Some(models),
         runtime: Some(runtime.clone()),
     };
-    assert_eq!(effects, [look]);
+    assert_eq!(effects.last(), Some(&look));
+    assert_eq!(effects.len(), 2, "and the folder is asked to be kept");
     assert_eq!(state.labelling.runtime, Some(runtime));
 }

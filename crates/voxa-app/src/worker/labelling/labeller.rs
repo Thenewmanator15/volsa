@@ -7,8 +7,10 @@ use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use voxa_models::{
-    Card, CardId, Device, FreeMemory, Model, Network, Role, RunError, Runtime, RuntimeError, Stop,
+    Card, CardId, Device, FreeMemory, Model, Network, Role, RunError, Rung, Runtime, RuntimeError,
+    Stop,
 };
+use voxa_segment::Networks;
 
 /// Seconds in a day.
 const A_DAY: u64 = 24 * 60 * 60;
@@ -55,6 +57,26 @@ pub trait Labeller: Send + Sync {
 
     /// Today's date, as it is written for a person.
     fn today(&self) -> String;
+}
+
+/// The networks of one rung: the scores network on the rung's `scores_on`, every other on its
+/// device.
+pub(super) struct OnRung<'a> {
+    pub(super) labeller: &'a dyn Labeller,
+    pub(super) model: &'a Model,
+    pub(super) rung: Rung,
+    pub(super) stop: &'a Stop,
+}
+
+impl Networks for OnRung<'_> {
+    fn open(&mut self, role: Role, sizes: [usize; 3]) -> Result<Box<dyn Network>, RunError> {
+        let device = match role {
+            Role::Scores => self.rung.scores_on,
+            _ => self.rung.device,
+        };
+        self.labeller
+            .open(self.model, role, device, sizes, self.stop)
+    }
 }
 
 /// This computer, and the runtime once it has been loaded.

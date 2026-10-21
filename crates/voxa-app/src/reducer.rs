@@ -101,10 +101,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::ShowSliceInScene(_)
         | Action::VolumeProgress { .. }
         | Action::VolumeReady { .. }
-        | Action::VolumeFailed { .. } => {
-            scene::reduce(state, action);
-            Vec::new()
-        }
+        | Action::VolumeFailed { .. } => scene::reduce(state, action),
         Action::Views(about_views) => views::reduce(state, about_views),
         about_the_planes if planes::concerns(&about_the_planes) => {
             planes::reduce(state, &about_the_planes);
@@ -298,6 +295,10 @@ mod annotations_tests;
 mod colour_tests;
 #[cfg(test)]
 mod frame_tests;
+#[cfg(test)]
+mod labelling_choices_tests;
+#[cfg(test)]
+mod labelling_kept_tests;
 #[cfg(test)]
 mod labelling_result_tests;
 #[cfg(test)]

@@ -1,12 +1,14 @@
 //! Actions about labelling a scan with Voxa's own networks: what is chosen, what is running,
-//! and what came back.
+//! what came back, and the result kept for the scene's series.
 
+use voxa_models::Card;
 use voxa_segment::Stage;
 
 use super::labels;
 use crate::action::{Action, Effect};
+use crate::choices::{Choices, RunsOnKept};
 use crate::labelling::{Labelling, LabellingAction, Ready, can_label, wanted};
-use crate::labels::study_of;
+use crate::labels::{LabelsStatus, study_of};
 use crate::state::{AppState, Notice, NoticeKind};
 
 /// The key of the notice that says a run was stopped or failed. A new run takes it away.
@@ -16,6 +18,14 @@ const STOPPED: &str = "Labelling was stopped.";
 
 /// Apply an action about labelling a scan.
 pub(super) fn reduce(state: &mut AppState, action: LabellingAction) -> Vec<Effect> {
+    // A choice is asked to be kept as it is made, whatever else it does.
+    let chosen = matches!(
+        action,
+        LabellingAction::SetModelChoice(_)
+            | LabellingAction::SetCortex(_)
+            | LabellingAction::SetRunsOn(_)
+            | LabellingAction::SetKeep(_)
+    );
     let labelling = &mut state.labelling;
     match action {
         LabellingAction::LabelScan { held } => return start(state, held),
@@ -28,8 +38,7 @@ pub(super) fn reduce(state: &mut AppState, action: LabellingAction) -> Vec<Effec
             failed(state, why);
         }
         LabellingAction::LabellingLooked { look, ready, cards } if look == labelling.looks => {
-            labelling.ready = ready;
-            labelling.cards = cards;
+            looked(labelling, ready, cards);
         }
         // Old news: what a run says that was stopped or overtaken, and what a look found that
         // was asked for before the folders last changed.
@@ -41,18 +50,31 @@ pub(super) fn reduce(state: &mut AppState, action: LabellingAction) -> Vec<Effec
         }
         LabellingAction::SetModelChoice(choice) => labelling.choice = choice,
         LabellingAction::SetCortex(cortex) => labelling.cortex = cortex,
-        LabellingAction::SetRunsOn(runs_on) => labelling.runs_on = runs_on,
+        LabellingAction::SetRunsOn(runs_on) => {
+            // A place chosen outright takes the place of a card kept by its name and not yet
+            // looked for.
+            labelling.runs_on = runs_on;
+            labelling.card_kept = None;
+        }
         LabellingAction::SetKeep(keep) => labelling.keep = keep,
         LabellingAction::SetModelsFolder(folder) => {
             labelling.models = Some(folder);
-            return look_again(labelling);
+            return kept_and_looked(labelling);
         }
         LabellingAction::SetRuntimeFolder(folder) => {
             labelling.runtime = Some(folder);
-            return look_again(labelling);
+            return kept_and_looked(labelling);
         }
+        about_kept @ (LabellingAction::KeptFound { .. }
+        | LabellingAction::ShowKept
+        | LabellingAction::DeleteKept
+        | LabellingAction::SaveLabelsAs(_)) => return about_kept_results(state, about_kept),
     }
-    Vec::new()
+    if chosen {
+        vec![Effect::StoreChoices(Choices::of(&state.labelling))]
+    } else {
+        Vec::new()
+    }
 }
 
 /// The labelling state with nothing running and nothing kept, which is what another export
@@ -62,7 +84,25 @@ pub(super) fn emptied(labelling: &Labelling) -> Labelling {
         running: None,
         on: None,
         kept: None,
+        kept_files: None,
         ..labelling.clone()
+    }
+}
+
+/// Forget what was found kept for the series the scene showed: it is not another's.
+pub(super) fn forget_kept(labelling: &mut Labelling) {
+    labelling.kept = None;
+    labelling.kept_files = None;
+}
+
+/// Take in what a look found of this computer and its cards. A card kept by its name from the
+/// run before is looked for among them, once; where none has that name the place is left to
+/// Voxa.
+fn looked(labelling: &mut Labelling, ready: Ready, cards: Vec<Card>) {
+    labelling.ready = ready;
+    labelling.cards = cards;
+    if let Some(name) = labelling.card_kept.take() {
+        labelling.runs_on = RunsOnKept::Card(name).find(&labelling.cards);
     }
 }
 
@@ -153,6 +193,49 @@ fn look_again(labelling: &mut Labelling) -> Vec<Effect> {
         models: labelling.models.clone(),
         runtime: labelling.runtime.clone(),
     }]
+}
+
+/// A folder was chosen: ask for the choices to be kept, and for another look.
+fn kept_and_looked(labelling: &mut Labelling) -> Vec<Effect> {
+    let kept = Effect::StoreChoices(Choices::of(labelling));
+    std::iter::once(kept).chain(look_again(labelling)).collect()
+}
+
+/// Apply an action about the result kept for the scene's series (found, shown, deleted) or
+/// about saving the labels that are open.
+fn about_kept_results(state: &mut AppState, action: LabellingAction) -> Vec<Effect> {
+    let series = state.scene.series.clone();
+    match action {
+        // A result found for a series the scene no longer shows is old news.
+        LabellingAction::KeptFound {
+            series: found,
+            when,
+            labels,
+            table,
+        } if series.as_ref() == Some(&found) => {
+            state.labelling.kept = Some(when);
+            state.labelling.kept_files = Some((labels, table));
+            Vec::new()
+        }
+        LabellingAction::ShowKept => match state.labelling.kept_files.clone() {
+            Some((labels, table)) => labels::open(state, labels, Some(table)),
+            None => Vec::new(),
+        },
+        LabellingAction::DeleteKept => {
+            let was_kept = state.labelling.kept.is_some();
+            forget_kept(&mut state.labelling);
+            let forget = series.filter(|_| was_kept);
+            forget
+                .map(|series| Effect::ForgetKept { series })
+                .into_iter()
+                .collect()
+        }
+        // Only labels that are open are saved, not ones still being read.
+        LabellingAction::SaveLabelsAs(to) if state.labels.status == LabelsStatus::Ready => {
+            vec![Effect::SaveLabels { to }]
+        }
+        _ => Vec::new(),
+    }
 }
 
 /// Take in the labels a run has made, as the labels of the study of the series it labelled.

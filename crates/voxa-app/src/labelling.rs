@@ -75,6 +75,23 @@ pub enum LabellingAction {
     SetModelsFolder(PathBuf),
     /// Choose the folder the runtime is in.
     SetRuntimeFolder(PathBuf),
+    /// A result kept for a series was found, or has just been kept.
+    KeptFound {
+        /// The series it is kept for.
+        series: SeriesId,
+        /// The day it was made, as it is said to the person.
+        when: String,
+        /// The label file.
+        labels: PathBuf,
+        /// The table that names its parts.
+        table: PathBuf,
+    },
+    /// Show the result kept for the series in the scene.
+    ShowKept,
+    /// Delete the result kept for the series in the scene.
+    DeleteKept,
+    /// Save the labels that are open to this file, with their table beside it.
+    SaveLabelsAs(PathBuf),
 }
 
 /// Labelling in the state.
@@ -104,6 +121,11 @@ pub struct Labelling {
     pub on: Option<SeriesId>,
     /// The date of a kept result, as it is written for the person.
     pub kept: Option<String>,
+    /// The label file and the table of the kept result, to show it from.
+    pub kept_files: Option<(PathBuf, PathBuf)>,
+    /// The name of a graphics card chosen in a run before, until the cards of this computer
+    /// have been listed and it can be found among them.
+    pub card_kept: Option<String>,
     /// How many runs have been started: the number of the newest. What a worker says of any
     /// other run is old news.
     pub runs: u64,
@@ -127,6 +149,8 @@ impl Default for Labelling {
             running: None,
             on: None,
             kept: None,
+            kept_files: None,
+            card_kept: None,
             runs: 0,
             looks: 0,
         }

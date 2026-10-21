@@ -16,9 +16,11 @@ mod action;
 mod annotations;
 mod args;
 mod cache;
+mod choices;
 mod csv;
 mod effect;
 mod export;
+mod kept_labels;
 mod labelling;
 mod labels;
 mod log;
@@ -46,6 +48,7 @@ pub use annotations::{
 };
 pub use args::{Command, USAGE, parse_args, version};
 pub use cache::FrameCache;
+pub use choices::{CHOICES_VERSION, Choices, RunsOnKept, load_choices, save_choices};
 pub use export::{ExportError, SUGGESTED_NAME, gif, png};
 pub use labelling::{Labelling, LabellingAction, Ready, can_label, what_will_run};
 pub use labels::{

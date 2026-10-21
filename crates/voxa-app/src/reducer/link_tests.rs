@@ -117,7 +117,12 @@ fn once_the_volume_is_ready_the_series_of_its_study_come_to_the_position() {
     let effects = made_ready(&mut state, THICK_SCAN, 30.0);
     // Both series' slices are 5 mm apart from the same place, so slice 15 is slice 15.
     assert_eq!(slices(&state), [15, 15, 5, 2]);
-    assert_eq!(effects, frames_around(FINE_SCAN, 15));
+    // The volume that is ready asks whether a result is kept for it; then the frames.
+    let find = Effect::FindKept {
+        series: id(THICK_SCAN),
+    };
+    let asked = [vec![find], frames_around(FINE_SCAN, 15)];
+    assert_eq!(effects, asked.concat());
 }
 
 #[test]
@@ -306,9 +311,12 @@ fn a_volume_made_ready_starts_the_position_on_the_slice_its_viewport_shows() {
         [29, 40, 5, 2],
         "the viewport looked at does not jump"
     );
+    let find = Effect::FindKept {
+        series: id(FINE_SCAN),
+    };
     assert_eq!(
         effects,
-        [],
-        "and the other is already on the nearest slice it has"
+        [find],
+        "and the other is already on the nearest slice it has: only a result kept is looked for"
     );
 }

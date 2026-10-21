@@ -278,10 +278,13 @@ fn smoothing_chosen_before_there_is_a_volume_asks_for_the_curve_when_there_is_on
     assert!(state.planes.smooth);
     let (series, corners) = (id(THICK_SCAN), super::scene_tests::corners());
     let effects = reduce(&mut state, Action::VolumeReady { series, corners });
+    let find = Effect::FindKept {
+        series: id(THICK_SCAN),
+    };
     let build = Effect::BuildSmooth {
         series: id(THICK_SCAN),
     };
-    assert_eq!(effects, [build]);
+    assert_eq!(effects, [find, build]);
     // That the curve is ready changes nothing in the state: the window finds it kept.
     let before = state.clone();
     let series = id(THICK_SCAN);
@@ -301,8 +304,11 @@ fn another_series_in_the_scene_has_its_own_curve_asked_for_once_its_volume_is_re
     );
     let (series, corners) = (id(FINE_SCAN), super::scene_tests::corners());
     let effects = reduce(&mut state, Action::VolumeReady { series, corners });
+    let find = Effect::FindKept {
+        series: id(FINE_SCAN),
+    };
     let build = Effect::BuildSmooth {
         series: id(FINE_SCAN),
     };
-    assert_eq!(effects, [build]);
+    assert_eq!(effects, [find, build]);
 }

@@ -75,7 +75,7 @@ pub(super) fn emptied(labels: &Labels) -> Labels {
 /// they will belong to the study of the series it is of. With no volume nothing is read, and
 /// a notice says what to do first. A run of labelling that is on is stopped: the labels it
 /// would bring back would take the place of these.
-fn open(
+pub(super) fn open(
     state: &mut AppState,
     labels: std::path::PathBuf,
     table: Option<std::path::PathBuf>,

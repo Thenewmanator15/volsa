@@ -1,9 +1,10 @@
 //! A lab that follows the worker that labels a scan, with the stand-ins of
 //! `labelling_stand_ins.rs`: a made-up volume kept for a series, made-up cards and a made-up
 //! model folder. Nothing waits on the clock: a test waits for what the worker says, or for a
-//! run to let its volume go, which it does once it has said all it will say.
+//! run to let its volume go, which it does once it has said all it will say. (Only a file that
+//! is to appear or to go, which the worker does not announce, is waited for by looking.)
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -31,17 +32,25 @@ pub(super) struct Lab {
     volume: Arc<Volume>,
     volumes: Arc<Mutex<VolumeStore>>,
     pub(super) folder: TempDir,
+    /// The folder settings are kept in, when the lab made one.
+    settings: Option<TempDir>,
 }
 
 impl Lab {
     /// The lab, before anything has been looked at.
     pub(super) fn unlooked(stand_in: StandIn) -> Self {
+        Self::in_settings(stand_in, None)
+    }
+
+    /// The lab with this folder to keep settings in, before anything has been looked at.
+    fn in_settings(stand_in: StandIn, settings: Option<PathBuf>) -> Self {
         let (sender, reports) = channel();
         let cache = Arc::new(Mutex::new(FrameCache::new(1 << 20)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
         let stand_in = Arc::new(stand_in);
         let labeller: Arc<dyn Labeller> = Arc::clone(&stand_in) as Arc<dyn Labeller>;
-        let workers = Workers::new(sender, cache, Arc::clone(&volumes), None, Some(labeller));
+        let kept = Arc::clone(&volumes);
+        let workers = Workers::new(sender, cache, kept, settings, Some(labeller));
         let volume = Arc::new(head());
         held(&volumes).put(id(THICK_SCAN), Arc::clone(&volume));
         Self {
@@ -51,6 +60,7 @@ impl Lab {
             volume,
             volumes,
             folder: models(),
+            settings: None,
         }
     }
 
@@ -59,6 +69,27 @@ impl Lab {
         let lab = Self::unlooked(stand_in);
         assert_eq!(lab.look(1, Some(lab.folder.path())), Ready::Yes);
         lab
+    }
+
+    /// The lab, looked at, with a folder of its own to keep settings in.
+    pub(super) fn keeping(stand_in: StandIn) -> Self {
+        let settings = tempfile::tempdir().expect("a temporary folder");
+        let mut lab = Self::in_settings(stand_in, Some(settings.path().to_owned()));
+        lab.settings = Some(settings);
+        assert_eq!(lab.look(1, Some(lab.folder.path())), Ready::Yes);
+        lab
+    }
+
+    /// The lab, looked at, with this folder to keep settings in.
+    pub(super) fn keeping_in(stand_in: StandIn, settings: PathBuf) -> Self {
+        let lab = Self::in_settings(stand_in, Some(settings));
+        assert_eq!(lab.look(1, Some(lab.folder.path())), Ready::Yes);
+        lab
+    }
+
+    /// The folder of a lab that made one to keep settings in.
+    pub(super) fn settings(&self) -> &Path {
+        self.settings.as_ref().expect("the lab has one").path()
     }
 
     /// Ask for a look in this model folder, and what it found.
@@ -83,15 +114,20 @@ impl Lab {
         }
     }
 
-    /// Ask for a run of the robust networks on the 30-slice series.
+    /// Ask for a run of the robust networks on the 30-slice series, not to be kept.
     pub(super) fn label(&self, run: u64, runs_on: RunsOn) {
+        self.label_keeping(run, runs_on, false);
+    }
+
+    /// Ask for a run of the robust networks on the 30-slice series, kept or not.
+    pub(super) fn label_keeping(&self, run: u64, runs_on: RunsOn, keep: bool) {
         let asked = Effect::LabelScan {
             run,
             series: id(THICK_SCAN),
             wanted: ROBUST,
             runs_on,
             held: 0,
-            keep: false,
+            keep,
             drawing_on: None,
         };
         self.workers.run(asked, None);
@@ -122,6 +158,16 @@ impl Lab {
                 return;
             }
             assert!(started.elapsed() < PATIENCE, "a run never ended");
+            std::thread::sleep(Duration::from_millis(2));
+        }
+    }
+
+    /// Wait until something the worker does without announcing it, such as writing a file, is
+    /// done, by looking.
+    pub(super) fn eventually(what: &str, done: impl Fn() -> bool) {
+        let started = Instant::now();
+        while !done() {
+            assert!(started.elapsed() < PATIENCE, "still waiting for {what}");
             std::thread::sleep(Duration::from_millis(2));
         }
     }

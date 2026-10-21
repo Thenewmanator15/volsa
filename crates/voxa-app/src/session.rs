@@ -12,6 +12,7 @@ use voxa_render::{Prepared, Smoothed};
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
+use crate::choices::load_choices;
 use crate::reducer::reduce;
 use crate::state::AppState;
 use crate::volume_store::VolumeStore;
@@ -32,8 +33,9 @@ impl Session {
     /// A session with nothing open. The workers report through `to_reports`, and `reports` is
     /// where those reports are read from: the two ends of one channel, or of two channels
     /// with something in between, as the window has to wake itself up. The cache holds at
-    /// most `cache_bytes` of pixel values. Saved views are kept in the folder `settings`; with
-    /// `None` they last only as long as the session.
+    /// most `cache_bytes` of pixel values. Saved views, a result of labelling and what is
+    /// chosen for labelling are kept in the folder `settings`, and what was chosen in the run
+    /// before is chosen again; with `None` they last only as long as the session.
     pub fn new(
         to_reports: Sender<Action>,
         reports: Receiver<Action>,
@@ -43,9 +45,13 @@ impl Session {
         let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
         let (kept, built) = (Arc::clone(&cache), Arc::clone(&volumes));
+        let mut state = AppState::default();
+        if let Some(folder) = &settings {
+            load_choices(folder).put_in(&mut state.labelling);
+        }
         let workers = Workers::new(to_reports, kept, built, settings, None);
         Self {
-            state: AppState::default(),
+            state,
             workers,
             reports,
             cache,
@@ -158,5 +164,7 @@ impl Session {
 
 #[cfg(test)]
 mod annotation_tests;
+#[cfg(test)]
+mod kept_tests;
 #[cfg(test)]
 mod tests;

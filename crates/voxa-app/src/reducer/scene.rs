@@ -8,7 +8,7 @@ use crate::action::{Action, Effect};
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
-pub(super) fn reduce(state: &mut AppState, action: Action) {
+pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let scene = &mut state.scene;
     match action {
         Action::SceneResized { viewport } => resized(scene, viewport),
@@ -36,13 +36,15 @@ pub(super) fn reduce(state: &mut AppState, action: Action) {
         Action::CutRemove { cut } if cut < scene.cuts.len() => {
             scene.cuts.remove(cut);
         }
-        about_the_volume => built(scene, about_the_volume),
+        about_the_volume => return built(scene, about_the_volume).into_iter().collect(),
     }
+    Vec::new()
 }
 
 /// What the worker building the scene's volume reports. A report about any other series, or
-/// one that comes when the scene is not building, is out of date and is ignored.
-fn built(scene: &mut Scene, report: Action) {
+/// one that comes when the scene is not building, is out of date and is ignored. A volume
+/// that is ready is the time to ask whether a result is kept for its series.
+fn built(scene: &mut Scene, report: Action) -> Option<Effect> {
     let building = |scene: &Scene, series: &SeriesId| {
         scene.series.as_ref() == Some(series)
             && matches!(scene.status, SceneStatus::Building { .. })
@@ -59,12 +61,14 @@ fn built(scene: &mut Scene, report: Action) {
                 scene.untouched = true;
             }
             scene.corners = Some(corners);
+            return Some(Effect::FindKept { series });
         }
         Action::VolumeFailed { series, reason } if building(scene, &series) => {
             scene.status = SceneStatus::Unavailable(vec![reason]);
         }
         _ => {}
     }
+    None
 }
 
 /// Show the whole volume again, from the way the camera already faces.
@@ -138,8 +142,9 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
             ..fresh
         };
     }
-    // The views saved of the series before are not this one's.
+    // The views saved of the series before are not this one's, and nor is a result kept.
     state.views.clear();
+    super::labelling::forget_kept(&mut state.labelling);
     let listed = series.as_ref().and_then(|id| state.series(id));
     let info = listed.map(|listed| listed.info.clone());
     let Some((series, info)) = series.zip(info) else {
