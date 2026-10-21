@@ -30,8 +30,12 @@ impl Headless {
     ///
     /// # Errors
     ///
-    /// As [`SlicePipeline::upload`].
+    /// As [`SlicePipeline::upload`], and [`RenderError::DeviceLost`] when the device has
+    /// stopped answering.
     pub fn upload(&mut self, rows: u32, cols: u32, values: &[f32]) -> Result<(), RenderError> {
+        if self.gpu.is_lost() {
+            return Err(RenderError::DeviceLost);
+        }
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, rows, cols, values)
     }
@@ -43,8 +47,9 @@ impl Headless {
     /// # Errors
     ///
     /// [`RenderError::EmptyTarget`] when either side of `size` is zero,
-    /// [`RenderError::TooLarge`] when it is more than the device can hold, and
-    /// [`RenderError::Readback`] when the picture cannot be copied back.
+    /// [`RenderError::TooLarge`] when it is more than the device can hold,
+    /// [`RenderError::Readback`] when the picture cannot be copied back,
+    /// [`RenderError::DeviceLost`] when the device has stopped answering.
     pub fn render(
         &mut self,
         wl: WindowLevel,
@@ -54,7 +59,8 @@ impl Headless {
         let viewport = size.map(|side| side as f32);
         self.pipeline
             .set_params(&self.gpu.queue, wl, view, viewport, 1.0);
-        self.gpu.picture(size, |pass| self.pipeline.draw(pass))
+        let drawn = self.gpu.picture(size, |pass| self.pipeline.draw(pass));
+        self.gpu.reported(drawn)
     }
 }
 
@@ -78,5 +84,7 @@ pub fn render_to_rgba(
     gpu.render(wl, view, size)
 }
 
+#[cfg(test)]
+mod lost_tests;
 #[cfg(test)]
 mod tests;

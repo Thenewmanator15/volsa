@@ -6,22 +6,24 @@ use std::time::{Duration, Instant};
 
 use egui_wgpu::wgpu;
 
+use crate::lost;
+
 /// Hand the device a piece of work and, if it had nothing else in hand, wait until it has
 /// done it and say how long that took. With other work still in hand the piece is handed
 /// over all the same, without waiting, and `None` is given: timed then, it would be charged
-/// with the other work too.
+/// with the other work too. A device that has stopped answering is handed it, and is not
+/// waited for.
 pub fn timed_submit(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     work: wgpu::CommandBuffer,
 ) -> Option<Duration> {
-    let idle = device
-        .poll(wgpu::PollType::Poll)
-        .is_ok_and(|status| status.is_queue_empty());
+    let idle =
+        lost::poll(device, wgpu::PollType::Poll).is_some_and(|status| status.is_queue_empty());
     let hand_over = || {
         queue.submit([work]);
     };
-    let wait = || device.poll(wgpu::PollType::wait_indefinitely()).is_ok();
+    let wait = || lost::poll(device, wgpu::PollType::wait_indefinitely()).is_some();
     timed_if(idle, hand_over, wait)
 }
 

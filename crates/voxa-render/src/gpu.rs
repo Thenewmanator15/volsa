@@ -4,6 +4,7 @@ use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 
 use egui_wgpu::wgpu;
 
+use crate::lost::{self, DeviceWatch};
 use crate::slice_pipeline::RenderError;
 
 /// The format of the picture drawn: 8-bit red, green, blue and alpha, with no gamma curve, so
@@ -26,6 +27,8 @@ static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
 pub(crate) struct Gpu {
     pub(crate) device: wgpu::Device,
     pub(crate) queue: wgpu::Queue,
+    /// What knows if the device has stopped answering; only for a device this started.
+    watch: Option<DeviceWatch>,
 }
 
 impl Gpu {
@@ -34,7 +37,40 @@ impl Gpu {
         Self {
             device: device.clone(),
             queue: queue.clone(),
+            watch: None,
         }
+    }
+
+    /// Whether the device has stopped answering. A device that was not started here has no
+    /// watch on it, and is taken to answer.
+    pub(crate) fn is_lost(&self) -> bool {
+        self.watch.as_ref().is_some_and(DeviceWatch::is_lost)
+    }
+
+    /// What came of drawing a picture on this device: the picture, or why there is none.
+    /// A device that stopped answering is said to have, whatever else went wrong with the
+    /// drawing, since all else follows from it.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::DeviceLost`], or the error `drawn` is.
+    pub(crate) fn reported(
+        &self,
+        drawn: Result<Vec<u8>, RenderError>,
+    ) -> Result<Vec<u8>, RenderError> {
+        if self.is_lost() {
+            return Err(RenderError::DeviceLost);
+        }
+        drawn
+    }
+
+    /// Lose the device, as a test may: destroy it, and wait for what it was doing to end,
+    /// which is when a destroyed device says so. One that was really lost says so at once. A
+    /// real reset is never provoked.
+    #[cfg(test)]
+    pub(crate) fn lose(&self) {
+        self.device.destroy();
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
     }
 
     /// Start a graphics device: the machine's own adapter if it has one, otherwise one
@@ -57,7 +93,12 @@ impl Gpu {
         };
         let (device, queue) = pollster::block_on(adapter.request_device(&wanted))
             .map_err(|error| RenderError::Device(error.to_string()))?;
-        Ok(Self { device, queue })
+        let watch = Some(DeviceWatch::on(&device, || {}));
+        Ok(Self {
+            device,
+            queue,
+            watch,
+        })
     }
 
     /// Clear a picture `size` (width, height) pixels large to black, let `draw` draw over
@@ -179,9 +220,8 @@ impl Gpu {
             // The receiver is waiting just below; if it has gone there is no one to tell.
             let _ = done.send(result);
         });
-        self.device
-            .poll(wgpu::PollType::wait_indefinitely())
-            .map_err(|error| failed(error.to_string()))?;
+        lost::poll(&self.device, wgpu::PollType::wait_indefinitely())
+            .ok_or_else(|| failed("the graphics device did not answer".to_owned()))?;
         mapped
             .recv()
             .map_err(|error| failed(error.to_string()))?

@@ -256,3 +256,24 @@ pub fn written_labels() -> (Vec<u8>, String) {
         voxa_labels::write_table(&table).expect("the table is written"),
     )
 }
+
+/// A graphics device with no window and its queue, as the window's are, or `None` with a
+/// printed notice on a computer with no graphics adapter, not even a software one. An adapter
+/// that will not start is not a reason to skip a test, and stops it.
+pub fn a_device() -> Option<(egui_wgpu::wgpu::Device, egui_wgpu::wgpu::Queue)> {
+    match voxa_render::HeadlessScene::new() {
+        Ok(scene) => Some(scene.device()),
+        Err(voxa_render::RenderError::NoAdapter) => {
+            eprintln!("skipped: no graphics adapter here, not even a software one");
+            None
+        }
+        Err(other) => panic!("{other}"),
+    }
+}
+
+/// Lose a graphics device, as a test may: destroy it, and wait for what it was doing to end,
+/// which is when a destroyed device says so. A real reset is never provoked.
+pub fn lose(device: &egui_wgpu::wgpu::Device) {
+    device.destroy();
+    let _ = device.poll(egui_wgpu::wgpu::PollType::wait_indefinitely());
+}

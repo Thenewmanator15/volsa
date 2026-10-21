@@ -59,11 +59,15 @@ impl HeadlessScene {
     ///
     /// # Errors
     ///
-    /// As [`VolumePipeline::upload`].
+    /// As [`VolumePipeline::upload`], and [`RenderError::DeviceLost`] when the device has
+    /// stopped answering.
     pub fn upload(&mut self, volume: &Volume) -> Result<u32, RenderError> {
         self.curve = None;
         self.plane.smooth(None);
         self.label(None);
+        if self.gpu.is_lost() {
+            return Err(RenderError::DeviceLost);
+        }
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, volume)
     }
@@ -73,11 +77,15 @@ impl HeadlessScene {
     ///
     /// # Errors
     ///
-    /// As [`VolumePipeline::upload_prepared`].
+    /// As [`VolumePipeline::upload_prepared`], and [`RenderError::DeviceLost`] when the
+    /// device has stopped answering.
     pub fn upload_prepared(&mut self, ready: &Prepared) -> Result<u32, RenderError> {
         self.curve = None;
         self.plane.smooth(None);
         self.label(None);
+        if self.gpu.is_lost() {
+            return Err(RenderError::DeviceLost);
+        }
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.upload_prepared(device, queue, ready)
     }
@@ -89,20 +97,26 @@ impl HeadlessScene {
     /// # Errors
     ///
     /// [`RenderError::EmptyTarget`] when either side of `size` is zero,
-    /// [`RenderError::TooLarge`] when it is more than the device can hold, and
-    /// [`RenderError::Readback`] when the picture cannot be copied back.
+    /// [`RenderError::TooLarge`] when it is more than the device can hold,
+    /// [`RenderError::Readback`] when the picture cannot be copied back,
+    /// [`RenderError::DeviceLost`] when the device has stopped answering.
     pub fn render(&mut self, params: &SceneParams, size: [u32; 2]) -> Result<Vec<u8>, RenderError> {
         let viewport = size.map(|side| side as f32);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        self.pipeline.picture(device, queue, params, viewport, size)
+        let drawn = self.pipeline.picture(device, queue, params, viewport, size);
+        self.gpu.reported(drawn)
     }
 
     /// Put a label set on the device to be drawn over the planes, every part shown, or take
     /// the labels away with `None`. Whether there are now labels to draw: false with `None`,
-    /// and when the device has no room for them. Uploading a volume takes them away.
+    /// and when the device has no room for them, which it has not once it has stopped
+    /// answering. Uploading a volume takes them away.
     pub fn label(&mut self, set: Option<&LabelSet>) -> bool {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        self.labels = set.and_then(|set| LabelsOnDevice::put(device, queue, set));
+        let answering = !self.gpu.is_lost();
+        self.labels = set
+            .filter(|_| answering)
+            .and_then(|set| LabelsOnDevice::put(device, queue, set));
         self.plane.labels(self.labels.as_ref(), self.overlay);
         self.parts.show(device, queue, self.labels.as_ref());
         self.labels.is_some()
@@ -128,7 +142,8 @@ impl HeadlessScene {
     ) -> Result<Vec<u8>, RenderError> {
         let viewport = size.map(|side| side as f32);
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        self.parts.picture(device, queue, params, viewport, size)
+        let drawn = self.parts.picture(device, queue, params, viewport, size);
+        self.gpu.reported(drawn)
     }
 
     /// Say how each part of the labels is to look, and which is selected.
@@ -181,7 +196,7 @@ impl HeadlessScene {
     /// Wait until the device has done everything handed to it so far. Work handed to a
     /// graphics device is done some time afterwards; this is for timing it.
     pub fn settle(&self) {
-        let _ = self.gpu.device.poll(wgpu::PollType::wait_indefinitely());
+        let _ = crate::lost::poll(&self.gpu.device, wgpu::PollType::wait_indefinitely());
     }
 
     /// Whether this device works out the largest value in each block of a volume itself.
@@ -231,7 +246,8 @@ impl HeadlessScene {
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.plane.show(device, &self.pipeline);
         self.plane.set_params(queue, view, viewport, window);
-        Gpu::on(device, queue).picture(size, |pass| self.plane.draw(pass))
+        let drawn = Gpu::on(device, queue).picture(size, |pass| self.plane.draw(pass));
+        self.gpu.reported(drawn)
     }
 }
 
@@ -243,6 +259,8 @@ mod device_tests;
 mod haze_tests;
 #[cfg(test)]
 mod label_tests;
+#[cfg(test)]
+mod lost_tests;
 #[cfg(test)]
 mod parts_tests;
 #[cfg(test)]

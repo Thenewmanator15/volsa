@@ -167,4 +167,6 @@ mod annotation_tests;
 #[cfg(test)]
 mod kept_tests;
 #[cfg(test)]
+mod lost_tests;
+#[cfg(test)]
 mod tests;

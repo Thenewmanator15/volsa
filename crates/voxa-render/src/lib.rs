@@ -16,6 +16,7 @@ mod camera;
 mod gpu;
 mod handle;
 mod labels;
+mod lost;
 mod offscreen;
 mod offscreen_scene;
 mod on_device;
@@ -42,6 +43,7 @@ pub use camera::{
 };
 pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll, slice_outline};
 pub use labels::{FILL, LabelsOnDevice, Overlay, PartLook};
+pub use lost::DeviceWatch;
 pub use offscreen::{Headless, render_to_rgba};
 pub use offscreen_scene::HeadlessScene;
 pub use parts_pipeline::PartsPipeline;

@@ -44,6 +44,10 @@ pub enum RenderError {
     /// The drawn picture could not be copied back from the graphics device.
     #[error("The picture could not be read back from the graphics device: {0}.")]
     Readback(String),
+    /// The graphics device stopped answering, as after a driver reset. Nothing more can be
+    /// drawn on it until the program is started again.
+    #[error("The graphics card stopped answering.")]
+    DeviceLost,
 }
 
 /// What the shader needs besides the image; the layout matches `Params` in `slice.wgsl`.

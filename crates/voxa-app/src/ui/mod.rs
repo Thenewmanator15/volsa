@@ -23,6 +23,7 @@ mod icon;
 mod keys;
 mod labels;
 mod layout;
+pub(crate) mod lost;
 mod measure;
 mod overlay;
 mod parts;
@@ -74,6 +75,8 @@ pub struct VoxaApp {
     turntable: Option<scene::export::Turntable>,
     /// What is remembered from one run to the next.
     kept: crate::prefs::Kept,
+    /// The graphics card the window draws with, watched for the day it stops answering.
+    card: lost::Card,
 }
 
 impl VoxaApp {
@@ -151,6 +154,7 @@ impl VoxaApp {
             pose: Vec::new(),
             label_pose: Vec::new(),
             turntable: None,
+            card: lost::Card::watching(render, &creation.egui_ctx),
         };
         app.recall();
         if let Some(render) = render {
@@ -268,6 +272,7 @@ impl VoxaApp {
 impl eframe::App for VoxaApp {
     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.session.pump();
+        self.card.look(|action| self.session.dispatch(action));
         self.remember(ctx);
         self.open_waiting_labels();
         self.play(ctx);

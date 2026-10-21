@@ -174,9 +174,25 @@ pub(crate) fn write(
     dims: [u32; 3],
     halves: &[u16],
 ) {
+    let answering = || crate::lost::poll(device, wgpu::PollType::Poll).is_some();
+    write_slabs(queue, texture, dims, halves, SLAB_BYTES, answering);
+}
+
+/// As [`write`], with slabs of at most `slab_bytes`. After each slab is sent on its way,
+/// `answering` is asked whether the device still answers, and the writing stops, with the rest
+/// of the values left out, the first time it says not: a device that has stopped answering
+/// gets nothing more, and is not asked again.
+fn write_slabs(
+    queue: &wgpu::Queue,
+    texture: &wgpu::Texture,
+    dims: [u32; 3],
+    halves: &[u16],
+    slab_bytes: usize,
+    mut answering: impl FnMut() -> bool,
+) {
     let [cols, rows, slices] = dims;
     let in_a_slice = cols as usize * rows as usize;
-    let slab_slices = (SLAB_BYTES / (in_a_slice * BYTES_PER_VOXEL as usize)).max(1);
+    let slab_slices = (slab_bytes / (in_a_slice * BYTES_PER_VOXEL as usize)).max(1);
     let starts = (0..slices).step_by(slab_slices);
     for (first, slab) in starts.zip(halves.chunks(in_a_slice * slab_slices)) {
         let whole_slices = slab.len() / in_a_slice;
@@ -214,7 +230,9 @@ pub(crate) fn write(
         );
         // Send this slab on its way and let the device give back what carried the last.
         queue.submit(std::iter::empty());
-        let _ = device.poll(wgpu::PollType::Poll);
+        if !answering() {
+            return;
+        }
     }
 }
 
@@ -243,6 +261,8 @@ pub(crate) fn placed_by_halving<T>(
     }
 }
 
+#[cfg(test)]
+mod slab_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
