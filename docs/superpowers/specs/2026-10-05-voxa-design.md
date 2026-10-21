@@ -62,8 +62,9 @@ interface crate contains no image mathematics.
 | `voxa-volume` | Interpolation, reslicing maths, histograms, automatic window/level | `voxa-core` |
 | `voxa-filters` | Denoising, bias correction, later skull-stripping | `voxa-volume` |
 | `voxa-register` | Rigid, affine and deformable registration | `voxa-volume` |
-| `voxa-models` | ONNX runtime wrapper, model download and checksum verification, quality verdicts | `voxa-volume` |
-| `voxa-segment` | Brain extraction and labelling, inner-ear outline and parts, label volumes, structure statistics | `voxa-models`, `voxa-register` |
+| `voxa-labels` | Label volumes and the tables that name their parts: reading and writing them, a part's volume, which part lies at a point (built in milestone 4) | `voxa-core` |
+| `voxa-models` | ONNX runtime wrapper behind a trait, loaded from files beside the app; finding a model folder and checking it against its list; the graphics cards and what a run needs of the computer. The model files are made once by the user and never downloaded (built in milestone 4, 0.5.0) | none |
+| `voxa-segment` | SynthSeg's own steps around its networks: preparing a scan, the steps between networks, tidying into labels with the model's own verdict (built in milestone 4, 0.5.0). Later: inner-ear outline and parts, structure statistics | `voxa-core`, `voxa-labels`, `voxa-models` (later `voxa-register`) |
 | `voxa-render` | GPU slice renderer, volume ray-caster, label rendering, picking, cut planes | `voxa-volume`, `wgpu` |
 | `voxa-app` | Interface, tools, application state, settings | all of the above, `egui` |
 
@@ -92,7 +93,7 @@ that delivers it.
 | 1 | Foundation | Workspace, CI, quality gates. Open zip / folder / DICOMDIR, classic and enhanced DICOM. Study and series browser with thumbnails. Automatic choice of the most useful series on opening, with the reason each other series was passed over. 2D stack view with zoom, pan, flip, rotate. Window/level by drag, presets and automatic. Orientation labels, scale bar, corner overlay. DICOM tag browser with search. Cine playback. Dark modern theme. |
 | 2 | Interactive 3D | The main view. Volume assembly in patient space. GPU ray-cast volume rendering with presets and maximum-intensity projection. Orbit, pan, zoom, saved camera views. A movable cut plane at any angle. The scan's slice planes drawn inside the 3D scene. Snapshot and rotating-video export. Window layout: one large 3D viewport with supporting panels beside it. |
 | 3 | Plane views and measurement | Linked axial / coronal / sagittal panels beside the 3D view, with crosshairs shared with the 3D scene. Cubic B-spline reslicing, oblique planes, reference lines, synced scrolling between series. Ruler, angle and region statistics in the plane views; point-to-point distance and labelled markers in 3D. Measurement list, CSV / JSON export. Undo and redo. |
-| 4 | Models and brain labelling | An ONNX runtime inside the app, with models downloaded on first use and checksum-verified. Brain extraction. Whole-brain labelling into about thirty structures on any contrast. A quality verdict in plain words on every automatic result. Label volumes rendered as coloured solids. The structure list: hover for a name, click to select, show / hide / isolate, opacity per structure, volume per structure. Selection linked between 3D, plane views and the list. |
+| 4 | Models and brain labelling | An ONNX runtime inside the app, loaded from files beside it, with models provided by the user (made once from SynthSeg's own files) and checksum-verified, never downloaded. Shipped in two releases: 0.4.0 (label volumes from files, the structure list, the solids) and 0.5.0 (labelling inside the app). Brain extraction as a step of its own was not built. Whole-brain labelling into about thirty structures on any contrast. A quality verdict in plain words on every automatic result. Label volumes rendered as coloured solids. The structure list: hover for a name, click to select, show / hide / isolate, opacity per structure, volume per structure. Selection linked between 3D, plane views and the list. |
 | 5 | Inner ear | Locate both inner ears on a fluid-bright scan. Outline each labyrinth. Split it into cochlea, vestibule and the three semicircular canals. Solid and scan-signal views, per-part volumes, left against right. The same structure list and interactions as milestone 4. |
 | 6 | Time-point comparison | Rigid registration between studies, with a local refinement around a chosen structure. Synced side-by-side 3D and plane views, overlay in two colours, swipe, fade, checkerboard, difference map. Saved transforms. Structure volumes compared across time. |
 | 7 | Image enhancement | N4 bias-field correction, denoising, and slice sharpening across thick slices, each as a non-destructive derived volume with progress and cancel, and each stating what it can and cannot recover. |
@@ -165,6 +166,13 @@ on public data. Atlas and model licences are checked before either is bundled.
   the same inputs before milestone 4 or 5 can ship. Milestone 4 starts with a
   feasibility spike on exactly this. If a model will not convert, the fallback
   is a small bundled helper process, which costs the single-executable goal.
+  *Answered for SynthSeg, in 0.5.0:* every SynthSeg 2.0 network converts, and run
+  through ONNX Runtime from Rust gives SynthSeg's own labels (the standard model
+  on the processor at every voxel; any other pairing at 99.99% of voxels or more
+  and a Dice of 0.999 or more), so no helper process was needed. The runtime is
+  loaded from files beside the app, and the model files are made once by the
+  user. See `docs/adr/0006-voxa-runs-a-labelling-model.md`. IE-Vnet, for
+  milestone 5, is still to be shown.
 - **Licences decide what can ship** (checked 2026-10-08 against each project's
   own licence files and pages). SynthSeg, SynthSR, IE-Vnet and SMORE are Apache
   2.0 code and can be used; the SynthSeg 2.0 weights carry no licence statement

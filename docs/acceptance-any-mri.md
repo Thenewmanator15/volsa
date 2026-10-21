@@ -1,6 +1,7 @@
 # Acceptance: reading more kinds of MRI export
 
-Date: 2026-10-14. Unreleased, on the branch `any-mri`. The design is in
+Date: 2026-10-14. Made on the branch `any-mri`, and released in 0.5.0 with labelling (see
+[acceptance-0.5.0.md](acceptance-0.5.0.md)). The design is in
 [superpowers/specs/2026-10-13-voxa-any-mri-design.md](superpowers/specs/2026-10-13-voxa-any-mri-design.md)
 and the plan in
 [superpowers/plans/2026-10-13-voxa-any-mri.md](superpowers/plans/2026-10-13-voxa-any-mri.md).

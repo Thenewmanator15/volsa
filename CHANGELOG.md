@@ -6,8 +6,74 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-22
+
+The fifth release, which finishes the fourth milestone: Voxa labels a brain scan itself, with
+SynthSeg 2.0's networks run through ONNX Runtime on this computer. It also reads more kinds of
+MRI export. Voxa is not a medical device and is not for diagnostic use. A label made by a model
+is a guess that looks certain, and every result says so.
+
 ### Added
 
+- Labelling a brain scan inside Voxa. In the Parts tab, for a scan with a 3D view and no
+  labels open, **Label this scan** labels about thirty brain structures on a scan of any
+  contrast and, if asked, divides the cortex into 34 areas a side. No Python runs. The result
+  becomes the study's labels, as a label file does: the list, the outlines over the planes,
+  the Parts look, volumes, left against right. While a run is on, the Parts tab names its
+  stage ("Preparing the scan", "Finding the structures, 2 of 3", "Dividing the cortex", "The
+  model is checking its work", "Tidying up") beside **Stop**, and the rest of Voxa keeps
+  working. Only one run goes at a time, and a run is stopped, and its result dropped, when the
+  scene moves to another series or another export is opened.
+- **Options**, beside the button: the model (Automatic picks Robust when the slices are more
+  than 3 mm apart and Standard otherwise, and says which it picked and why), whether the
+  cortex is divided into its areas, where a run goes (Automatic, a graphics card by its name,
+  or the processor), whether results are kept, and the folders of the models and of the
+  runtime. What was chosen is remembered between runs.
+- Every result carries its check and its history. The model's own check of its work comes
+  first, in the warning colour when it failed (any group of structures scoring below 0.65,
+  which are named). The caption says Voxa made the labels, with which model, on which device,
+  on what day, and "Not for diagnostic use." A Notes line says when the slices are more than
+  3 mm apart (a rough map), when the run fell to the processor because a card had no room or
+  stopped answering, when the model checked its own work on the processor, and when the scan
+  was cut to the head. A change of plan is never silent. See
+  [docs/models.md](docs/models.md).
+- Where a run goes. Before a run Voxa works out what the scan needs and goes only where the
+  system can still promise it: the whole scan on a graphics card with memory of its own, then
+  on the processor, then the scan cut to the head on each. Integrated graphics are used only
+  when chosen. A run that fits nowhere says what it needs and what the computer has. Every run,
+  on any device, is held to an upper bound on the ordinary memory it asks the system for;
+  the figures are in the decision record. On Windows, graphics cards run the networks
+  through DirectML; elsewhere the processor does.
+- A result is kept on this computer for its series, unless keeping is switched off, and is
+  offered again when the series is opened: **Show**, **Make again** and **Delete**. **Save
+  as…** writes the label file and its table of names wherever the person chooses, for other
+  programs, with SynthSeg's own numbers for the structures. A kept result is a label file
+  and a table filed under a hash of the series, and says nothing of whose scan it was.
+- The same answer as SynthSeg's own program, shown by tests. On a made-up head the standard
+  model on the processor gives SynthSeg's label at every voxel, and every other pairing of
+  model and device gives at least 99.99% of voxels the same, a Dice of at least 0.999 for
+  every structure, and scores within 0.001. Preparing a scan and tidying the answer are
+  SynthSeg's steps, held to arrays that SynthSeg's own Python made from small made-up volumes.
+- Voxa ships no model and no runtime and fetches none. A person provides the runtime (three
+  files from Microsoft's ONNX Runtime with DirectML, in a `runtime` folder beside the
+  executable or one named under **Options**) and a model folder made once, outside Voxa, with
+  the converter in `tools/synthseg-to-onnx`, from SynthSeg's own files obtained under their
+  terms. Voxa checks every file of a model folder against its list before it trusts it.
+  Telemetry in the runtime is switched off before anything else is asked of it. See
+  [docs/models.md](docs/models.md) and
+  [docs/adr/0006-voxa-runs-a-labelling-model.md](docs/adr/0006-voxa-runs-a-labelling-model.md).
+- Two new crates, `voxa-models` (the networks, the runtime, the graphics cards, where a run
+  fits) and `voxa-segment` (SynthSeg's steps around its networks), and a writer in
+  `voxa-labels` for the label file and table it already read. `cargo xtask coverage` holds
+  both new crates to 80% of lines, leaving out the two files that need the runtime or a
+  graphics card. `cargo xtask check-models` runs, with the real networks, the tests that
+  `cargo xtask check` leaves out; without a model folder and a runtime it does nothing, and
+  `cargo xtask check` passes with neither on the machine.
+- `write_phantom head CHECK_FOLDER OUT [whole]` writes the converter's made-up head as a
+  study, so there is something with a brain's shape to label that is nobody's, and
+  `check_labelling EXPORT` labels the largest series that has a 3D view with no window, on
+  every place Voxa would try, and prints for each the size of the grid, the place, the
+  seconds, the number of parts and whether the model's own check passed.
 - The series list says what a series is when it is not a volume: locating images, a single
   image, pictures in colour, a stack that cannot be shown in 3D with the first reason why, or
   images compressed in a way Voxa cannot read, with the way named. A card shows the plane,
@@ -42,6 +108,16 @@ All notable changes to Voxa are recorded here. The format follows
 
 ### Changed
 
+- The words about labels no longer say that another program made them where Voxa did: the
+  list, the plane views and the scene say "made by Voxa", with the model, the device and the
+  day, and "Not for diagnostic use." Labels from a file are still "made elsewhere". The
+  strip at the top of the Parts tab is shown while no labels are open on the series, while a
+  run is on and while a result is kept.
+- If the graphics card the window draws with is lost, which a driver reset can do, Voxa no
+  longer stops at the next thing it asks of the card. The window cannot be given another card:
+  Voxa says once, in the window and in a message box of the system, that it must be closed
+  and opened again, and nothing a person has made (annotations, saved views, a kept result)
+  is lost. A real driver reset was not provoked, so this was tested with a destroyed device.
 - Automatic contrast counts the values again, over a narrower range, when its first count
   leaves the window across only a few of its bins, as a few very bright voxels make it do; it
   looks again at most three times.
@@ -103,6 +179,38 @@ All notable changes to Voxa are recorded here. The format follows
   series was ready failed for this on a slow machine.
 - Two tests of the worker that reads label files waited for a quiet moment where they
   should have waited for what they were about, and failed when the machine was slow.
+
+### Known limits
+
+- Labelling needs a runtime and a model folder that Voxa does not come with and does not
+  fetch. SynthSeg's trained weights have no licence statement of their own, so none is
+  shipped; the person gets them under the terms they come with.
+- Labelling is for the structures of a brain, as SynthSeg 2.0 knows them. It labels no part
+  outside the brain and no inner ear, takes no correction by hand, and keeps one set of labels
+  open at a time. It refuses a stack of 10 or fewer slices, or one 10 voxels or fewer from
+  bottom to top at 1 mm, as SynthSeg's own program stops on those; the localiser series of an
+  ordinary export are in this range.
+- Memory limits it. The check of the model's own work needs about 8.2 GiB of a graphics card
+  or 3.1 GiB of ordinary memory whatever the scan, and the networks need 1 400 bytes of a
+  card (700 or 900 of ordinary memory on the processor) for each voxel, each with a quarter
+  added. A whole head scanned at 1 mm is too large for a 16 GB card whole, so it goes to the
+  processor or is cut to the head.
+- A scan cut to the head, as it is when memory is short, gives different labels for about one
+  voxel in a hundred, along the borders between structures, than the whole scan would.
+  SynthSeg's own program does the same when the head lies elsewhere in its box, so neither
+  answer is the truer. The result says that the scan was cut.
+- A part's volume is its voxels counted, not SynthSeg's added probabilities, so the two
+  differ a little, and the cortex areas come with no table of soft volumes.
+- The runtime is loaded once in the life of the program, so a runtime folder changed after
+  that takes effect when Voxa is next started. DirectML is frozen: Microsoft supports it and
+  adds nothing to it.
+- Integrated graphics are slower than the processor and are used only when chosen. A graphics
+  card that the system lists twice is listed twice under **Runs on**.
+- Graphics cards run the networks on Windows only. On Linux and macOS the processor does;
+  that has not been run. A run takes a large part of a card's memory, and the 3D view may be
+  slow while the card is busy.
+- The stage of a run and **Stop** are shown in the Parts tab only.
+- A lost graphics card cannot be recovered without closing Voxa and opening it again.
 
 ## [0.4.0] - 2026-10-10
 

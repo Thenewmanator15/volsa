@@ -1,6 +1,7 @@
 # 4. Labels keep their own grid, and Voxa does not make them
 
-Date: 2026-10-10. Status: accepted.
+Date: 2026-10-10. Status: accepted. Its fifth point, that Voxa does not run a labelling model,
+was replaced in 0.5.0 by [record 0006](0006-voxa-runs-a-labelling-model.md); the rest stands.
 
 ## Context
 
@@ -33,7 +34,9 @@ on a poor scan as on a good one, and a viewer that draws it can be taken to vouc
   right, and says of that difference that it cannot tell how much is noise.
 - Voxa does not run a labelling model, and ships none. It shows labels made elsewhere, says
   so wherever they are drawn, and passes on what the labels' own table says about how each
-  part was made and whether the labelling program's own check passed.
+  part was made and whether the labelling program's own check passed. *(Replaced by record
+  0006: from 0.5.0 Voxa does run one, and still ships none. Labels from a file are still
+  shown as made elsewhere.)*
 - Labels belong to the study they were opened on and are shown on its series only. A label
   file does not say which scan it was made from, so labels whose box lies nowhere near the
   series are refused, and that is the only check there is.
@@ -49,5 +52,5 @@ on a poor scan as on a good one, and a viewer that draws it can be taken to vouc
   whole in 3D and only where the slab is in the planes.
 - Labels made from another scan of the same head, taken in the same place in the scanner,
   are not told apart from the right ones. Nothing in the files could tell them apart.
-- Running a model inside Voxa, if it ever comes, is a separate decision with its own
-  questions of licence and trust; nothing here depends on it.
+- Running a model inside Voxa was a separate decision with its own questions of licence and
+  trust; nothing here depends on it. It is record 0006.

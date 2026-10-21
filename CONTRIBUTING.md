@@ -19,7 +19,8 @@
 ## Rules the checks enforce
 
 - `cargo fmt`, and `cargo clippy` with pedantic lints and warnings as errors.
-- No `unsafe` outside `voxa-render`; any `unsafe` there carries a `// SAFETY:` comment.
+- No `unsafe` outside `voxa-render` and one module of `voxa-models`, `cards.rs` (the system's list
+  of graphics cards); any `unsafe` there carries a `// SAFETY:` comment.
 - Library code never panics: `unwrap`, `expect`, `panic!` and indexing that can panic are denied
   outside tests. Return a `VoxaError` (or the crate's own `thiserror` enum) instead.
 - Every public item has a doc comment.
@@ -29,8 +30,8 @@
 
 ## Rules the checks cannot enforce
 
-- Crates depend only downward: core, then dicom and volume, then render, then app.
-  `voxa-app` contains no image mathematics.
+- Crates depend only downward: core, then dicom, volume, labels and models, then segment and
+  render, then app. `voxa-app` contains no image mathematics.
 - `Patient`, `Voxel` and `Screen` coordinates are different types. Converting between them takes an
   explicit `Affine`; never pass raw arrays across a crate boundary where a typed point exists.
 - Logs go through `tracing` and never contain a patient's name, identifier, birth date or any

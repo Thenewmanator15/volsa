@@ -7,14 +7,16 @@ Voxa is a Cargo workspace of small crates that talk only through their public in
 | `voxa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VoxaError` | nothing in the workspace |
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
 | `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `voxa-core` |
-| `voxa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `voxa-core` |
+| `voxa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it, and writing both, with who made a label set; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `voxa-core` |
+| `voxa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, and what the system lets a program use on each; which devices a run fits on and in what order to try them. No image mathematics. Its `cards.rs` is the one module outside `voxa-render` that uses `unsafe` | nothing in the workspace |
+| `voxa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between the networks and the mirrored run, tidying the answer into a label grid, the table of names with the model's verdict, and the notes a reader should know | `voxa-core`, `voxa-labels`, `voxa-models` |
 | `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `voxa-core`, `voxa-volume`, `voxa-labels` |
 | `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
-| `xtask` | `cargo xtask check` and `cargo xtask coverage` | nothing in the workspace |
+| `xtask` | `cargo xtask check`, `cargo xtask coverage` and `cargo xtask check-models` | nothing in the workspace |
 
-Dependencies point downward only: core, then dicom, volume and labels, then render, then app. `voxa-app`
-contains no image mathematics; anything that computes on pixels or coordinates lives below it,
-where it can be tested without a window.
+Dependencies point downward only: core, then dicom, volume, labels and models, then segment and
+render, then app. `voxa-app` contains no image mathematics; anything that computes on pixels or
+coordinates lives below it, where it can be tested without a window.
 
 ## Data flow
 
@@ -91,7 +93,8 @@ The plane views and measuring hang on one point, the position:
    the series, and can be saved as a table or as JSON. None of these holds anything that says
    whose scan it was.
 
-Labelled parts come from files made elsewhere and are kept apart from the scan:
+Labelled parts come from files made elsewhere, or from a run that Voxa makes itself (the next
+section), and are kept apart from the scan:
 
 1. A worker reads the label file and, if there is one, the table of names beside it.
    `voxa-labels` turns them into a label set: for every voxel of the label volume the part it
@@ -115,6 +118,70 @@ Labelled parts come from files made elsewhere and are kept apart from the scan:
    sight goes straight to the far side of such a block.
 5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
    same label set, so naming and selecting a part read nothing back from the device.
+
+## Labelling a scan: the path of a run
+
+Voxa labels a brain scan with SynthSeg 2.0's networks, run through ONNX Runtime. It ships no
+network and no runtime; see [models.md](models.md) for what a person provides and
+[adr/0006-voxa-runs-a-labelling-model.md](adr/0006-voxa-runs-a-labelling-model.md) for why it is
+built as it is. Nothing else in Voxa depends on any of it.
+
+1. **Looking.** When Voxa starts, and when the person names another folder, a worker looks
+   at whether this computer can label a scan: it reads the model folder and checks every
+   network file against the folder's list (`voxa_models::read_model`), loads the runtime from
+   its folder with telemetry switched off (`Runtime::load`), and lists the graphics cards. The
+   answer is a `Ready` in the state: yes, or a sentence that says what is missing. The runtime
+   is loaded once in a program's life, so a runtime folder changed later takes effect at the
+   next start.
+2. **The button.** **Label this scan** in the Parts tab sends `LabelScan`. The reducer starts
+   a run only if the computer is ready, no run is on, no label file is being read and the
+   scene holds a built volume. It picks the model (Automatic takes the robust one when any
+   slice spacing is over 3 mm) and sends `Effect::LabelScan` with the series, what is wanted,
+   where the person wants it to go, and how much of its card the window holds itself.
+3. **Where it fits.** The worker takes the volume kept for the series and, once any run before
+   it is over (one run goes at a time), works out how many voxels the networks would be given,
+   whole and cut to the head (`voxa_segment::sizes`). It reads what the computer has just
+   now (each card by its identity with what the system lets Voxa use on it, and the ordinary
+   memory the system can still promise) and asks `voxa_models::rungs` for the places that fit,
+   best first: the whole scan on each discrete card, then the processor, then the scan cut
+   to the head on each. A run that fits nowhere ends with a sentence that says what it needs
+   and what the computer has.
+4. **The networks.** For each place in turn `voxa_segment::label` prepares the volume (resamples
+   to 1 mm if need be, turns its axes to the order the networks were trained on, scales
+   brightness between its 0.5th and 99.5th percentile, pads each side), finds the structures,
+   and tidies them. Finding is SynthSeg's: the standard network twice, once mirrored, and the
+   two answers averaged; or the three robust networks in a row, each given the class at every
+   voxel that the one before found; then the cortex network if the areas are wanted; then the
+   scores network, given the classes in a 224 cube. Each network is opened on the place's
+   device when it is needed and let go before the next. The scores network may go on the
+   processor when the card cannot hold it. A card that has no room, or that stops answering, gives
+   way to the next place, and the result says so. A card is found by its identity each time
+   a network is opened, since the system's list changes its order while a program runs.
+5. **The result.** The labels are on the 1 mm grid of the preparing step, turned back to the
+   scan's own axes, with their own place in the patient: they are never resampled onto the
+   scan, as [adr/0004-labels-own-grid.md](adr/0004-labels-own-grid.md) requires. A table names
+   every part, from the model folder's lists, and carries the model's verdict from its scores
+   (failed below 0.65), who made the labels (the model and the SHA-256 of its list, the
+   device, the day) and the notes. The worker builds the label set and reports it with
+   `LabelsRead`, as it reports a label file, so from here on the labels are drawn, listed
+   and counted by the code described above. A part's volume is its voxels counted.
+6. **Keeping.** After the report, the worker writes a gzipped label file and its table, for
+   every result so that **Save as** can offer them, and keeps them under the settings folder
+   if the person has not switched keeping off. A kept result is found again when the same
+   series is shown, and the Parts tab offers to show it, make it again or delete it.
+7. **Stopping.** A run says what it says with its own number. It ends when the person presses
+   **Stop**, when the scene moves to another series, when another export is opened, or when the
+   store no longer holds the volume it began with; what it reports after that is dropped. A
+   network on a card finishes what it was handed before it answers; on the processor it stops
+   between two steps.
+
+The runtime sits behind a trait, `Network`, so the arithmetic around the networks is tested with
+stand-ins and no runtime, and another runtime could replace this one. The window draws with
+one graphics device and ONNX Runtime uses its own; the window tells a run how much of its card
+it holds, so that the run leaves room. If the window's device is lost, `eframe` cannot be given
+another: `voxa-app/src/ui/lost.rs` watches for it from the start, the work in hand goes on, and
+the person is told once, in the window and in a message box, to start Voxa again. Annotations,
+saved views and kept results are written by workers and do not depend on the card.
 
 ## Kinds of series, and volumes of a series
 
@@ -140,17 +207,24 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 
 In the folder the system gives Voxa: the saved views and annotations of each study,
 `preferences.json` (the window's size, the layout, orientation, linking and how labels are
-drawn), and `voxa.log`. The log is written by Voxa's own `tracing` subscriber, which takes
+drawn), `choices.json` (what was chosen for labelling: the model, the cortex areas, where a
+run goes by the card's name, whether results are kept, and the two folders of the model and
+the runtime, which are its only paths), a `labels` folder holding the result of labelling
+kept for each series, as a label file and a table named by a hash of the series, and
+`voxa.log`. The log is written by Voxa's own `tracing` subscriber, which takes
 only Voxa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
-file says can reach it. A picture of the window taken with `VOXA_CAPTURE` reads none of these
-and writes none.
+file says can reach it. Labelling adds no subscriber of its own: its notices are logged by
+kind and key only, and the runtime's own words for a failed network, with every path taken
+out, are logged as a warning by the worker. A picture of the window taken with
+`VOXA_CAPTURE` reads none of these and writes none.
 
 ## State
 
 All application state lives in one `AppState`. It changes only through one `Action` enum handled
 by one pure function, `reduce`, which returns the `Effect`s to run (start indexing, request
-frames, build a volume, work out the curve for smooth planes, read labels, read and write saved
-views and annotations). Workers report back by sending further `Action`s. This makes every interaction testable
+frames, build a volume, work out the curve for smooth planes, read labels, look for the
+labelling files, run the labelling networks, stop them, keep and find a result, read and write
+saved views and annotations). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
 
 ## Coordinates
@@ -192,3 +266,15 @@ JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency.
 picture is a small made-up file kept with the tests, written by `tools/fixtures/make_ramp_j2k.py`,
 and is decoded exactly. A deflated file is deflated in its test. Lossless JPEG and lossy
 JPEG 2000 have no test of their own.
+
+Labelling is tested in layers, none of which needs a runtime or a model folder. Each of
+SynthSeg's preparing and tidying steps is held to arrays that SynthSeg's own Python made from
+small made-up volumes (`tools/golden` makes them; they are kept under
+`crates/voxa-segment/tests/golden`). The steps between the networks, the mirrored run and the
+224 cube are run with stand-in networks (the `testkit` feature of `voxa-models`), the model
+folder check with folders made in the test, the sums that say where a run fits with made-up
+cards, and the reducer and the Parts tab by actions and state with no window. A label file is
+written and read back. So `cargo xtask check` passes with neither on the machine, on Windows
+and Linux. The tests that run the real networks on the converter's made-up head are marked
+ignored and run by `cargo xtask check-models`; `runtime.rs` and `cards.rs`, which cannot run
+without a runtime or a card, are left out of the coverage count.

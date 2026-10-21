@@ -425,8 +425,9 @@ skipped, and saying so, where they are not):
   (192 × 256 × 256 once padded) either completes on the card or falls to the next rung and
   says so. These are targets from the check's figures, to be confirmed by the first tasks.
 - Voxa starts and does everything it did at 0.4.0 with the `runtime` folder absent.
-- Decision record 0005 is written; the README, the architecture notes and the design's
-  sections A3, A4 and A7 say what is now true; an acceptance record for 0.5.0 exists.
+- Decision record 0006 is written (0005 was taken by another record while this was being
+  built); the README, the architecture notes and the design's sections A3, A4 and A7 say
+  what is now true; an acceptance record for 0.5.0 exists.
 - The owner has tried it on their own scans. What they see is not written down here.
 
 ## 10. What to prove first
@@ -476,9 +477,9 @@ These change what gets built and were not asked:
 
 ## 13. Documents this changes
 
-- A new decision record, 0005: Voxa runs a labelling model and ships none. It replaces the
-  fifth point of record 0004 and records the runtime, how it is loaded, telemetry, and any
-  exception for `unsafe`.
+- A new decision record, 0006 (0005 is the volumes of a series): Voxa runs a labelling
+  model and ships none. It replaces the fifth point of record 0004 and records the runtime,
+  how it is loaded, telemetry, and any exception for `unsafe`.
 - The README's "Voxa shows labels; it does not make them", the caption of the Parts look,
   and the top of `voxa-labels` all change to say which labels Voxa made and which it did not.
 - The design: the row for milestone 4 in A4 ("downloaded on first use" becomes "provided by

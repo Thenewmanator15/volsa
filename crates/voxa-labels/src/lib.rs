@@ -1,6 +1,9 @@
-//! Labelled parts from files: label volumes, the tables that name their parts, and the
-//! volume of each part. This crate reads them, from files made elsewhere or by Voxa, and
-//! writes them; it does not make the labels.
+//! Labelled parts: label volumes, the tables that name their parts, and the volume of each
+//! part. This crate reads them, from files made by another program or by Voxa, and writes
+//! them. It finds no labels itself. The brain structures that Voxa labels with `SynthSeg`'s
+//! networks are found by `voxa-segment` and handed to this crate to be named, counted and
+//! written; labels made by any other program are read as they are, and are never taken for
+//! Voxa's own.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![cfg_attr(
