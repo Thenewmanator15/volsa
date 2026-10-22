@@ -13,8 +13,11 @@ says.
   label files, measurements and tag values, and never put them in an issue or a pull request.
   Tests build synthetic DICOM with `voxa_dicom::testkit`, and the `write_phantom` example writes
   a made-up study to try Voxa on.
-- No model weights and no ONNX Runtime or DirectML files are committed. Voxa ships neither;
-  [docs/models.md](docs/models.md) says why.
+- No model weights and no ONNX Runtime or DirectML files are committed to this repository.
+  The zip a release offers carries ONNX Runtime, in its `runtime` folder with its licence and
+  notices, taken from Microsoft's package when the release is built; it never carries
+  DirectML, which Windows has, or the model's weights, which each person makes into a model
+  folder. [docs/models.md](docs/models.md) says why.
 - Nothing is merged into `main` without its owner's word. For anything larger than a small fix,
   open an issue first and say what you have in mind.
 
@@ -63,10 +66,13 @@ runtime folder, runs them.
 5. Open a pull request against `main`. Its template lists what is checked, and the continuous
    integration runs the same gate.
 
-`cargo xtask check` runs, in order and stopping at the first failure: `cargo fmt --check`,
-`cargo clippy` on every target and feature with warnings as errors, the 400-line limit on
-source files, `cargo test --workspace --all-features`, `cargo deny check`, and the
-documentation build with warnings as errors.
+`cargo xtask check` runs, in order: `cargo fmt --check`, `cargo clippy` on every target and
+feature with warnings as errors, the 400-line limit on source files, a check that
+`THIRD-PARTY-NOTICES.txt` is current (`cargo xtask notices` writes it again),
+`cargo test --workspace --all-features --no-fail-fast`, `cargo deny check`, and the
+documentation build with warnings as errors. Every test program runs to its end even after one
+has failed, so that one failure does not hide another, and the gate fails if any test did. Any
+other step that fails stops the gate there.
 
 ## Rules the checks enforce
 
