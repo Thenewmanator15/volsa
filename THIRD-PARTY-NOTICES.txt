@@ -1,23 +1,24 @@
 THIRD-PARTY NOTICES FOR VOXA
 ============================
 
-Voxa is built from the 205 packages below, other people's work, each under its own
-licence. For each, this file gives its licence and repository and the licence and
-notice texts that come with it. For a package that comes with none, the standard text
-of each of its licences stands in. Texts that are the same word for word are written
-once, under TEXTS, and referred to by number.
+Voxa is built from the 205 packages below, other people's work, each under
+its own licence. For each, this file gives its licence and repository and the
+licence and notice texts that come with it. For a package that comes with none,
+the standard text of each of its licences stands in. Texts that are the same
+word for word are written once, under TEXTS, and referred to by number.
 
-Voxa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice, with the
-credit to SynthSeg, is in NOTICE.
+Voxa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice,
+with the credit to SynthSeg, is in NOTICE.
 
-`cargo xtask notices` writes this file from the packages compiled into the Voxa program
-for 64-bit Windows. Do not edit it by hand.
+`cargo xtask notices` writes this file from the packages compiled into the
+Voxa program for 64-bit Windows. Do not edit it by hand.
 
 TYPEFACES
 ---------
 
-The interface library builds these typefaces into the program, from epaint_default_fonts 0.36.2.
-Each is under its own licence, whose text comes with the typeface:
+The interface library builds these typefaces into the program, from
+epaint_default_fonts 0.36.2. Each is under its own licence, whose text comes
+with it:
 
   Hack Regular: MIT licence, and the Bitstream Vera licence for its glyphs from Bitstream Vera; fonts/Hack-Regular.txt, text 43
   Ubuntu Light: Ubuntu Font Licence 1.0; fonts/UFL.txt, text 44
@@ -31,7 +32,7 @@ accesskit 0.24.1
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/AccessKit/accesskit
   Authors: The AccessKit contributors
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -39,7 +40,7 @@ accesskit_consumer 0.35.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/AccessKit/accesskit
   Authors: The AccessKit contributors
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -47,7 +48,7 @@ accesskit_windows 0.32.1
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/AccessKit/accesskit
   Authors: The AccessKit contributors
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -55,7 +56,7 @@ accesskit_winit 0.32.2
   Licence: Apache-2.0
   Repository: https://github.com/AccessKit/accesskit
   Authors: The AccessKit contributors
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   Apache-2.0: text 2
 
 adler2 2.0.1
@@ -177,7 +178,7 @@ clipboard-win 5.4.1
   Licence: BSL-1.0
   Repository: https://github.com/DoumanAsh/clipboard-win
   Authors: Douman
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   BSL-1.0: text 23
 
 codespan-reporting 0.13.1
@@ -249,7 +250,7 @@ dicom-core 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -257,7 +258,7 @@ dicom-dictionary-std 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -265,7 +266,7 @@ dicom-encoding 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -273,7 +274,7 @@ dicom-object 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -281,7 +282,7 @@ dicom-parser 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -289,7 +290,7 @@ dicom-pixeldata 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho, Peter Evers
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -297,7 +298,7 @@ dicom-transfer-syntax-registry 0.10.0
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/Enet4/dicom-rs
   Authors: Eduardo Pinho
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -335,7 +336,7 @@ ecolor 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui
   Authors: Emil Ernerfeldt, Andreas Reich
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -343,7 +344,7 @@ eframe 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui/tree/main/crates/eframe
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -351,7 +352,7 @@ egui 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -359,7 +360,7 @@ egui-wgpu 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui/tree/main/crates/egui-wgpu
   Authors: Nils Hasenbanck, embotech, Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -367,7 +368,7 @@ egui-winit 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui/tree/main/crates/egui-winit
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -381,7 +382,7 @@ emath 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui/tree/main/crates/emath
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -394,49 +395,49 @@ encoding-index-japanese 1.20141219.5
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 encoding-index-korean 1.20141219.5
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 encoding-index-simpchinese 1.20141219.5
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 encoding-index-singlebyte 1.20141219.5
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 encoding-index-tradchinese 1.20141219.5
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 encoding_index_tests 0.1.4
   Licence: CC0-1.0
   Homepage: https://github.com/lifthrasiir/rust-encoding
   Authors: Kang Seonghoon
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   CC0-1.0: text 42
 
 epaint 0.36.2
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/emilk/egui/tree/main/crates/epaint
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -444,7 +445,7 @@ epaint_default_fonts 0.36.2
   Licence: (MIT OR Apache-2.0) AND OFL-1.1 AND Ubuntu-font-1.0
   Repository: https://github.com/emilk/egui/tree/main/crates/epaint_default_fonts
   Authors: Emil Ernerfeldt
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
   fonts/Hack-Regular.txt: text 43
@@ -825,7 +826,7 @@ profiling 1.0.18
   Licence: MIT OR Apache-2.0
   Repository: https://github.com/aclysma/profiling
   Authors: Philip Degarmo
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   MIT: text 1
   Apache-2.0: text 2
 
@@ -981,7 +982,7 @@ spirv 0.4.0+sdk-1.4.341.0
   Licence: Apache-2.0
   Repository: https://github.com/gfx-rs/rspirv
   Authors: Lei Zhang
-  No licence file comes with its code, so the standard texts of its licences stand in:
+  Its code comes with no licence file; these standard texts stand in:
   Apache-2.0: text 2
 
 sprintf 0.1.4

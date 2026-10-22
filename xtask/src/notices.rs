@@ -145,15 +145,15 @@ fn heading(count: usize) -> String {
     format!(
         "THIRD-PARTY NOTICES FOR VOXA\n\
          ============================\n\n\
-         Voxa is built from the {count} packages below, other people's work, each under its own\n\
-         licence. For each, this file gives its licence and repository and the licence and\n\
-         notice texts that come with it. For a package that comes with none, the standard text\n\
-         of each of its licences stands in. Texts that are the same word for word are written\n\
-         once, under TEXTS, and referred to by number.\n\n\
-         Voxa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice, with the\n\
-         credit to SynthSeg, is in NOTICE.\n\n\
-         `cargo xtask notices` writes this file from the packages compiled into the Voxa program\n\
-         for 64-bit Windows. Do not edit it by hand.\n\n"
+         Voxa is built from the {count} packages below, other people's work, each under\n\
+         its own licence. For each, this file gives its licence and repository and the\n\
+         licence and notice texts that come with it. For a package that comes with none,\n\
+         the standard text of each of its licences stands in. Texts that are the same\n\
+         word for word are written once, under TEXTS, and referred to by number.\n\n\
+         Voxa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice,\n\
+         with the credit to SynthSeg, is in NOTICE.\n\n\
+         `cargo xtask notices` writes this file from the packages compiled into the\n\
+         Voxa program for 64-bit Windows. Do not edit it by hand.\n\n"
     )
 }
 
@@ -164,10 +164,10 @@ fn typefaces(fonts: &Package, texts: &mut Texts) -> Result<String, String> {
         "---------".to_owned(),
         String::new(),
         format!(
-            "The interface library builds these typefaces into the program, from {}.",
+            "The interface library builds these typefaces into the program, from\n{}. Each \
+             is under its own licence, whose text comes\nwith it:",
             fonts.heading()
         ),
-        "Each is under its own licence, whose text comes with the typeface:".to_owned(),
         String::new(),
     ];
     for typeface in &TYPEFACES {
@@ -267,9 +267,7 @@ fn standard_texts(
     if !package.authors.is_empty() {
         lines.push(format!("  Authors: {}", package.authors.join(", ")));
     }
-    let none =
-        "No licence file comes with its code, so the standard texts of its licences stand in";
-    lines.push(format!("  {none}:"));
+    lines.push("  Its code comes with no licence file; these standard texts stand in:".to_owned());
     let mut given = 0;
     for id in licence_ids(expression).iter().filter(|id| !covered(id)) {
         if let Some(text) = standard(id) {

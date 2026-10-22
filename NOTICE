@@ -1,32 +1,36 @@
 Voxa
 Copyright (c) 2026 TheNEwmanator15
 
-Voxa is licensed under either the MIT licence (LICENSE-MIT) or the Apache License,
-Version 2.0 (LICENSE-APACHE), at your option.
+Voxa is licensed under either the MIT licence (LICENSE-MIT) or the Apache
+License, Version 2.0 (LICENSE-APACHE), at your option.
 
 Voxa is not a medical device and is not for diagnostic use.
 
-Voxa is built on other people's libraries and typefaces, each under its own licence. Their
-licence and notice texts are in THIRD-PARTY-NOTICES.txt. This software is based in part on
-the work of the Independent JPEG Group.
+Voxa is built on other people's libraries and typefaces, each under its own
+licence. Their licence and notice texts are in THIRD-PARTY-NOTICES.txt. This
+software is based in part on the work of the Independent JPEG Group.
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 
 SynthSeg
 
-Labelling in Voxa (the voxa-segment crate) is a port to Rust of SynthSeg's own code: the
-steps of predict_synthseg.py that prepare a scan for SynthSeg's networks, take the steps
-between them and tidy their answer into labels, and the lab2im functions those steps call.
+Labelling in Voxa (the voxa-segment crate) is a port to Rust of SynthSeg's own
+code: the steps of predict_synthseg.py that prepare a scan for SynthSeg's
+networks, take the steps between them and tidy their answer into labels, and
+the lab2im functions those steps call.
 
     SynthSeg
     Copyright 2020 Benjamin Billot
-    Licensed under the Apache License, Version 2.0 (a copy is in LICENSE-APACHE).
+    Licensed under the Apache License, Version 2.0 (a copy is in
+    LICENSE-APACHE).
     https://github.com/BBillot/SynthSeg
 
-Voxa's port changes SynthSeg as docs/models.md (MODELS.md in a download of Voxa) describes
-under "What Voxa does differently from SynthSeg's own program": a part's volume is counted
-in voxels, where SynthSeg adds up probabilities; the scan may be cut to the head when memory
-is short; and the cortex network's answer is reduced to areas inside the file.
+Voxa's port changes SynthSeg as docs/models.md (MODELS.md in a download of
+Voxa) describes under "What Voxa does differently from SynthSeg's own
+program": a part's volume is counted in voxels, where SynthSeg adds up
+probabilities; the scan may be cut to the head when memory is short; and the
+cortex network's answer is reduced to areas inside the file.
 
-SynthSeg's trained networks are not part of Voxa and do not come with it. SynthSeg's authors
-ask that work which uses it cite one of the SynthSeg papers, listed at the address above.
+SynthSeg's trained networks are not part of Voxa and do not come with it.
+SynthSeg's authors ask that work which uses it cite one of the SynthSeg
+papers, listed at the address above.
