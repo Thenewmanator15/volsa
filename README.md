@@ -180,6 +180,9 @@ says how changes are made.
 ### Build and run
 
 Voxa needs the Rust toolchain named in `rust-toolchain.toml`; `rustup` installs it on first use.
+On Windows the build also gives `voxa.exe` its icon and the details Explorer shows, with the
+resource compiler (`rc.exe`) of the Windows SDK that the Visual C++ build tools Rust uses come
+with; without it the program is built without them, and cargo warns.
 
 ```bash
 cargo run --release -p voxa-app -- path/to/export.zip

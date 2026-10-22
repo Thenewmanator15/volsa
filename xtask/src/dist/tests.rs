@@ -343,6 +343,17 @@ fn the_import_table_of_a_program_names_the_libraries_it_imports() {
     assert_eq!(pe::imports(&[]), unreadable);
 }
 
+#[test]
+fn a_program_carries_resources_when_its_table_of_resources_is_not_empty() {
+    let mut image = program_importing(&["KERNEL32.dll"]);
+    assert_eq!(pe::has_resources(&image), Ok(false));
+    // The third table in the list: 0x100 bytes at 0x1200.
+    image[0x98 + 128..0x98 + 136].copy_from_slice(&[0, 0x12, 0, 0, 0, 1, 0, 0]);
+    assert_eq!(pe::has_resources(&image), Ok(true));
+    let unreadable = Err("the file cannot be read as a Windows program".to_owned());
+    assert_eq!(pe::has_resources(b"a made-up text file"), unreadable);
+}
+
 #[cfg(all(windows, target_env = "msvc"))]
 #[test]
 fn the_import_table_of_this_test_program_names_the_core_of_windows() {

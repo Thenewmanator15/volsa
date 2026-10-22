@@ -100,6 +100,13 @@ pub fn make(args: &[String]) -> Result<(), String> {
         .map_err(|error| format!("could not read {}: {error}", program.display()))?;
     let imported = pe::imports(&image).map_err(|why| format!("{}: {why}", program.display()))?;
     without_visual_cpp(&imported)?;
+    let carried = pe::has_resources(&image).map_err(|why| format!("{}: {why}", program.display()));
+    if !carried? {
+        return Err(format!(
+            "{PROGRAM} carries no icon or version details: the build found no resource compiler \
+             (rc.exe, from the Windows SDK)"
+        ));
+    }
     let root = crate::workspace_root();
     let sources = Sources {
         program: &program,
@@ -325,7 +332,8 @@ fn failed(what: &str, path: &Path, error: &io::Error) -> String {
     format!("could not {what} {}: {error}", path.display())
 }
 
-/// Says what was made, how large it is, what the program imports, and what was left out.
+/// Says what was made, how large it is, that the program carries its icon, what it imports,
+/// and what was left out.
 fn report(made: &Made, imported: &[String]) {
     let size = fs::metadata(&made.zip).map_or(0, |file| file.len());
     let megabytes = size as f64 / 1_048_576.0;
@@ -334,6 +342,7 @@ fn report(made: &Made, imported: &[String]) {
     for name in &made.files {
         println!("  {name}");
     }
+    println!("{PROGRAM} carries its icon and version details");
     println!(
         "{PROGRAM} imports {}, and nothing of Visual C++",
         imported.join(", ")

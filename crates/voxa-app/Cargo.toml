@@ -28,6 +28,10 @@ tracing.workspace = true
 serde_json.workspace = true
 directories.workspace = true
 
+# Builds on Windows give voxa.exe its icon and version details.
+[target.'cfg(windows)'.build-dependencies]
+winresource.workspace = true
+
 [dev-dependencies]
 voxa-dicom = { workspace = true, features = ["testkit"] }
 voxa-labels = { workspace = true, features = ["testkit"] }

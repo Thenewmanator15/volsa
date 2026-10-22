@@ -71,6 +71,10 @@ ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "
 # on Windows. The version wgpu already brings.
 windows = { version = "0.62.2", features = ["Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_SystemInformation"] }
 
+# The icon and the details Explorer shows for voxa.exe, put into it as the program is built,
+# with the resource compiler of the Windows SDK that building for Windows already needs.
+winresource = { version = "0.1", default-features = false }
+
 # Tests and benchmarks.
 proptest = "1.11"
 tempfile = "3.27"
