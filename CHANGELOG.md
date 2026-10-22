@@ -67,8 +67,9 @@ is a guess that looks certain, and every result says so.
   `voxa-labels` for the label file and table it already read. `cargo xtask coverage` holds
   both new crates to 80% of lines, leaving out the two files that need the runtime or a
   graphics card. `cargo xtask check-models` runs, with the real networks, the tests that
-  `cargo xtask check` leaves out; without a model folder and a runtime it does nothing, and
-  `cargo xtask check` passes with neither on the machine.
+  `cargo xtask check` leaves out; without a model folder and a runtime it does nothing.
+  `cargo xtask check` needs neither on the machine, and passes but for six advisories that
+  `cargo deny` reports against dependencies `main` already has (see Known limits).
 - `write_phantom head CHECK_FOLDER OUT [whole]` writes the converter's made-up head as a
   study, so there is something with a brain's shape to label that is nobody's, and
   `check_labelling EXPORT` labels the largest series that has a 3D view with no window, on
@@ -195,22 +196,33 @@ is a guess that looks certain, and every result says so.
   card (700 or 900 of ordinary memory on the processor) for each voxel, each with a quarter
   added. A whole head scanned at 1 mm is too large for a 16 GB card whole, so it goes to the
   processor or is cut to the head.
+- A run on a card also asks the system for ordinary memory, since Windows sets some aside
+  behind what a program puts on a card: 1 900 bytes a voxel, and 8.4 GiB for the check, with
+  a quarter added. A run starts only where the system can still promise that, so a whole head
+  runs on a card only when some 30 GB of ordinary memory can be promised; otherwise it runs
+  cut to the head, or on the processor, and says so.
 - A scan cut to the head, as it is when memory is short, gives different labels for about one
   voxel in a hundred, along the borders between structures, than the whole scan would.
   SynthSeg's own program does the same when the head lies elsewhere in its box, so neither
   answer is the truer. The result says that the scan was cut.
 - A part's volume is its voxels counted, not SynthSeg's added probabilities, so the two
   differ a little, and the cortex areas come with no table of soft volumes.
-- The runtime is loaded once in the life of the program, so a runtime folder changed after
-  that takes effect when Voxa is next started. DirectML is frozen: Microsoft supports it and
-  adds nothing to it.
-- Integrated graphics are slower than the processor and are used only when chosen. A graphics
-  card that the system lists twice is listed twice under **Runs on**.
+- The runtime is loaded as Voxa starts, once a model folder is found, and once in the life of
+  the program, so a runtime folder changed after that takes effect when Voxa is next started.
+  DirectML is frozen: Microsoft supports it and adds nothing to it.
+- Integrated graphics are slower than the processor and are used only when chosen.
 - Graphics cards run the networks on Windows only. On Linux and macOS the processor does;
-  that has not been run. A run takes a large part of a card's memory, and the 3D view may be
-  slow while the card is busy.
+  this release has not been built or run there. A run takes a large part of a card's memory,
+  and the 3D view may be slow while the card is busy.
+- The day a result says it was made is the date at Greenwich (UTC), not always the local one.
 - The stage of a run and **Stop** are shown in the Parts tab only.
 - A lost graphics card cannot be recovered without closing Voxa and opening it again.
+- `cargo deny` reports six advisories against dependencies that `main` already has, and this
+  release changes none of them. RUSTSEC-2026-0367, -0368 and -0369 are against `zip` 8.6.0,
+  the library that reads a person's ZIP export; `main` needs `zip` 9.0 or later.
+  RUSTSEC-2026-0370, -0371 and -0372 are notices that `zvariant`, `zbus_names` and
+  `zvariant_derive`, which come with the interface library's `accesskit` feature, are no longer
+  maintained.
 
 ## [0.4.0] - 2026-10-10
 

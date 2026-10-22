@@ -11,7 +11,7 @@ nothing of what they see is written down. The pictures were made with `VOXA_CAPT
 kept in the workspace folder, never in this repository. What a person must try by hand is listed
 as not checked at the end.
 
-**The Linux build was not run.** This machine has no Linux target, and continuous integration
+**Linux was neither built nor run.** This machine has no Linux target, and continuous integration
 runs on the private remote and was not run for this branch. Everything below is Windows.
 
 ## Automated gates
@@ -135,7 +135,7 @@ ordinary memory still free to the system, `check_labelling` was offered one plac
 scan cut to the head, 192 x 192 x 192 once padded (7 077 888 voxels), on the processor. By the
 sums in `docs/models.md` the whole scan does not fit the card (its networks need 20.5 GiB
 and the system lets Voxa use 14.9), the whole scan on the processor would ask for up to 16.1 GiB
-of ordinary memory, and the cut on the card up to 17.2 GiB, so none of those was offered or
+of ordinary memory, and the cut on the card up to 17.3 GiB, so none of those was offered or
 tried. The labelling on the processor took 112 s and gave 98 parts and a passing check. In the
 window the result said, in order: the check passed; labels made by Voxa "on the processor";
 "The scan was cut to the head to fit. Where two parts meet, some voxels may be labelled
@@ -155,7 +155,8 @@ reads and writes no settings.
 
 **The runtime folder taken away.** With the `runtime` folder renamed away from beside the
 program, the window showed the Parts tab with **Label this scan** greyed and, beneath it, "The
-runtime is not in the folder given. docs/models.md says what goes where." Everything else was
+runtime is not in the folder given. docs/models.md says what goes where." (with nothing chosen
+it now says otherwise: see below). Everything else was
 there: the study listed, the 3D view built. A session with the runtime folder named as an empty
 folder gave the same sentence, said labelling cannot run, started no run when the button's
 action was sent, and still opened a label file made elsewhere (4 parts, with its check shown
@@ -172,9 +173,14 @@ opened with it away. Things seen that are not faults of this work, or are left a
 
 - The sentence under the button when the runtime is missing says "in the folder given" even when
   no folder was given, as when nothing is beside the program and nothing was chosen. It reads
-  as if the person had chosen one.
+  as if the person had chosen one. (Changed after this record, in the fix round that followed
+  the review of the whole branch: with nothing chosen the sentence says that Voxa found none,
+  and to choose the folder under **Options**; the same for the model. It was not looked at in
+  the window again.)
 - The text under the button, "Labels are parts of the head that another program has outlined
-  on this scan...", is the 0.4.0 text and is now half true: Voxa also makes labels.
+  on this scan...", is the 0.4.0 text and is now half true: Voxa also makes labels. (Changed
+  after this record, in the same round: it now says that labels are outlined by Voxa, when it
+  labels the scan, or by another program.)
 - A picture of the window keeps nothing, so a result in one ends with the notice that it could
   not be kept on this computer and will be gone when Voxa closes. That is the picture, not the
   window.
@@ -183,7 +189,8 @@ opened with it away. Things seen that are not faults of this work, or are left a
   either.
 - The system listed the discrete card twice, under two identities, on this machine, which also
   has a remote display adapter. `check_labelling` tries a card by its name once. The **Runs on**
-  menu could not be opened in a picture, so how it lists the card was not seen.
+  menu could not be opened in a picture, so how it lists the card was not seen. (After this
+  record the menu offers each name once, the first card of it; that too was not seen.)
 
 ## Not checked
 

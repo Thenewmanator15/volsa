@@ -144,8 +144,10 @@ built as it is. Nothing else in Voxa depends on any of it.
    now (each card by its identity with what the system lets Voxa use on it, and the ordinary
    memory the system can still promise) and asks `voxa_models::rungs` for the places that fit,
    best first: the whole scan on each discrete card, then the processor, then the scan cut
-   to the head on each. A run that fits nowhere ends with a sentence that says what it needs
-   and what the computer has.
+   to the head on each, where cutting makes it smaller. A run that fits nowhere ends with a
+   sentence that says what it needs and what the computer has. The run goes on a thread of
+   its own, not on the workers' pool, and waits there for its turn; one that is stopped while
+   it waits gives up at once and lets its volume go.
 4. **The networks.** For each place in turn `voxa_segment::label` prepares the volume (resamples
    to 1 mm if need be, turns its axes to the order the networks were trained on, scales
    brightness between its 0.5th and 99.5th percentile, pads each side), finds the structures,
@@ -155,7 +157,8 @@ built as it is. Nothing else in Voxa depends on any of it.
    scores network, given the classes in a 224 cube. Each network is opened on the place's
    device when it is needed and let go before the next. The scores network may go on the
    processor when the card cannot hold it. A card that has no room, or that stops answering, gives
-   way to the next place, and the result says so. A card is found by its identity each time
+   way to the next place, and the result says so when the place that worked is the processor
+   or another card. A card is found by its identity each time
    a network is opened, since the system's list changes its order while a program runs.
 5. **The result.** The labels are on the 1 mm grid of the preparing step, turned back to the
    scan's own axes, with their own place in the patient: they are never resampled onto the
@@ -164,11 +167,15 @@ built as it is. Nothing else in Voxa depends on any of it.
    (failed below 0.65), who made the labels (the model and the SHA-256 of its list, the
    device, the day) and the notes. The worker builds the label set and reports it with
    `LabelsRead`, as it reports a label file, so from here on the labels are drawn, listed
-   and counted by the code described above. A part's volume is its voxels counted.
+   and counted by the code described above. A part's volume is its voxels counted. The
+   worker holds a run's set aside until the state takes the report in and asks for it
+   (`TakeLabels`): only then is it the set drawn, so what is drawn is always what is listed,
+   even when **Stop** is pressed between the report and the state's taking it.
 6. **Keeping.** After the report, the worker writes a gzipped label file and its table, for
-   every result so that **Save as** can offer them, and keeps them under the settings folder
-   if the person has not switched keeping off. A kept result is found again when the same
-   series is shown, and the Parts tab offers to show it, make it again or delete it.
+   every result so that **Save as** can offer them, and, once the state has taken the result
+   in, keeps them under the settings folder if the person has not switched keeping off. A kept
+   result is found again when the same series is shown, and the Parts tab offers to show it,
+   make it again or delete it.
 7. **Stopping.** A run says what it says with its own number. It ends when the person presses
    **Stop**, when the scene moves to another series, when another export is opened, or when the
    store no longer holds the volume it began with; what it reports after that is dropped. A
@@ -274,7 +281,8 @@ small made-up volumes (`tools/golden` makes them; they are kept under
 224 cube are run with stand-in networks (the `testkit` feature of `voxa-models`), the model
 folder check with folders made in the test, the sums that say where a run fits with made-up
 cards, and the reducer and the Parts tab by actions and state with no window. A label file is
-written and read back. So `cargo xtask check` passes with neither on the machine, on Windows
-and Linux. The tests that run the real networks on the converter's made-up head are marked
+written and read back. So `cargo xtask check` needs neither on the machine. It is meant to
+pass on Windows and Linux; for 0.5.0 it has been run on Windows only, and has not been built
+or run on Linux. The tests that run the real networks on the converter's made-up head are marked
 ignored and run by `cargo xtask check-models`; `runtime.rs` and `cards.rs`, which cannot run
 without a runtime or a card, are left out of the coverage count.

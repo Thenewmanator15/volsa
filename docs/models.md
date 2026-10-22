@@ -45,7 +45,9 @@ package `onnxruntime-directml` under `onnxruntime/capi`. Put them in a folder ca
 `runtime` beside Voxa's executable, or anywhere and tell Voxa where. Voxa looks beside its
 executable first and then in the folder named under **Options**.
 
-A program can hold only one runtime for as long as it lives. If you change the runtime folder
+Voxa loads the runtime as it starts, when it checks whether this computer can label a scan,
+once it has found a model folder; with no model folder it does not load it. A program can
+hold only one runtime for as long as it lives. If you change the runtime folder
 after Voxa has loaded the runtime, the change takes effect when Voxa is next started.
 
 Any build of ONNX Runtime from 1.17 on has the interface Voxa asks for and loads; an older
@@ -58,7 +60,7 @@ the runtime not to, before it asks anything else of it.
 
 DirectML is frozen: Microsoft supports it and ships it with Windows, and adds nothing new to
 it. 1.24.4 was the newest ONNX Runtime found with DirectML. On Linux and macOS there is no
-DirectML and the processor is used; Voxa has not been run there.
+DirectML and the processor is used; this release has not been built or run there.
 
 ## The model folder
 
@@ -95,9 +97,11 @@ goes only where the system can still promise it, trying in this order:
 1. the whole scan on a graphics card with memory of its own, if it fits in what the system
    lets Voxa use there;
 2. the whole scan on the processor, if the computer's ordinary memory can back it;
-3. the scan cut to the head, on the card and then on the processor.
+3. the scan cut to the head, on the card and then on the processor, where cutting makes it
+   smaller.
 
-If none fits, the button says so, with what the run needs and what the computer has. Integrated
+Whether a run fits is worked out when the button is pressed, as the run starts. If none fits,
+a notice says so, with what the run needs and what the computer has. Integrated
 graphics, which share the computer's memory and were found slower than the processor, are
 used only if you choose them under **Options**. A card is never allowed to spill into
 ordinary memory by plan, since that is ten or more times slower.
@@ -114,7 +118,8 @@ A GB below is a GiB, as the system shows memory.
 
 A run on a card also asks the system for ordinary memory, since Windows sets some aside behind
 what a program puts on a card: 1 900 bytes a voxel, and 8.4 GB for the check. A run holds no
-more than the largest of its networks and one set of chances at a time. If the check does not
+more than the largest of its networks at a time, with the chances it has found and, for a
+moment, the answer that has just arrived: two sets of chances at most. If the check does not
 fit on the card, or ordinary memory cannot back it there, that one network runs on the
 processor and the result says so. The figures were measured on made-up volumes and rounded up;
 the decision record, [adr/0006](adr/0006-voxa-runs-a-labelling-model.md), gives them.
@@ -134,10 +139,13 @@ Every result carries its check and its history.
   check failed when any group scores below 0.65, names the groups that did, and says that
   first, in the warning colour.
 - **Who made the labels.** The caption says Voxa made them, with which model, on which
-  device, on what day, and "Not for diagnostic use."
+  device, on what day, and "Not for diagnostic use." The day is the date at Greenwich (UTC),
+  which late in the evening west of Greenwich, or early in the morning east of it, is not the
+  local one. Over the 3D view a failed check is said before who made the labels.
 - **Notes.** A line for anything a reader should know: the slices are more than 3 mm apart,
-  so it is a rough map; the run was on the processor because the card had no room or stopped
-  answering; the check of the work ran on the processor; the scan was cut to the head.
+  so it is a rough map; the run was on the processor, or on another card, because the card
+  had no room or stopped answering; the check of the work ran on the processor; the scan was
+  cut to the head.
 - **The model.** Automatic picks the robust model when the slices are more than 3 mm apart
   and the standard model otherwise, and says which it picked and why. The cortex areas
   divide the cortex into 34 areas a side and are on unless you switch them off.
@@ -145,8 +153,9 @@ Every result carries its check and its history.
 While a run is on, its stage and a **Stop** button are shown in the Parts tab, and only
 there; everything else in Voxa keeps working. The 3D view may be slow while the card is busy.
 A run belongs to the scan it was started on: if the scene moves to another series, or
-another export is opened, the run is stopped and its result dropped. Only one run goes at a
-time.
+another export is opened, the run is stopped and its result dropped, even one that had just
+finished. Only one run goes at a time, and labels a run made are drawn only once the Parts
+tab lists them.
 
 ## What is kept
 
@@ -154,7 +163,8 @@ A result is kept on this computer, in the folder the system gives Voxa for its s
 that it can be shown again when the same scan is opened. It is a label file and a table of
 names filed under a hash of the series, and holds nothing that says whose scan it was. The
 Parts tab then offers **Show**, **Make again** and **Delete**. **Save as** writes the label
-file and its table wherever you choose, for other programs. **Keep results on this computer**,
+file and its table wherever you choose, for other programs; the file's name always ends in
+`.nii.gz`, which is added if you leave it out. **Keep results on this computer**,
 under **Options**, switches keeping off.
 
 If the graphics device is lost, which a driver reset can do, the interface cannot be given

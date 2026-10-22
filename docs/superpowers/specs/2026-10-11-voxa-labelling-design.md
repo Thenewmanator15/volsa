@@ -162,7 +162,9 @@ number, like everything else Voxa keeps.
   everywhere. (owner for ONNX Runtime and DirectML; default for the crate.)** `ort` is
   MIT or Apache-2.0. ONNX Runtime is MIT.
 - **The runtime is loaded when first needed, from files beside Voxa, and is not built into
-  the executable. (default)** `ort` is used with its `load-dynamic` feature and without its
+  the executable. (default)** *(amended: it is loaded as Voxa starts, by the first look at
+  whether the computer can label a scan, once that look has found a model folder.)* `ort` is
+  used with its `load-dynamic` feature and without its
   default features, so the build fetches nothing from outside crates.io and `cargo deny`
   sees every dependency. Voxa looks for `onnxruntime.dll` and `DirectML.dll` in a `runtime`
   folder beside the executable, then in the folder named in Settings. Reasons: Voxa stays
@@ -232,11 +234,12 @@ As the design's section A3 foresaw, two new crates:
 
 | Crate | Owns | Depends on |
 |---|---|---|
-| `voxa-models` | The trait a network is run through; ONNX Runtime behind it; finding and checking a model folder; the list of devices and what each can hold. No image mathematics. | `voxa-core` |
-| `voxa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between networks, tidying the result, the verdict; and writing a label file. | `voxa-core`, `voxa-volume`, `voxa-labels`, `voxa-models` |
+| `voxa-models` | The trait a network is run through; ONNX Runtime behind it; finding and checking a model folder; the list of devices and what each can hold. No image mathematics. | `voxa-core` *(amended: none of the workspace's crates)* |
+| `voxa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between networks, tidying the result, the verdict; and writing a label file *(amended: the writer is in `voxa-labels`)*. | `voxa-core`, `voxa-volume`, `voxa-labels`, `voxa-models` *(amended: not `voxa-volume`)* |
 
 `voxa-app` gains the button, the progress line, the settings, one worker and the actions and
-effects for them. `voxa-render` does not change. Dependencies still point downward only.
+effects for them. `voxa-render` does not change *(amended: it gained `lost.rs`, which keeps a
+lost graphics device from stopping the program)*. Dependencies still point downward only.
 `voxa-segment` joins the crates held to 80% line coverage; the part of `voxa-models` that
 can run without a runtime does too.
 

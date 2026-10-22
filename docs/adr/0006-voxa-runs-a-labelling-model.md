@@ -35,8 +35,11 @@ version.
   in.** `ort` is pinned to `=2.0.0-rc.13` (a release candidate, so an exact version) with its
   default features off and `std`, `load-dynamic` and, on Windows, `directml` on. Nothing is
   linked and nothing is fetched when Voxa is built. The library, `onnxruntime.dll`, is loaded
-  when it is first needed, from a `runtime` folder beside the executable, or else from the
-  folder the person names in the Options menu. A program holds one runtime for as long as it
+  as Voxa starts, by the first check of whether this computer can label a scan, once that
+  check has found a model folder (with none it is not loaded), from a `runtime` folder beside
+  the executable, or else from the folder the person names in the Options menu. So a runtime
+  that would crash as it loads would now take Voxa down as it starts, where 0.4.0 loaded none.
+  A program holds one runtime for as long as it
   lives, so a runtime folder changed later takes effect when Voxa is next started. Microsoft's
   build 1.24.4 with DirectML 1.15.4 is the one measured. `ort` asks the runtime for interface
   version 17, so any runtime from 1.17 on loads; an older one is refused with a sentence.
@@ -150,7 +153,9 @@ refuses those, with a sentence. The localiser series of an ordinary export are i
 **Time.** On the discrete card, in a release build, from the start of preparing to the
 tidied labels: the standard model 5.0 s and the robust model with cortex areas and scores
 5.9 s (opening a network takes 0.4 to 0.9 s); on the processor 25.3 s and 36.8 s; on
-integrated graphics, in a debug build, 84 s and 145 s. SynthSeg's own Python took 13 s and
+integrated graphics, in a debug build, 84 s and 145 s. The times on the card were measured
+before the standard network's blur was written as three one-axis convolutions (below), and
+were not measured again on a free card after. SynthSeg's own Python took 13 s and
 16 s on the processor, after about 8 s of starting TensorFlow. Times on this machine
 wandered by several times while other programs ran, and the acceptance record
 (`docs/acceptance-0.5.0.md`) gives what was measured for this release.
@@ -163,15 +168,16 @@ processor, once the runtime's arena is off, they ask the system for about 700 by
 the system for as much ordinary memory as it holds on the card and a little more, because
 Windows sets ordinary memory aside behind what a program puts on a card: 1 900 bytes a voxel,
 and 8.4 GiB for the scores network. Voxa itself holds about 150 bytes a voxel beside a
-network (one set of chances and small lists). A run is therefore held to what it asks the
+network (the chances it has found, with, for a moment, the answer that has just arrived,
+which is blended into them, and small lists). A run is therefore held to what it asks the
 system for at its peak: 200 bytes a voxel for what Voxa holds, and the larger of the
 labelling networks' ask and the scores network's, with a quarter added; a run starts only
 where the system can still promise that, and for a card the scores network is tried on the
 card and then on the processor. A test on the real networks holds every whole run to this
 bound. Measured: the whole standard run 3.65 GiB on the processor and 8.89 GiB behind a
 card; the robust run with cortex areas 3.83 GiB and 8.88 GiB. Nothing is held at once that
-is more than a network and one set of chances: each network is let go before the next is
-opened.
+is more than a network and two sets of chances, the second only while it is blended into
+the first: each network is let go before the next is opened.
 
 **The processor first asked for far more.** With the runtime's own habits (it keeps what it
 has asked for, asks for more than it needs each time it grows, and after a first run asks
@@ -181,7 +187,8 @@ blurs the answer. Two things were changed. The runtime's arena and its memory pa
 off on the processor (no slower; 38.3 GiB fell to 17.1 and the robust model to under half).
 And the converter writes the blur, which is a 3 x 3 x 3 Gaussian kernel, as three one-axis
 convolutions instead of one grouped convolution over the 33 structures, which asked for
-12 GiB by itself: the network's ask fell from 14.70 to 2.64 GiB, no slower, and the labels
+12 GiB by itself: the network's ask fell from 14.70 to 2.64 GiB, no slower on the processor
+(6.6 and 6.5 s against 6.7 and 6.6 s; it was not timed on a card), and the labels
 are still Python's at every voxel. A variant with no convolution at all was as good on the
 processor and cost a card 4 GiB more.
 
@@ -222,7 +229,8 @@ session's workers and read from files, so none of them depends on the card, and 
 person made is lost. A real driver reset was never provoked.
 
 **Other things found.** The system's list of cards changed its order, and listed the same
-card twice under two identities. The runtime's own words for memory it could not have are
+card twice under two identities; **Runs on** offers each name once, the first card of it, as
+a choice kept by name is found again. The runtime's own words for memory it could not have are
 sorted as "no room" so that a run falls to the next place. A run on a card finishes what it
 was handed before it stops; on the processor it stops between two steps.
 
@@ -237,8 +245,9 @@ was handed before it stops; on the processor it stops between two steps.
   not improve. Both sit in `voxa-models` behind a trait, so either can be replaced.
 - `unsafe` is allowed in a second module, small and commented, and nowhere else outside
   `voxa-render`.
-- Linux and macOS use the processor only, and have not been run: this machine has no Linux
-  target, and the continuous-integration build runs on the private repository's remote.
+- Linux and macOS use the processor only, and have not been built or run: this machine has no
+  Linux target, and the continuous-integration build runs on the private repository's remote.
 - The scores network needs about 8 GiB of a card or 3 GiB of ordinary memory whatever the
-  scan, so even a small scan needs a computer that has that. Where it has not, the run is not
-  offered, and the sentence says what the run needs and what the computer has.
+  scan, so even a small scan needs a computer that has that. Where it has not, the run is
+  found not to fit when it starts, after the button is pressed, and a notice says what the
+  run needs and what the computer has.

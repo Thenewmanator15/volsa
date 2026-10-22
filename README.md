@@ -99,7 +99,9 @@ VOXA_MODELS=path/to/model-folder VOXA_RUNTIME=path/to/runtime-folder cargo xtask
 holds the labelling of a made-up head against SynthSeg's own answers, on the processor and on
 each graphics card, with the real networks. It runs the tests that the other two leave out,
 which need a model folder and the runtime; without both variables it does nothing and says so.
-`cargo xtask check` passes with neither on the machine.
+`cargo xtask check` needs neither on the machine. For 0.5.0 it passes but for six advisories
+that `cargo deny` reports against dependencies `main` already has (the 0.5.0 entry of the
+[changelog](CHANGELOG.md) names them), and it has been run on Windows only.
 
 ## Layout
 

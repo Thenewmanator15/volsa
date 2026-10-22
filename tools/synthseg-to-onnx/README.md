@@ -38,7 +38,12 @@ It takes a few minutes. It writes, into the model folder:
    `build_model` builds it and loaded by layer name. A layer the `.h5` does not name is an
    error, not a silent gap.
 2. **Tidies** each graph (`graphs.py`): every upsampling step, which tf2onnx writes as three
-   rounds of work on six-dimensional tensors, becomes one `Resize`.
+   rounds of work on six-dimensional tensors, becomes one `Resize`. The standard network's
+   blur of its answer (SynthSeg's Gaussian blur with a sigma of 0.5, done inside its
+   `build_model`) is written into the file as three one-axis convolutions, one along each
+   axis, with SynthSeg's own one-axis kernels (`graphs.add_blur`; converter version 2). As one
+   convolution with the 3 x 3 x 3 kernel the runtime asked the processor for about 3 000
+   bytes a voxel more; this way it asks for nothing more, and the labels are the same.
 3. **Makes each network take and give only what Voxa needs.** A network whose answer feeds
    another gives a byte for each voxel, not thirty-three probabilities; a map of classes goes
    in as bytes and is spread inside the file; the last network of each model gives its
