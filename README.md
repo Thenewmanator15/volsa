@@ -91,9 +91,13 @@ or a turntable of the 3D scene (which holds the picture and nothing else from th
 measurements, the list of parts, or labels.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and in the tag browser the value of every tag in the patient group
-(0010) is hidden and cannot be found by searching. **Patient details** in the toolbar shows them
-until you switch it off or close Voxa. The study's date and description are shown either way.
+left out of the viewports, and the tag browser hides, and cannot find by searching, the value of
+every tag that could identify the patient: every tag in the patient group (0010); the accession
+number; the institution's name and address; the referring, performing and reading physicians and
+the operators; the station's name and the device's serial number; the numbers of the order and
+the visit; and every private tag (any in a group of odd number), since what a maker keeps there
+is not said. It says how many it has hidden. **Patient details** in the toolbar shows them until
+you switch it off or close Voxa. The study's date and description are shown either way.
 
 ONNX Runtime, which runs the labelling networks, reports usage (not images) in Microsoft's
 Windows builds unless told not to. Voxa tells it not to before it asks anything else of it.

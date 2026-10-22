@@ -54,7 +54,7 @@ pub fn list_tags(
 }
 
 impl std::fmt::Debug for TagRow {
-    /// Prints the row with the value of an element that describes the patient replaced, so
+    /// Prints the row with the value of an element that could identify the patient replaced, so
     /// that rows can appear in a log or a failed test without naming anyone.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let private = is_patient_identifying(&self.tag);
@@ -72,9 +72,47 @@ impl std::fmt::Debug for TagRow {
     }
 }
 
-/// Whether a tag written as `(gggg,eeee)` describes the patient: every element of group 0010.
+/// Elements outside the patient's group that could lead to the patient: the people who
+/// ordered, made and read the scan, the place and the machine it was made on, and the numbers
+/// of the order and of the visit it belongs to.
+const LEADS_TO_THE_PATIENT: [&str; 22] = [
+    "(0008,0050)", // AccessionNumber
+    "(0008,0080)", // InstitutionName
+    "(0008,0081)", // InstitutionAddress
+    "(0008,0090)", // ReferringPhysicianName
+    "(0008,0092)", // ReferringPhysicianAddress
+    "(0008,0094)", // ReferringPhysicianTelephoneNumbers
+    "(0008,1010)", // StationName
+    "(0008,1040)", // InstitutionalDepartmentName
+    "(0008,1048)", // PhysiciansOfRecord
+    "(0008,1050)", // PerformingPhysicianName
+    "(0008,1060)", // NameOfPhysiciansReadingStudy
+    "(0008,1070)", // OperatorsName
+    "(0018,1000)", // DeviceSerialNumber
+    "(0032,1032)", // RequestingPhysician
+    "(0038,0010)", // AdmissionID
+    "(0040,0006)", // ScheduledPerformingPhysicianName
+    "(0040,0009)", // ScheduledProcedureStepID
+    "(0040,0242)", // PerformedStationName
+    "(0040,0243)", // PerformedLocation
+    "(0040,0253)", // PerformedProcedureStepID
+    "(0040,1001)", // RequestedProcedureID
+    "(0040,2016)", // PlacerOrderNumberImagingServiceRequest
+];
+
+/// Whether the value of a tag written as `(gggg,eeee)` is kept from view while the patient's
+/// details are: every element of the patient's group, 0010; the elements elsewhere that could
+/// lead to the patient (the accession number, the institution, the physicians and operators,
+/// the station and the device's serial number, and the numbers of the order and the visit);
+/// and every private element, which is any in a group of odd number, since what a maker keeps
+/// there is not said.
 pub fn is_patient_identifying(tag: &str) -> bool {
-    tag.starts_with("(0010,")
+    let group = tag
+        .strip_prefix('(')
+        .and_then(|rest| rest.get(..4))
+        .and_then(|digits| u16::from_str_radix(digits, 16).ok());
+    let private = group.is_some_and(|group| group % 2 == 1);
+    tag.starts_with("(0010,") || private || LEADS_TO_THE_PATIENT.contains(&tag)
 }
 
 fn row<I, P>(element: &DataElement<I, P>) -> TagRow {
@@ -253,5 +291,61 @@ mod tests {
         assert!(!is_patient_identifying("(0008,0060)"));
         assert!(!is_patient_identifying("(0020,0010)"));
         assert!(!is_patient_identifying("0010"));
+    }
+
+    #[test]
+    fn what_could_lead_to_the_patient_is_known_too() {
+        let leads = [
+            "(0008,0050)", // the accession number
+            "(0008,0080)", // the institution's name
+            "(0008,0081)", // and its address
+            "(0008,0090)", // the referring physician
+            "(0008,1050)", // the performing physician
+            "(0008,1070)", // the operators
+            "(0008,1010)", // the station's name
+            "(0018,1000)", // the device's serial number
+            "(0009,0010)", // a private creator, in an odd group
+            "(0019,100C)", // a private element
+            "(0029,1010)",
+            "(7FE1,0010)",
+        ];
+        for tag in leads {
+            assert!(is_patient_identifying(tag), "{tag}");
+        }
+        let plain = [
+            "(0002,0010)", // the transfer syntax
+            "(0008,0020)", // the study's date, shown either way
+            "(0008,0060)", // the modality
+            "(0008,1030)", // the study's description
+            "(0018,0087)", // the field strength
+            "(0028,0010)", // the rows
+            "(7FE0,0010)", // the pixel data
+        ];
+        for tag in plain {
+            assert!(!is_patient_identifying(tag), "{tag}");
+        }
+        assert!(!is_patient_identifying("(00G9,0010)"), "not a number");
+    }
+
+    #[test]
+    fn printing_rows_does_not_show_the_people_the_place_or_private_values() {
+        let file = classic_slice(&SliceOptions::default());
+        let mut obj = crate::decode::open(&file).expect("parses");
+        let made_up = [
+            (dicom_core::Tag(0x0008, 0x0080), "Made-up Infirmary"),
+            (dicom_core::Tag(0x0008, 0x1070), "Nobody^Operator"),
+            (dicom_core::Tag(0x0009, 0x0010), "MADE UP CREATOR"),
+            (dicom_core::Tag(0x0009, 0x1001), "made-up private words"),
+        ];
+        for (tag, value) in made_up {
+            obj.put(DataElement::new(tag, VR::LO, value));
+        }
+        let mut bytes = Vec::new();
+        obj.write_all(&mut bytes).expect("writes to memory");
+        let printed = format!("{:?}", rows_of(bytes));
+        for (_, value) in made_up {
+            assert!(!printed.contains(value), "{value} in {printed}");
+        }
+        assert!(printed.contains("InstitutionName") && printed.contains("\"MR\""));
     }
 }
