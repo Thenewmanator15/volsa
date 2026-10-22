@@ -81,7 +81,11 @@ documentation build with warnings as errors.
   There is exactly one `wgpu` in the tree: the one `egui-wgpu` re-exports.
 - `THIRD-PARTY-NOTICES.txt` names every package built into the program, with its licence and
   notice texts. When the dependencies change, run `cargo xtask notices` and commit the file;
-  the check fails until it is current.
+  the check fails until it is current. A package that comes with no licence file needs who
+  holds its copyright, copied from the licence file in its repository at the commit it was
+  published from, in `HOLDERS` in `xtask/src/notices/upstream.rs`; `cargo xtask notices` says
+  so, and asks again when its version changes. Of a choice of licences, the notices take the
+  most permissive that `deny.toml` allows, as `xtask/src/notices/choice.rs` ranks them.
 
 ## Rules the checks cannot enforce
 
