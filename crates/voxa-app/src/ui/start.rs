@@ -51,6 +51,11 @@ fn opening_size(capturing: bool) -> [f32; 2] {
 /// Open the Voxa window and run until it is closed. `initial` is a scan to open at once,
 /// and `labels` a label file to open on it as soon as it can be shown in 3D.
 ///
+/// If the window's code panics, the window is gone by the time the panic reaches here: the
+/// person is told that Voxa stopped and where its log is, in a message window of the system
+/// for a build with no console, and the panic then goes on to end the program. A picture of
+/// the window tells no one.
+///
 /// # Errors
 ///
 /// When the window or its graphics device cannot be created.
@@ -73,5 +78,13 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
     let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
         Ok(Box::new(VoxaApp::new(creation, initial, labels)))
     };
-    eframe::run_native("Voxa", options, Box::new(create))
+    let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        eframe::run_native("Voxa", options, Box::new(create))
+    }));
+    ran.unwrap_or_else(|panic| {
+        if let Some(said) = crate::said::after_a_crash(capturing, crate::log::path()) {
+            crate::said::tell(&said, crate::said::WINDOWED);
+        }
+        std::panic::resume_unwind(panic)
+    })
 }

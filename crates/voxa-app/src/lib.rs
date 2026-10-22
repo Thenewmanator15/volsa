@@ -59,7 +59,7 @@ pub use labels::{
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
 pub use reducer::reduce;
-pub use said::{Outcome, outcome, tell};
+pub use said::{Outcome, WINDOWED, outcome, tell};
 pub use scene::{MainPanel, Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
