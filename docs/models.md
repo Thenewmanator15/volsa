@@ -1,30 +1,33 @@
 # The files labelling needs
 
 Voxa 0.5.0 labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX Runtime
-on this computer. No Python runs. For that it needs two things it does not come with: a
-runtime, and a model folder. Voxa without them is Voxa as it was at 0.4.0: it starts and does
-everything else, and the **Label this scan** button in the Parts tab is greyed and says which
-of the two is missing.
+on this computer. No Python runs. For that it needs two things: a runtime, which the zip a
+release offers carries, and a model folder, which Voxa does not come with. Voxa without them is
+Voxa as it was at 0.4.0: it starts and does everything else, and the **Label this scan** button
+in the Parts tab is greyed and says which of the two is missing.
 
 **Voxa is not a medical device and is not for diagnostic use.** A label made by a model is a
 guess that looks certain.
 
-## Why Voxa comes with neither
+## Why Voxa comes without the model, and the runtime beside it
 
 - **The model.** SynthSeg's code is Apache 2.0, but its trained weights carry no licence
   statement of their own. They are distributed with FreeSurfer, under FreeSurfer's terms.
   Until that is settled Voxa ships no weights and fetches none: you get the files yourself,
   under the terms they come with, and turn them into a model folder on your own computer.
-- **The runtime.** ONNX Runtime is MIT, and DirectML comes under Microsoft's own licence,
-  which lets it be passed on inside an application for use on Windows but is not open
-  source. Keeping both beside Voxa, not inside it, keeps Voxa one executable under its own
-  two licences that needs nothing else for everything it did at 0.4.0.
+- **The runtime.** ONNX Runtime is MIT. The zip a release offers carries it in a folder of
+  its own, `runtime`, with its licence and notices, and not inside the program: Voxa stays one
+  executable under its own two licences that needs nothing else for everything it did at
+  0.4.0. DirectML comes under Microsoft's own licence, which lets it be passed on inside an
+  application for use on Windows but is not open source; Voxa carries none and uses the copy
+  Windows has.
 
 Voxa uses no network. Nothing here is downloaded by Voxa.
 
 ## What a person does
 
-1. Put the runtime's files in a folder called `runtime` beside Voxa's executable (below).
+1. In the zip a release offers, the runtime is already in the folder called `runtime` beside
+   Voxa's executable. With a build of your own, put the runtime's files there (below).
 2. Make the model folder once, with the converter, and call it `models` beside Voxa's
    executable (below).
 3. Open a scan that has a 3D view, choose the Parts tab and press **Label this scan**.
@@ -34,16 +37,24 @@ models…** and **Folder of the runtime…**. Voxa remembers what was chosen.
 
 ## The runtime
 
-Three files from Microsoft's ONNX Runtime with DirectML, version 1.24.4:
+Two files from Microsoft's ONNX Runtime with DirectML, version 1.24.4:
 
 - `onnxruntime.dll`
 - `onnxruntime_providers_shared.dll`
-- `DirectML.dll`
 
-They are in Microsoft's `Microsoft.ML.OnnxRuntime.DirectML` package, and in the Python
-package `onnxruntime-directml` under `onnxruntime/capi`. Put them in a folder called
-`runtime` beside Voxa's executable, or anywhere and tell Voxa where. Voxa looks beside its
-executable first and then in the folder named under **Options**.
+They are in Microsoft's `Microsoft.ML.OnnxRuntime.DirectML` package, under
+`runtimes/win-x64/native`, and in the Python package `onnxruntime-directml` under
+`onnxruntime/capi`. The zip a release offers carries both, taken from that package on nuget.org,
+with the package's `LICENSE` and `ThirdPartyNotices.txt`. With a build of your own, put them in
+a folder called `runtime` beside Voxa's executable, or anywhere and tell Voxa where. Voxa looks
+beside its executable first and then in the folder named under **Options**.
+
+The third file of that package, `DirectML.dll`, is not carried: without it in the folder, ONNX
+Runtime uses the copy Windows has.
+
+ONNX Runtime needs Microsoft's Visual C++ 2015-2022 x64 redistributable, which many computers
+already have and Microsoft gives free. Voxa itself does not. If ONNX Runtime will not load
+because a library it needs is missing or old, Voxa says that it needs the redistributable.
 
 Voxa loads the runtime as it starts, when it checks whether this computer can label a scan,
 once it has found a model folder; with no model folder it does not load it. A program can

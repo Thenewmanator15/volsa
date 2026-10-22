@@ -50,8 +50,9 @@ where it keeps things between runs ([below](#what-voxa-keeps-on-your-computer)):
 - 64-bit Windows 10 or 11.
 - A graphics device with DirectX 12 or Vulkan. If Voxa cannot open its window, it says why in a
   message and closes.
-- To label a brain scan, which is optional: two sets of files Voxa does not come with, and a
-  good deal of memory. [docs/models.md](docs/models.md) says what and how much.
+- To label a brain scan, which is optional: a model folder made from files Voxa does not come
+  with, Microsoft's Visual C++ 2015-2022 x64 redistributable, and a good deal of memory.
+  [docs/models.md](docs/models.md) says what and how much.
 
 Voxa has been tried on Windows 11 with an NVIDIA discrete graphics card and with Intel
 integrated graphics. Windows 10 and other graphics devices have not been tried. Linux and macOS
@@ -151,13 +152,15 @@ on this computer when asked, with SynthSeg 2.0's networks run through ONNX Runti
 Windows, DirectML. A label made by a model is a guess that looks certain, so each one comes
 with the model's own check of its work, which is said first when it fails.
 
-To label a scan, open it, choose the Parts tab and press **Label this scan**. That needs two
-things Voxa does not come with: the three files of ONNX Runtime with DirectML in a `runtime`
-folder beside `voxa.exe`, and a model folder made from SynthSeg's files in a `models` folder
-beside it (or the folders named under **Options**). Voxa ships no network and no runtime, and
-downloads neither: [docs/models.md](docs/models.md), which comes in the zip as `MODELS.md`, says
-where they come from, how to make the model folder, and why. Without them Voxa starts and does
-everything else, and the button says what is missing.
+To label a scan, open it, choose the Parts tab and press **Label this scan**. That needs three
+things. ONNX Runtime comes in the zip, in a `runtime` folder beside `voxa.exe`, and uses a
+graphics card through the DirectML that Windows has. ONNX Runtime needs Microsoft's free Visual
+C++ 2015-2022 x64 redistributable, which many computers already have; Voxa says so when it is
+missing. And it needs a model folder, which Voxa does not come with: you make it from SynthSeg's
+files, as a `models` folder beside `voxa.exe` (or a folder named under **Options**). Voxa ships
+no network and downloads nothing: [docs/models.md](docs/models.md), which comes in the zip as
+`MODELS.md`, says where the files come from, how to make the model folder, and why. Without
+them Voxa starts and does everything else, and the button says what is missing.
 
 ## Status
 
@@ -198,7 +201,13 @@ cargo xtask dist
 ```
 
 builds the release program and makes `target/dist/voxa-<version>-windows-x64.zip`, the zip the
-Releases page offers.
+Releases page offers, with the folder it holds beside it. The program is built with Microsoft's
+C runtime inside it, so that it needs no Visual C++ redistributable of its own, and the task
+checks that it imports none. `cargo xtask dist --runtime FOLDER` puts ONNX Runtime's two
+libraries from that folder in the zip's `runtime` folder, with its `LICENSE` and
+`ThirdPartyNotices.txt` when the folder holds them. A tag that starts with `v` has GitHub make a
+draft release with that zip, its SHA-256 and the version's section of the changelog
+(`.github/workflows/release.yml`), with ONNX Runtime taken from Microsoft's package on nuget.org.
 
 ### Check your work
 
@@ -318,7 +327,8 @@ Labelling uses three things that are not in this repository, each under its own 
 
 - **ONNX Runtime** (Microsoft), which runs the networks, under the MIT licence. Voxa loads it
   from files beside the executable through the `ort` crate (MIT or Apache-2.0); it is not built
-  into Voxa.
+  into Voxa. The zip a release offers carries it in its `runtime` folder, with its own licence
+  and notices.
 - **DirectML** (Microsoft), which lets ONNX Runtime use a graphics card on Windows, under
   Microsoft's own licence: it may be passed on inside an application for use on Windows, it is
   not open source, and its notices must stay with it. Windows 11 has a copy of its own, and
