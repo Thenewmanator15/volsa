@@ -25,7 +25,9 @@ a marker measured on it, and the slice through its middle beside them. There are
    download `voxa-<version>-windows-x64.zip`.
 2. Unzip it: right-click it, choose **Extract All…** and pick a folder of your own, such as one
    in Documents. It holds one folder, `voxa-<version>`, with `voxa.exe`, a short `README.txt`,
-   the licences and notices, `MODELS.md` (how to set up labelling) and the changelog.
+   `INTENDED-USE.txt` (what Voxa is for and what it is not for), the licences and notices,
+   `MODELS.md` (how to set up labelling), the changelog, and a `runtime` folder with ONNX
+   Runtime, which labelling uses.
 3. Start `voxa.exe`. Open a scan with **Folder…** or **File…** in the toolbar (a folder of
    DICOM files, a zip of them, or a `DICOMDIR`), or drop it on the window.
 
@@ -50,7 +52,7 @@ screen, start afresh each time. **?** lists every key.
 ### Removing Voxa
 
 Voxa has no installer. To remove it, close it and delete the `voxa-<version>` folder you
-unzipped, with any `runtime` and `models` folders you put in it. Then delete the two folders
+unzipped, with the `models` folder in it, if you made one. Then delete the two folders
 where it keeps things between runs ([below](#what-voxa-keeps-on-your-computer)): type
 `%APPDATA%\Voxa` into File Explorer's address bar and delete that folder, then do the same for
 `%LOCALAPPDATA%\Voxa`.
@@ -126,13 +128,28 @@ program", or "not said" when the labels name no model) and how the model's own c
 or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and the tag browser hides, and cannot find by searching, the value of
-every tag that could identify the patient: every tag in the patient group (0010); the accession
-number; the institution's name and address; the referring, performing and reading physicians and
-the operators; the station's name and the device's serial number; the numbers of the order and
-the visit; and every private tag (any in a group of odd number), since what a maker keeps there
-is not said. It says how many it has hidden. **Patient details** in the toolbar shows them until
-you switch it off or close Voxa. The study's date and description are shown either way.
+left out of the viewports, and the **DICOM tags** window (**Tags** in the toolbar) hides, and
+cannot find by searching, the values of these tags, and only these:
+
+- every tag in the patient group, 0010;
+- every private tag, which is any in a group of odd number, since what a maker keeps there is
+  not said;
+- and this list: the accession number; the institution's name, address and department; the
+  referring physician's name, address and telephone numbers; the physicians of record; the
+  performing, reading, requesting and scheduled performing physicians; the operators; the
+  station's name, the performed station's name and the performed location; the device's serial
+  number; the admission ID; the placer order number; the requested procedure ID; and the
+  scheduled and performed procedure step IDs.
+
+The window says how many values it has hidden. A sequence, a tag that holds other tags, is shown
+only as the number of items in it. **Patient details** in the toolbar shows the hidden values
+until you switch it off or close Voxa.
+
+**Every other value stays shown**, and some of them can still identify a scan or lead to the
+person in it: dates and times, unique identifiers (UIDs), the study ID, and free-text comments
+and descriptions among them. The study's date and description are in each viewport's corner
+either way. Take care with a screenshot of the **DICOM tags** window, or of a viewport, even with
+**Patient details** off.
 
 ONNX Runtime, which runs the labelling networks, reports usage (not images) in Microsoft's
 Windows builds unless told not to. Voxa tells it not to before it asks anything else of it.
