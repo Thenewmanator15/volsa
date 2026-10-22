@@ -20,7 +20,7 @@ use ort::value::{DynValue, Outlet, TensorElementType, ValueType};
 use crate::cards::CardId;
 #[cfg(windows)]
 use crate::cards::place_now;
-use crate::network::{Device, Network, RunError, SIDES, Stop, bytes_of, each_alone, right_build};
+use crate::network::{Device, Network, RunError, SIDES, Stop, bytes_of, each_alone, not_loaded};
 use crate::tensor::{Numbers, Tensor, copied};
 
 /// The file that holds the runtime, by the name this system gives such a file.
@@ -56,6 +56,14 @@ pub enum RuntimeError {
     /// another folder.
     #[error("The runtime in that folder would not load.")]
     WouldNotLoad,
+    /// The library would not load for want of a library it needs, or with one too old: most
+    /// likely Microsoft's Visual C++ runtime, which ONNX Runtime needs and Voxa does not.
+    #[error(
+        "The runtime in that folder would not load, most likely because this computer lacks \
+         the Microsoft Visual C++ 2015-2022 x64 redistributable, or has an old one. ONNX \
+         Runtime needs it, and Microsoft gives it free."
+    )]
+    NeedsVisualCpp,
 }
 
 /// The runtime, loaded. Having one is what lets a network be opened.
@@ -165,13 +173,8 @@ impl Runtime {
 fn start(library: &Path) -> Result<(), RuntimeError> {
     let settings = match caught(|| ort::init_from(library)) {
         Ok(Ok(settings)) => settings,
-        // `ort` refuses a runtime older than the interface it asks for: `right_build`'s rule.
-        Ok(Err(ort::LoadDynamicError::BadVersion { version_str, .. }))
-            if !right_build(&version_str) =>
-        {
-            return Err(RuntimeError::WrongBuild);
-        }
-        _ => return Err(RuntimeError::WouldNotLoad),
+        Ok(Err(why)) => return Err(not_loaded(&why)),
+        Err(_) => return Err(RuntimeError::WouldNotLoad),
     };
     // Not taken would mean something else gave the runtime its settings first, and then
     // telemetry could not be known to be off.

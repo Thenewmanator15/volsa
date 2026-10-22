@@ -19,7 +19,8 @@ use crate::labelling::{LabellingAction, Ready};
 use crate::volume_store::VolumeStore;
 use crate::worker::Workers;
 
-const WHERE: &str = "docs/models.md says what goes where.";
+const WHERE: &str =
+    "MODELS.md beside the program (docs/models.md in the source) says what goes where.";
 
 fn card(id: u64, name: &str, kind: CardKind) -> Card {
     Card {
