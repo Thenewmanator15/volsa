@@ -21,8 +21,9 @@ guess that looks certain. What Voxa is for, and what it is not for, is in
   ([below](#directml-from-windows)). A build of Voxa from source has no `runtime` folder, and
   the files are fetched by hand, as [the runtime](#the-runtime) says.
 - **The model never comes with Voxa.** SynthSeg's code is Apache 2.0, but its trained weights
-  come with FreeSurfer, under FreeSurfer's licence, which says the software is for research
-  and not for clinical use ([below](#the-terms-of-the-models-weights)). Voxa ships none and
+  come with FreeSurfer, under FreeSurfer's licence, which says the software is designed for
+  research only and that clinical use is neither recommended nor advised
+  ([below](#the-terms-of-the-models-weights)). Voxa ships none and
   fetches none: you get the files yourself, under the terms they come with, and turn them
   into a model folder on your own computer.
 
@@ -171,8 +172,8 @@ For Voxa this means: Voxa ships none of the weights and fetches none, so it pass
 of FreeSurfer's; you get the files under the agreement yourself, and make the model folder on
 your own computer. Whether, and on what terms, a model folder may be passed on
 is the agreement's to say: Part B covers derivative works and passing them on. Labels Voxa makes
-with the weights are under the agreement's caution as well as Voxa's own: for research, not
-for clinical use.
+with the weights are under the agreement's caution as well as Voxa's own: designed for
+research, with clinical use neither recommended nor advised.
 
 ## What a run needs of this computer
 
