@@ -9,7 +9,8 @@ lengths, angles and regions can be measured and points marked; and shows the par
 that have been labelled on a scan, over the planes and as solids in 3D, with a list of them and
 their volumes. It runs on your own computer and makes no network connections.
 
-**Voxa is not a medical device and is not for diagnostic use.**
+**Voxa is not a medical device and is not for diagnostic use.** What it is for, and what it is
+not for, is in [docs/intended-use.md](docs/intended-use.md).
 
 ![Voxa showing a made-up test study in three planes and in 3D, with measurements](docs/images/voxa-phantom-planes.png)
 
