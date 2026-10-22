@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `postprocess` in SynthSeg/predict_synthseg.py, translated to Rust and changed
+// for Voxa.
 //! What is kept of the robust networks' answer: `SynthSeg`'s tidying with `fast` on, as its own
 //! program has it whenever those networks run. The padding is taken off first, so the largest
 //! piece of everything is found on the image alone. No piece of a class is looked for:

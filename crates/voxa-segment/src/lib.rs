@@ -35,6 +35,8 @@
 
 mod find;
 mod label;
+#[cfg(test)]
+mod notice_tests;
 mod pieces;
 mod prepare;
 mod table;

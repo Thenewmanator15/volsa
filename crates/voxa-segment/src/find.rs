@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `build_model` in SynthSeg/predict_synthseg.py, translated to Rust and changed
+// for Voxa.
 //! The steps between `SynthSeg`'s networks: what each network is given and what is made of its
 //! answer, in the order `SynthSeg`'s own program takes them.
 //!

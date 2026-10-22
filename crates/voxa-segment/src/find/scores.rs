@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `build_model` and the layer `MakeShape` in SynthSeg/predict_synthseg.py,
+// translated to Rust and changed for Voxa.
 //! The scores. `SynthSeg`'s scores network is given a box of one fixed size, cut from the map
 //! of top structures so that what was found lies in its middle, with each structure turned
 //! into its score class. The cut is `SynthSeg`'s own layer `MakeShape`, and the tests hold it

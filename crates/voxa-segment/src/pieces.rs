@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `get_largest_connected_component` in ext/lab2im/edit_volumes.py, translated
+// to Rust and changed for Voxa.
 //! The largest connected piece of a set of voxels. Voxels are connected when they share a
 //! face, as `SciPy`'s `label` joins them by default: `SynthSeg`'s tidying keeps such pieces, and
 //! the cut to the head is the box round one.

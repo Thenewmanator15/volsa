@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `resample_volume` in ext/lab2im/edit_volumes.py, translated to Rust and
+// changed for Voxa.
 //! Bringing a volume to 1 mm along its own axes, as `SynthSeg`'s `resample_volume` does.
 //!
 //! With `f` the spacing in millimetres along an axis of `n` voxels:
