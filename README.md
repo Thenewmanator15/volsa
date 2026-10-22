@@ -67,16 +67,31 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 | File | What it holds |
 |---|---|
 | `preferences.json` | The window's size, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+
+`%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
+its servers, so it holds nothing else.
+
+**What comes of your scans, and the log**, in `%LOCALAPPDATA%\Voxa\data`, which stays on this
+computer:
+
+| File | What it holds |
+|---|---|
 | `views.json` | The views of the 3D scene you saved, for each series. |
 | `annotations.json` | Your markers, rulers, angles and regions for each series, with the names you gave them. |
 | `choices.json` | What you chose for labelling under **Options**, with the two folders you named, if any. |
 | `labels\` | Labelling results kept to be shown again: for each series, a label file and the table of its parts' names. |
+| `voxa.log` | The log, below. |
 
 Each series is filed under a 16-digit hash of its identifier, not under the identifier, and
 nothing in these files names a patient. Still, a kept label file is a map of someone's head and
 an annotation holds whatever name you typed, so treat this folder as you would the scans.
 Labelling results are kept unless you switch off **Keep results on this computer** under
 **Options** in the Parts tab, and **Delete**, beside a kept result, removes it.
+
+Voxa 0.5.0 and earlier kept the views, annotations, choices and labelling results in
+`%APPDATA%\Voxa\config`. The first time a newer Voxa starts, it moves them to
+`%LOCALAPPDATA%\Voxa\data`, each file whole; a file that is already there is not written over,
+and the old one is left where it was. The log says what was moved and what was left.
 
 **The log**, `%LOCALAPPDATA%\Voxa\data\voxa.log`, is for finding out why something went wrong.
 It says when Voxa started, its version and the system, which graphics device it draws with, how

@@ -11,7 +11,7 @@ use super::Annotation;
 
 /// The version of the file this Voxa writes, and the newest it reads.
 pub const ANNOTATIONS_VERSION: u32 = 1;
-/// The name of the file within the settings folder.
+/// The name of the file within its folder, beside the saved views.
 const FILE: &str = "annotations.json";
 /// The name a file Voxa cannot read is given before a new one is written in its place, so
 /// that what a newer Voxa wrote, or what was damaged, is not thrown away.

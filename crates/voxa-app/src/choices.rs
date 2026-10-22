@@ -1,7 +1,8 @@
 //! What the person chose for labelling a scan, kept between runs of Voxa: which model, the
 //! cortex areas, where a run goes, whether results are kept, and the two folders the models
-//! and the runtime are in. One small file in the settings folder. The two folders are the
-//! only paths in it, and it says nothing of any scan.
+//! and the runtime are in. One small file in the folder on this computer alone, as the two
+//! folders named in it are this computer's. They are the only paths in it, and it says
+//! nothing of any scan.
 
 use std::path::{Path, PathBuf};
 
@@ -14,7 +15,7 @@ use crate::labelling::Labelling;
 
 /// The version of the file. A file of another version is not read.
 pub const CHOICES_VERSION: u32 = 1;
-/// The name of the file within the settings folder.
+/// The name of the file within its folder.
 const FILE: &str = "choices.json";
 
 /// Where a run was chosen to go, as it is kept. A card is kept by its name: the system's

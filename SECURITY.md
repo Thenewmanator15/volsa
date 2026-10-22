@@ -22,7 +22,7 @@ The faults that matter are those where something Voxa is handed makes it do what
 - **The files Voxa reads, which may come from anyone.** DICOM files, folders and zip files of
   them, `DICOMDIR` files, NIfTI label files (`.nii`, `.nii.gz`) and their tables of names
   (`.json`, `.ctbl`), a model folder (`model.json` and its networks), and the files Voxa keeps
-  in its own settings folder. A file that makes Voxa run code, read or write outside the places
+  in its own two folders. A file that makes Voxa run code, read or write outside the places
   it should, or take memory or time without end counts. A file that only makes Voxa stop or
   show something wrong is a fault too; if you are sure it does no more than that, an ordinary
   issue with a made-up file is welcome, and if you are not sure, report it here.
@@ -33,7 +33,7 @@ The faults that matter are those where something Voxa is handed makes it do what
   counts. Voxa runs whatever library is in a folder the person names, with the person's own
   rights: that is how it is meant to work, so name only a folder that holds Microsoft's files.
 - **Anything that sends data off the computer**, or that writes a patient's details where Voxa
-  says it does not: the log, the settings folder, or a saved picture.
+  says it does not: the log, the folders where Voxa keeps things, or a saved picture.
 
 These are not for this form:
 

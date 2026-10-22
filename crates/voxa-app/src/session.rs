@@ -33,9 +33,10 @@ impl Session {
     /// A session with nothing open. The workers report through `to_reports`, and `reports` is
     /// where those reports are read from: the two ends of one channel, or of two channels
     /// with something in between, as the window has to wake itself up. The cache holds at
-    /// most `cache_bytes` of pixel values. Saved views, a result of labelling and what is
-    /// chosen for labelling are kept in the folder `settings`, and what was chosen in the run
-    /// before is chosen again; with `None` they last only as long as the session.
+    /// most `cache_bytes` of pixel values. Saved views, annotations, a result of labelling and
+    /// what is chosen for labelling are kept in the folder `settings`, which the window gives
+    /// as the folder on this computer alone, and what was chosen in the run before is chosen
+    /// again; with `None` they last only as long as the session.
     pub fn new(
         to_reports: Sender<Action>,
         reports: Receiver<Action>,

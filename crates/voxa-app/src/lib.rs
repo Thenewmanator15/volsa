@@ -25,6 +25,7 @@ mod labelling;
 mod labels;
 mod log;
 mod measurements;
+mod moved;
 mod parts_table;
 mod planes;
 mod prefs;

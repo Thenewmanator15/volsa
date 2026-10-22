@@ -9,7 +9,6 @@ use egui::RichText;
 use crate::action::Action;
 use crate::labelling::LabellingAction;
 use crate::session::Session;
-use crate::settings;
 use crate::state::{NoticeKind, VIEWPORTS};
 
 mod about;
@@ -134,10 +133,10 @@ impl VoxaApp {
         let gpus =
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let capture = capture::Capture::from_environment();
-        let kept = capture::kept_between_runs(capture.is_some(), settings::folder());
+        let (settings, local) = capture::folders(capture.is_some());
         let mut app = Self {
-            kept: crate::prefs::Kept::new(kept.clone()),
-            session: Session::new(from_workers, reports, CACHE_BYTES, kept),
+            kept: crate::prefs::Kept::new(settings),
+            session: Session::new(from_workers, reports, CACHE_BYTES, local),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),
@@ -375,10 +374,11 @@ fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> 
 pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result {
     // A picture for the documentation may want the window a particular size.
     let capturing = capture::Capture::from_environment().is_some();
-    crate::log::start(capture::kept_between_runs(capturing, crate::log::folder()).as_deref());
+    let (settings, local) = capture::folders(capturing);
+    crate::log::start(local.as_deref());
+    crate::moved::into_local(settings.as_deref(), local.as_deref());
     let asked = std::env::var(capture::SIZE_VARIABLE).ok();
-    let kept = capture::kept_between_runs(capturing, settings::folder());
-    let remembered = crate::prefs::Kept::new(kept).remembered().window;
+    let remembered = crate::prefs::Kept::new(settings).remembered().window;
     let size = asked
         .and_then(|size| capture::size_from(&size))
         .or(remembered);
