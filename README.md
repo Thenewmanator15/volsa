@@ -198,11 +198,14 @@ them Voxa starts and does everything else, and the button says what is missing.
 
 ## Status
 
-Version 0.5.0, which finishes the fourth milestone: 0.4.0 showed labels from files, and 0.5.0
-labels a brain scan inside Voxa. It also reads more kinds of MRI export. What it does and what
-it does not yet do are in the [changelog](CHANGELOG.md); how it was checked is in
-[docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and for the reading of more kinds of
-export in [docs/acceptance-any-mri.md](docs/acceptance-any-mri.md). The design and the plan for
+Version 0.6.0, the first with a download for Windows: the zip, with ONNX Runtime in it for
+labelling, the notices and credits that go with it, a window that fits any screen, and fixes
+found by an audit of what a public release needs. What Voxa does came in the releases before
+it: 0.4.0 showed labels from files, and 0.5.0, which finished the fourth milestone, labels a
+brain scan inside Voxa and reads more kinds of MRI export. What it does and what it does not yet
+do are in the [changelog](CHANGELOG.md); how labelling was checked is in
+[docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and the reading of more kinds of export
+in [docs/acceptance-any-mri.md](docs/acceptance-any-mri.md). The design and the plan for
 every milestone are in [docs/superpowers](docs/superpowers), and why labelling is built as it
 is in [docs/adr/0006-voxa-runs-a-labelling-model.md](docs/adr/0006-voxa-runs-a-labelling-model.md).
 

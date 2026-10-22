@@ -13,7 +13,7 @@ body:
     attributes:
       label: Voxa version
       description: The About window, from the About button in the toolbar, shows it.
-      placeholder: "0.5.0"
+      placeholder: "0.6.0"
     validations:
       required: true
   - type: input

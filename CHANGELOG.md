@@ -6,9 +6,12 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
-Work towards a first public release: a download for Windows, the notices and credits that go
-with it, a window that fits any screen, and smaller fixes found by an audit of what a public
-release needs.
+## [0.6.0] - 2026-10-22
+
+The sixth release, the first with a download for Windows, made for a first public release:
+the download, the notices and credits that go with it, a window that fits any screen, and
+smaller fixes found by an audit of what a public release needs. Voxa is not a medical device
+and is not for diagnostic use.
 
 ### Added
 

@@ -1,7 +1,8 @@
 # The files labelling needs
 
-Voxa 0.5.0 labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX Runtime
-on this computer. No Python runs. For that it needs two things: a runtime, and a model folder.
+Since 0.5.0, Voxa labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX
+Runtime on this computer. No Python runs. For that it needs two things: a runtime, and a model
+folder.
 A download of Voxa from the Releases page comes with the runtime; nothing comes with the model
 folder, which you make once. Voxa without them is Voxa as it was at 0.4.0: it starts and does
 everything else, and the **Label this scan** button in the Parts tab is greyed and says which
