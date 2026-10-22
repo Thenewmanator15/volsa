@@ -34,8 +34,8 @@ build. Each later milestone gets its own spec before work on it starts.
 | Clinicians reading studies | Layout presets, synced series, archive connectivity, structured reports, multiple monitors |
 | Developers and reviewers | A well-engineered, maintainable Rust codebase that is easy to extend |
 
-The first user is the project owner, on Windows, with their own scan exports as the
-first real data.
+The first user is the developer, on Windows. The first real data is a real export,
+checked on the developer's machine, from which nothing is recorded.
 
 ### A2. Decisions already made
 
