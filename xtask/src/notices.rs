@@ -48,7 +48,7 @@ pub fn write() -> Result<(), String> {
     Ok(())
 }
 
-/// Part of `cargo xtask check`: the committed notices must be what [`write`] would write now.
+/// Part of `cargo xtask check`: the committed notices must be what [`write()`] would write now.
 pub fn up_to_date() -> Result<(), String> {
     println!("\n==> {FILE} names every package built into Voxa as it is now");
     let now = generate()?;
