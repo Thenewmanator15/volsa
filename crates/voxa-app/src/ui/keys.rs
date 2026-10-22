@@ -22,6 +22,10 @@ pub enum Pressed {
     Keys,
     /// To open or close the measurements window.
     Measurements,
+    /// To show or hide the series list.
+    SeriesList,
+    /// To go into full screen, or out of it.
+    FullScreen,
 }
 
 /// The keys held that change what another key means.
@@ -34,8 +38,9 @@ pub struct Held {
 }
 
 /// What pressing `key` asks for. Undo and redo are where every program has them; `M` is the
-/// measurements window; Esc puts the tool in hand down before it does anything else; the
-/// rest are [`shortcut_action`]'s.
+/// measurements window; `B` shows or hides the series list and F11 is full screen, as in
+/// most programs; Esc puts the tool in hand down before it does anything else; the rest are
+/// [`shortcut_action`]'s.
 pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Pressed> {
     let act = |action| Some(Pressed::Act(action));
     match key {
@@ -43,6 +48,8 @@ pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Pressed> {
         Key::Z if held.command => act(Action::Undo),
         Key::Y if held.command => act(Action::Redo),
         Key::M if !held.command => Some(Pressed::Measurements),
+        Key::B if !held.command => Some(Pressed::SeriesList),
+        Key::F11 => Some(Pressed::FullScreen),
         // A question mark is its own key on some keyboards and Shift with slash on others.
         Key::Questionmark => Some(Pressed::Keys),
         Key::Slash if held.shift => Some(Pressed::Keys),
@@ -85,6 +92,8 @@ impl VoxaApp {
                 Some(Pressed::Act(action)) => actions.push(action),
                 Some(Pressed::Keys) => self.help_open = !self.help_open,
                 Some(Pressed::Measurements) => self.measure.open = !self.measure.open,
+                Some(Pressed::SeriesList) => self.screen.list_shown = !self.screen.list_shown,
+                Some(Pressed::FullScreen) => super::screen::toggle_full_screen(ctx),
                 None => {}
             }
         }
@@ -121,6 +130,25 @@ mod tests {
         assert_eq!(on(Key::Questionmark, false, false), Some(Pressed::Keys));
         assert_eq!(on(Key::Slash, false, true), Some(Pressed::Keys));
         assert_eq!(on(Key::Slash, false, false), None);
+    }
+
+    #[test]
+    fn b_shows_or_hides_the_series_list_and_f11_is_full_screen() {
+        assert_eq!(on(Key::B, false, false), Some(Pressed::SeriesList));
+        assert_eq!(on(Key::B, true, false), None, "Ctrl+B is not B");
+        assert_eq!(on(Key::F11, false, false), Some(Pressed::FullScreen));
+    }
+
+    #[test]
+    fn the_list_of_keys_has_the_ones_for_the_screen() {
+        for key in ["B", "F11", "Ctrl+= / Ctrl+- / Ctrl+0"] {
+            assert!(SHORTCUTS.iter().any(|(listed, _)| *listed == key), "{key}");
+        }
+        let (_, size) = SHORTCUTS
+            .iter()
+            .find(|(key, _)| key.starts_with("Ctrl+="))
+            .expect("listed");
+        assert!(size.contains("interface"), "{size}");
     }
 
     #[test]

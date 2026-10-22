@@ -37,6 +37,15 @@ From a command prompt, `voxa.exe PATH` opens a scan at once, and `voxa.exe PATH 
 opens it with labels another program made for it. `voxa.exe --help` says the rest, in a small
 window.
 
+Voxa opens at a size that fits your screen, and its window can be made as small as 640 by 480
+at your display's scale. **Series** in the toolbar, or **B**, shows or hides the list of
+series, which starts hidden in a narrow window; **F11** is full screen. **Size** in the toolbar
+draws the words and buttons larger or smaller, as do Ctrl+= and Ctrl+- (Ctrl+0 puts them back).
+The edge of the list of series and the line beside the column at the right can be dragged to
+give either more of the width. Voxa remembers the window's size, the size of the words and
+buttons, and how wide you dragged the list and the column; whether the list is shown, and full
+screen, start afresh each time. **?** lists every key.
+
 ### Removing Voxa
 
 Voxa has no installer. To remove it, close it and delete the `voxa-<version>` folder you
@@ -67,7 +76,7 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 
 | File | What it holds |
 |---|---|
-| `preferences.json` | The window's size, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+| `preferences.json` | The window's size, the size of the interface, how wide the list of series and the column beside the large part are, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
 
 `%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
 its servers, so it holds nothing else.
@@ -309,9 +318,16 @@ with the made-up labels the first command wrote beside it: the ball's shell in t
 core and the bead. Voxa then says it skipped two files, which are the labels and their table:
 they are not part of the scan. Setting the environment variable `VOXA_CAPTURE` to a `.png` path
 makes Voxa save one picture of its own window and close, which is how the pictures in the
-documentation are made. `VOXA_CAPTURE_SERIES` names the series to show by words from its
-description, and the word `stepped` in `VOXA_CAPTURE_SHOW` shows the next volume of a series
-that holds several.
+documentation are made. `VOXA_CAPTURE_SIZE` sets the window's size in points, such as
+`900x600`, and `VOXA_CAPTURE_ZOOM` the size the interface is drawn at, 1 being its usual size,
+so that one display can show what another would: on a display of 1440 by 900 points at 200%,
+`0.75` with `VOXA_CAPTURE_SIZE=1920x1010` shows the window as a screen of 1920 by 1080 pixels
+at 100% would, and `0.375` with `3840x2090` as a 4K one would. `VOXA_CAPTURE_SERIES` names the
+series to show by words from its description. `VOXA_CAPTURE_SHOW` names what else to have in
+the picture, separated by commas: `stepped` shows the next volume of a series that holds
+several, `keys` the list of keys, `nolist` hides the list of series, and `fitted` fits the
+window to the screen as Voxa does when it starts, in place of the size asked for. A picture's
+window is otherwise the size asked for, or 1440 by 900 points.
 
 The ball has no brain in it, so there is nothing for the labelling model to find. For something
 with a brain's shape that is nobody's, the model folder's `check` folder holds a made-up head,

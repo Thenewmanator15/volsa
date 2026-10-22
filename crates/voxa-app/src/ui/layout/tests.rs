@@ -10,8 +10,8 @@ fn area(width: f32, height: f32) -> Rect {
 }
 
 #[test]
-fn the_column_is_360_points_wide_at_the_right_with_a_gap_before_it() {
-    let Panels { main, side } = panels(area(1200.0, 700.0));
+fn the_column_takes_its_share_at_the_right_with_a_gap_before_it() {
+    let Panels { main, side } = panels(area(1200.0, 700.0), 0.3);
     assert_eq!(
         (side.left(), side.right(), side.width()),
         (940.0, 1300.0, 360.0)
@@ -21,19 +21,52 @@ fn the_column_is_360_points_wide_at_the_right_with_a_gap_before_it() {
 }
 
 #[test]
-fn in_a_narrow_area_the_column_is_a_third_of_it_and_no_narrower_than_its_tabs() {
-    let Panels { main, side } = panels(area(900.0, 400.0));
-    assert_eq!(side.width(), 300.0, "a third");
-    assert_eq!(main.width(), 600.0 - viewport::GAP);
-    let Panels { main, side } = panels(area(600.0, 400.0));
+fn on_a_large_screen_the_column_grows_with_the_window() {
+    let Panels { main, side } = panels(area(3000.0, 1500.0), 0.3);
+    assert_eq!(
+        side.width(),
+        900.0,
+        "not a thin strip beside the large part"
+    );
+    assert_eq!(main.width(), 2100.0 - viewport::GAP);
+}
+
+#[test]
+fn in_a_narrow_area_the_column_is_no_narrower_than_its_tabs() {
+    let Panels { main, side } = panels(area(1000.0, 400.0), 0.3);
+    assert_eq!(side.width(), 300.0, "its share");
+    assert_eq!(main.width(), 700.0 - viewport::GAP);
+    let Panels { main, side } = panels(area(600.0, 400.0), 0.3);
     assert_eq!(
         side.width(),
         260.0,
-        "a third would not hold the strip's three tabs"
+        "its share would not hold the strip's three tabs"
     );
     assert_eq!(main.width(), 340.0 - viewport::GAP);
-    let Panels { side, .. } = panels(area(300.0, 400.0));
+    let Panels { side, .. } = panels(area(300.0, 400.0), 0.3);
     assert_eq!(side.width(), 150.0, "never more than half");
+}
+
+#[test]
+fn the_column_takes_no_less_and_no_more_of_the_width_than_its_limits() {
+    let Panels { side, .. } = panels(area(1000.0, 400.0), 0.9);
+    assert_eq!(side.width(), 600.0, "the large part keeps two fifths");
+    let Panels { side, .. } = panels(area(2000.0, 400.0), 0.01);
+    assert_eq!(side.width(), 300.0, "the column keeps 15% of the width");
+}
+
+#[test]
+fn dragging_the_column_changes_its_share_as_far_as_the_limits_allow() {
+    let near = |a: f32, b: f32| (a - b).abs() < 0.001;
+    // Its left edge is dragged: to the left makes it wider.
+    assert!(near(column_dragged(1000.0, 0.3, -100.0), 0.4));
+    assert!(near(column_dragged(1000.0, 0.3, 50.0), 0.26));
+    assert!(near(column_dragged(1000.0, 0.3, -1000.0), 0.6));
+    assert!(
+        near(column_dragged(1000.0, 0.3, 1000.0), 0.26),
+        "no narrower than its tabs"
+    );
+    assert!(near(column_dragged(2000.0, 0.3, 1000.0), 0.15));
 }
 
 #[test]

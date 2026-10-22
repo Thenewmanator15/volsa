@@ -59,10 +59,9 @@ fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         }
     }
     let chosen = drawn == Look::Parts;
-    let parts = ui.add_enabled_ui(on_this_series(state), |ui| {
-        ui.selectable_label(chosen, "Parts")
-    });
-    let parts = parts.inner.on_disabled_hover_text(PARTS_NEED_LABELS);
+    let parts = egui::Button::selectable(chosen, "Parts");
+    let parts = ui.add_enabled(on_this_series(state), parts);
+    let parts = parts.on_disabled_hover_text(PARTS_NEED_LABELS);
     if parts.on_hover_text(PARTS_HINT).clicked() && !chosen {
         actions.push(Action::SceneLook(Look::Parts));
     }
@@ -75,6 +74,9 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<
     let scene = &state.scene;
     let mut saving = None;
     ui.horizontal_wrapped(|ui| {
+        // In a narrow window what does not fit goes onto the next line, whole.
+        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+        super::theme::closer_in_a_short_window(ui);
         ui.label("3D");
         looks(ui, state, actions);
         ui.separator();
@@ -108,8 +110,8 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<
         // The slice is a picture of the scan: it is not drawn among the labelled solids.
         let shown = scene.slice_shown;
         let scan = look_drawn(state) != Look::Parts;
-        let slice = ui.add_enabled_ui(scan, |ui| ui.selectable_label(shown, "Slice in 3D"));
-        let slice = slice.inner.on_disabled_hover_text(NO_SLICE_AMONG_PARTS);
+        let slice = ui.add_enabled(scan, egui::Button::selectable(shown, "Slice in 3D"));
+        let slice = slice.on_disabled_hover_text(NO_SLICE_AMONG_PARTS);
         if slice
             .on_hover_text("Draw the slice shown in 2D inside the 3D scene")
             .clicked()

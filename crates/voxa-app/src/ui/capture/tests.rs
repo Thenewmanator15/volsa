@@ -107,6 +107,31 @@ fn a_window_size_is_read_as_width_by_height() {
 }
 
 #[test]
+fn a_picture_can_draw_the_interface_smaller_to_show_a_larger_screen() {
+    assert_eq!(zoom_from("0.75"), Some(0.75));
+    assert_eq!(zoom_from(" 0.375 "), Some(0.375));
+    for nonsense in ["0", "-1", "large", "", "NaN", "inf"] {
+        assert_eq!(zoom_from(nonsense), None, "{nonsense}");
+    }
+    // The size asked for is in points of the interface as it is drawn: at 0.75, 1920 points
+    // across are a window 1440 points across at the usual size.
+    assert_eq!(window_for([1920.0, 1010.0], 0.75), [1440.0, 757.5]);
+    assert_eq!(window_for([3840.0, 2090.0], 0.375), [1440.0, 783.75]);
+    assert_eq!(window_for([900.0, 600.0], 1.0), [900.0, 600.0]);
+}
+
+#[test]
+fn what_a_picture_asks_for_is_read_word_by_word() {
+    assert!(asks_for("keys, nolist", "nolist"));
+    assert!(asks_for("keys, nolist", "keys"));
+    assert!(
+        !asks_for("nolist", "list"),
+        "the series list hidden is not the list of measurements"
+    );
+    assert!(!asks_for("", "keys"));
+}
+
+#[test]
 fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
     use voxa_core::Volume;
     use voxa_volume::PlaneKind;

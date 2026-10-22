@@ -53,47 +53,66 @@ fn open_notices(ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(notices_open(), true));
 }
 
-/// Show the About window while `open` is true; closing it sets `open` to false. The notices
-/// window it opens is shown here too, for as long as it is open.
+/// What a window's frame and title take of the height of the window it is shown in.
+const AROUND: f32 = 64.0;
+
+/// The interface's own name for the About window, which it keeps its place under.
+fn named() -> egui::Id {
+    egui::Id::new("voxa: about")
+}
+
+/// Show the About window while `open` is true; closing it sets `open` to false. In a window
+/// too short to hold it all, it scrolls. The notices window it opens is shown here too, for as
+/// long as it is open.
 pub fn show(ctx: &egui::Context, open: &mut bool) {
+    let room = ctx.content_rect().height();
     egui::Window::new("About Voxa")
+        .id(named())
         .open(open)
         .collapsible(false)
         .resizable(false)
         .show(ctx, |ui| {
-            ui.heading("Voxa");
-            ui.label(format!("Version {VERSION}"));
-            ui.label("A viewer for MRI scans.");
-            ui.add_space(8.0);
-            ui.label(
-                RichText::new(theme::DISCLAIMER)
-                    .strong()
-                    .color(theme::WARNING),
-            );
-            ui.add_space(8.0);
-            for line in LICENCES {
-                ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
-            }
-            if ui.small_button("Licences and notices…").clicked() {
-                open_notices(ui.ctx());
-            }
-            if let Some(log) = crate::log::path() {
-                ui.add_space(8.0);
-                ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
-                ui.horizontal(|ui| {
-                    let path = log.display().to_string();
-                    ui.label(RichText::new(&path).small().monospace());
-                    if ui.small_button("Copy").clicked() {
-                        ui.ctx().copy_text(path);
-                    }
-                });
-            }
+            egui::ScrollArea::vertical()
+                .max_height((room - 2.0 * AROUND).max(AROUND))
+                .show(ui, contents);
         });
     let id = notices_open();
     let mut shown = ctx.data(|data| data.get_temp::<bool>(id)).unwrap_or(false);
     if shown {
         notices(ctx, &mut shown);
         ctx.data_mut(|data| data.insert_temp(id, shown));
+    }
+}
+
+/// What the About window says: what Voxa is, its version, the disclaimer, its licences and
+/// credits, and where its log is.
+fn contents(ui: &mut egui::Ui) {
+    ui.heading("Voxa");
+    ui.label(format!("Version {VERSION}"));
+    ui.label("A viewer for MRI scans.");
+    ui.add_space(8.0);
+    ui.label(
+        RichText::new(theme::DISCLAIMER)
+            .strong()
+            .color(theme::WARNING),
+    );
+    ui.add_space(8.0);
+    for line in LICENCES {
+        ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
+    }
+    if ui.small_button("Licences and notices…").clicked() {
+        open_notices(ui.ctx());
+    }
+    if let Some(log) = crate::log::path() {
+        ui.add_space(8.0);
+        ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
+        ui.horizontal(|ui| {
+            let path = log.display().to_string();
+            ui.label(RichText::new(&path).small().monospace());
+            if ui.small_button("Copy").clicked() {
+                ui.ctx().copy_text(path);
+            }
+        });
     }
 }
 
@@ -131,6 +150,27 @@ mod tests {
         // No renderer is behind these passes to take the font texture.
         output.textures_delta.clear();
         assert!(open);
+    }
+
+    #[test]
+    fn the_window_fits_in_a_short_window() {
+        // The smallest window, with the interface drawn at 150%.
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(427.0, 320.0));
+        let ctx = egui::Context::default();
+        theme::apply(&ctx);
+        let mut open = true;
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| show(ui.ctx(), &mut open));
+            // No renderer is behind these passes to take the font texture.
+            output.textures_delta.clear();
+        }
+        let shown = ctx.memory(|memory| memory.area_rect(named()));
+        let shown = shown.expect("the window is shown");
+        assert!(screen.contains_rect(shown), "{shown:?}");
     }
 
     #[test]

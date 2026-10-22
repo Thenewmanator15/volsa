@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use voxa_models::{Card, CardId, CardKind};
 
-use super::{SHOW_VARIABLE, VARIABLE};
+use super::{SHOW_VARIABLE, VARIABLE, asks_for as asked};
 use crate::action::Action;
 use crate::labelling::{LabellingAction, Ready, can_label};
 use crate::labels::LabelsStatus;
@@ -15,11 +15,6 @@ use crate::state::AppState;
 /// How long a picture waits for a run of labelling, in place of the usual patience: a run
 /// takes minutes.
 const RUN_PATIENCE: Duration = Duration::from_mins(30);
-
-/// Whether `wanted`, words separated by commas, holds this word.
-fn asked(wanted: &str, word: &str) -> bool {
-    wanted.split(',').any(|part| part.trim() == word)
-}
 
 /// The look at this computer a picture of the strip is taken on, if it asks for one: this
 /// computer is said to be able to label, and to have the two cards of [`cards`]. It stands in

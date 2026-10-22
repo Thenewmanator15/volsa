@@ -20,9 +20,11 @@ pub const NO_POSITION: &str = "No position data: orientation and scale are unava
 
 /// How many slices Page Up and Page Down step.
 const PAGE: i32 = 10;
+/// The keys egui itself answers to for the size of the interface, as the reference names them.
+pub const SIZE_KEYS: &str = "Ctrl+= / Ctrl+- / Ctrl+0";
 
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 17] = [
+pub const SHORTCUTS: [(&str, &str); 20] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -47,6 +49,12 @@ pub const SHORTCUTS: [(&str, &str); 17] = [
     (
         "Esc",
         "Put the tool down; with none in hand, give 3D the large part of the window",
+    ),
+    ("B", "Show or hide the series list"),
+    ("F11", "Full screen, or back to a window"),
+    (
+        SIZE_KEYS,
+        "Draw the interface larger, smaller, or at its usual size",
     ),
     ("?", "Show this list"),
 ];

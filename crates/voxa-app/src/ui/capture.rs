@@ -3,43 +3,51 @@
 //! Set the environment variable `VOXA_CAPTURE` to a `.png` path. Voxa then saves one picture
 //! of its own window, once the first viewport has something to show or after a wait, and
 //! closes. Only Voxa's window is in the picture, never the rest of the screen. With
-//! `VOXA_CAPTURE_SIZE` set as well, to a size such as `900x600`, the window is that size.
+//! `VOXA_CAPTURE_SIZE` set as well, to a size such as `900x600`, the window is that size, in
+//! points of the interface as it is drawn. With `VOXA_CAPTURE_ZOOM` set to a number, the
+//! interface is drawn at that size, 1 being its usual size: on a display of 1440 by 900 points
+//! at 200%, 0.75 shows a window 1920 points across, as on a screen of 1920 by 1080 pixels at
+//! 100%, and 0.375 shows one 3840 points across. A picture's window is not fitted to the
+//! screen unless it asks to be.
 
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use voxa_core::{Patient, Point, SeriesId, Volume};
+use voxa_core::{SeriesId, Volume};
 use voxa_render::Look;
-use voxa_volume::{PlaneKind, ellipse_stats};
 
 use super::VoxaApp;
 use super::viewport::Gpu;
 use crate::action::Action;
-use crate::annotations::Shape;
 use crate::labels::LabelsStatus;
-use crate::planes::{ColumnShows, plane};
+use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 use labelling::Run;
 
 mod labelling;
+mod measured;
 
 pub use labelling::made_up_look;
+pub use measured::sample_annotations;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
 pub const SERIES_VARIABLE: &str = "VOXA_CAPTURE_SERIES";
-/// The environment variable giving the size of the window for the picture, in points, as
-/// width `x` height: `900x600`.
+/// The environment variable giving the size of the window for the picture, in points of the
+/// interface as it is drawn, as width `x` height: `900x600`.
 pub const SIZE_VARIABLE: &str = "VOXA_CAPTURE_SIZE";
+/// The environment variable giving the size the interface is drawn at for the picture, 1
+/// being its usual size: `0.75` puts four points where there were three.
+pub const ZOOM_VARIABLE: &str = "VOXA_CAPTURE_ZOOM";
 /// Frames drawn with a picture showing before it is captured, so everything has settled.
 const SETTLE_FRAMES: u32 = 30;
 /// How long to wait for a picture before capturing whatever is there.
@@ -68,10 +76,37 @@ pub fn size_from(text: &str) -> Option<[f32; 2]> {
     Some([side(width)?, side(height)?])
 }
 
+/// An interface size written as a number. `None` unless it is a number above zero.
+pub fn zoom_from(text: &str) -> Option<f32> {
+    let size = text.trim().parse::<f32>().ok()?;
+    (size.is_finite() && size > 0.0).then_some(size)
+}
+
+/// The size of a window, in points at the interface's usual size, that holds `size` points of
+/// an interface drawn at `zoom`.
+pub fn window_for(size: [f32; 2], zoom: f32) -> [f32; 2] {
+    size.map(|side| side * zoom)
+}
+
+/// Whether `wanted`, words separated by commas, holds `word` as one of them.
+pub fn asks_for(wanted: &str, word: &str) -> bool {
+    wanted.split(',').any(|part| part.trim() == word)
+}
+
+/// Whether the picture asks for `word` in [`SHOW_VARIABLE`].
+pub fn wants(word: &str) -> bool {
+    std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| asks_for(&wanted, word))
+}
+
+/// The size the interface is drawn at for a picture that asks for one.
+pub fn zoom() -> Option<f32> {
+    zoom_from(&std::env::var(ZOOM_VARIABLE).ok()?)
+}
+
 /// What to do to the 3D scene, once its volume is ready, for a picture that asks for it by
 /// the words in `wanted`: a look, a turn, a cut, the slice drawn in it.
 pub fn pose(wanted: &str) -> Vec<Action> {
-    let asked = |word: &str| wanted.split(',').any(|part| part.trim() == word);
+    let asked = |word: &str| asks_for(wanted, word);
     let poses = [
         ("vr", Action::SceneLook(Look::Vr)),
         ("mip", Action::SceneLook(Look::Mip)),
@@ -93,7 +128,7 @@ pub fn pose(wanted: &str) -> Vec<Action> {
 /// for it by the words in `wanted`: the parts as solids in the scene, the first part faded,
 /// the first part selected.
 pub fn label_pose(wanted: &str) -> Vec<Action> {
-    let asked = |word: &str| wanted.split(',').any(|part| part.trim() == word);
+    let asked = |word: &str| asks_for(wanted, word);
     let faded = Action::PartOpacity {
         part: 0,
         opacity: 0.3,
@@ -171,48 +206,6 @@ pub fn listed_as(
     })
 }
 
-/// For a picture that asks for it with the word `measured`: a ruler, an angle, a region and
-/// a marker in the axial plane through the position, as the tools would have made them from
-/// `scan`, the scene's volume. Nothing while there is no volume ready.
-pub fn sample_annotations(state: &AppState, scan: &Volume) -> Vec<Action> {
-    let Some((axial, corners)) = plane(state, PlaneKind::Axial).zip(state.scene.corners) else {
-        return Vec::new();
-    };
-    // A fifth of how far the volume reaches from the middle of the plane, as the unit.
-    let reach = corners.iter().fold(0.0_f64, |reach, corner| {
-        let ([across, down], _) = axial.of(*corner);
-        reach.max(across.abs()).max(down.abs())
-    });
-    let unit = reach / 5.0;
-    let at = |across: f64, down: f64| xyz(axial.at([across * unit, down * unit]));
-    let radii_mm = [unit, 0.6 * unit];
-    let inside = ellipse_stats(scan, &axial, [0.0, -2.6 * unit], radii_mm);
-    let shapes = [
-        Shape::Ruler {
-            a: at(-2.0, -1.0),
-            b: at(2.0, -1.0),
-        },
-        Shape::Angle {
-            a: at(2.0, 2.5),
-            vertex: at(0.0, 0.8),
-            b: at(-2.0, 2.5),
-        },
-        Shape::Region {
-            centre: at(0.0, -2.6),
-            across: axial.across,
-            down: axial.down,
-            radii_mm,
-            stats: inside,
-        },
-        Shape::Marker { at: at(3.0, 0.5) },
-    ];
-    shapes.into_iter().map(Action::AnnotationAdd).collect()
-}
-
-fn xyz(point: Point<Patient>) -> [f64; 3] {
-    [point.x, point.y, point.z]
-}
-
 /// A capture that has been asked for and not yet finished.
 pub struct Capture {
     path: PathBuf,
@@ -240,10 +233,10 @@ impl Capture {
             started: Instant::now(),
             settled: 0,
             asked: false,
-            first: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("first")),
+            first: wants("first"),
             series: asked_for(std::env::var(SERIES_VARIABLE).ok()),
-            measured: std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("measured")),
-            scene: if std::env::var(SHOW_VARIABLE).is_ok_and(|wanted| wanted.contains("moving")) {
+            measured: wants("measured"),
+            scene: if wants("moving") {
                 Motion::Moving
             } else {
                 Motion::Still
