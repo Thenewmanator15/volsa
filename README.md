@@ -88,7 +88,12 @@ shows where it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
-measurements, the list of parts, or labels.
+measurements, the list of parts, or labels. A table Voxa saves (CSV) ends every line with a
+column, `notice`, that says "Voxa is not a medical device and is not for diagnostic use.", so
+the sentence goes wherever a line is copied, sorted or filtered. The table of parts also says on
+every line which model made the labels (`model`: the model Voxa ran, or "made by another
+program") and how the model's own check of its work went (`model_check`: `passed`, `failed`,
+or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
 left out of the viewports, and the tag browser hides, and cannot find by searching, the value of

@@ -9,7 +9,7 @@ use voxa_labels::LabelSet;
 use voxa_render::{LabelsOnDevice, PartLook};
 
 use super::scene::export::said;
-use super::{VoxaApp, parts};
+use super::{VoxaApp, parts, theme};
 use crate::action::Action;
 use crate::export::write;
 use crate::labels::{LABELS_WAIT, Labels, NOTHING_TO_LABEL_KEY, is_label_file, on_this_series};
@@ -111,7 +111,7 @@ impl Opening {
                     .set_file_name(format!("{PARTS_NAME}.csv"))
                     .add_filter("CSV table", &["csv"])
                     .save_file()?;
-                let outcome = write(&path, parts_csv(open).as_bytes());
+                let outcome = write(&path, parts_csv(open, theme::DISCLAIMER).as_bytes());
                 Some(Action::Post(said(&path, outcome)))
             }
             parts::Asked::Labelling(wants) => parts::labelling::chosen(wants),
