@@ -2,8 +2,9 @@
 //!
 //! It holds when Voxa started and on what, how much an export held, each thing Voxa had to
 //! tell the person, and where a crash happened. It never holds a patient's name, identifier
-//! or date, a value from a file, or a path: a notice whose words may name a file is written
-//! as its kind alone, and nothing other people's libraries log is taken.
+//! or date, a value from a file, or the name of any of the person's files: a notice whose words
+//! may name a file is written as its kind alone, and nothing other people's libraries log is
+//! taken. A crash is placed by its file and line in Voxa's source or a library's.
 
 use std::fmt::Write as _;
 use std::fs::File;
@@ -151,8 +152,8 @@ pub fn start(folder: Option<&Path>) -> Option<PathBuf> {
     Some(PATH.get_or_init(|| path).clone())
 }
 
-/// What is logged of a crash: where in Voxa's code it happened, and nothing of what the
-/// failing code said, which may quote what it was working on.
+/// What is logged of a crash: where in the source it happened, Voxa's or a library's, and
+/// nothing of what the failing code said, which may quote what it was working on.
 pub fn crash_line(place: Option<&std::panic::Location<'_>>) -> String {
     match place {
         Some(place) => format!(

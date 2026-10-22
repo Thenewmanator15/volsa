@@ -18,7 +18,11 @@ what a public release needs. Voxa is not a medical device and is not for diagnos
   `README.txt` for someone who has just downloaded it, `INTENDED-USE.txt`, `MODELS.md`, this
   changelog, the two licences, `NOTICE`, `THIRD-PARTY-NOTICES.txt`, and ONNX Runtime's two
   libraries with their licence and notices in a `runtime` folder. `cargo xtask dist [--runtime
-  FOLDER]` makes it. A tag that starts with `v` has GitHub run every check, build the zip with
+  FOLDER [--local]]` makes it, and refuses a runtime folder without ONNX Runtime's licence and
+  notices unless `--local` asks for a package that is not for release, named so. The program in
+  it records no path of the computer it was built on, and carries an application manifest: the
+  system's message windows have today's look, and it follows each screen's scale from the
+  start. A tag that starts with `v` has GitHub run every check, build the zip with
   ONNX Runtime 1.24.4 from Microsoft's package (taken only if its SHA-512 matches the one
   nuget.org published, pinned in the workflow), write the zip's SHA-256 beside it and make a draft release, with that
   version's section of this changelog as its notes.
@@ -102,7 +106,17 @@ what a public release needs. Voxa is not a medical device and is not for diagnos
   the same picture either way.
 - The About window no longer calls every library's licence permissive; one is under the Mozilla
   Public License 2.0.
-- The list of keys and the About window scroll when Voxa's window is too short to hold them.
+- The list of keys, the About window and the licences and notices window scroll when Voxa's
+  window is too short to hold them, and always show their scroll bars, so a list cut short no
+  longer looks whole. The About window's **Licences and notices…** button stays in sight.
+- The disclaimer stays whole and uncovered at every size of the interface. The status line is
+  laid out first; when its line cannot hold the disclaimer, the newest notice and **Dismiss**,
+  the notice and the button go onto a line of their own. In a small window with the interface
+  enlarged, the bar across the top takes no more than about 40% of the window's height, and
+  what it holds beyond that scrolls.
+- When Voxa stops unexpectedly, for example because another program holds the graphics card's
+  memory, it says so in a message window with the path of its log, instead of closing without
+  a word.
 - In a narrow window the bars put whole buttons on the next line, a long notice in the status
   line is cut short instead of covering the disclaimer, and a long word on a series card ends
   in an ellipsis.

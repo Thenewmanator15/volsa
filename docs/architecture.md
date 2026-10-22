@@ -122,7 +122,8 @@ section), and are kept apart from the scan:
 ## Labelling a scan: the path of a run
 
 Voxa labels a brain scan with SynthSeg 2.0's networks, run through ONNX Runtime. It ships no
-network and no runtime; see [models.md](models.md) for what a person provides and
+network, and the zip a release offers carries ONNX Runtime but never DirectML or the weights;
+see [models.md](models.md) for what a person provides and
 [adr/0006-voxa-runs-a-labelling-model.md](adr/0006-voxa-runs-a-labelling-model.md) for why it is
 built as it is. Nothing else in Voxa depends on any of it.
 

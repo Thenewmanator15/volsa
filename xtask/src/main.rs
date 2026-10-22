@@ -1,7 +1,8 @@
 //! Project tasks for Voxa.
 //!
-//! `cargo xtask check` runs every quality gate in order and stops at the first failure:
-//! formatting, lints, file length, tests, licence and advisory checks, documentation.
+//! `cargo xtask check` runs every quality gate in order: formatting, lints, file length, the
+//! third-party notices, tests, licence and advisory checks, documentation. Every test program
+//! runs even when one fails; any other failing step stops it there.
 //! `cargo xtask coverage` measures line coverage of the crates that need no GPU and fails
 //! below the floor. The few files that cannot run without a graphics card or the networks'
 //! runtime are left out of the count.
