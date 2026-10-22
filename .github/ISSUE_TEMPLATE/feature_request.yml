@@ -7,7 +7,7 @@ body:
       value: |
         **Never attach a scan, a scan export (DICOM files, or a folder or zip of them), a label file made from a scan, or a screenshot that shows patient details, and never paste tag values from the Tags window.** Anyone can read an issue.
 
-        Voxa is not a medical device and is not for diagnostic use. It makes no network connections and has no telemetry, so it will not make a diagnosis or send anything off the computer.
+        Voxa is not a medical device and is not for diagnostic use. It will not make a diagnosis. It makes no network connections and has no telemetry, so it will not send anything off the computer.
   - type: textarea
     id: need
     attributes:

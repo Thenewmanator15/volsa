@@ -60,7 +60,7 @@ body:
     id: log
     attributes:
       label: voxa.log
-      description: The About window shows where the log is, with a button that copies its path. It holds nothing about a patient and no file names, but read it before you paste it.
+      description: The About window shows where the log is, with a button that copies its path. It holds nothing about a patient and none of your file names, but read it before you paste it.
       render: text
   - type: checkboxes
     id: nothing-private

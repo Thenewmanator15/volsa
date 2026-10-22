@@ -83,7 +83,7 @@ It says when Voxa started, its version and the system, which graphics device it 
 many studies, series and skipped files an export held, the messages Voxa showed (a message whose
 words may name a file is logged by its kind alone), and where in Voxa's code a crash happened.
 It never holds a patient's name, identifier or date, a value from a file, or a path. Once it
-passes 1 MB it is cut back to its newest half the next time Voxa starts. The **About** window
+passes 1 MB it is cut back to its newest 512 KB the next time Voxa starts. The **About** window
 shows where it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
@@ -114,8 +114,8 @@ Please include:
 - **Windows' version**: press Windows+R, type `winver` and press Enter.
 - **The graphics device.** The log names the one Voxa draws with; Device Manager lists it under
   Display adapters.
-- **`voxa.log`**, which the **About** window locates. It holds nothing about a patient and no
-  file names, but read it before you paste it.
+- **`voxa.log`**, which the **About** window locates. It holds nothing about a patient and none
+  of your file names, but read it before you paste it.
 - What you did, what happened, and what you expected.
 
 A security vulnerability is reported privately, never in an issue: see
@@ -228,9 +228,10 @@ VOXA_MODELS=path/to/model-folder VOXA_RUNTIME=path/to/runtime-folder cargo xtask
 holds the labelling of a made-up head against SynthSeg's own answers, on the processor and on
 each graphics card, with the real networks. It runs the tests that the other two leave out,
 which need a model folder and the runtime; without both variables it does nothing and says so.
-`cargo xtask check` needs neither on the machine. For 0.5.0 it passes but for six advisories
-that `cargo deny` reports against dependencies `main` already has (the 0.5.0 entry of the
-[changelog](CHANGELOG.md) names them), and it has been run on Windows only.
+`cargo xtask check` needs neither on the machine. It passes in full: the `zip` crate is at
+version 9, past three advisories about extracting archives (Voxa never extracts one), and
+`deny.toml` sets aside three notices that crates Voxa uses only for accessibility on Linux are
+no longer maintained, each with its reason. It has been run on Windows only.
 
 ### Layout
 

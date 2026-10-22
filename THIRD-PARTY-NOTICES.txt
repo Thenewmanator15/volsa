@@ -1285,7 +1285,7 @@ zerocopy-derive 0.8.62
   LICENSE-BSD: text 120
   LICENSE-MIT: text 121
 
-zip 8.6.0
+zip 9.0.4
   Licence: MIT
   Repository: https://github.com/zip-rs/zip2
   LICENSE: text 122
@@ -8956,7 +8956,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 ========================================================================
-Text 122: LICENSE of zip 8.6.0
+Text 122: LICENSE of zip 9.0.4
 ========================================================================
 
 The MIT License (MIT)
