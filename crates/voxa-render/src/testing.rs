@@ -162,6 +162,19 @@ pub(crate) fn headless_scene() -> Option<HeadlessScene> {
     }
 }
 
+/// A scene renderer on the graphics device emulated in software, or `None` with a printed
+/// notice on a machine that has none.
+pub(crate) fn software_scene() -> Option<HeadlessScene> {
+    match HeadlessScene::in_software() {
+        Ok(gpu) => Some(gpu),
+        Err(RenderError::NoAdapter) => {
+            eprintln!("skipped: no graphics adapter emulated in software here");
+            None
+        }
+        Err(other) => panic!("{other}"),
+    }
+}
+
 /// Every pixel of a test picture, as how far across and down it is.
 fn pixels() -> impl Iterator<Item = (u32, u32)> {
     (0..SIDE).flat_map(|y| (0..SIDE).map(move |x| (x, y)))

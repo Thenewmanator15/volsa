@@ -197,20 +197,26 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
         let along = min(enter + (f32(i) + 0.5) * stride, leave);
         let at = start + along * step;
         let voxel = vec3<i32>(floor(at + 0.5));
+        let block = voxel / BLOCK;
+        // Whether the block is empty is only noted inside the test of `stepping_over`; the
+        // step over it is taken out here, at the loop's own level. With the step taken inside
+        // that test, Windows' software device (WARP) drew nothing at all where blocks were not
+        // stepped over, though other devices drew the same shader right.
+        var empty = false;
         if stepping_over {
-            let block = voxel / BLOCK;
-            if textureLoad(filled, block, 0).r == 0.0 {
-                // Nothing in this block: go on from the first step that lies beyond it.
-                // Every step in between would have found nothing, and been passed.
-                within = 0u;
-                let near = vec3<f32>(block * BLOCK) - 0.5;
-                let far = near + f32(BLOCK);
-                let out = (select(near, far, step > vec3<f32>(0.0)) - at) / step;
-                let ways = select(vec3<f32>(FAR), out, abs(step) > vec3<f32>(1.0e-12));
-                let beyond = along + max(min(min(ways.x, ways.y), ways.z), 0.0);
-                i = max(i, i32(floor((beyond - enter) / stride - 0.5)));
-                continue;
-            }
+            empty = textureLoad(filled, block, 0).r == 0.0;
+        }
+        if empty {
+            // Nothing in this block: go on from the first step that lies beyond it. Every
+            // step in between would have found nothing, and been passed.
+            within = 0u;
+            let near = vec3<f32>(block * BLOCK) - 0.5;
+            let far = near + f32(BLOCK);
+            let out = (select(near, far, step > vec3<f32>(0.0)) - at) / step;
+            let ways = select(vec3<f32>(FAR), out, abs(step) > vec3<f32>(1.0e-12));
+            let beyond = along + max(min(min(ways.x, ways.y), ways.z), 0.0);
+            i = max(i, i32(floor((beyond - enter) / stride - 0.5)));
+            continue;
         }
         let part = part_of(voxel);
         let look = look_of(part);

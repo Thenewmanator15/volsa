@@ -39,11 +39,25 @@ impl HeadlessScene {
     /// [`RenderError::NoAdapter`] when the machine has neither, and [`RenderError::Device`]
     /// when the adapter found will not start.
     pub fn new() -> Result<Self, RenderError> {
-        let gpu = Gpu::start()?;
+        Ok(Self::on(Gpu::start()?))
+    }
+
+    /// Start the graphics device emulated in software; see [`Gpu::start_in_software`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Gpu::start_in_software`].
+    #[cfg(test)]
+    pub(crate) fn in_software() -> Result<Self, RenderError> {
+        Ok(Self::on(Gpu::start_in_software()?))
+    }
+
+    /// The pipelines made on a device that is running, with nothing on it yet.
+    fn on(gpu: Gpu) -> Self {
         let pipeline = VolumePipeline::new(&gpu.device, TARGET);
         let plane = PlanePipeline::new(&gpu.device, TARGET);
         let parts = PartsPipeline::new(&gpu.device, TARGET);
-        Ok(Self {
+        Self {
             gpu,
             pipeline,
             plane,
@@ -51,7 +65,7 @@ impl HeadlessScene {
             labels: None,
             overlay: Overlay::default(),
             curve: None,
-        })
+        }
     }
 
     /// Put a volume on the graphics device, and say how many times it had to be halved to

@@ -12,16 +12,21 @@ use crate::slice_pipeline::RenderError;
 pub(crate) const TARGET: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
 
-/// Devices started without a window all come from one adapter, and start one at a time. A
-/// run of the tests on many threads, each looking for an adapter of its own and starting a
-/// device on it, stopped for good on one machine's driver. One adapter was enough to cure
-/// it there; taking turns as well costs little, since starting a device on an adapter
-/// already found is quick.
+/// Devices started without a window all come from one adapter (the tests' software one
+/// aside), and start one at a time. A run of the tests on many threads, each looking for an
+/// adapter of its own and starting a device on it, stopped for good on one machine's
+/// driver. One adapter was enough to cure it there; taking turns as well costs little,
+/// since starting a device on an adapter already found is quick.
 static STARTING: Mutex<()> = Mutex::new(());
 
 /// The adapter those devices come from, looked for once: the search is most of the time a
 /// start would otherwise take.
 static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+
+/// The adapter emulated in software, looked for once, for the tests that draw on it even on
+/// a machine with a graphics card of its own.
+#[cfg(test)]
+static SOFTWARE: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
 
 /// A graphics device with no window.
 pub(crate) struct Gpu {
@@ -81,9 +86,31 @@ impl Gpu {
     /// [`RenderError::NoAdapter`] when the machine has neither, and [`RenderError::Device`]
     /// when the adapter found will not start.
     pub(crate) fn start() -> Result<Self, RenderError> {
+        Self::start_on(&ADAPTER, &[false, true])
+    }
+
+    /// Start the graphics device emulated in software even on a machine with its own:
+    /// Windows' WARP, or Mesa's lavapipe. Machines with no graphics card, such as those CI
+    /// runs on, draw with it, and it does not always draw what the others do.
+    ///
+    /// # Errors
+    ///
+    /// As [`Gpu::start`], with [`RenderError::NoAdapter`] where there is no such device.
+    #[cfg(test)]
+    pub(crate) fn start_in_software() -> Result<Self, RenderError> {
+        Self::start_on(&SOFTWARE, &[true])
+    }
+
+    /// Start a device, in turn with any other start, on the adapter `found` holds: the first
+    /// of those asked for in turn, looked for the first time a device is started on it.
+    /// `false` asks for the machine's own adapter, `true` for one emulated in software.
+    fn start_on(
+        found: &OnceLock<Option<wgpu::Adapter>>,
+        in_software: &[bool],
+    ) -> Result<Self, RenderError> {
         let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
-        let adapter = ADAPTER
-            .get_or_init(find_adapter)
+        let adapter = found
+            .get_or_init(|| find_adapter(in_software))
             .as_ref()
             .ok_or(RenderError::NoAdapter)?;
         let wanted = wgpu::DeviceDescriptor {
@@ -237,11 +264,11 @@ impl Gpu {
     }
 }
 
-/// One render pass that clears the picture to black and lets `draw` draw over it.
-/// The machine's own adapter if it has one, otherwise one emulated in software. Which
-/// backend and which adapter can be chosen from outside, to try more than one graphics
-/// device on a machine: `WGPU_BACKEND` and `WGPU_POWER_PREF`.
-fn find_adapter() -> Option<wgpu::Adapter> {
+/// The first adapter found of those asked for in turn: `false` asks for the machine's own,
+/// `true` for one emulated in software. Which backend and which adapter can be chosen from
+/// outside, to try more than one graphics device on a machine: `WGPU_BACKEND` and
+/// `WGPU_POWER_PREF`.
+fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
     let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
     let instance = wgpu::Instance::new(from_outside);
     let adapter = |force_fallback_adapter| {
@@ -252,9 +279,10 @@ fn find_adapter() -> Option<wgpu::Adapter> {
         };
         pollster::block_on(instance.request_adapter(&wanted)).ok()
     };
-    adapter(false).or_else(|| adapter(true))
+    in_software.iter().find_map(|&software| adapter(software))
 }
 
+/// One render pass that clears the picture to black and lets `draw` draw over it.
 fn draw_into(
     encoder: &mut wgpu::CommandEncoder,
     target: &wgpu::Texture,
