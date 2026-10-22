@@ -14,10 +14,10 @@ permissions:
 env:
   CARGO_TERM_COLOR: always
   # ONNX Runtime with DirectML, from Microsoft's package on nuget.org. The package is taken
-  # only if its SHA-256 is this one, pinned here by a person who downloaded it once and
-  # checked it: 64 hexadecimal digits in lower case.
+  # only if its SHA-512 is this one: the hash nuget.org published for version 1.24.4
+  # (x-ms-meta-SHA512, read on 2026-10-22), in lower-case hexadecimal.
   ORT_VERSION: "1.24.4"
-  ORT_SHA256: ""
+  ORT_SHA512: "6633b2bf8f79be17d55e84c9a76bad4729fc8abd53148bc28f407d24ff106460574b4a05c7e958ed9099a927675528505fa12dc588b64f754eb585dc9814d5e0"
 
 jobs:
   checks:
@@ -64,15 +64,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          if ($env:ORT_SHA256 -cnotmatch '^[0-9a-f]{64}$') {
-            throw "ORT_SHA256 in release.yml is not set: pin the SHA-256 of Microsoft.ML.OnnxRuntime.DirectML $env:ORT_VERSION from nuget.org."
+          if ($env:ORT_SHA512 -cnotmatch '^[0-9a-f]{128}$') {
+            throw "ORT_SHA512 in release.yml is not set: pin the SHA-512 of Microsoft.ML.OnnxRuntime.DirectML $env:ORT_VERSION from nuget.org."
           }
           $package = Join-Path $env:RUNNER_TEMP 'onnxruntime.zip'
-          $url = "https://www.nuget.org/api/v2/package/Microsoft.ML.OnnxRuntime.DirectML/$env:ORT_VERSION"
+          $url = "https://api.nuget.org/v3-flatcontainer/microsoft.ml.onnxruntime.directml/$env:ORT_VERSION/microsoft.ml.onnxruntime.directml.$env:ORT_VERSION.nupkg"
           Invoke-WebRequest -Uri $url -OutFile $package
-          $sum = (Get-FileHash -Algorithm SHA256 -Path $package).Hash.ToLowerInvariant()
-          if ($sum -ne $env:ORT_SHA256) {
-            throw "The package's SHA-256 is $sum, not $env:ORT_SHA256 as pinned in release.yml."
+          $sum = (Get-FileHash -Algorithm SHA512 -Path $package).Hash.ToLowerInvariant()
+          if ($sum -ne $env:ORT_SHA512) {
+            throw "The package's SHA-512 is $sum, not $env:ORT_SHA512 as pinned in release.yml."
           }
           $unpacked = Join-Path $env:RUNNER_TEMP 'onnxruntime'
           Expand-Archive -Path $package -DestinationPath $unpacked

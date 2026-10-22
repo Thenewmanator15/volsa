@@ -17,8 +17,8 @@ release needs.
   changelog, the two licences, `NOTICE`, `THIRD-PARTY-NOTICES.txt`, and ONNX Runtime's two
   libraries with their licence and notices in a `runtime` folder. `cargo xtask dist [--runtime
   FOLDER]` makes it. A tag that starts with `v` has GitHub run every check, build the zip with
-  ONNX Runtime 1.24.4 from Microsoft's package (taken only if its SHA-256 matches the value
-  pinned in the workflow), write the zip's SHA-256 beside it and make a draft release, with that
+  ONNX Runtime 1.24.4 from Microsoft's package (taken only if its SHA-512 matches the one
+  nuget.org published, pinned in the workflow), write the zip's SHA-256 beside it and make a draft release, with that
   version's section of this changelog as its notes.
 - `voxa.exe` needs no Visual C++ redistributable of its own: Microsoft's C runtime is built into
   it, and `cargo xtask dist` reads the program to make sure. It carries its icon and the details
