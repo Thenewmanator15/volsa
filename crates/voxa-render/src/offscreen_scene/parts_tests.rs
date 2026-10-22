@@ -8,7 +8,7 @@ use crate::camera::NamedView;
 use crate::labels::PartLook;
 use crate::scene::{CutPlane, Look, SceneParams};
 use crate::testing::{
-    BLUE, GREEN, RED, SIDE, ball, ball_labels, headless_scene, scene_of, silhouette,
+    BLUE, GREEN, RED, SIDE, ball, ball_labels, headless_scene, scene_of, silhouette, software_scene,
 };
 
 /// The middle of a test picture.
@@ -67,10 +67,14 @@ fn all_shown(set: &LabelSet) -> Vec<PartLook> {
 
 /// A scene with the ball's labels on the device, every part shown.
 fn labelled() -> Option<(HeadlessScene, LabelSet)> {
-    let mut gpu = headless_scene()?;
+    headless_scene().map(with_labels)
+}
+
+/// The scene with the ball's labels put on its device, every part shown.
+fn with_labels(mut gpu: HeadlessScene) -> (HeadlessScene, LabelSet) {
     let set = ball_labels([0.0; 3]);
     assert!(gpu.label(Some(&set)), "there is room for them");
-    Some((gpu, set))
+    (gpu, set)
 }
 
 #[test]
@@ -299,6 +303,32 @@ fn stepping_over_the_empty_blocks_draws_the_very_same_picture() {
             assert!(count(&quick, BLUE) + count(&quick, RED) > 0 || !quick.is_empty());
         }
     }
+}
+
+/// Machines with no graphics card, CI's among them, draw with a device emulated in
+/// software. Windows' own, WARP, drew the solids black when every step along a line of
+/// sight was taken.
+#[test]
+fn the_software_device_draws_the_solids_whether_or_not_empty_blocks_are_stepped_over() {
+    let Some((mut gpu, _)) = software_scene().map(with_labels) else {
+        return;
+    };
+    let front = seen_from(NamedView::Anterior);
+    let (left_half, right_half) = (pixel(&front, 4.0, 0.0), pixel(&front, -4.0, 0.0));
+    let [walked, stepped_over] = [false, true].map(|skip_empty| {
+        let scene = SceneParams {
+            skip_empty,
+            ..front.clone()
+        };
+        let rgba = drawn(&mut gpu, &scene);
+        let halves = [rgb(&rgba, left_half), rgb(&rgba, right_half)];
+        assert!(
+            is(halves[0], RED) && is(halves[1], BLUE),
+            "stepping over empty blocks {skip_empty}: {halves:?}"
+        );
+        rgba
+    });
+    assert!(walked == stepped_over, "pixel for pixel");
 }
 
 #[test]

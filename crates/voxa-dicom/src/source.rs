@@ -164,7 +164,8 @@ impl ZipSource {
         for at in 0..archive.len() {
             let entry = archive.by_index_raw(at).map_err(archive_error)?;
             if entry.is_file() {
-                files.push((entry.name().replace('\\', "/"), at));
+                let name = entry.name().map_err(archive_error)?;
+                files.push((name.replace('\\', "/"), at));
             }
         }
         files.sort();

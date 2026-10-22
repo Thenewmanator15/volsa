@@ -8,6 +8,14 @@ ignore = [
     # crate and offers no other choice. The notice says the crate is no longer maintained, not
     # that it has a known flaw. Remove this once dicom-encoding moves to `encoding_rs`.
     { id = "RUSTSEC-2021-0153", reason = "required by dicom-encoding 0.10; unmaintained, no known vulnerability" },
+    # The interface library's accessibility code reaches the Linux desktop's screen readers over
+    # D-Bus with zbus 5, which uses these three crates. They were folded into zbus 6 and are no
+    # longer kept up on their own; the notices name no flaw. They come only through accesskit on
+    # Linux, and no release of accesskit for this egui moves to zbus 6, so there is no safe
+    # upgrade yet. Remove these once egui's accesskit does.
+    { id = "RUSTSEC-2026-0370", reason = "zvariant: only through accesskit on Linux (zbus 5); unmaintained, no known vulnerability, no safe upgrade" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names: only through accesskit on Linux (zbus 5); unmaintained, no known vulnerability, no safe upgrade" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive: only through accesskit on Linux (zbus 5); unmaintained, no known vulnerability, no safe upgrade" },
 ]
 
 [licenses]
