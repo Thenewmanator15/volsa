@@ -112,11 +112,11 @@ many studies, series and skipped files an export held, the messages Voxa showed 
 words may name a file is logged by its kind alone), and where a crash happened. It never holds a
 patient's name, identifier or date, a value from a file, or the name of any of your files. A
 crash is logged by the place in the source code where it happened: a file and line in Voxa's own
-code or in a library's. For a library that can be a path on the computer Voxa was built on. For
-the program in a download that is not your computer, so its log holds no path on yours; for a
-Voxa you built yourself, it is a path on your own. Once the log passes 1 MB it is cut back to
-its newest 512 KB the next time Voxa starts. The **About** window shows where it is, with a
-button that copies the path.
+code or in a library's. For a library that place can be a path on the computer Voxa was built
+on, which for the program in a download is not yours, so its log holds no path on your
+computer; for a Voxa you built yourself, it can be a path on your own. Once the log passes 1 MB
+it is cut back to its newest 512 KB the next time Voxa starts. The **About** window shows where
+it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
@@ -220,11 +220,11 @@ them Voxa starts and does everything else, and the button says what is missing.
 ## Status
 
 Version 0.6.0, the first with a download for Windows: the zip, with ONNX Runtime in it for
-labelling, the notices and credits that go with it, a window that fits any screen, and fixes
-found by an audit of what a public release needs. What Voxa does came in the releases before
-it: 0.4.0 showed labels from files, and 0.5.0, which finished the fourth milestone, labels a
-brain scan inside Voxa and reads more kinds of MRI export. What it does and what it does not yet
-do are in the [changelog](CHANGELOG.md); how labelling was checked is in
+labelling, the notices and credits that go with it, a window that fits any screen, keys for the
+slices, the list of series and full screen, and fixes found by an audit of what a public release
+needs. It builds on 0.5.0, which finished the fourth milestone: 0.4.0 showed labels from files,
+and 0.5.0 labels a brain scan inside Voxa and reads more kinds of MRI export. What Voxa does
+and what it does not yet do are in the [changelog](CHANGELOG.md); how labelling was checked is in
 [docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and the reading of more kinds of export
 in [docs/acceptance-any-mri.md](docs/acceptance-any-mri.md). The design and the plan for
 every milestone are in [docs/superpowers](docs/superpowers), and why labelling is built as it
