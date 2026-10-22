@@ -8,10 +8,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use crate::cards::CardId;
+use crate::runtime::RuntimeError;
 use crate::tensor::Tensor;
 
 #[cfg(test)]
 mod card_tests;
+#[cfg(test)]
+mod load_tests;
 #[cfg(test)]
 mod tests;
 
@@ -125,6 +128,37 @@ pub(crate) fn right_build(found: &str) -> bool {
     let mut parts = found.trim().split('.').map(str::parse::<u32>);
     let (major, minor) = (parts.next(), parts.next());
     matches!((major, minor), (Some(Ok(1)), Some(Ok(minor))) if minor >= ort::MINOR_VERSION)
+}
+
+/// Windows' words, at their end, for what a library that is missing, or too old to have what
+/// is asked of it, makes a load fail with: no such module (126), no such procedure in one
+/// (127), and a library whose start failed (1114). ONNX Runtime fails so when the Visual C++
+/// runtime it needs is not on the computer, or is old.
+const VISUAL_CPP_CODES: [&str; 3] = ["(os error 126)", "(os error 127)", "(os error 1114)"];
+
+/// Why the runtime's library would not load, from what `ort` said of it.
+pub(crate) fn not_loaded(why: &ort::LoadDynamicError) -> RuntimeError {
+    match why {
+        // `ort` refuses a runtime older than the interface it asks for: `right_build`'s rule.
+        ort::LoadDynamicError::BadVersion { version_str, .. } if !right_build(version_str) => {
+            RuntimeError::WrongBuild
+        }
+        ort::LoadDynamicError::Dlopen { error, .. } if wants_visual_cpp(error) => {
+            RuntimeError::NeedsVisualCpp
+        }
+        _ => RuntimeError::WouldNotLoad,
+    }
+}
+
+/// Whether a failed load of the runtime's library is most likely for want of the Visual C++
+/// runtime: whether the words of `error`, or of an error beneath it, end with one of Windows'
+/// codes in [`VISUAL_CPP_CODES`].
+pub(crate) fn wants_visual_cpp(error: &(dyn std::error::Error + 'static)) -> bool {
+    std::iter::successors(Some(error), |error| error.source()).any(|error| {
+        let words = error.to_string();
+        let words = words.trim_end();
+        VISUAL_CPP_CODES.iter().any(|code| words.ends_with(code))
+    })
 }
 
 /// How many bytes an output holds, its numbers `width` bytes each. In `shape`, as a network

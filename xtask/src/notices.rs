@@ -32,7 +32,7 @@ use standard::{FONTS, FONTS_FOLDER, TYPEFACES, licence_ids, standard};
 /// The file the notices are written to, at the root of the repository.
 pub const FILE: &str = "THIRD-PARTY-NOTICES.txt";
 /// The target the program is built for: the packages compiled for it are the ones shipped.
-const TARGET: &str = "x86_64-pc-windows-msvc";
+pub const TARGET: &str = "x86_64-pc-windows-msvc";
 /// The package that is the program.
 const PROGRAM: &str = "voxa-app";
 /// The line that sets each text apart from the next.
@@ -90,7 +90,7 @@ fn generate() -> Result<String, String> {
 
 /// What cargo prints when run with `args` at the root of the repository, with `--locked` so
 /// that nothing here changes `Cargo.lock`.
-fn cargo(args: &[&str]) -> Result<String, String> {
+pub fn cargo(args: &[&str]) -> Result<String, String> {
     let shown = format!("cargo {} --locked", args.join(" "));
     let output = Command::new("cargo")
         .args(args)

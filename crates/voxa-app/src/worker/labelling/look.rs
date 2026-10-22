@@ -14,8 +14,10 @@ use crate::action::Action;
 use crate::labelling::{LabellingAction, Ready};
 use crate::worker::{Shared, Workers, lock, shielded};
 
-/// Said after anything that keeps this computer from labelling a scan.
-const WHERE: &str = "docs/models.md says what goes where.";
+/// Said after anything that keeps this computer from labelling a scan: where to read what
+/// goes where. A download of Voxa carries `docs/models.md` as `MODELS.md`, beside the program.
+const WHERE: &str =
+    "MODELS.md beside the program (docs/models.md in the source) says what goes where.";
 /// The folders looked in beside the program.
 const MODELS: &str = "models";
 const RUNTIME: &str = "runtime";

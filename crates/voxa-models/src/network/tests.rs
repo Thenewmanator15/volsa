@@ -174,7 +174,7 @@ fn a_cards_own_codes_are_sorted_before_the_runtimes_wordings_for_refused_memory(
 
 #[test]
 fn every_error_is_a_plain_sentence_without_the_runtimes_words() {
-    use RuntimeError::{NotFound, WouldNotLoad, WrongBuild};
+    use RuntimeError::{NeedsVisualCpp, NotFound, WouldNotLoad, WrongBuild};
     let failed = RunError::Failed("Non-zero status code in C:\\models\\scores.onnx".to_owned());
     let run = [
         RunError::NoRoom,
@@ -183,9 +183,10 @@ fn every_error_is_a_plain_sentence_without_the_runtimes_words() {
         failed,
     ];
     let mut sentences: Vec<String> = run.iter().map(ToString::to_string).collect();
-    let load = [NotFound, WrongBuild, WouldNotLoad];
+    let load = [NotFound, WrongBuild, WouldNotLoad, NeedsVisualCpp];
     sentences.extend(load.iter().map(ToString::to_string));
     let never = "RunError RuntimeError NoRoom DeviceLost Failed WouldNotLoad WrongBuild NotFound \
+                 NeedsVisualCpp \
                  :: \\ / .dll .onnx status";
     for sentence in &sentences {
         assert!(sentence.ends_with('.'), "not a sentence: {sentence}");
@@ -195,7 +196,7 @@ fn every_error_is_a_plain_sentence_without_the_runtimes_words() {
     }
     sentences.sort();
     sentences.dedup();
-    assert_eq!(sentences.len(), 7, "two errors read the same");
+    assert_eq!(sentences.len(), 8, "two errors read the same");
 }
 
 #[test]

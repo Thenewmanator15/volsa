@@ -1,8 +1,12 @@
 name: ci
 
 on:
+  # Pushes of branches only. A tag that makes a release is checked by the release workflow,
+  # which runs this one before it builds anything.
   push:
+    branches: ["**"]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -46,11 +50,11 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install the pinned toolchain
         run: rustup show
-      - name: Build Voxa as it would be handed to someone
-        run: cargo build --release -p voxa-app
-      - name: Keep the program
+      - name: Build Voxa and pack it as it would be handed to someone, without the runtime
+        run: cargo xtask dist
+      - name: Keep the package
         uses: actions/upload-artifact@v4
         with:
           name: voxa-windows
-          path: target/release/voxa-app.exe
+          path: target/dist/voxa-*-windows-x64.zip
           if-no-files-found: error
