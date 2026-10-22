@@ -107,10 +107,14 @@ and the old one is left where it was. The log says what was moved and what was l
 **The log**, `%LOCALAPPDATA%\Voxa\data\voxa.log`, is for finding out why something went wrong.
 It says when Voxa started, its version and the system, which graphics device it draws with, how
 many studies, series and skipped files an export held, the messages Voxa showed (a message whose
-words may name a file is logged by its kind alone), and where in Voxa's code a crash happened.
-It never holds a patient's name, identifier or date, a value from a file, or a path. Once it
-passes 1 MB it is cut back to its newest 512 KB the next time Voxa starts. The **About** window
-shows where it is, with a button that copies the path.
+words may name a file is logged by its kind alone), and where a crash happened. It never holds a
+patient's name, identifier or date, a value from a file, or the name of any of your files. A
+crash is logged by the place in the source code where it happened: a file and line in Voxa's own
+code or in a library's. For a library that can be a path on the computer Voxa was built on. For
+the program in a download that is not your computer, so its log holds no path on yours; for a
+Voxa you built yourself, it is a path on your own. Once the log passes 1 MB it is cut back to
+its newest 512 KB the next time Voxa starts. The **About** window shows where it is, with a
+button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
@@ -364,7 +368,8 @@ them to the licences listed in [deny.toml](deny.toml). The licence and notice te
 package built into the program are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which
 `cargo xtask notices` writes. [NOTICE](NOTICE) holds Voxa's own notice and SynthSeg's
 attribution. Both come in the zip. This software is based in part on the work of the
-Independent JPEG Group.
+Independent JPEG Group. The `voxa.exe` a release offers also has Microsoft's C runtime built
+into it, which is under Microsoft's own licence terms, not an open-source licence.
 
 Voxa's labelling steps (`voxa-segment`) are a port to Rust of SynthSeg's own code, Copyright 2020
 Benjamin Billot, under the Apache License 2.0. [NOTICE](NOTICE) carries the attribution and says

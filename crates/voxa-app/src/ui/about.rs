@@ -9,9 +9,13 @@ use egui::RichText;
 use super::theme;
 
 /// What is said about licences and credits, a line each.
-pub const LICENCES: [&str; 6] = [
+pub const LICENCES: [&str; 7] = [
     "Voxa is licensed under either the MIT licence or the Apache License 2.0, as you prefer.",
     "It is built on other people's libraries, each under its own open-source licence.",
+    concat!(
+        "The voxa.exe a release offers has Microsoft's C runtime built in, which is under ",
+        "Microsoft's own terms, not an open-source licence."
+    ),
     "Typefaces: Ubuntu Light (Ubuntu Font Licence 1.0), Hack (MIT, and the Bitstream Vera \
      licence for its Bitstream Vera glyphs), Noto Emoji (SIL Open Font Licence 1.1) and \
      emoji-icon-font (MIT).",
@@ -29,9 +33,13 @@ pub const INTENDED_USE: &str = "Voxa is for looking at MRI scans on your own com
      rule out anything, and its measurements and labels are not clinical results. Questions \
      about anyone's health belong with a qualified clinician.";
 
-/// What is said above the path of the log.
-pub const LOG_SAYS: &str =
-    "A log of what Voxa did is kept here. It holds nothing about a patient and no file names.";
+/// What is said above the path of the log. A crash is logged by the place in the source code
+/// where it happened, which for a library can be a path on the computer Voxa was built on.
+pub const LOG_SAYS: &str = concat!(
+    "A log of what Voxa did is kept here. It holds nothing about a patient and none of your ",
+    "files' names. A crash is logged by the place in the source code of Voxa, or of a ",
+    "library, where it happened."
+);
 
 /// Voxa's version, as written in its package.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
