@@ -260,7 +260,12 @@ a sentence that names them.
 
 The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
 with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
-error for that one slice.
+error for that one slice. A decoder makes room for a whole frame from what the header says, and
+a request for memory that fails stops the program outright, which no wrapping catches. So
+before any decoder is called, a file is refused in a sentence when it says one of its images
+takes more than 256 MiB once decoded (larger than any MRI image: a slice of 1024 by 1024 values
+of 16 bits takes 2 MiB), or when its pixels are stored uncompressed and it holds fewer bytes of
+them than its header says (`decode/declared.rs`).
 
 Label files are made the same way for tests, by the `testkit` feature of `voxa-labels`: NIfTI
 files of every kind of number labels are stored as, in either byte order, placed either way a
