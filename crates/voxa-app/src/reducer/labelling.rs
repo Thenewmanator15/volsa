@@ -241,7 +241,13 @@ fn about_kept_results(state: &mut AppState, action: LabellingAction) -> Vec<Effe
 /// Take in the labels a run has made, as the labels of the study of the series it labelled.
 /// They are dropped when the scene has moved on to another study; when it shows nothing they
 /// are kept, to be shown once the scene is back on their study. The run is over either way.
+/// The workers are asked to hold the labels, and so to draw them, only once they are taken in
+/// here: until then they draw the labels before, which are the ones listed. Labels that are
+/// not taken are let go.
 pub(super) fn result(state: &mut AppState, read: Action) -> Vec<Effect> {
+    let Action::LabelsRead { run: Some(run), .. } = read else {
+        return Vec::new();
+    };
     let on = state.labelling.on.clone();
     end_run(&mut state.labelling);
     let study = on.and_then(|series| study_of(state, &series));
@@ -252,8 +258,13 @@ pub(super) fn result(state: &mut AppState, read: Action) -> Vec<Effect> {
         .and_then(|series| study_of(state, series));
     match study {
         Some(study) if now.is_none() || now.as_ref() == Some(&study) => {
-            labels::taken_in(state, read, Some(study))
+            let mut effects = labels::taken_in(state, read, Some(study));
+            if state.labels.status == LabelsStatus::Ready {
+                effects.push(Effect::TakeLabels { run });
+            }
+            effects
         }
-        _ => Vec::new(),
+        // The worker is told the run is over, which lets go of what it made.
+        _ => vec![Effect::StopLabelling],
     }
 }

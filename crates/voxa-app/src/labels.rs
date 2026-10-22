@@ -51,6 +51,8 @@ pub struct PartShown {
 pub enum NamesFrom {
     /// A table of names found beside the labels, or chosen.
     Table,
+    /// The list of the model that made the labels, in a run of Voxa's own.
+    Model,
     /// Nowhere: the parts are called after their numbers.
     #[default]
     Nothing,

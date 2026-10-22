@@ -24,7 +24,7 @@ const NOT_SAVED: &str = "These labels could not be saved as a file. Only labels 
 fn after_a_run() -> (Lab, PathBuf) {
     let lab = Lab::keeping(StandIn::roomy());
     lab.label_keeping(1, RunsOn::Automatic, false);
-    lab.until_the_end();
+    lab.until_taken();
     let to = lab.settings().join("chosen").join("my labels.nii.gz");
     std::fs::create_dir(lab.settings().join("chosen")).expect("a folder");
     (lab, to)
@@ -47,6 +47,19 @@ fn the_labels_open_are_saved_with_their_table_beside_them_and_keep_the_structure
         "the structures' numbers, not the places of the parts: {numbers:?}"
     );
     assert!(numbers.contains(&4), "{numbers:?}");
+}
+
+#[test]
+fn labels_saved_under_a_name_with_no_ending_are_written_as_a_gzipped_nifti_file() {
+    let _alone = one_at_a_time();
+    let (lab, to) = after_a_run();
+    let plain = to.with_file_name("my labels");
+    lab.workers
+        .run(Effect::SaveLabels { to: plain.clone() }, None);
+    assert_eq!(notice(lab.next()), (NoticeKind::Info, SAVED.to_owned()));
+    assert!(!plain.exists(), "nothing under a name no program reads");
+    let set = set_of(&to, &to.with_file_name("my labels.json"));
+    assert_eq!(set, *lab.workers.labels().expect("shown"));
 }
 
 #[test]

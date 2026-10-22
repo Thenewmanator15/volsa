@@ -230,11 +230,12 @@ fn the_scores_network_stays_on_a_device_that_just_holds_it() {
     );
     // Ordinary memory holds it to the byte too, where the processor is all there is: it asks
     // 3.1 GiB of the processor with a quarter added, whatever the scan. The scan here is an
-    // empty one, so that nothing else a run asks for is more.
+    // empty one, so that nothing else a run asks for is more (and its head, no smaller than the
+    // whole, is not offered again).
     room.free_memory = SCORES_NEED_ON_THE_PROCESSOR;
     assert_eq!(
         rungs(0, 0, STANDARD, &room, RunsOn::Processor),
-        vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
+        vec![on_processor(Cut::Whole)]
     );
     room.free_memory = SCORES_NEED_ON_THE_PROCESSOR - 1;
     assert_eq!(rungs(0, 0, STANDARD, &room, RunsOn::Processor), Vec::new());

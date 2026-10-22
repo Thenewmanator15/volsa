@@ -3,11 +3,12 @@
 //! for labelling. Nothing here writes a path or a file's name anywhere, and a notice here has
 //! none.
 //!
-//! A result is reported before anything is written. Its files are made, and kept, after: the
-//! person sees the labels at once, and is told afterwards that they were kept, or that they
-//! could not be. The files are made for every result, kept or not, so that the labels can be
-//! saved as a file of their own with the structures' own numbers; a person who saves while
-//! they are still being made waits for them.
+//! A result is reported before anything is written. Its files are made after, and held and
+//! kept once the state has taken the result in (see `labelling/taken.rs`): the person sees the
+//! labels at once, and is told afterwards that they were kept, or that they could not be. The
+//! files are made for every result, kept or not, so that the labels can be saved as a file of
+//! their own with the structures' own numbers; a person who saves while they are still being
+//! made waits for them.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -19,7 +20,7 @@ use voxa_labels::{LabelGrid, LabelSet, Table, read_table, write_labels, write_ta
 use super::{Shared, Workers, lock};
 use crate::action::{Action, Effect};
 use crate::choices::{Choices, save_choices};
-use crate::kept_labels::{forget, keep, kept, table_for, write_whole};
+use crate::kept_labels::{forget, keep, kept, saved_as, table_for, write_whole};
 use crate::labelling::LabellingAction;
 use crate::state::{Notice, NoticeKind};
 use crate::views::series_key;
@@ -51,6 +52,27 @@ pub(super) const MAX_SAVED_BYTES: usize = 32 << 20;
 pub(super) struct Saved {
     pub(super) labels: Vec<u8>,
     pub(super) table: String,
+}
+
+/// The files of a run's labels, as far as they have got.
+pub(super) enum Files {
+    /// Still being made, by the run.
+    Making,
+    /// Made, ready to be held and kept.
+    Made(Arc<Saved>),
+    /// Too big to be written as files: there is nothing to keep or to save.
+    Unmade,
+}
+
+/// The files of a label grid and its table. The grid is let go as soon as its file is made,
+/// before the table is written and before anything is kept.
+pub(super) fn files_of(grid: LabelGrid, table: &Table) -> Files {
+    let labels = write_labels(&grid);
+    drop(grid);
+    match labels.ok().zip(write_table(table).ok()) {
+        Some((labels, table)) => Files::Made(Arc::new(Saved { labels, table })),
+        None => Files::Unmade,
+    }
 }
 
 /// What the workers keep besides the labels themselves.
@@ -184,40 +206,23 @@ impl Shared {
         }));
     }
 
-    /// What is done once a run's labels have been reported as the labels held: their files
-    /// are made, held so that the labels can be saved, and, when `keep_for` names a series,
-    /// kept for it. The report of the labels does not wait for any of this.
-    pub(super) fn after_report(
-        &self,
-        set: &Arc<LabelSet>,
-        grid: &LabelGrid,
-        table: &Table,
-        keep_for: Option<&SeriesId>,
-    ) {
-        let written = write_labels(grid).ok().zip(write_table(table).ok());
-        let Some((labels, text)) = written else {
-            // Too big to be written as files: nothing to keep or to save.
-            if keep_for.is_some() {
-                self.say(NoticeKind::Warning, NOT_KEPT, KEPT);
-            }
+    /// Keep the files of a result that the state has taken in for the series `keep_for` names,
+    /// made on the day it gives, and say where they are found; or say that they could not be
+    /// kept. Nothing when the result is not to be kept.
+    pub(super) fn keep_files(&self, files: &Files, keep_for: Option<&(SeriesId, String)>) {
+        let Some((series, when)) = keep_for else {
             return;
         };
-        let saved = Arc::new(Saved {
-            labels,
-            table: text,
-        });
-        self.hold_files(set, &saved);
-        if let Some(series) = keep_for {
-            let when = table
-                .made
-                .as_ref()
-                .map_or(NO_DAY, |made| made.when.as_str());
-            self.keep_for(series, &saved, when);
+        match files {
+            Files::Made(saved) => self.keep_for(series, saved, when),
+            Files::Unmade => self.say(NoticeKind::Warning, NOT_KEPT, KEPT),
+            Files::Making => {}
         }
     }
 
-    /// Hold the files of `set`, if it is still the labels held.
-    fn hold_files(&self, set: &Arc<LabelSet>, saved: &Arc<Saved>) {
+    /// Hold the files of `set`, so that the labels can be saved, if it is still the labels
+    /// held.
+    pub(super) fn hold_files(&self, set: &Arc<LabelSet>, saved: &Arc<Saved>) {
         let labels = lock(&self.labels);
         if labels.as_ref().is_some_and(|now| Arc::ptr_eq(now, set)) {
             let held = (Arc::downgrade(set), Arc::clone(saved));
@@ -256,26 +261,29 @@ impl Shared {
         Weak::ptr_eq(&of, &Arc::downgrade(&now)).then_some(saved)
     }
 
-    /// Write the files of the labels held to `to` and, beside it, to the name of their table.
-    /// False when there are no files to write, or they could not be written.
+    /// Write the files of the labels held to `to`, under a name that ends in `.nii.gz`, and,
+    /// beside it, to the name of their table. False when there are no files to write, or they
+    /// could not be written.
     fn save(&self, to: &Path) -> bool {
         // Files that are still being made are waited for.
         let _made = self.keeping.making();
         let Some(files) = self.files_held() else {
             return false;
         };
-        write_whole(to, &files.labels).is_ok()
-            && write_whole(&table_for(to), files.table.as_bytes()).is_ok()
+        let to = saved_as(to);
+        write_whole(&to, &files.labels).is_ok()
+            && write_whole(&table_for(&to), files.table.as_bytes()).is_ok()
     }
 }
 
 /// The day a kept result was made, as its table says it, or that it does not say. `None` when
-/// the table cannot be read: that is no kept result.
+/// the table cannot be read, or is longer than any Voxa writes: that is no kept result.
 fn day_of(table: &Path) -> Option<String> {
     let size = std::fs::metadata(table).ok()?.len();
-    let text = std::fs::read_to_string(table)
-        .ok()
-        .filter(|_| size <= MAX_TABLE_BYTES)?;
+    if size > MAX_TABLE_BYTES {
+        return None;
+    }
+    let text = std::fs::read_to_string(table).ok()?;
     let table = read_table("table.json", &text).ok()?;
     let day = table
         .made

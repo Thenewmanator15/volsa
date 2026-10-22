@@ -33,8 +33,10 @@ const CORTEX_ON_THE_PROCESSOR: u64 = 900;
 /// puts on a card. The cortex network asks for no more than the rest. Measured on a made-up
 /// head and rounded up.
 const ORDINARY_FOR_A_CARD: u64 = 1_900;
-/// What Voxa itself holds beside any network for every voxel of its grid, in bytes: one set of
-/// chances and small lists. Measured on a made-up head and rounded up.
+/// What Voxa itself holds beside any network for every voxel of its grid, in bytes, at its
+/// most: the chances found, with, for a moment, the answer that has just arrived, which is
+/// blended into them (no more than two sets of chances at once), and small lists. Measured on a
+/// made-up head and rounded up.
 const VOXA_ITSELF: u64 = 200;
 /// What the scores network takes of a card's memory, whatever the size of the scan: 8.2 GiB.
 /// Its input is always the same box. Measured on made-up volumes.
@@ -260,11 +262,16 @@ impl Room {
 /// With [`RunsOn::Automatic`] the order is the whole scan on each discrete card, then on the
 /// processor, then the head on each discrete card, then on the processor. An integrated card
 /// is not tried unless it is asked for. A named card, or the processor, is offered the whole
-/// scan and then the head, and nowhere else.
+/// scan and then the head, and nowhere else. The head is offered only where cutting to it
+/// makes the grid smaller: otherwise it would be the same run tried again.
 pub fn rungs(whole: u64, head: u64, wanted: Wanted, room: &Room, runs_on: RunsOn) -> Vec<Rung> {
     let places = room.places(runs_on);
     let mut found = Vec::new();
-    for (cut, voxels) in [(Cut::Whole, whole), (Cut::Head, head)] {
+    let cuts = [(Cut::Whole, whole), (Cut::Head, head)];
+    for (cut, voxels) in cuts
+        .into_iter()
+        .filter(|&(cut, voxels)| cut == Cut::Whole || voxels < whole)
+    {
         for &(device, space) in &places {
             if needs(voxels, wanted, device) > space {
                 continue;

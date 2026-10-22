@@ -1,36 +1,39 @@
-//! Labelling a scan on a worker: looking for the model and the runtime (the module `look`),
-//! and running the networks on the volume kept for a series, from one place to try to the
-//! next, to a label set that is kept and reported. A run says what it says with its number.
-//! One that is stopped or overtaken, or whose export has been closed, keeps and says nothing
-//! more. One whose volume the store has given up says once that the scan changed, so that no
-//! one waits for it. One run has its networks open at a time: the next waits until a stopped
-//! one is over.
+//! Labelling a scan: looking for the model and the runtime (the module `look`), and running
+//! the networks on the volume kept for a series, from one place to try to the next, to a label
+//! set that is reported, and held and kept once the state takes it in (the module `taken`). A
+//! run says what it says with its number. One that is stopped or overtaken, or whose export
+//! has been closed, keeps and says nothing more. One whose volume the store has given up says
+//! once that the scan changed, so that no one waits for it. Runs and looks go on threads of
+//! their own, and one run has its networks open at a time: the next waits until a stopped one
+//! is over, and gives up at once if it is stopped while it waits (the module `turn`).
 //!
 //! The runtime's own words for a failure go to the log, with every path taken out. Nothing
 //! else of a run is logged but what memory it went by, and never a path or a file's name.
 
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 
 use voxa_core::{SeriesId, Volume};
-use voxa_labels::{MAX_MADE_LINE, MAX_NOTE, MAX_NOTES, Made, Table, label_set};
 use voxa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
-use voxa_segment::{LabelError, Labelled, Stage, label, sizes};
+use voxa_segment::{LabelError, Stage, label, sizes};
 
 use super::{Shared, Workers, lock, shielded};
 use crate::action::{Action, Effect};
 use crate::labelling::LabellingAction;
-use crate::labels::NamesFrom;
 
 mod labeller;
 mod look;
 mod room;
+mod taken;
+mod turn;
 
 pub use labeller::Labeller;
 use labeller::{OnRung, ThisComputer};
-use room::{PROCESSOR, card_name, does_not_fit, logged_words, place, room_of};
 #[cfg(test)]
 use room::{card_named, free_bytes, without_paths};
+use room::{does_not_fit, logged_words, place, room_of};
+use taken::Unclaimed;
+use turn::on_its_own;
 
 #[cfg(test)]
 #[path = "kept_saved_tests.rs"]
@@ -48,16 +51,17 @@ mod look_tests;
 #[path = "labelling_stand_ins.rs"]
 mod stand_ins;
 #[cfg(test)]
+#[path = "labelling_taken_tests.rs"]
+mod taken_tests;
+#[cfg(test)]
 #[path = "labelling_tests.rs"]
 mod tests;
 
-/// The notes on a result that ran elsewhere than where it was first tried.
-const NO_ROOM: &str = "Run on the processor: the graphics card did not have room.";
-const LOST: &str = "Run on the processor: the graphics card stopped answering.";
-const SCORES_ON_THE_PROCESSOR: &str = "The model checked its own work on the processor: that \
-                                       step did not fit on the graphics card.";
 /// What is said when a run stops part-way.
 const PART_WAY: &str = "Labelling stopped part-way: something went wrong inside it.";
+/// What is said when the computer would not give a run a thread to go on.
+const NO_THREAD: &str = "Labelling could not start: the computer would not give it a thread to \
+                         run on.";
 /// What is said when there is no volume, or no model, to run on.
 const NO_VOLUME: &str = "The 3D view of this scan is no longer there to label.";
 const NO_MODEL: &str = "Voxa has not yet checked whether this computer can label a scan.";
@@ -74,9 +78,13 @@ pub(super) struct Kit {
     model: Mutex<Option<Arc<Model>>>,
     /// The switch that stops the run on, if one is.
     run: Mutex<Option<Stop>>,
-    /// Held by a run from its start to its end: only one run has networks open at a time,
-    /// and the next waits for a stopped one to be over.
-    turn: Mutex<()>,
+    /// Whether a run has its turn: only one run has networks open at a time. Held by a run
+    /// from its start to its end (see `turn`).
+    busy: Mutex<bool>,
+    /// Told when the turn is given back, and when a run is stopped.
+    freed: Condvar,
+    /// What a run made that the state has not yet taken in (see `taken`).
+    made: Mutex<Option<Unclaimed>>,
 }
 
 impl Kit {
@@ -89,7 +97,9 @@ impl Kit {
             looks: AtomicU64::new(0),
             model: Mutex::new(None),
             run: Mutex::new(None),
-            turn: Mutex::new(()),
+            busy: Mutex::new(false),
+            freed: Condvar::new(),
+            made: Mutex::new(None),
         }
     }
 
@@ -98,18 +108,23 @@ impl Kit {
         lock(&self.model).clone()
     }
 
-    /// Note the stop of a run that begins. The run before, if one is on, is stopped.
+    /// Note the stop of a run that begins. The run before, if one is on, is stopped, and what
+    /// it made that was not taken in is let go.
     fn begin(&self, stop: Stop) {
         if let Some(before) = lock(&self.run).replace(stop) {
             before.stop();
         }
+        self.let_go();
+        self.wake();
     }
 
-    /// Stop the run on, if one is.
+    /// Stop the run on, if one is, and let go of what a run made that was not taken in.
     fn stop(&self) {
         if let Some(on) = lock(&self.run).take() {
             on.stop();
         }
+        self.let_go();
+        self.wake();
     }
 }
 
@@ -132,8 +147,8 @@ struct Job {
     /// The series it labels.
     series: SeriesId,
     /// The volume kept for the series when the run was asked for. It is let go when the run
-    /// has said all it will say. The run is over, and says so once, when the store no longer
-    /// keeps this very volume for the series.
+    /// has said all it will say, or gives up waiting for its turn. The run is over, and says so
+    /// once, when the store no longer keeps this very volume for the series.
     volume: Option<Arc<Volume>>,
     /// The model the newest look found.
     model: Option<Arc<Model>>,
@@ -150,12 +165,13 @@ impl Workers {
             } => self.look(look, models, runtime),
             scan @ Effect::LabelScan { .. } => self.label_scan(scan),
             Effect::StopLabelling => self.shared.labelling.stop(),
+            Effect::TakeLabels { run } => self.take_labels(run),
             _ => {}
         }
     }
 
-    /// Label the volume kept for a series on a worker, in place of any run on. The volume and
-    /// the model are taken now, so that what the run is of cannot change under it.
+    /// Label the volume kept for a series on a thread of its own, in place of any run on. The
+    /// volume and the model are taken now, so that what the run is of cannot change under it.
     fn label_scan(&self, scan: Effect) {
         let Effect::LabelScan {
             run,
@@ -187,20 +203,33 @@ impl Workers {
             model: shared.labelling.model(),
         };
         let shared = Arc::clone(&self.shared);
-        self.spawn(move || {
+        let started = on_its_own(move || {
             if !shielded(|| shared.carry_out(&job)) {
                 shared.fail(&job, PART_WAY);
             }
         });
+        if !started {
+            let failed = LabellingAction::LabellingFailed {
+                run,
+                why: NO_THREAD.to_owned(),
+            };
+            self.shared.report(Action::Labelling(failed));
+        }
     }
 }
 
 impl Shared {
-    /// Carry out a run: the sizes of the scan, where it fits, and each place in turn.
+    /// Carry out a run once it has its turn: the sizes of the scan, where it fits, and each
+    /// place in turn. A run stopped before it has its turn gives up, and says nothing.
     fn carry_out(&self, job: &Job) {
-        // A new run waits here for a stopped one to be over, and says nothing until it has its
-        // turn: a network that was running on a card finishes what it was handed first.
-        let _turn = lock(&self.labelling.turn);
+        // A network that was running on a card finishes what it was handed before the turn is
+        // given back.
+        let Some(_turn) = self.labelling.turn(&job.stop) else {
+            return;
+        };
+        if !self.current(job) {
+            return;
+        }
         let (Some(volume), Some(model)) = (&job.volume, &job.model) else {
             let why = if job.volume.is_none() {
                 NO_VOLUME
@@ -259,68 +288,11 @@ impl Shared {
             if let Device::Card(_) = rung.device {
                 let lost = why == RunError::DeviceLost;
                 cards_gone.extend(lost.then_some(rung.device));
-                gave_way = Some(if lost { LOST } else { NO_ROOM });
+                gave_way = Some((rung.device, lost));
             }
             why_last = why;
         }
         self.fail(job, &why_last.to_string());
-    }
-
-    /// A rung gave labels: say on them who made them, where, and anything the labels cannot
-    /// show of how; then hold the label set and report it, unless the run is no longer the one
-    /// waited for. Once it is reported its files are made, and kept if the run is to keep them
-    /// (see `kept.rs`).
-    fn done(
-        &self,
-        job: &Job,
-        model: &Model,
-        room: &Room,
-        rung: Rung,
-        labelled: Labelled,
-        gave_way: Option<&str>,
-    ) {
-        let Labelled {
-            grid,
-            table,
-            mut notes,
-        } = labelled;
-        let on_the_processor = rung.device == Device::Processor;
-        notes.extend(gave_way.filter(|_| on_the_processor).map(str::to_owned));
-        if !on_the_processor && rung.scores_on == Device::Processor {
-            notes.push(SCORES_ON_THE_PROCESSOR.to_owned());
-        }
-        let device = match rung.device {
-            Device::Processor => PROCESSOR.to_owned(),
-            Device::Card(card) => card_name(room, card),
-        };
-        let when = self.labelling.labeller.today();
-        let made = made(&table.title, &model.sum, &device, &when, &notes);
-        let table = Table {
-            made: Some(made),
-            ..table
-        };
-        let set = match label_set(&grid, Some(&table)) {
-            Ok(set) => Arc::new(set),
-            Err(why) => return self.fail(job, &why.to_string()),
-        };
-        // A save waits for the files of these labels from here until they are made.
-        let _making = self.keeping.making();
-        let mut kept = lock(&self.labels);
-        if !self.current(job) {
-            return;
-        }
-        *kept = Some(Arc::clone(&set));
-        drop(kept);
-        self.report(Action::LabelsRead {
-            title: set.title.clone(),
-            parts: set.parts.clone(),
-            verdict: set.verdict.clone(),
-            corners: set.corners(),
-            names_from: NamesFrom::Table,
-            made: set.made.clone(),
-            run: Some(job.run),
-        });
-        self.after_report(&set, &grid, &table, job.keep.then_some(&job.series));
     }
 
     /// Whether a run is still the one waited for: not stopped, not overtaken by another run
@@ -371,19 +343,5 @@ impl Shared {
         let (run, why) = (job.run, why.to_owned());
         let failed = LabellingAction::LabellingFailed { run, why };
         self.report(Action::Labelling(failed));
-    }
-}
-
-/// Who made a label set, cut to the lengths a table keeps.
-fn made(model: &str, sum: &str, device: &str, when: &str, notes: &[String]) -> Made {
-    let line = |text: &str| text.chars().take(MAX_MADE_LINE).collect::<String>();
-    let note = |text: &String| text.chars().take(MAX_NOTE).collect::<String>();
-    Made {
-        by: line(&format!("Voxa {}", env!("CARGO_PKG_VERSION"))),
-        model: line(model),
-        model_sum: sum.to_owned(),
-        device: line(device),
-        when: line(when),
-        notes: notes.iter().take(MAX_NOTES).map(note).collect(),
     }
 }

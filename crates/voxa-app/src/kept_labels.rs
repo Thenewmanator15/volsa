@@ -124,5 +124,28 @@ pub(crate) fn table_for(labels: &Path) -> PathBuf {
     labels.with_file_name(format!("{stem}.{TABLE_END}"))
 }
 
+/// The name labels asked to be saved as `to` are written under: one that ends in `.nii.gz`,
+/// since what is written is a gzipped NIfTI file, and Voxa and other programs know it as one
+/// by that ending. A name that ends in `.nii` gains `.gz`, one that ends in `.gz` gains `.nii`
+/// before it, and any other gains `.nii.gz`.
+pub(crate) fn saved_as(to: &Path) -> PathBuf {
+    let name = to.file_name().map(|name| name.to_string_lossy());
+    let name = name.unwrap_or_default();
+    let lower = name.to_ascii_lowercase();
+    let ending = [".nii.gz", ".nii", ".gz"]
+        .into_iter()
+        .find(|ending| lower.ends_with(ending));
+    let named = match ending {
+        Some(".nii.gz") => name.into_owned(),
+        Some(".nii") => format!("{name}.gz"),
+        Some(gz) => {
+            let stem = name.get(..name.len() - gz.len()).unwrap_or_default();
+            format!("{stem}.nii.gz")
+        }
+        None => format!("{name}.nii.gz"),
+    };
+    to.with_file_name(named)
+}
+
 #[cfg(test)]
 mod tests;

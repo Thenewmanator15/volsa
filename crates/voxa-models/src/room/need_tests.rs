@@ -66,6 +66,23 @@ fn the_cortex_network_asks_more_of_the_processor() {
 }
 
 #[test]
+fn a_head_that_fills_the_whole_grid_is_not_offered_again_after_the_whole() {
+    // Cut to the head, the grid would be no smaller: the same run would only be tried twice.
+    assert_eq!(
+        rungs(WHOLE, WHOLE, STANDARD, &room(), RunsOn::Processor),
+        vec![on_processor(Cut::Whole)]
+    );
+    assert_eq!(
+        rungs(WHOLE, WHOLE + 1, STANDARD, &room(), RunsOn::Processor),
+        vec![on_processor(Cut::Whole)]
+    );
+    assert_eq!(
+        rungs(WHOLE, WHOLE - 1, STANDARD, &room(), RunsOn::Processor),
+        vec![on_processor(Cut::Whole), on_processor(Cut::Head)]
+    );
+}
+
+#[test]
 fn a_device_has_what_a_run_counts_on_there_or_none_when_it_is_no_place_to_run() {
     let mut room = room();
     // The processor has the ordinary memory free; so does a card that shares it.

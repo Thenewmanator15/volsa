@@ -46,14 +46,27 @@ pub fn captions(spacing_mm: [f64; 3], halved: u32) -> Vec<String> {
     lines
 }
 
+/// What is said first of solids from labels Voxa made when the model's own check of them failed.
+const CHECK_FAILED: &str = "The model's own check of these labels failed.";
+
 /// What the scene says of its solids in the Parts look: that they are labels made elsewhere,
-/// drawn as given, or, for labels that Voxa made, with what, where and when.
+/// drawn as given, or, for labels that Voxa made, with what, where and when, and first of all,
+/// as the list says it, that the model's own check of them failed, if it did.
 pub fn solids(state: &AppState) -> String {
-    state
-        .labels
-        .made
+    let labels = &state.labels;
+    let Some(made) = &labels.made else {
+        return CAPTION.to_owned();
+    };
+    let said = solids_in_words(made);
+    if labels
+        .verdict
         .as_ref()
-        .map_or_else(|| CAPTION.to_owned(), solids_in_words)
+        .is_some_and(|verdict| !verdict.passed)
+    {
+        format!("{CHECK_FAILED} {said}")
+    } else {
+        said
+    }
 }
 
 /// A picture narrower than this, inside its margins, has its words beneath the letter at its
@@ -193,10 +206,21 @@ mod tests {
             when: "2099-01-02".to_owned(),
             ..voxa_labels::Made::default()
         });
+        let made = "Solids are labels made by Voxa with Made-up model, on Made-up card A, \
+                    2099-01-02. Not for diagnostic use.";
+        assert_eq!(solids(&state), made);
+        // A check that failed is said first, as it is in the list; one that passed is not.
+        let verdict = |passed| voxa_labels::Verdict {
+            passed,
+            fail_below: 0.65,
+            low: Vec::new(),
+        };
+        state.labels.verdict = Some(verdict(true));
+        assert_eq!(solids(&state), made);
+        state.labels.verdict = Some(verdict(false));
         assert_eq!(
             solids(&state),
-            "Solids are labels made by Voxa with Made-up model, on Made-up card A, 2099-01-02. \
-             Not for diagnostic use."
+            format!("The model's own check of these labels failed. {made}")
         );
     }
 

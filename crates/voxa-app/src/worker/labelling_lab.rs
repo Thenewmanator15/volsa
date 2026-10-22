@@ -15,7 +15,7 @@ use voxa_models::RunsOn;
 use voxa_segment::Stage;
 
 use super::Labeller;
-use super::stand_ins::{PATIENCE, ROBUST, StandIn, head, held, models};
+use super::stand_ins::{PATIENCE, ROBUST, StandIn, head, held, long_head, models};
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::labelling::{LabellingAction, Ready};
@@ -68,6 +68,16 @@ impl Lab {
     pub(super) fn new(stand_in: StandIn) -> Self {
         let lab = Self::unlooked(stand_in);
         assert_eq!(lab.look(1, Some(lab.folder.path())), Ready::Yes);
+        lab
+    }
+
+    /// [`new`](Self::new), with the long made-up head (`long_head`) as the 30-slice series'
+    /// volume: one whose image is smaller cut to the head than whole.
+    pub(super) fn with_a_long_head(stand_in: StandIn) -> Self {
+        let mut lab = Self::new(stand_in);
+        let volume = Arc::new(long_head());
+        held(&lab.volumes).put(id(THICK_SCAN), Arc::clone(&volume));
+        lab.volume = volume;
         lab
     }
 
@@ -145,6 +155,22 @@ impl Lab {
             said.push(self.next());
         }
         said
+    }
+
+    /// [`until_the_end`](Self::until_the_end), and the labels a run brought back taken in, as
+    /// the state asks once it has taken them.
+    pub(super) fn until_taken(&self) -> Vec<Action> {
+        let said = self.until_the_end();
+        if let Some(Action::LabelsRead { run: Some(run), .. }) = said.last() {
+            self.workers.run(Effect::TakeLabels { run: *run }, None);
+        }
+        said
+    }
+
+    /// How many hold the made-up head: the lab, the store while it keeps this very volume, and
+    /// each run that has not let it go.
+    pub(super) fn holders(&self) -> usize {
+        Arc::strong_count(&self.volume)
     }
 
     /// Wait until no run holds the head: every run has said all it will say. The lab holds it

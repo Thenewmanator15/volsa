@@ -14,9 +14,13 @@ use super::Labeller;
 
 /// The processor, as a run's place is written.
 pub(super) const PROCESSOR: &str = "the processor";
-/// What is said of a card chosen by hand that the computer no longer lists.
-const CARD_GONE: &str = "The graphics card chosen for labelling is not in the computer's list \
-                         now. Choose where to run it again.";
+/// The notes on a result that ran on the processor after a card gave way.
+const NO_ROOM: &str = "Run on the processor: the graphics card did not have room.";
+const LOST: &str = "Run on the processor: the graphics card stopped answering.";
+/// What is said of a card chosen by hand that the computer no longer lists, or lists as
+/// software standing in for a card.
+const CARD_GONE: &str = "The graphics card chosen for labelling is not one Voxa can run on now. \
+                         Choose where to run it again.";
 /// What stands in the log in place of a path.
 const A_PATH: &str = "(a path)";
 
@@ -79,10 +83,41 @@ pub(super) fn place(device: Device, room: &Room) -> String {
     }
 }
 
+/// The note on a result that ran elsewhere than on the card that last gave way, `gave_way`,
+/// and why that card gave way: it stopped answering, or it did not have room. On the processor
+/// the words are those a person with one card reads; on another card, both cards are named.
+/// `None` when no card gave way, or the result ran on the card that did (cut to the head, which
+/// the result says apart).
+pub(super) fn fall(
+    gave_way: Option<(Device, bool)>,
+    ran_on: Device,
+    room: &Room,
+) -> Option<String> {
+    let (card, lost) = gave_way.filter(|(card, _)| *card != ran_on)?;
+    let note = match (ran_on, lost) {
+        (Device::Processor, true) => LOST.to_owned(),
+        (Device::Processor, false) => NO_ROOM.to_owned(),
+        (Device::Card(_), lost) => {
+            let why = if lost {
+                "stopped answering"
+            } else {
+                "did not have room"
+            };
+            format!(
+                "Run on {}: {} {why}.",
+                place(ran_on, room),
+                place(card, room)
+            )
+        }
+    };
+    Some(note)
+}
+
 /// Why a run fits nowhere it may go. Left to Voxa, what it needs and what the computer has.
 /// Asked to go on one place where it does not fit, what the smallest run needs of that place
 /// and what the place has, and that it would fit were Voxa to choose where; and a card asked
-/// for that the computer does not list, or that is software standing in for one, is gone.
+/// for that the computer does not list, or that is software standing in for one, is not one
+/// Voxa can run on.
 pub(super) fn does_not_fit(sizes: Sizes, wanted: Wanted, room: &Room, runs_on: RunsOn) -> String {
     let chosen = match runs_on {
         RunsOn::Automatic => return why_not(sizes.whole, sizes.head, wanted, room),
@@ -117,7 +152,11 @@ fn short_of(chosen: Device, smallest: u64, wanted: Wanted, room: &Room) -> Strin
                 spare_gb(has)
             );
         }
-        words.push_str(" The card has room for it, but the computer's ordinary memory is short.");
+        // The scores network may not fit the card: it would go to the processor.
+        words.push_str(
+            " The card has room for the networks that find the parts, but the computer's \
+             ordinary memory is short.",
+        );
     }
     // The least a run asks of ordinary memory has the scores network on the processor. What a
     // run asks goes by its voxels, so the cut of the rung makes no difference.

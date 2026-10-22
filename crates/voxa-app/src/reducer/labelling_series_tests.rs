@@ -85,6 +85,36 @@ fn labels_on_their_way_from_a_run_the_scene_left_are_not_taken() {
 }
 
 #[test]
+fn a_runs_labels_that_lie_nowhere_near_the_volume_are_refused_and_never_held() {
+    let mut state = running();
+    let volume = state.scene.corners.expect("the volume is built");
+    let far = volume.map(|corner| voxa_core::Point::new(corner.x + 900.0, corner.y, corner.z));
+    let effects = reduce(&mut state, read_with(far, Some(by_voxa()), Some(1)));
+    assert_eq!(effects, [Effect::DropLabels]);
+    assert!(nothing_runs(&state));
+}
+
+#[test]
+fn the_workers_are_asked_to_hold_a_runs_labels_only_when_the_state_takes_them() {
+    let volume = running().scene.corners.expect("the volume is built");
+    let late = || read_with(volume, Some(by_voxa()), Some(1));
+    let mut taken = running();
+    assert_eq!(reduce(&mut taken, late()), [Effect::TakeLabels { run: 1 }]);
+    // Stop is pressed, or the scene moves to another series, between the worker's report and
+    // the state's taking it: the worker is asked to stop, which lets the labels go, and never
+    // to hold them.
+    let mut stopped = running();
+    let stop = Action::Labelling(crate::labelling::LabellingAction::StopLabelling);
+    let stop = reduce(&mut stopped, stop);
+    let mut moved = running();
+    let moved_on = select(&mut moved, 0, FINE_SCAN);
+    for (state, effects) in [(&mut stopped, stop), (&mut moved, moved_on)] {
+        assert_eq!(stops(&effects), 1);
+        assert_eq!(reduce(state, late()), [], "nothing to hold");
+    }
+}
+
+#[test]
 fn the_workers_word_that_the_scan_changed_is_old_news_once_the_state_ended_the_run() {
     let mut state = running();
     select(&mut state, 0, FINE_SCAN);

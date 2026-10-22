@@ -2,22 +2,22 @@
 //! a place gives way, and what it does not say once it is stopped, given up or overtaken.
 //! Stand-ins only (see `labelling_stand_ins.rs`).
 
-use std::sync::TryLockError;
 use std::sync::atomic::Ordering;
 
-use voxa_models::{Device, Role, RunError, RunsOn};
+use voxa_models::{Card, CardId, Device, Role, RunError, RunsOn};
 use voxa_segment::Stage;
 
 use super::lab::{Lab, failed_run, made_by_run, stages};
-use super::stand_ins::{GIB, PATIENCE, StandIn, WHEN, card_a, one_at_a_time};
+use super::stand_ins::{self, GIB, PATIENCE, StandIn, WHEN, card_a, one_at_a_time};
 use crate::action::{Action, Effect};
+use crate::labels::NamesFrom;
 
 #[test]
 fn a_run_says_its_stages_in_order_then_brings_back_its_parts_and_who_made_them() {
     let _alone = one_at_a_time();
     let lab = Lab::new(StandIn::roomy());
     lab.label(1, RunsOn::Automatic);
-    let said = lab.until_the_end();
+    let said = lab.until_taken();
     let finding = |step| Stage::Finding { step, of: 3 };
     let expected = [
         Stage::Preparing,
@@ -33,12 +33,18 @@ fn a_run_says_its_stages_in_order_then_brings_back_its_parts_and_who_made_them()
         parts,
         made,
         run,
+        names_from,
         ..
     }) = said.last()
     else {
         panic!("labels are brought back: {said:?}");
     };
     assert_eq!(*run, Some(1));
+    assert_eq!(
+        *names_from,
+        NamesFrom::Model,
+        "the names are the model's own"
+    );
     let names: Vec<&str> = parts.iter().map(|part| part.name.as_str()).collect();
     assert_eq!(names, ["structure 1", "structure 2", "structure 3"]);
     let sum = voxa_models::read_model(lab.folder.path())
@@ -89,16 +95,24 @@ fn a_card_without_room_gives_way_to_the_processor_and_the_result_says_so() {
 fn a_card_that_stops_answering_is_said_and_is_not_tried_again() {
     let _alone = one_at_a_time();
     let card = Device::Card(card_a().id);
-    // The card is lost; the whole scan has no room on the processor; the head does.
+    // The card is lost; the whole scan has no room on the processor; the head does. (The head
+    // is tried only where cutting to it makes the image smaller.)
     let stand_in = StandIn::roomy()
         .refusing(card, RunError::DeviceLost)
         .refusing(Device::Processor, RunError::NoRoom);
-    let lab = Lab::new(stand_in);
+    let lab = Lab::with_a_long_head(stand_in);
     lab.label(1, RunsOn::Automatic);
     let (made, _) = made_by_run(&lab.until_the_end());
     assert_eq!(made.device, "the processor");
     let note = "Run on the processor: the graphics card stopped answering.";
-    assert_eq!(made.notes, [note]);
+    assert_eq!(
+        made.notes.len(),
+        2,
+        "the cut, then the fall: {:?}",
+        made.notes
+    );
+    assert!(made.notes[0].starts_with("The scan was cut to the head"));
+    assert_eq!(made.notes[1], note);
     let opened = lab.stand_in.opened();
     let on_the_card = opened.iter().filter(|(_, on)| *on == card).count();
     assert_eq!(
@@ -106,6 +120,33 @@ fn a_card_that_stops_answering_is_said_and_is_not_tried_again() {
         "the head is not tried on a card that was lost"
     );
     assert_eq!(opened.len(), 6, "{opened:?}");
+}
+
+#[test]
+fn a_card_without_room_that_gives_way_to_another_card_is_said() {
+    let _alone = one_at_a_time();
+    let card_b = Card {
+        id: CardId(3),
+        name: "Made-up card B".to_owned(),
+        ..card_a()
+    };
+    let cards = vec![card_a(), card_b.clone()];
+    let stand_in = StandIn::of(cards, vec![Some(16 * GIB); 2], 64 * GIB)
+        .refusing(Device::Card(card_a().id), RunError::NoRoom);
+    let lab = Lab::new(stand_in);
+    lab.label(1, RunsOn::Automatic);
+    let (made, _) = made_by_run(&lab.until_the_end());
+    assert_eq!(made.device, "Made-up card B");
+    let note = "Run on the graphics card (Made-up card B): the graphics card (Made-up card A) \
+                did not have room.";
+    assert_eq!(made.notes, [note]);
+    let on_b = lab
+        .stand_in
+        .opened()
+        .iter()
+        .skip(1)
+        .all(|(_, on)| *on == Device::Card(card_b.id));
+    assert!(on_b, "{:?}", lab.stand_in.opened());
 }
 
 #[test]
@@ -256,9 +297,8 @@ fn a_run_holds_the_turn_from_its_start_to_its_end() {
     let _alone = one_at_a_time();
     let (stand_in, running, go) = StandIn::roomy().held_while_running();
     let lab = Lab::new(stand_in);
-    let turn = &lab.workers.shared.labelling.turn;
-    assert!(turn.try_lock().is_ok(), "nobody has it before a run");
-    let held = || matches!(turn.try_lock(), Err(TryLockError::WouldBlock));
+    let held = || *stand_ins::held(&lab.workers.shared.labelling.busy);
+    assert!(!held(), "nobody has it before a run");
     lab.label(1, RunsOn::Automatic);
     // Whatever the run says first, it says holding the turn.
     assert_eq!(stages(&[lab.next()], 1), [Stage::Preparing]);
@@ -270,7 +310,7 @@ fn a_run_holds_the_turn_from_its_start_to_its_end() {
     go.send(()).expect("the network waits");
     lab.until_the_end();
     lab.settled();
-    assert!(turn.try_lock().is_ok(), "and lets it go at its end");
+    assert!(!held(), "and lets it go at its end");
 }
 
 #[test]

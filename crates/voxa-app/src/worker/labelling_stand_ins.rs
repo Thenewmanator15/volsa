@@ -57,6 +57,10 @@ pub(super) struct StandIn {
     refusals: Mutex<Vec<(Device, RunError)>>,
     /// Every network asked for, and where, in order.
     opened: Mutex<Vec<(Role, Device)>>,
+    /// The name of the thread each network was asked for on, in the same order.
+    threads: Mutex<Vec<String>>,
+    /// The name of the thread the runtime was asked for on, each time it was.
+    looked_on: Mutex<Vec<String>>,
     /// For the first network opened: told when it starts to run, and then waited on.
     gate: Mutex<Option<Gate>>,
     /// The next network asked for panics.
@@ -82,6 +86,8 @@ impl StandIn {
             free: FreeMemory::Promised(free),
             refusals: Mutex::new(Vec::new()),
             opened: Mutex::new(Vec::new()),
+            threads: Mutex::new(Vec::new()),
+            looked_on: Mutex::new(Vec::new()),
             gate: Mutex::new(None),
             panics: AtomicBool::new(false),
             open: Arc::new(AtomicUsize::new(0)),
@@ -112,6 +118,16 @@ impl StandIn {
         held(&self.opened).clone()
     }
 
+    /// The name of the thread each network was asked for on.
+    pub(super) fn threads(&self) -> Vec<String> {
+        held(&self.threads).clone()
+    }
+
+    /// The name of the thread the runtime was asked for on, each time.
+    pub(super) fn looked_on(&self) -> Vec<String> {
+        held(&self.looked_on).clone()
+    }
+
     /// The most networks that were open together, at any time.
     pub(super) fn most_open(&self) -> usize {
         self.most.load(Ordering::SeqCst)
@@ -138,6 +154,8 @@ impl Drop for Counted {
 
 impl Labeller for StandIn {
     fn load_runtime(&self, _folder: &Path) -> Result<(), RuntimeError> {
+        let thread = std::thread::current().name().unwrap_or_default().to_owned();
+        held(&self.looked_on).push(thread);
         Ok(())
     }
 
@@ -150,6 +168,8 @@ impl Labeller for StandIn {
         stop: &Stop,
     ) -> Result<Box<dyn Network>, RunError> {
         held(&self.opened).push((role, device));
+        let thread = std::thread::current().name().unwrap_or_default().to_owned();
+        held(&self.threads).push(thread);
         if stop.is_set() {
             return Err(RunError::Stopped);
         }
@@ -250,6 +270,28 @@ pub(super) fn head() -> Volume {
         }
     }
     Volume::new([20, 12, 16], values, placement).expect("a volume")
+}
+
+/// The made-up head in a longer grid: 144 by 12 by 16 voxels 1 mm apart, bright in the 20
+/// columns in the middle and dark elsewhere. Cut to the head, its image is 128 voxels a side;
+/// whole, it is 160 by 128 by 128.
+pub(super) fn long_head() -> Volume {
+    let placement = head().voxel_to_patient();
+    let mut values = Vec::new();
+    for slice in 0..16_u32 {
+        for row in 0..12_u32 {
+            let value = |col: u32| (10 + col + 8 * row + 64 * slice) as f32;
+            let bright = |col: u32| {
+                if (62..82).contains(&col) {
+                    value(col)
+                } else {
+                    0.0
+                }
+            };
+            values.extend((0..144_u32).map(bright));
+        }
+    }
+    Volume::new([144, 12, 16], values, placement).expect("a volume")
 }
 
 /// A made-up model folder that reads as it should.

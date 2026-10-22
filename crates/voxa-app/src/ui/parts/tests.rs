@@ -321,9 +321,7 @@ fn with_no_labels_the_tab_says_what_they_are_and_offers_to_open_some() {
     let state = thick_scan_ready();
     let (actions, asked) = sweep(&state);
     assert_eq!((actions, asked), (vec![], vec![Asked::OpenLabels]));
-    assert!(
-        written(&state).contains("with a table of names beside it if it has one. Voxa shows them.")
-    );
+    assert!(written(&state).contains("by Voxa, when it labels the scan, or by another program"));
     // With no volume there is nothing to put labels on.
     let (actions, asked) = sweep(&AppState::default());
     assert_eq!((actions, asked), (vec![], vec![]));

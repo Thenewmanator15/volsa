@@ -17,12 +17,14 @@ use crate::state::AppState;
 pub mod labelling;
 
 /// What labels are, said where there are none.
-pub const WHAT_LABELS_ARE: &str = "Labels are parts of the head that another program has outlined on \
-                                   this scan: a NIfTI file (.nii or .nii.gz), with a table of names \
-                                   beside it if it has one. Voxa shows them.";
+pub const WHAT_LABELS_ARE: &str = "Labels are parts of the head outlined on this scan: by Voxa, \
+                                   when it labels the scan, or by another program, as a NIfTI \
+                                   file (.nii or .nii.gz) with a table of names beside it if it \
+                                   has one.";
 /// Said above every list of parts.
 pub const MADE_ELSEWHERE: &str = "Made by another program. Voxa shows these labels as given.";
 const NAMED: &str = "Names from the table beside the labels.";
+const NAMED_BY_THE_MODEL: &str = "Names from the model's own list.";
 const NOT_NAMED: &str = "No table of names: the parts are called by their numbers.";
 const OTHER_STUDY: &str = "The labels open belong to another study than the one shown.";
 const NO_VOLUME: &str = "Labels are put on the 3D view of a series, and this one has none yet.";
@@ -204,8 +206,11 @@ fn about(ui: &mut Ui, labels: &Labels) -> Option<Asked> {
             ui.label(quiet(MADE_ELSEWHERE));
         }
     }
-    let named = labels.names_from == NamesFrom::Table;
-    ui.label(quiet(if named { NAMED } else { NOT_NAMED }));
+    ui.label(quiet(match labels.names_from {
+        NamesFrom::Table => NAMED,
+        NamesFrom::Model => NAMED_BY_THE_MODEL,
+        NamesFrom::Nothing => NOT_NAMED,
+    }));
     if let Some(verdict) = labels.verdict.as_ref().filter(|_| labels.made.is_none()) {
         labelling::verdict_line(ui, verdict);
     }

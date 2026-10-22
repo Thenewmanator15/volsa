@@ -138,6 +138,13 @@ fn with_no_labels_open_the_button_and_what_it_will_do_are_the_top_of_the_tab() {
     let first = at(&lines, |line| line.contains("Labels are parts"));
     assert!(button < line && line < first, "in that order: {said}");
     assert!(lines.contains(&"Options"), "{said}");
+    // What labels are is true of the labels Voxa makes as of those another program made.
+    assert_eq!(
+        lines[first],
+        "Labels are parts of the head outlined on this scan: by Voxa, when it labels the scan, \
+         or by another program, as a NIfTI file (.nii or .nii.gz) with a table of names beside \
+         it if it has one."
+    );
 }
 
 #[test]

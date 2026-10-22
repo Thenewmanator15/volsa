@@ -97,11 +97,12 @@ impl Workers {
         });
     }
 
-    /// Give up the labels kept, and any being read.
+    /// Give up the labels kept, any being read, and any a run made that were not taken in.
     pub(super) fn drop_labels(&self) {
         self.shared.label_reads.fetch_add(1, Ordering::SeqCst);
         *lock(&self.shared.labels) = None;
         self.shared.keeping.give_up();
+        self.shared.labelling.let_go();
     }
 }
 

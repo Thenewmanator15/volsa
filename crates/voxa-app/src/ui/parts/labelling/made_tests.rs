@@ -32,6 +32,18 @@ fn labels_made_by_voxa_say_with_what_where_and_when_and_each_note_on_its_own_lin
 }
 
 #[test]
+fn labels_from_a_run_say_their_names_are_the_models_own_and_not_a_tables_beside_them() {
+    let state = labelled_by(None, NamesFrom::Model, Some(by_voxa()));
+    let said = written(&state);
+    let lines = lines_of(&said);
+    assert!(
+        lines.contains(&"Names from the model's own list."),
+        "{said}"
+    );
+    assert!(!said.contains("Names from the table"), "{said}");
+}
+
+#[test]
 fn labels_made_by_voxa_with_parts_left_unwritten_say_only_what_is_known() {
     let mut bare = by_voxa();
     bare.model.clear();

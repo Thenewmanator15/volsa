@@ -70,7 +70,7 @@ fn a_result_is_kept_for_its_series_and_what_is_kept_reads_back_as_what_is_shown(
     let _alone = one_at_a_time();
     let lab = Lab::keeping(StandIn::roomy());
     lab.label_keeping(1, RunsOn::Automatic, true);
-    let said = lab.until_the_end();
+    let said = lab.until_taken();
     let (made, run) = made_by_run(&said);
     assert_eq!(run, Some(1), "the result is reported first");
     let (series, when, labels, table) = found(lab.next());
@@ -97,7 +97,7 @@ fn with_keeping_off_nothing_is_written_and_what_was_kept_before_stays() {
     let _alone = one_at_a_time();
     let lab = Lab::keeping(StandIn::roomy());
     lab.label_keeping(1, RunsOn::Automatic, false);
-    lab.until_the_end();
+    lab.until_taken();
     lab.settled();
     assert_eq!(lab.said(), []);
     assert_eq!(names_kept(lab.settings()), Vec::<String>::new());
@@ -108,7 +108,7 @@ fn with_keeping_off_nothing_is_written_and_what_was_kept_before_stays() {
     // A result kept before is left as it was.
     keep(lab.settings(), &key(), b"older labels", "older table").expect("it is kept");
     lab.label_keeping(2, RunsOn::Automatic, false);
-    lab.until_the_end();
+    lab.until_taken();
     lab.settled();
     let (labels, table) = kept(lab.settings(), &key()).expect("still kept");
     assert_eq!(std::fs::read(labels).expect("reads"), b"older labels");
@@ -122,7 +122,7 @@ fn a_new_result_takes_the_place_of_the_one_kept_before() {
     let lab = Lab::keeping(StandIn::roomy());
     keep(lab.settings(), &key(), b"older labels", "older table").expect("it is kept");
     lab.label_keeping(1, RunsOn::Automatic, true);
-    lab.until_the_end();
+    lab.until_taken();
     let (_, _, labels, table) = found(lab.next());
     assert_ne!(std::fs::read(&labels).expect("reads"), b"older labels");
     assert_eq!(
@@ -140,7 +140,7 @@ fn a_result_that_cannot_be_kept_is_still_shown_and_the_warning_follows_it() {
     std::fs::write(&in_the_way, "a file where the folder should be").expect("writes");
     let lab = Lab::keeping_in(StandIn::roomy(), in_the_way);
     lab.label_keeping(1, RunsOn::Automatic, true);
-    let said = lab.until_the_end();
+    let said = lab.until_taken();
     assert!(matches!(
         said.last(),
         Some(Action::LabelsRead { run: Some(1), .. })
@@ -159,7 +159,7 @@ fn with_nowhere_to_keep_settings_a_result_is_not_kept_and_the_warning_says_so() 
     let _alone = one_at_a_time();
     let lab = Lab::new(StandIn::roomy());
     lab.label_keeping(1, RunsOn::Automatic, true);
-    lab.until_the_end();
+    lab.until_taken();
     assert_eq!(
         notice(lab.next()),
         (NoticeKind::Warning, NOT_KEPT.to_owned())
@@ -189,7 +189,7 @@ fn nothing_kept_says_whose_scan_it_was_or_where_anything_was() {
     let _alone = one_at_a_time();
     let lab = Lab::keeping(StandIn::roomy());
     lab.label_keeping(1, RunsOn::Automatic, true);
-    lab.until_the_end();
+    lab.until_taken();
     let (_, _, labels, table) = found(lab.next());
     let text = std::fs::read_to_string(&table).expect("reads");
     let bytes = std::fs::read(&labels).expect("reads");

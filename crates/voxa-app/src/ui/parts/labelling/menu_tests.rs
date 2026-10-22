@@ -1,12 +1,29 @@
 //! The menu beside the button that labels: what it offers, and what each entry asks for.
 
-use voxa_models::{CardId, RunsOn};
+use voxa_models::{CardId, CardKind, RunsOn};
 use voxa_segment::ModelChoice;
 
 use super::super::Asked;
-use super::tests::{able, act, lines_of, menu_words, swept_menu};
+use super::tests::{able, act, card, lines_of, menu_words, swept_menu};
 use super::*;
 use crate::labelling::LabellingAction;
+
+#[test]
+fn a_card_the_system_lists_twice_is_offered_once_as_the_first_of_its_name() {
+    let mut state = able();
+    let again = card(4, "Made-up card A", CardKind::Discrete);
+    state.labelling.cards.push(again.clone());
+    let said = menu_words(&state);
+    let entries = lines_of(&said);
+    let named = entries.iter().filter(|line| **line == "Made-up card A");
+    assert_eq!(named.count(), 1, "{said}");
+    // A choice is kept by the card's name and found again as the first card of that name.
+    let (actions, _) = swept_menu(&state);
+    let first = act(LabellingAction::SetRunsOn(RunsOn::Card(CardId(2))));
+    assert!(actions.contains(&first), "{actions:?}");
+    let second = act(LabellingAction::SetRunsOn(RunsOn::Card(again.id)));
+    assert!(!actions.contains(&second), "{actions:?}");
+}
 
 #[test]
 fn the_menu_gives_each_choice_it_offers_other_than_the_one_in_force() {

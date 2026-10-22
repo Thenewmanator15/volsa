@@ -213,3 +213,17 @@ fn the_table_of_saved_labels_goes_beside_them_under_the_same_name_with_json() {
     assert_eq!(table_for("labels.2.nii.gz"), beside("labels.2.json"));
     assert_eq!(table_for("head"), beside("head.json"));
 }
+
+#[test]
+fn saved_labels_are_written_under_a_name_that_ends_as_a_gzipped_nifti_file_does() {
+    let saved_as = |name: &str| saved_as(&Path::new("somewhere").join(name));
+    let named = |name: &str| Path::new("somewhere").join(name);
+    assert_eq!(saved_as("head.nii.gz"), named("head.nii.gz"));
+    assert_eq!(saved_as("Head.NII.GZ"), named("Head.NII.GZ"));
+    assert_eq!(saved_as("head.nii"), named("head.nii.gz"));
+    assert_eq!(saved_as("head.gz"), named("head.nii.gz"));
+    assert_eq!(saved_as("head"), named("head.nii.gz"));
+    assert_eq!(saved_as("labels.2"), named("labels.2.nii.gz"));
+    // And the table beside it is found again where Voxa looks for it.
+    assert_eq!(table_for(&saved_as("head.gz")), named("head.json"));
+}

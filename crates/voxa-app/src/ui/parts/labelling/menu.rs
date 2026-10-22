@@ -115,14 +115,24 @@ fn card_entry(card: &Card) -> String {
 }
 
 /// Where the run goes: left to Voxa, a graphics card by its name, or the processor. A card
-/// that is software standing in for one is never a place to run, and is not offered.
+/// that is software standing in for one is never a place to run, and is not offered. A card
+/// the system lists twice is offered once, as the first of its name: a choice is kept by the
+/// card's name and found again as the first card of that name.
 fn places(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
     heading(ui, "Runs on");
-    let cards = labelling
+    let real = labelling
         .cards
         .iter()
         .filter(|card| card.kind != CardKind::Software);
-    let named = cards.map(|card| (RunsOn::Card(card.id), card_entry(card)));
+    let mut cards: Vec<&Card> = Vec::new();
+    for card in real {
+        if !cards.iter().any(|seen| seen.name == card.name) {
+            cards.push(card);
+        }
+    }
+    let named = cards
+        .into_iter()
+        .map(|card| (RunsOn::Card(card.id), card_entry(card)));
     let automatic = (RunsOn::Automatic, "Automatic".to_owned());
     let processor = (RunsOn::Processor, "Processor".to_owned());
     let entries = std::iter::once(automatic).chain(named).chain([processor]);

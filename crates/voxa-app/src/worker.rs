@@ -173,7 +173,8 @@ impl Workers {
             Effect::DropLabels => self.drop_labels(),
             labelling @ (Effect::LookForLabelling { .. }
             | Effect::LabelScan { .. }
-            | Effect::StopLabelling) => self.labelling(labelling),
+            | Effect::StopLabelling
+            | Effect::TakeLabels { .. }) => self.labelling(labelling),
             kept @ (Effect::FindKept { .. }
             | Effect::ForgetKept { .. }
             | Effect::SaveLabels { .. }

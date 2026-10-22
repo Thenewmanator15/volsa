@@ -9,6 +9,7 @@ use std::sync::atomic::Ordering;
 use voxa_models::{Card, Model, ModelError, RuntimeError, read_model};
 
 use super::Kit;
+use super::turn::on_its_own;
 use crate::action::Action;
 use crate::labelling::{LabellingAction, Ready};
 use crate::worker::{Shared, Workers, lock, shielded};
@@ -20,6 +21,14 @@ const MODELS: &str = "models";
 const RUNTIME: &str = "runtime";
 /// What is said when a look stops part-way.
 const PART_WAY: &str = "Voxa could not finish checking the model and the runtime.";
+/// What is said when there is no model beside the program and no folder was chosen for it.
+const NO_MODEL: &str = "Voxa found no model: there is no folder called models beside it, and \
+                        none has been chosen. Choose the folder that holds the model, under \
+                        Options.";
+/// The same for the runtime.
+const NO_RUNTIME: &str = "Voxa found no runtime: there is no folder called runtime beside it, \
+                          and none has been chosen. Choose the folder that holds the runtime, \
+                          under Options.";
 
 impl Kit {
     /// Note that look `look` has been asked for: it is the newest.
@@ -41,27 +50,39 @@ impl Kit {
 }
 
 impl Workers {
-    /// Look, on a worker, for the model and the runtime, the model first, and list the cards.
-    /// Reading a model folder and loading the runtime each take seconds.
+    /// Look, on a thread of its own, for the model and the runtime, the model first, and list
+    /// the cards. Reading a model folder and loading the runtime each take seconds.
     pub(super) fn look(&self, look: u64, models: Option<PathBuf>, runtime: Option<PathBuf>) {
         self.shared.labelling.asked_to_look(look);
         let shared = Arc::clone(&self.shared);
-        self.spawn(move || {
+        let started = on_its_own(move || {
             let mut found = (Ready::No(format!("{PART_WAY} {WHERE}")), None, Vec::new());
             shielded(|| found = shared.looked(models.as_deref(), runtime.as_deref()));
-            let (ready, model, cards) = found;
-            if shared.labelling.found(look, model) {
-                let looked = LabellingAction::LabellingLooked { look, ready, cards };
-                shared.report(Action::Labelling(looked));
-            }
+            shared.tell(look, found);
         });
+        if !started {
+            let not_ready = (Ready::No(format!("{PART_WAY} {WHERE}")), None, Vec::new());
+            self.shared.tell(look, not_ready);
+        }
+    }
+}
+
+impl Shared {
+    /// Keep and tell what look `look` found, if it is the newest asked for.
+    fn tell(&self, look: u64, (ready, model, cards): (Ready, Option<Arc<Model>>, Vec<Card>)) {
+        if self.labelling.found(look, model) {
+            let looked = LabellingAction::LabellingLooked { look, ready, cards };
+            self.report(Action::Labelling(looked));
+        }
     }
 }
 
 impl Shared {
     /// Whether this computer can label a scan: the model looked for in the folder chosen and
     /// then beside the program, then the runtime beside the program and then in the folder
-    /// chosen. With it, the model if it can, and the cards.
+    /// chosen. With it, the model if it can, and the cards. Where nothing was found and no
+    /// folder was chosen, the words say so and what to do; where a folder was chosen, they
+    /// say what is wrong with it.
     fn looked(
         &self,
         models: Option<&Path>,
@@ -75,16 +96,24 @@ impl Shared {
         let in_models = chosen.chain(beside.map(|folder| folder.join(MODELS)));
         let model = match first(in_models, read_model, &ModelError::NotFound) {
             Ok(model) => model,
-            Err(why) => return (Ready::No(format!("{why} {WHERE}")), None, cards),
+            Err(ModelError::NotFound) if models.is_none() => return not_ready(NO_MODEL, cards),
+            Err(why) => return not_ready(&why.to_string(), cards),
         };
         let beside = beside.map(|folder| folder.join(RUNTIME)).into_iter();
         let in_runtime = beside.chain(runtime.map(Path::to_path_buf));
         let load = |folder: &Path| labeller.load_runtime(folder);
         match first(in_runtime, load, &RuntimeError::NotFound) {
             Ok(()) => (Ready::Yes, Some(Arc::new(model)), cards),
-            Err(why) => (Ready::No(format!("{why} {WHERE}")), None, cards),
+            Err(RuntimeError::NotFound) if runtime.is_none() => not_ready(NO_RUNTIME, cards),
+            Err(why) => not_ready(&why.to_string(), cards),
         }
     }
+}
+
+/// What a look found when this computer cannot label a scan, and why: the words, then where
+/// to read what goes where.
+fn not_ready(why: &str, cards: Vec<Card>) -> (Ready, Option<Arc<Model>>, Vec<Card>) {
+    (Ready::No(format!("{why} {WHERE}")), None, cards)
 }
 
 /// What the first of these folders gives that gives anything. Failing that, the first thing

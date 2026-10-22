@@ -99,7 +99,11 @@ fn able_with_two_studies() -> AppState {
 fn labels_that_come_back_are_taken_in_as_those_of_the_study_that_was_labelled() {
     let mut state = running();
     let box_of_the_volume = state.scene.corners.expect("the volume is built");
-    assert_eq!(reduce(&mut state, came_back(box_of_the_volume)), []);
+    // The workers are asked to hold them now, and only now: what is drawn is what is listed.
+    assert_eq!(
+        reduce(&mut state, came_back(box_of_the_volume)),
+        [Effect::TakeLabels { run: 1 }]
+    );
     assert!(nothing_runs(&state));
     assert_eq!(state.labels.status, LabelsStatus::Ready);
     assert_eq!(state.labels.parts, parts());

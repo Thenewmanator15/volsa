@@ -23,6 +23,9 @@ use voxa_models::{
 use voxa_segment::testing::{Agreement, Bound, OnDevice, cards_of, measured, quickest};
 use voxa_segment::{Stage, find, label, prepare, tidy};
 
+#[path = "with_models/by_size.rs"]
+mod by_size;
+
 /// Any model and device but the standard model on the processor, which is held to every
 /// voxel: at least this share of voxels as Python has them, in percent.
 const SAME_PERCENT: f64 = 99.99;

@@ -95,8 +95,16 @@ pub enum Effect {
         /// The name of the card Voxa draws on, if it draws on one.
         drawing_on: Option<String>,
     },
-    /// Stop the run of labelling, if one is on.
+    /// Stop the run of labelling, if one is on, and let go of labels a run made that the
+    /// state has not taken.
     StopLabelling,
+    /// Hold the labels that run `run` made as the labels kept, in place of any before, and keep
+    /// them for their series if the run was to: the state has taken them in. Until then they
+    /// are neither drawn nor saved nor kept.
+    TakeLabels {
+        /// Which run made them.
+        run: u64,
+    },
     /// Look for the result kept for a series, and report it if there is one.
     FindKept {
         /// The series.
@@ -109,7 +117,8 @@ pub enum Effect {
     },
     /// Write the labels that are open to a file, and their table beside it.
     SaveLabels {
-        /// The file for the labels; the table goes beside it, under the same name with `.json`.
+        /// The file for the labels, which is given the ending `.nii.gz` if it lacks it; the
+        /// table goes beside it, under the same name with `.json`.
         to: PathBuf,
     },
     /// Keep what the person has chosen for labelling, for the next run of Voxa.
