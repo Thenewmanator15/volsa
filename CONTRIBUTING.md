@@ -27,6 +27,9 @@
 - Functions stay under 60 lines and source files under 400.
 - Dependencies must carry a licence on the allow-list in `deny.toml` and have no open advisory.
   There is exactly one `wgpu` in the tree: the one `egui-wgpu` re-exports.
+- `THIRD-PARTY-NOTICES.txt` names every package built into the program, with its licence and
+  notice texts. When the dependencies change, run `cargo xtask notices` and commit the file;
+  the check fails until it is current.
 
 ## Rules the checks cannot enforce
 

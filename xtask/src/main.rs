@@ -8,8 +8,12 @@
 //! `cargo xtask check-models` holds the labelling of a scan against `SynthSeg`'s own answers,
 //! on a computer that has the networks: it runs the tests the other two tasks leave out,
 //! which need a model folder and the networks' runtime. Without them it does nothing.
+//! `cargo xtask notices` writes `THIRD-PARTY-NOTICES.txt`, the licences of everything built
+//! into the program, and `cargo xtask check` fails when the committed file is out of date.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
+
+mod notices;
 
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
@@ -50,7 +54,8 @@ fn main() -> ExitCode {
         "check" => check(),
         "coverage" => coverage(),
         "check-models" => check_models(),
-        _ => Err("usage: cargo xtask <check|coverage|check-models>".to_owned()),
+        "notices" => notices::write(),
+        _ => Err("usage: cargo xtask <check|coverage|check-models|notices>".to_owned()),
     };
     match result {
         Ok(()) => ExitCode::SUCCESS,
@@ -78,6 +83,7 @@ fn check() -> Result<(), String> {
         &[],
     )?;
     file_lengths()?;
+    notices::up_to_date()?;
     run("cargo", &["test", "--workspace", "--all-features"], &[])?;
     run("cargo", &["deny", "check"], &[])?;
     run(
