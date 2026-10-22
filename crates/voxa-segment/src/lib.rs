@@ -8,6 +8,18 @@
 //!
 //! Each step is held against arrays that `SynthSeg`'s own Python made from small made-up
 //! volumes (`tools/golden` makes them; they are under `tests/golden`).
+//!
+//! # Where the code comes from
+//!
+//! This crate is a port to Rust of `SynthSeg`'s own code: the steps of `predict_synthseg.py`
+//! and the `lab2im` functions they call.
+//!
+//! `SynthSeg`, Copyright 2020 Benjamin Billot, is licensed under the Apache License, Version
+//! 2.0, and is at <https://github.com/BBillot/SynthSeg>. The port changes it as
+//! `docs/models.md` describes under what Voxa does differently from `SynthSeg`'s own program:
+//! a part's volume is counted in voxels, the scan may be cut to the head when memory is short,
+//! and the cortex network's answer is reduced to areas inside the file. The `NOTICE` file at
+//! the root of the repository carries the same attribution.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 #![cfg_attr(
