@@ -10,6 +10,7 @@ use crate::session::Session;
 use crate::state::VIEWPORTS;
 
 mod about;
+mod bars;
 mod browser;
 mod capture;
 mod cine;
@@ -293,17 +294,9 @@ impl eframe::App for VoxaApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
-        let bar = egui::Panel::top("toolbar");
         let list_shown = self.screen.list_shown;
-        let (asked, saving) = bar
-            .show(ui, |ui| {
-                let asked = toolbar::show(ui, self.session.state(), list_shown, &mut actions);
-                (
-                    asked,
-                    scene_bar::show(ui, self.session.state(), &mut actions),
-                )
-            })
-            .inner;
+        let shown = bars::show(ui, self.session.state(), list_shown, &mut actions);
+        let ((asked, saving), _disclaimer) = shown;
         self.about_open |= asked.about;
         self.help_open |= asked.shortcuts;
         self.tags.open ^= asked.tags;
@@ -315,8 +308,6 @@ impl eframe::App for VoxaApp {
         if let Some(path) = toolbar::chosen(ui.ctx(), asked.open) {
             actions.push(self.labels.opening(path));
         }
-        let notices = &self.session.state().notices;
-        egui::Panel::bottom("status").show(ui, |ui| status::show(ui, notices, &mut actions));
         let list = self.list(ui, &mut actions);
         let behind = egui::Frame::NONE
             .fill(theme::BACKGROUND)
