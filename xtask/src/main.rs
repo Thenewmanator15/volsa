@@ -38,6 +38,11 @@ const NOT_COUNTED: [(&str, &str); 1] = [(
     r"voxa-models[/\\]src[/\\](runtime|cards)\.rs$",
 )];
 
+/// What the gate has cargo test: every crate's tests, each test program run to its end
+/// however many before it failed, so that one failure does not hide another. Cargo still
+/// fails at the end if any did, and so does the gate.
+const EVERY_TEST: [&str; 4] = ["test", "--workspace", "--all-features", "--no-fail-fast"];
+
 /// The crates with tests that need a model folder and the runtime. Such a test is marked
 /// `ignore`, so that the other tasks pass it by.
 const WITH_MODELS: [&str; 2] = ["voxa-models", "voxa-segment"];
@@ -78,7 +83,7 @@ fn check() -> Result<(), String> {
         &[],
     )?;
     file_lengths()?;
-    run("cargo", &["test", "--workspace", "--all-features"], &[])?;
+    run("cargo", &EVERY_TEST, &[])?;
     run("cargo", &["deny", "check"], &[])?;
     run(
         "cargo",
@@ -306,7 +311,13 @@ fn workspace_root() -> PathBuf {
 
 #[cfg(test)]
 mod tests {
-    use super::{listed, passed_in, skipped_in, some_listed};
+    use super::{EVERY_TEST, listed, passed_in, skipped_in, some_listed};
+
+    #[test]
+    fn the_gate_runs_every_test_program_however_many_fail() {
+        // Cargo otherwise stops at the first test program that fails, and hides the rest.
+        assert!(EVERY_TEST.contains(&"--no-fail-fast"), "{EVERY_TEST:?}");
+    }
 
     #[test]
     fn a_listing_names_its_tests_and_nothing_else() {
