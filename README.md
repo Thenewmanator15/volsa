@@ -79,7 +79,8 @@ Voxa starts and does everything else, and the button says what is missing.
 cargo xtask check
 ```
 
-runs, in order: formatting, lints, the 400-line limit on source files, every test, licence and
+runs, in order: formatting, lints, the 400-line limit on source files, that
+`THIRD-PARTY-NOTICES.txt` is current (`cargo xtask notices` rewrites it), every test, licence and
 advisory checks (`cargo deny`), and the documentation build. It stops at the first failure.
 `cargo deny` is installed with `cargo install --locked cargo-deny`.
 
@@ -145,8 +146,14 @@ Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or
 [MIT license](LICENSE-MIT) at your option. Contributions are accepted under the same terms.
 
 Voxa is built on other people's libraries, each under its own licence; `cargo deny check` holds
-them to the permissive licences listed in [deny.toml](deny.toml). This software is based in part
-on the work of the Independent JPEG Group.
+them to the licences listed in [deny.toml](deny.toml). The licence and notice texts of every
+package built into the program are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which
+`cargo xtask notices` writes. This software is based in part on the work of the Independent JPEG
+Group.
+
+Voxa's labelling steps (`voxa-segment`) are a port to Rust of SynthSeg's own code, Copyright 2020
+Benjamin Billot, under the Apache License 2.0. [NOTICE](NOTICE) carries the attribution and says
+how the port differs.
 
 Labelling uses three things that are not in this repository, each under its own licence:
 
@@ -163,8 +170,8 @@ Labelling uses three things that are not in this repository, each under its own 
   the terms they come with and turn them into a model folder on your own computer.
 
 The typefaces in the interface come with the `egui` library: Ubuntu Light (Ubuntu Font Licence
-1.0), Hack (MIT) and Noto Emoji (SIL Open Font Licence 1.1). No other font files are in this
-repository.
+1.0), Hack (MIT, and the Bitstream Vera licence for its Bitstream Vera glyphs), Noto Emoji (SIL
+Open Font Licence 1.1) and emoji-icon-font (MIT). No other font files are in this repository.
 
 ## Trying it without a scan
 
