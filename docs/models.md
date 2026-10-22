@@ -9,8 +9,10 @@ everything else, and the **Label this scan** button in the Parts tab is greyed a
 of the two is missing.
 
 **Voxa is not a medical device and is not for diagnostic use.** A label made by a model is a
-guess that looks certain. What Voxa is for, and what it is not for, is in
-[intended-use.md](intended-use.md) (`INTENDED-USE.txt` in a download of Voxa).
+guess that looks certain. What Voxa is for, and what it is not for, is in `INTENDED-USE.txt`,
+beside this file in a download of Voxa, and in
+[docs/intended-use.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/intended-use.md)
+in Voxa's source.
 
 ## What comes with Voxa, and what does not
 
@@ -125,9 +127,13 @@ Voxa carries no copy of it.
    `synthseg_robust_2.0.h5`, `synthseg_parc_2.0.h5`, `synthseg_qc_2.0.h5`. They come with
    FreeSurfer, in the folder of its `mri_synthseg` command, under FreeSurfer's terms
    ([below](#the-terms-of-the-models-weights)).
-3. Run the converter in `tools/synthseg-to-onnx`; its README says how. It needs Python and
-   TensorFlow, once. Voxa never does. On NumPy 2 SynthSeg's own code needs a few one-line
-   fixes, which the README names.
+3. Run the converter, `tools/synthseg-to-onnx`. It is in Voxa's source, not in the download:
+   <https://github.com/Thenewmanator15/voxa/tree/main/tools/synthseg-to-onnx>, where its
+   README says how to run it. It needs Python and TensorFlow, once. Voxa never does. On
+   NumPy 2, SynthSeg's own code needs four one-line fixes, in two functions that use what
+   `np.where` gives, an array, as a single number. The converter's README names them, and
+   they are proposed to SynthSeg as
+   [pull request 127](https://github.com/BBillot/SynthSeg/pull/127).
 4. Tell Voxa where the folder is, or call it `models` and put it beside Voxa's executable.
    Voxa looks in the folder named under **Options** first and then beside its executable.
 
@@ -222,7 +228,9 @@ more than the largest of its networks at a time, with the chances it has found a
 moment, the answer that has just arrived: two sets of chances at most. If the check does not
 fit on the card, or ordinary memory cannot back it there, that one network runs on the
 processor and the result says so. The figures were measured on made-up volumes and rounded up;
-the decision record, [adr/0006](adr/0006-voxa-runs-a-labelling-model.md), gives them.
+the decision record
+[0006](https://github.com/Thenewmanator15/voxa/blob/main/docs/adr/0006-voxa-runs-a-labelling-model.md),
+in Voxa's source, gives them.
 
 For a made-up cube of 160 voxels a side, which is 4 096 000 voxels, the networks need 6.7 GB
 of a card and the check 10.3 GB, and a run on a card asks the system for up to 11.5 GB of
@@ -301,6 +309,7 @@ made from small made-up volumes, with no runtime and no model folder on the mach
 `cargo xtask check-models`, on a computer that has them, runs the real networks on the
 converter's made-up head. The standard model on the processor gives SynthSeg's label at every
 voxel. Every other pairing of model and device gives at least 99.99% of voxels the same, a
-Dice of at least 0.999 for every structure and scores within 0.001. The acceptance record,
-[acceptance-0.5.0.md](acceptance-0.5.0.md), says what was run for this release and what was
-not.
+Dice of at least 0.999 for every structure and scores within 0.001. The acceptance record of
+0.5.0, the release that brought labelling,
+[docs/acceptance-0.5.0.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/acceptance-0.5.0.md)
+in Voxa's source, says what was run for it and what was not.
