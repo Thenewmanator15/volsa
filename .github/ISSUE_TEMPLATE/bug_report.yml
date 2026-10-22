@@ -1,0 +1,71 @@
+name: Report a fault
+description: Something in Voxa does not work as it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never attach a scan, a scan export (DICOM files, or a folder or zip of them), a label file made from a scan, or a screenshot that shows patient details, and never paste tag values from the Tags window.** Anyone can read an issue, and what is posted cannot be taken back. Describe what you saw in words. Even with Patient details off, each viewport's corner shows the study's date and description.
+
+        A security vulnerability is reported privately, never here: SECURITY.md in the repository says how.
+  - type: input
+    id: version
+    attributes:
+      label: Voxa version
+      description: The About window, from the About button in the toolbar, shows it.
+      placeholder: "0.5.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows version
+      description: Press Windows+R, type winver and press Enter.
+      placeholder: "Windows 11, version 24H2 (build 26100)"
+    validations:
+      required: true
+  - type: input
+    id: graphics
+    attributes:
+      label: Graphics device
+      description: voxa.log names the one Voxa draws with, on a line with "graphics device" in it. Device Manager lists it under Display adapters.
+      placeholder: "NVIDIA GeForce RTX 5070 Ti"
+    validations:
+      required: true
+  - type: textarea
+    id: happened
+    attributes:
+      label: What happened
+      description: What you saw, in words. Name no patient and quote no tag value.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps
+      description: What you opened (a folder, a zip or a DICOMDIR) and what you did, in order, up to the fault.
+      placeholder: |
+        1. Opened a zip with File...
+        2. Chose the second series in the list
+        3. Pressed ...
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: voxa.log
+      description: The About window shows where the log is, with a button that copies its path. It holds nothing about a patient and no file names, but read it before you paste it.
+      render: text
+  - type: checkboxes
+    id: nothing-private
+    attributes:
+      label: Nothing private
+      options:
+        - label: This report holds no scan, scan export, label file made from a scan, screenshot that shows patient details, or tag value.
+          required: true
