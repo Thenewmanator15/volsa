@@ -1,15 +1,20 @@
 //! Gives `voxa.exe`, when it is built for Windows, the icon Explorer shows for it and the
 //! details it lists: its name, its version and its copyright. The icon is the window's own,
 //! drawn by `src/ui/icon/drawing.rs` at the sizes Explorer asks for and written as a Windows
-//! icon file. The resource compiler of the Windows SDK, which building for Windows already
-//! needs, puts both into the program.
+//! icon file. It gives it its manifest, `voxa.exe.manifest`, too: the system's message windows
+//! in today's look, the scale of each screen from the start, and Windows 10 and 11. The
+//! resource compiler of the Windows SDK, which building for Windows already needs, puts all
+//! three into the program.
 //!
-//! Without a resource compiler the program is built all the same, with neither, and cargo
-//! says so in a warning.
+//! Without a resource compiler the program is built all the same, with none of them, and
+//! cargo says so in a warning.
 
 #[cfg(windows)]
 #[path = "src/ui/icon/drawing.rs"]
 mod drawing;
+
+/// The program's manifest, beside this file.
+const MANIFEST: &str = "voxa.exe.manifest";
 
 /// The sides, in pixels, of the pictures the icon file holds.
 #[cfg(windows)]
@@ -18,6 +23,7 @@ const SIDES: [u32; 8] = [16, 20, 24, 32, 40, 48, 64, 256];
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/ui/icon/drawing.rs");
+    println!("cargo:rerun-if-changed={MANIFEST}");
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }
@@ -27,8 +33,8 @@ fn main() {
     }
 }
 
-/// Writes the icon file, and has the resource compiler put it and the details into the
-/// program `voxa`.
+/// Writes the icon file, and has the resource compiler put it, the details and the manifest
+/// into the program `voxa`.
 #[cfg(windows)]
 fn resources() -> Result<(), String> {
     let out = std::env::var_os("OUT_DIR").ok_or("cargo named no folder for the build")?;
@@ -37,9 +43,15 @@ fn resources() -> Result<(), String> {
     let icon = icon
         .to_str()
         .ok_or("the build folder's path is not Unicode")?;
+    let here = std::env::var_os("CARGO_MANIFEST_DIR").ok_or("cargo named no package folder")?;
+    let manifest = std::path::Path::new(&here).join(MANIFEST);
+    let manifest = manifest
+        .to_str()
+        .ok_or("the package folder's path is not Unicode")?;
     let mut resource = winresource::WindowsResource::new();
     resource
         .set_icon(icon)
+        .set_manifest_file(manifest)
         .set("ProductName", "Voxa")
         .set("FileDescription", "Voxa")
         .set("InternalName", "voxa")

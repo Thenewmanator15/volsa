@@ -28,6 +28,10 @@ const BETWEEN: char = '\u{1f}';
 /// that a program with that runtime inside it does not import.
 const VISUAL_CPP: [&str; 4] = ["vcruntime", "msvcp", "ucrtbase", "api-ms-win-crt-"];
 
+/// Words the program's manifest holds: what it asks of Windows, the common controls of
+/// version 6 for the system's message windows and the scale of each screen.
+const MANIFEST_ASKS: [&str; 2] = ["Microsoft.Windows.Common-Controls", "PerMonitorV2"];
+
 /// A place on the computer the program is built on, and the name the program records for it
 /// in its place.
 pub type Remap = (PathBuf, &'static str);
@@ -145,6 +149,25 @@ pub fn without_places(image: &[u8], remaps: &[Remap]) -> Result<(), String> {
     Err(format!(
         "{PROGRAM} still records {}, a place on the computer it was built on",
         found.join(" and ")
+    ))
+}
+
+/// Fails if `image`, the bytes of the program, carries no manifest asking for the common
+/// controls of version 6 and for the scale of each screen.
+pub fn with_manifest(image: &[u8]) -> Result<(), String> {
+    let asks = MANIFEST_ASKS
+        .iter()
+        .all(|words| holds(image, words.as_bytes()));
+    if asks {
+        return Ok(());
+    }
+    Err(format!(
+        concat!(
+            "{} carries no manifest asking for the common controls of version 6 and the ",
+            "scale of each screen: the build did not put crates/voxa-app/voxa.exe.manifest ",
+            "into it"
+        ),
+        PROGRAM
     ))
 }
 

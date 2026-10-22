@@ -5,7 +5,7 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 use super::super::pe;
-use super::{Remap, cargo_home, flags, remaps, without_places, without_visual_cpp};
+use super::{Remap, cargo_home, flags, remaps, with_manifest, without_places, without_visual_cpp};
 
 /// What separates one encoded flag from the next.
 const BETWEEN: &str = "\u{1f}";
@@ -103,6 +103,24 @@ fn a_program_that_still_records_a_place_of_this_computer_is_refused_with_it() {
         said.contains("C:\\Users\\someone\\.cargo and G:\\made\\up\\voxa"),
         "{said}"
     );
+}
+
+#[test]
+fn a_program_without_its_manifest_is_refused() {
+    let manifest = concat!(
+        "<assemblyIdentity type=\"win32\" name=\"Microsoft.Windows.Common-Controls\"/>",
+        "<dpiAwareness>PerMonitorV2, PerMonitor</dpiAwareness>"
+    );
+    let carrying = format!("MZ... {manifest} ...");
+    assert_eq!(with_manifest(carrying.as_bytes()), Ok(()));
+    let refused = Err(concat!(
+        "voxa.exe carries no manifest asking for the common controls of version 6 and the ",
+        "scale of each screen: the build did not put crates/voxa-app/voxa.exe.manifest into it"
+    )
+    .to_owned());
+    assert_eq!(with_manifest(b"MZ... a program with no manifest"), refused);
+    let half = b"MZ... <dpiAwareness>PerMonitorV2</dpiAwareness>";
+    assert_eq!(with_manifest(half), refused);
 }
 
 #[test]

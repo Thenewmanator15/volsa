@@ -4,8 +4,8 @@
 //! labelling, the changelog and what Voxa is for. The same folder is left beside the zip.
 //!
 //! How the program is built, and what is read of it before it is packed, is in
-//! [`program`]: the C runtime inside it, no Visual C++ to import, its icon, and no path of the
-//! computer it was built on.
+//! [`program`]: the C runtime inside it, no Visual C++ to import, its icon and manifest, and no
+//! path of the computer it was built on.
 //!
 //! With `--runtime`, the package also carries ONNX Runtime from that folder, in a folder of its
 //! own called `runtime`: its two libraries, and its licence and notices, which a release must
@@ -154,8 +154,8 @@ fn version_and_target(metadata: &Value) -> Option<(String, PathBuf)> {
     Some((version.to_owned(), PathBuf::from(target)))
 }
 
-/// Reads the built program and fails if it imports Visual C++, carries no icon or still
-/// records a place of `remapped`. The libraries it imports, when it passes.
+/// Reads the built program and fails if it imports Visual C++, carries no icon or manifest,
+/// or still records a place of `remapped`. The libraries it imports, when it passes.
 fn checked(program: &Path, remapped: &[Remap]) -> Result<Vec<String>, String> {
     let image = fs::read(program)
         .map_err(|error| format!("could not read {}: {error}", program.display()))?;
@@ -171,6 +171,7 @@ fn checked(program: &Path, remapped: &[Remap]) -> Result<Vec<String>, String> {
             PROGRAM
         ));
     }
+    program::with_manifest(&image)?;
     program::without_places(&image, remapped)?;
     Ok(imported)
 }
