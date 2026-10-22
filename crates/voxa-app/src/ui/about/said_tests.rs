@@ -35,9 +35,15 @@ fn the_about_window_says_what_voxa_is_for_as_the_page_on_it_does() {
 
 /// Every label's text and every button's name the interface gives a screen reader after a
 /// pass of `run`, with `input` for that pass.
-fn said(ctx: &egui::Context, input: egui::RawInput, run: impl Fn(&egui::Context)) -> Vec<String> {
+fn said<R>(
+    ctx: &egui::Context,
+    input: egui::RawInput,
+    run: impl Fn(&egui::Context) -> R,
+) -> Vec<String> {
     ctx.enable_accesskit();
-    let mut output = ctx.run_ui(input, |ui| run(ui.ctx()));
+    let mut output = ctx.run_ui(input, |ui| {
+        run(ui.ctx());
+    });
     // No renderer is behind these passes to take the font texture.
     output.textures_delta.clear();
     let update = output.platform_output.accesskit_update;
@@ -95,7 +101,9 @@ fn the_button_in_the_about_window_opens_the_notices_from_their_first_line() {
     let says = about_says(&ctx);
     assert!(!says.iter().any(|said| said == TITLE), "{says:?}");
     // Where the button is, as the screen reader is told.
-    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| show(ui.ctx(), &mut true));
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        show(ui.ctx(), &mut true);
+    });
     output.textures_delta.clear();
     let update = output.platform_output.accesskit_update.expect("described");
     let button = update
