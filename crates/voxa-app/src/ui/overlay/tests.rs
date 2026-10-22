@@ -369,7 +369,8 @@ fn each_key_does_what_the_reference_says() {
     );
     let listed: Vec<&str> = SHORTCUTS.iter().map(|(key, _)| *key).collect();
     let expected = [
-        "H", "V", "R", "F", "1", "2", "4", "Space", "[ and ]", "M", "Ctrl+Z", "Ctrl+Y", "Esc", "?",
+        "H", "V", "R", "F", "1", "2", "4", "Space", "[ and ]", "M", "Ctrl+Z", "Ctrl+Y", "Esc", "B",
+        "F11", SIZE_KEYS, "?",
     ];
     assert_eq!(listed, expected);
 }

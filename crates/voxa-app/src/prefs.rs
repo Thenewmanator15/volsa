@@ -1,7 +1,8 @@
-//! What Voxa remembers between runs of how the person had it set: the window's size, how many
-//! viewports, and three switches. Nothing about any scan, and nothing that says which scans
-//! were opened.
+//! What Voxa remembers between runs of how the person had it set: the window's size, the size
+//! of the interface, how wide the series list and the column are, how many viewports, and
+//! three switches. Nothing about any scan, and nothing that says which scans were opened.
 
+use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
@@ -12,15 +13,29 @@ use crate::state::{AppState, Layout};
 
 /// The name of the file within the settings folder.
 pub const FILE: &str = "preferences.json";
-/// The smallest window Voxa opens at; a remembered size smaller than this is not taken.
-pub const SMALLEST_WINDOW: [f32; 2] = [900.0, 600.0];
+/// The smallest window Voxa opens at, in points at the interface's usual size; a remembered
+/// size smaller than this is not taken.
+pub const SMALLEST_WINDOW: [f32; 2] = [640.0, 480.0];
+/// The interface sizes a remembered one is held between: 1 is its usual size, 2 twice that.
+pub const INTERFACE_SIZES: RangeInclusive<f32> = 0.5..=3.0;
+/// The share of the window's width the series list starts with.
+pub const LIST_SHARE: f32 = 1.0 / 6.0;
+/// The share of the middle of the window the column beside the large part starts with.
+pub const COLUMN_SHARE: f32 = 0.3;
 
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
 pub struct Prefs {
-    /// The window's size inside its frame, in points; `None` for the size Voxa starts at.
+    /// The window's size inside its frame, in points at the interface's usual size; `None`
+    /// for the size Voxa starts at.
     pub window: Option<[f32; 2]>,
+    /// How large the interface is drawn: 1 for its usual size, 1.5 for half as large again.
+    pub interface_size: f32,
+    /// The share of the window's width the series list takes.
+    pub list_share: f32,
+    /// The share of the middle of the window the column beside the large part takes.
+    pub column_share: f32,
     /// How many viewports: 1, 2 or 4.
     pub viewports: u8,
     /// Whether the patient's left is shown on the right, as radiology has it.
@@ -31,9 +46,35 @@ pub struct Prefs {
     pub overlay: String,
 }
 
+/// How the window itself is set out, which the state does not hold: its size, the size of
+/// the interface, and how wide the person dragged the series list and the column.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Arrangement {
+    /// The window's size inside its frame, in points at the interface's usual size; `None`
+    /// for the size Voxa starts at.
+    pub window: Option<[f32; 2]>,
+    /// How large the interface is drawn: 1 for its usual size.
+    pub interface_size: f32,
+    /// The share of the window's width the series list takes.
+    pub list_share: f32,
+    /// The share of the middle of the window the column beside the large part takes.
+    pub column_share: f32,
+}
+
+impl Default for Arrangement {
+    fn default() -> Self {
+        Self {
+            window: None,
+            interface_size: 1.0,
+            list_share: LIST_SHARE,
+            column_share: COLUMN_SHARE,
+        }
+    }
+}
+
 impl Default for Prefs {
     fn default() -> Self {
-        Self::of(&AppState::default(), None)
+        Self::of(&AppState::default(), Arrangement::default())
     }
 }
 
@@ -56,8 +97,8 @@ fn overlay_of(word: &str) -> Option<Overlay> {
 }
 
 impl Prefs {
-    /// The preferences as the state has them, with the window at `window`.
-    pub fn of(state: &AppState, window: Option<[f32; 2]>) -> Self {
+    /// The preferences as the state has them, with the window set out as `arrangement`.
+    pub fn of(state: &AppState, arrangement: Arrangement) -> Self {
         let viewports = match state.layout {
             Layout::One => 1,
             Layout::TwoAcross => 2,
@@ -69,7 +110,10 @@ impl Prefs {
             Overlay::Filled => "filled",
         };
         Self {
-            window,
+            window: arrangement.window,
+            interface_size: arrangement.interface_size,
+            list_share: arrangement.list_share,
+            column_share: arrangement.column_share,
             viewports,
             radiological: state.radiological,
             linked: state.planes.linked,
@@ -77,10 +121,20 @@ impl Prefs {
         }
     }
 
+    /// How these preferences have the window set out.
+    pub fn arrangement(&self) -> Arrangement {
+        Arrangement {
+            window: self.window,
+            interface_size: self.interface_size,
+            list_share: self.list_share,
+            column_share: self.column_share,
+        }
+    }
+
     /// What to ask of the state to put it as these preferences have it: an action for each
     /// thing that differs, and none for a part that is not a value Voxa knows.
     pub fn actions(&self, state: &AppState) -> Vec<Action> {
-        let now = Self::of(state, None);
+        let now = Self::of(state, Arrangement::default());
         let layout = layout_of(self.viewports).filter(|_| self.viewports != now.viewports);
         let overlay = overlay_of(&self.overlay).filter(|_| self.overlay != now.overlay);
         let flipped = self.radiological != now.radiological;
@@ -94,7 +148,8 @@ impl Prefs {
         asked.into_iter().flatten().collect()
     }
 
-    /// These preferences with whatever is not a value Voxa knows put back as Voxa starts.
+    /// These preferences with whatever is not a value Voxa knows put back as Voxa starts, and
+    /// an interface size too small or too large to work in held to one that can be.
     fn sound(mut self) -> Self {
         let start = Self::default();
         let big_enough = |[wide, high]: [f32; 2]| {
@@ -104,6 +159,19 @@ impl Prefs {
                 && high >= SMALLEST_WINDOW[1]
         };
         self.window = self.window.filter(|size| big_enough(*size));
+        let (least, most) = INTERFACE_SIZES.into_inner();
+        self.interface_size = if self.interface_size.is_finite() && self.interface_size > 0.0 {
+            self.interface_size.clamp(least, most)
+        } else {
+            start.interface_size
+        };
+        let a_share = |share: f32| share > 0.0 && share < 1.0;
+        if !a_share(self.list_share) {
+            self.list_share = start.list_share;
+        }
+        if !a_share(self.column_share) {
+            self.column_share = start.column_share;
+        }
         if layout_of(self.viewports).is_none() {
             self.viewports = start.viewports;
         }

@@ -7,7 +7,7 @@ use egui_wgpu::RenderState;
 use voxa_core::Volume;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, labels, layout, parts, planes, scene, viewport};
+use super::{VoxaApp, labels, layout, parts, planes, scene, shares, viewport};
 use crate::action::Action;
 use crate::scene::SceneStatus;
 use crate::session::Session;
@@ -15,7 +15,8 @@ use crate::session::Session;
 impl VoxaApp {
     /// Draw the 3D scene, the planes and the 2D viewports in what is left of the window. One
     /// of them has the large part and another a column beside it, under a strip that says
-    /// what the column shows and has the button that enlarges it.
+    /// what the column shows and has the button that enlarges it. The line between the two
+    /// can be dragged to give the column more or less of the width.
     pub(super) fn pictures(
         &mut self,
         ui: &mut egui::Ui,
@@ -24,7 +25,8 @@ impl VoxaApp {
     ) {
         let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
-        let layout::Panels { main, side } = layout::panels(whole);
+        let share = self.screen.column_share();
+        let layout::Panels { main, side } = layout::panels(whole, share);
         let (strip, side) = layout::header_and_rest(side);
         // A series with no 3D view has its slices in the large part: they are all there is.
         let large = state.main.given(&state.scene.status);
@@ -81,6 +83,20 @@ impl VoxaApp {
             actions.extend(asked.and_then(|asked| self.labels.chosen(asked, open)));
         }
         ui.allocate_rect(whole, egui::Sense::hover());
+        // After everything beside it, so that the drag is the line's.
+        self.drag_the_column(ui, whole, f32::midpoint(main.right(), side.left()));
+    }
+
+    /// Let the line at `between` the large part and the column, down the middle of the
+    /// window (`whole`), be dragged to give the column more or less of its width.
+    fn drag_the_column(&mut self, ui: &egui::Ui, whole: egui::Rect, between: f32) {
+        let edge = egui::Id::new("column edge");
+        let by = shares::divider(ui, edge, between, whole.y_range());
+        if by.abs() > 0.0 {
+            let share = self.screen.column_share();
+            let share = layout::column_dragged(whole.width(), share, by);
+            self.screen.set_column_share(share);
+        }
     }
 
     /// Have the planes drawn smooth, from the curve through the scene's volume, while that

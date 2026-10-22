@@ -12,18 +12,17 @@ impl VoxaApp {
         }
     }
 
-    /// Keep the preferences if they have changed. While a button is held the window may be
-    /// being dragged to a new size, and nothing is written until it is let go.
+    /// Keep the preferences if they have changed, once the window has opened. While a button
+    /// is held the window, the series list or the column may be being dragged to a new size,
+    /// and nothing is written until it is let go.
     pub(super) fn remember(&mut self, ctx: &egui::Context) {
-        let (held, inside) = ctx.input(|input| {
-            let inside = input.viewport().inner_rect;
-            (input.pointer.any_down(), inside)
-        });
-        if held {
+        let held = ctx.input(|input| input.pointer.any_down());
+        if held || !self.screen.has_opened() {
             return;
         }
-        let size = inside.map(|rect| [rect.width(), rect.height()]);
-        let now = Prefs::of(self.session.state(), size.or(self.kept.remembered().window));
+        self.screen.look(ctx);
+        let arrangement = self.screen.arrangement(ctx.zoom_factor());
+        let now = Prefs::of(self.session.state(), arrangement);
         self.kept.keep(&now);
     }
 }

@@ -105,6 +105,9 @@ fn the_problems_of_a_series_are_listed_in_plain_words() {
 }
 
 /// One pass of the browser in a window 800 by 600, with the given input events.
+/// How wide the series list is in these passes.
+const LIST: f32 = 240.0;
+
 fn pass(ctx: &egui::Context, state: &AppState, events: Vec<Event>) -> (Vec<Action>, Vec<Card>) {
     let mut actions = Vec::new();
     let mut cards = Vec::new();
@@ -115,7 +118,10 @@ fn pass(ctx: &egui::Context, state: &AppState, events: Vec<Event>) -> (Vec<Actio
         ..RawInput::default()
     };
     let mut output = ctx.run_ui(input, |ui| {
-        cards = show(ui, state, &Thumbnails::default(), &mut actions);
+        let list = egui::Panel::left("series list").exact_size(LIST);
+        list.show(ui, |ui| {
+            cards = show(ui, state, &Thumbnails::default(), &mut actions);
+        });
     });
     // No renderer is behind these passes to take the font texture.
     output.textures_delta.clear();
@@ -162,7 +168,7 @@ fn the_browser_lists_studies_by_date_with_a_card_for_each_series() {
         "one below the other"
     );
     assert!(
-        cards.iter().all(|card| card.rect.width() <= WIDTH),
+        cards.iter().all(|card| card.rect.width() <= LIST),
         "{cards:?}"
     );
 }
@@ -346,4 +352,40 @@ fn the_small_picture_of_a_frame_in_colour_keeps_its_colours() {
         118,
         "the mean of 200, 10, 20 and 240, rounded"
     );
+}
+
+#[test]
+fn in_a_narrow_list_the_words_on_a_card_are_cut_short_inside_it() {
+    let state = two_studies();
+    let ctx = egui::Context::default();
+    let narrow = 180.0;
+    let input = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
+        ..RawInput::default()
+    };
+    let mut cards = Vec::new();
+    let mut actions = Vec::new();
+    let mut output = ctx.run_ui(input, |ui| {
+        let list = egui::Panel::left("series list").exact_size(narrow);
+        list.show(ui, |ui| {
+            cards = show(ui, &state, &Thumbnails::default(), &mut actions);
+        });
+    });
+    // No renderer is behind this pass to take the font texture.
+    output.textures_delta.clear();
+    let words: Vec<Rect> = output
+        .shapes
+        .iter()
+        .filter_map(|clipped| match &clipped.shape {
+            egui::Shape::Text(text) => Some(text.visual_bounding_rect()),
+            _ => None,
+        })
+        .collect();
+    assert_ne!(words, Vec::new(), "the cards have words on them");
+    for card in &cards {
+        let on_it = words.iter().filter(|rect| card.rect.contains(rect.min));
+        for rect in on_it {
+            assert!(rect.max.x <= card.rect.max.x, "{rect:?} runs past {card:?}");
+        }
+    }
 }

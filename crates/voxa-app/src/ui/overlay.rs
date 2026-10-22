@@ -18,8 +18,11 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 /// Said in a corner when the files do not say where the slices are.
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
+/// The keys egui itself answers to for the size of the interface, as the reference names them.
+pub const SIZE_KEYS: &str = "Ctrl+= / Ctrl+- / Ctrl+0";
+
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 14] = [
+pub const SHORTCUTS: [(&str, &str); 17] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -41,6 +44,12 @@ pub const SHORTCUTS: [(&str, &str); 14] = [
     (
         "Esc",
         "Put the tool down; with none in hand, give 3D the large part of the window",
+    ),
+    ("B", "Show or hide the series list"),
+    ("F11", "Full screen, or back to a window"),
+    (
+        SIZE_KEYS,
+        "Draw the interface larger, smaller, or at its usual size",
     ),
     ("?", "Show this list"),
 ];

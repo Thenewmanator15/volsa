@@ -1,16 +1,14 @@
-//! The window: toolbar, study browser, the 3D scene, the viewport grid and status line.
+//! The window: toolbar, series list, the 3D scene, the viewport grid and status line.
 
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::time::Instant;
 
-use egui::RichText;
-
 use crate::action::Action;
 use crate::labelling::LabellingAction;
 use crate::session::Session;
 use crate::settings;
-use crate::state::{NoticeKind, VIEWPORTS};
+use crate::state::VIEWPORTS;
 
 mod about;
 mod browser;
@@ -34,6 +32,11 @@ mod remembered;
 mod saving;
 mod scene;
 mod scene_bar;
+mod screen;
+mod shares;
+mod size;
+mod start;
+mod status;
 mod tags;
 mod theme;
 mod toolbar;
@@ -41,6 +44,7 @@ mod viewport;
 mod volumes;
 
 pub use browser::thumbnail;
+pub use start::run;
 
 /// Decoded slices kept in memory: one gibibyte of pixel values.
 const CACHE_BYTES: usize = 1 << 30;
@@ -77,6 +81,9 @@ pub struct VoxaApp {
     kept: crate::prefs::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
     card: lost::Card,
+    /// How the window is set out: its size, the widths of the series list and the column,
+    /// and whether the list is shown.
+    screen: screen::Screen,
 }
 
 impl VoxaApp {
@@ -135,8 +142,16 @@ impl VoxaApp {
             render.map(|render| (0..VIEWPORTS).map(|_| viewport::Gpu::new(render)).collect());
         let capture = capture::Capture::from_environment();
         let kept = capture::kept_between_runs(capture.is_some(), settings::folder());
+        let prefs = crate::prefs::Kept::new(kept.clone());
+        let arranged = prefs.remembered().arrangement();
+        creation.egui_ctx.set_zoom_factor(arranged.interface_size);
+        // A picture is of a window the size it asks for, not one fitted to this screen,
+        // unless it asks to see the fitting.
+        let fitted = capture.is_none() || capture::wants("fitted");
+        let hidden = capture.is_some() && capture::wants("nolist");
         let mut app = Self {
-            kept: crate::prefs::Kept::new(kept.clone()),
+            screen: screen::Screen::new(arranged, fitted, hidden),
+            kept: prefs,
             session: Session::new(from_workers, reports, CACHE_BYTES, kept),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
@@ -162,18 +177,7 @@ impl VoxaApp {
         }
         app.look_for_labelling(render);
         if app.capture.is_some() {
-            // A picture is of things as they come to rest, not part-way through fading in.
-            creation
-                .egui_ctx
-                .all_styles_mut(|style| style.animation_time = 0.0);
-            // A picture for the documentation may want one of the windows open in it.
-            let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
-            app.tags.open = wanted.contains("tags");
-            app.measure.open = wanted.contains("list");
-            app.help_open = wanted.contains("keys");
-            app.about_open = wanted.contains("about");
-            app.pose = capture::pose(&wanted);
-            app.label_pose = capture::label_pose(&wanted);
+            app.set_up_a_picture(&creation.egui_ctx);
         }
         if let Some(path) = initial {
             app.dispatch(Action::OpenPath(path));
@@ -210,35 +214,6 @@ impl VoxaApp {
             self.thumbnails.insert(id.clone(), texture);
         }
     }
-
-    /// The line along the bottom: the disclaimer, and the newest notice with a way to
-    /// dismiss it.
-    fn status(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) {
-        ui.horizontal(|ui| {
-            ui.label(
-                RichText::new(theme::DISCLAIMER)
-                    .small()
-                    .color(theme::QUIET_TEXT),
-            );
-            let Some((at, notice)) = self.session.state().notices.iter().enumerate().next_back()
-            else {
-                return;
-            };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("Dismiss").clicked() {
-                    actions.push(Action::DismissNotice(at));
-                }
-                let colour = match notice.kind {
-                    NoticeKind::Info => theme::QUIET_TEXT,
-                    NoticeKind::Warning | NoticeKind::Error => theme::WARNING,
-                };
-                let shown = ui.label(RichText::new(&notice.text).small().color(colour));
-                if !notice.details.is_empty() {
-                    shown.on_hover_text(notice.details.join("\n"));
-                }
-            });
-        });
-    }
 }
 
 impl VoxaApp {
@@ -269,8 +244,43 @@ impl VoxaApp {
     }
 }
 
+impl VoxaApp {
+    /// The series list down the left of the window, when it is shown, taking its share of
+    /// the window's width: where it is.
+    fn list(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) -> Option<egui::Rect> {
+        if !self.screen.list_shown {
+            return None;
+        }
+        let window = ui.ctx().content_rect().width();
+        let width = shares::list_width(window, self.screen.list_share());
+        let column = egui::Panel::left("browser")
+            .exact_size(width)
+            .resizable(false);
+        let shown = column.show(ui, |ui| {
+            browser::show(ui, self.session.state(), &self.thumbnails, actions);
+        });
+        Some(shown.response.rect)
+    }
+
+    /// Let the right edge of the series list, at `list`, be dragged to give it more or less
+    /// of the window's width. Made after everything beside it, so that the drag is the edge's.
+    fn drag_the_list(&mut self, ui: &egui::Ui, list: Option<egui::Rect>) {
+        let Some(list) = list else {
+            return;
+        };
+        let edge = egui::Id::new("series list edge");
+        let by = shares::divider(ui, edge, list.right(), list.y_range());
+        if by.abs() > 0.0 {
+            let window = ui.ctx().content_rect().width();
+            let share = shares::list_dragged(window, self.screen.list_share(), by);
+            self.screen.set_list_share(share);
+        }
+    }
+}
+
 impl eframe::App for VoxaApp {
-    fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.screen.open(ctx, frame);
         self.session.pump();
         self.card.look(|action| self.session.dispatch(action));
         self.remember(ctx);
@@ -284,9 +294,10 @@ impl eframe::App for VoxaApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
         let bar = egui::Panel::top("toolbar");
+        let list_shown = self.screen.list_shown;
         let (asked, saving) = bar
             .show(ui, |ui| {
-                let asked = toolbar::show(ui, self.session.state(), &mut actions);
+                let asked = toolbar::show(ui, self.session.state(), list_shown, &mut actions);
                 (
                     asked,
                     scene_bar::show(ui, self.session.state(), &mut actions),
@@ -297,22 +308,23 @@ impl eframe::App for VoxaApp {
         self.help_open |= asked.shortcuts;
         self.tags.open ^= asked.tags;
         self.measure.open ^= asked.measure;
-        if let Some(path) = chosen(ui.ctx(), asked.open) {
+        self.screen.list_shown ^= asked.list;
+        if let Some(size) = asked.size {
+            ui.ctx().set_zoom_factor(size);
+        }
+        if let Some(path) = toolbar::chosen(ui.ctx(), asked.open) {
             actions.push(self.labels.opening(path));
         }
-        egui::Panel::bottom("status").show(ui, |ui| self.status(ui, &mut actions));
-        let column = egui::Panel::left("browser")
-            .exact_size(browser::WIDTH)
-            .resizable(false);
-        column.show(ui, |ui| {
-            browser::show(ui, self.session.state(), &self.thumbnails, &mut actions);
-        });
+        let notices = &self.session.state().notices;
+        egui::Panel::bottom("status").show(ui, |ui| status::show(ui, notices, &mut actions));
+        let list = self.list(ui, &mut actions);
         let behind = egui::Frame::NONE
             .fill(theme::BACKGROUND)
             .inner_margin(viewport::GAP);
         egui::CentralPanel::default().frame(behind).show(ui, |ui| {
             self.pictures(ui, frame.wgpu_render_state(), &mut actions);
         });
+        self.drag_the_list(ui, list);
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
@@ -327,72 +339,4 @@ impl eframe::App for VoxaApp {
         }
         self.for_a_picture(ui.ctx());
     }
-}
-
-/// What the person has just asked to open, if anything: a file or folder dropped on the
-/// window, or one chosen in the system's dialog after pressing an Open button. While
-/// something is being dragged over the window, say that it can be dropped.
-fn chosen(ctx: &egui::Context, asked: Option<toolbar::Pick>) -> Option<PathBuf> {
-    let (hovering, dropped) = ctx.input(|input| {
-        let dropped = input
-            .raw
-            .dropped_files
-            .first()
-            .map(|file| file.path().to_owned());
-        (!input.raw.hovered_files.is_empty(), dropped)
-    });
-    if hovering {
-        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("drop to open"));
-        let painter = ctx.layer_painter(layer);
-        let screen = ctx.content_rect();
-        painter.rect_filled(screen, 0, egui::Color32::from_black_alpha(160));
-        let font = egui::FontId::proportional(24.0);
-        let middle = egui::Align2::CENTER_CENTER;
-        painter.text(
-            screen.center(),
-            middle,
-            "Drop to open",
-            font,
-            egui::Color32::WHITE,
-        );
-    }
-    dropped.or_else(|| match asked? {
-        toolbar::Pick::Folder => rfd::FileDialog::new()
-            .set_title("Open a folder of DICOM files")
-            .pick_folder(),
-        toolbar::Pick::File => rfd::FileDialog::new()
-            .set_title("Open a zip file or a DICOMDIR")
-            .pick_file(),
-    })
-}
-
-/// Open the Voxa window and run until it is closed. `initial` is a scan to open at once,
-/// and `labels` a label file to open on it as soon as it can be shown in 3D.
-///
-/// # Errors
-///
-/// When the window or its graphics device cannot be created.
-pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result {
-    // A picture for the documentation may want the window a particular size.
-    let capturing = capture::Capture::from_environment().is_some();
-    crate::log::start(capture::kept_between_runs(capturing, crate::log::folder()).as_deref());
-    let asked = std::env::var(capture::SIZE_VARIABLE).ok();
-    let kept = capture::kept_between_runs(capturing, settings::folder());
-    let remembered = crate::prefs::Kept::new(kept).remembered().window;
-    let size = asked
-        .and_then(|size| capture::size_from(&size))
-        .or(remembered);
-    let viewport = egui::ViewportBuilder::default()
-        .with_title("Voxa")
-        .with_icon(icon::icon())
-        .with_inner_size(size.unwrap_or([1440.0, 900.0]))
-        .with_min_inner_size([900.0, 600.0]);
-    let options = eframe::NativeOptions {
-        viewport,
-        ..Default::default()
-    };
-    let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
-        Ok(Box::new(VoxaApp::new(creation, initial, labels)))
-    };
-    eframe::run_native("Voxa", options, Box::new(create))
 }

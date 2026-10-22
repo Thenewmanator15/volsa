@@ -8,10 +8,10 @@ use crate::action::Action;
 use crate::planes::ColumnShows;
 use crate::scene::MainPanel;
 
-/// The width of the column beside the main area, in points, where there is room for it.
-const SIDE_COLUMN: f32 = 360.0;
-/// The most of the width the column may take.
-const SIDE_SHARE: f32 = 1.0 / 3.0;
+/// The least share of the width the column takes, however far it is dragged.
+const LEAST_SHARE: f32 = 0.15;
+/// The most of the width the column may take, so that the large part keeps two fifths.
+const MOST_SHARE: f32 = 0.6;
 /// The least the column is given while that is no more than half the width: what the
 /// strip along its top needs for three tabs and a button.
 const LEAST_COLUMN: f32 = 260.0;
@@ -28,12 +28,24 @@ pub struct Panels {
     pub side: Rect,
 }
 
-/// Divide an area into the large part and the column beside it: the column is 360 points
-/// wide, or a third of the area if that is less, but not under 260 points while that is no
-/// more than half the area, with the gap between viewports between them.
-pub fn panels(area: Rect) -> Panels {
-    let least = LEAST_COLUMN.min(area.width() / 2.0);
-    let column = SIDE_COLUMN.min(area.width() * SIDE_SHARE).max(least);
+/// The width of the column in an area `width` across, for its `share` of it: between 15%
+/// and 60% of the width, but not under 260 points while that is no more than half of it.
+pub fn column_width(width: f32, share: f32) -> f32 {
+    let least = LEAST_COLUMN.min(width / 2.0);
+    (width * share.clamp(LEAST_SHARE, MOST_SHARE)).max(least)
+}
+
+/// The column's share of an area `width` across once its left edge has been dragged `by`
+/// points from where its `share` puts it, as far as its limits allow.
+pub fn column_dragged(width: f32, share: f32, by: f32) -> f32 {
+    let wanted = column_width(width, share) - by;
+    column_width(width, wanted / width) / width
+}
+
+/// Divide an area into the large part and the column beside it, which takes its `share` of
+/// the width as [`column_width`] has it, with the gap between viewports between them.
+pub fn panels(area: Rect, share: f32) -> Panels {
+    let column = column_width(area.width(), share);
     let (main, side) = area.split_left_right_at_x(area.right() - column);
     Panels {
         main: main.with_max_x(main.right() - viewport::GAP),

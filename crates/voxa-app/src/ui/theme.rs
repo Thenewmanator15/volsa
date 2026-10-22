@@ -26,6 +26,9 @@ pub const QUIET_TEXT: Color32 = Color32::from_rgb(150, 158, 170);
 
 /// Shown word for word in the main window and in the About window.
 pub const DISCLAIMER: &str = "Voxa is not a medical device and is not for diagnostic use.";
+/// A window shorter than this, in points of the interface, has the lines of its bars set
+/// closer together, to leave more of its height to the pictures.
+pub const SHORT: f32 = 720.0;
 
 /// Give a context Voxa's look: dark whatever the system says, one accent colour, rounded
 /// corners, and its own sizes of type.
@@ -68,6 +71,16 @@ pub fn apply(ctx: &egui::Context) {
     });
 }
 
+/// Set the lines of a bar closer together in a window shorter than [`SHORT`]: the buttons
+/// a little less tall and the lines a little nearer.
+pub fn closer_in_a_short_window(ui: &mut egui::Ui) {
+    if ui.ctx().content_rect().height() < SHORT {
+        let spacing = &mut ui.style_mut().spacing;
+        spacing.item_spacing = vec2(6.0, 4.0);
+        spacing.button_padding = vec2(8.0, 2.0);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -82,6 +95,29 @@ mod tests {
         let rounded = egui::CornerRadius::same(ROUNDING);
         assert_eq!(style.visuals.widgets.inactive.corner_radius, rounded);
         assert_eq!(style.visuals.window_corner_radius, rounded);
+    }
+
+    #[test]
+    fn a_short_window_has_its_bars_set_closer() {
+        let ctx = egui::Context::default();
+        apply(&ctx);
+        let padding = |high: f32| {
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, vec2(1280.0, high));
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            };
+            let mut padding = egui::Vec2::ZERO;
+            let mut output = ctx.run_ui(input, |ui| {
+                closer_in_a_short_window(ui);
+                padding = ui.spacing().button_padding;
+            });
+            // No renderer is behind this pass to take the font texture.
+            output.textures_delta.clear();
+            padding
+        };
+        assert_eq!(padding(900.0), vec2(10.0, 5.0));
+        assert_eq!(padding(680.0), vec2(8.0, 2.0));
     }
 
     #[test]

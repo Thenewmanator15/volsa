@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 
 use egui::{
-    Align2, Color32, ColorImage, CornerRadius, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2,
-    vec2,
+    Color32, ColorImage, CornerRadius, Rect, RichText, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyInfo, WindowLevel};
 use voxa_dicom::Frame;
@@ -13,8 +12,6 @@ use super::theme;
 use crate::action::Action;
 use crate::state::AppState;
 
-/// Width of the browser column, in points.
-pub const WIDTH: f32 = 240.0;
 /// Side of a series' thumbnail, in points.
 pub const THUMBNAIL: f32 = 64.0;
 const PADDING: f32 = 8.0;
@@ -242,7 +239,6 @@ pub fn show(
     actions: &mut Vec<Action>,
 ) -> Vec<Card> {
     let mut cards = Vec::new();
-    ui.set_max_width(WIDTH - 2.0 * PADDING);
     let Some(index) = &state.index else {
         ui.label(
             RichText::new("Open a scan export to begin: a folder, a zip file or a DICOMDIR.")
@@ -316,19 +312,23 @@ fn card(
         let whole = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         painter.image(texture.id(), placed, whole, Color32::WHITE);
     }
-    words(ui, &painter, info, picture.right_top() + vec2(PADDING, 0.0));
+    let at = picture.right_top() + vec2(PADDING, 0.0);
+    words(ui, &painter, info, at, rect.right() - PADDING - at.x);
     response.on_hover_text(hover(info))
 }
 
-/// The words on a card, from `at` downwards: what the series is headed, how many slices, what
-/// kind of scan it is, and a note of what it is when it is not a volume (the pointer over the
-/// card shows the rest).
-fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2) {
+/// The words on a card, from `at` downwards and no wider than `wide`: what the series is
+/// headed, how many slices, what kind of scan it is, and a note of what it is when it is not
+/// a volume. A line too long for the card is cut short with an ellipsis; the pointer over the
+/// card shows the rest.
+fn words(ui: &Ui, painter: &egui::Painter, info: &SeriesInfo, at: egui::Pos2, wide: f32) {
     let body = egui::TextStyle::Body.resolve(ui.style());
     let small = egui::TextStyle::Small.resolve(ui.style());
     let strong = ui.visuals().strong_text_color();
     let line = |down: f32, text: String, font, colour| {
-        painter.text(at + vec2(0.0, down), Align2::LEFT_TOP, text, font, colour);
+        let mut job = egui::text::LayoutJob::simple_singleline(text, font, colour);
+        job.wrap = egui::text::TextWrapping::truncate_at_width(wide.max(0.0));
+        painter.galley(at + vec2(0.0, down), painter.layout_job(job), colour);
     };
     line(4.0, title(info), body, strong);
     line(26.0, caption(info), small.clone(), theme::QUIET_TEXT);
