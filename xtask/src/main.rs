@@ -12,7 +12,8 @@
 //! into the program, and `cargo xtask check` fails when the committed file is out of date.
 //! `cargo xtask dist` builds the program for 64-bit Windows with Microsoft's C runtime inside
 //! it and makes the zip a release offers, in `target/dist`; `--runtime FOLDER` puts ONNX
-//! Runtime from that folder in it too.
+//! Runtime from that folder in it too, with its licence and notices, and `--local` lets a
+//! folder without them make a package that is not for release.
 #![forbid(unsafe_code)]
 #![deny(missing_docs)]
 

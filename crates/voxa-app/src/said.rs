@@ -1,9 +1,16 @@
-//! What Voxa says in place of opening its window, or when the window cannot be opened: the
-//! help, the version, a mistake on the command line, a failure to start. Where Voxa has a
+//! What Voxa says in place of opening its window, when the window cannot be opened, or when it
+//! has closed unexpectedly: the help, the version, a mistake on the command line, a failure to
+//! start, a crash. Where Voxa has a
 //! console these are printed; a program built for Windows without one says them in a small
 //! message window, or they would be said to nobody.
 
+use std::path::Path;
+
 use crate::args::{Command, USAGE, version};
+
+/// Whether the program was built without a console to print to: a release build for Windows,
+/// which says what it has to say in a message window instead.
+pub const WINDOWED: bool = cfg!(all(windows, not(debug_assertions)));
 
 /// Something to tell the person, and how the program should then end.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,6 +32,29 @@ impl Outcome {
             code: 1,
         }
     }
+}
+
+/// What to tell the person when Voxa stops unexpectedly, the program having panicked: where
+/// its `log` is, if it keeps one. Nothing for a picture of the window (`capturing`), which
+/// no one is there to read.
+pub fn after_a_crash(capturing: bool, log: Option<&Path>) -> Option<Outcome> {
+    if capturing {
+        return None;
+    }
+    let first = "Voxa stopped unexpectedly and has closed. Open it again to carry on.";
+    let text = match log {
+        Some(log) => format!(
+            "{first}\n\nWhere it stopped is written in its log:\n{}",
+            log.display()
+        ),
+        None => first.to_owned(),
+    };
+    Some(Outcome {
+        text,
+        failed: true,
+        // What a Rust program that panicked ends with.
+        code: 101,
+    })
 }
 
 /// What the command line asks Voxa to say in place of running; `None` when it asks for a run.
@@ -69,7 +99,7 @@ pub fn tell(outcome: &Outcome, windowed: bool) {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
 
     use super::*;
     use crate::args::{USAGE, version};
@@ -108,6 +138,36 @@ mod tests {
             labels: PathBuf::from("labels.nii.gz"),
         };
         assert_eq!(outcome(&Ok(with)), None);
+    }
+
+    #[test]
+    fn a_crash_is_said_with_where_the_log_is_but_never_in_a_picture_run() {
+        let log = Path::new("C:/made/up/Voxa/data/voxa.log");
+        let said = after_a_crash(false, Some(log)).expect("something to say");
+        assert!(
+            said.text
+                .starts_with("Voxa stopped unexpectedly and has closed."),
+            "{}",
+            said.text
+        );
+        assert!(
+            said.text.contains("C:/made/up/Voxa/data/voxa.log"),
+            "{}",
+            said.text
+        );
+        assert!(said.failed);
+        assert_eq!(
+            said.code, 101,
+            "the code a Rust program that panicked ends with"
+        );
+        let without = after_a_crash(false, None).expect("something to say");
+        assert!(without.text.starts_with("Voxa stopped unexpectedly"));
+        assert!(!without.text.contains("log"), "{}", without.text);
+        assert_eq!(
+            after_a_crash(true, Some(log)),
+            None,
+            "no one reads a picture run"
+        );
     }
 
     #[test]

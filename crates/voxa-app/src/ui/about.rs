@@ -5,7 +5,9 @@
 use std::sync::LazyLock;
 
 use egui::RichText;
+use egui::scroll_area::ScrollAreaOutput;
 
+use super::scrolled;
 use super::theme;
 
 /// What is said about licences and credits, a line each.
@@ -72,6 +74,8 @@ fn open_notices(ctx: &egui::Context) {
 
 /// What a window's frame and title take of the height of the window it is shown in.
 const AROUND: f32 = 64.0;
+/// The height kept below the text for the button that opens the notices.
+const BUTTON_ROOM: f32 = 28.0;
 
 /// The interface's own name for the About window, which it keeps its place under.
 fn named() -> egui::Id {
@@ -79,20 +83,25 @@ fn named() -> egui::Id {
 }
 
 /// Show the About window while `open` is true; closing it sets `open` to false. In a window
-/// too short to hold it all, it scrolls. The notices window it opens is shown here too, for as
-/// long as it is open.
-pub fn show(ctx: &egui::Context, open: &mut bool) {
+/// too short to hold it all, its text scrolls, with the bar in sight, and the button that opens
+/// the notices stays below it. The notices window is shown here too, for as long as it is
+/// open. Gives what egui said of the text, while the window is shown.
+pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
     let room = ctx.content_rect().height();
-    egui::Window::new("About Voxa")
+    let about = egui::Window::new("About Voxa")
         .id(named())
         .open(open)
         .collapsible(false)
         .resizable(false)
         .default_height(ctx.content_rect().height())
         .show(ctx, |ui| {
-            egui::ScrollArea::vertical()
-                .max_height((room - 2.0 * AROUND).max(AROUND))
-                .show(ui, contents);
+            scrolled::solid_bars(ui);
+            let most = (room - 2.0 * AROUND - BUTTON_ROOM).max(AROUND);
+            let text = scrolled::up_and_down(most).show(ui, contents);
+            if ui.small_button("Licences and notices…").clicked() {
+                open_notices(ui.ctx());
+            }
+            text
         });
     let id = notices_open();
     let mut shown = ctx.data(|data| data.get_temp::<bool>(id)).unwrap_or(false);
@@ -100,6 +109,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool) {
         notices(ctx, &mut shown);
         ctx.data_mut(|data| data.insert_temp(id, shown));
     }
+    about.and_then(|window| window.inner)
 }
 
 /// What the About window says: what Voxa is, its version, the disclaimer, its licences and
@@ -119,9 +129,6 @@ fn contents(ui: &mut egui::Ui) {
     for line in LICENCES {
         ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
     }
-    if ui.small_button("Licences and notices…").clicked() {
-        open_notices(ui.ctx());
-    }
     if let Some(log) = crate::log::path() {
         ui.add_space(8.0);
         ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
@@ -135,7 +142,8 @@ fn contents(ui: &mut egui::Ui) {
     }
 }
 
-/// Show every line of the notices while `open` is true, in a window that scrolls both ways.
+/// Show every line of the notices while `open` is true, in a window that scrolls both ways,
+/// with its bars in sight.
 /// Only the lines in view are laid out, so the window stays quick however long the notices.
 fn notices(ctx: &egui::Context, open: &mut bool) {
     // Wide enough for the 78 columns most of the texts are written to.
@@ -144,6 +152,7 @@ fn notices(ctx: &egui::Context, open: &mut bool) {
         .collapsible(false)
         .default_size([700.0, 440.0])
         .show(ctx, |ui| {
+            scrolled::solid_bars(ui);
             let height = ui.text_style_height(&egui::TextStyle::Monospace);
             let area = egui::ScrollArea::both().auto_shrink(false);
             area.show_rows(ui, height, LINES.len(), |ui, rows| {
@@ -160,15 +169,80 @@ mod said_tests;
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::scrolled::{Scrolled, bar_drawn};
+
+    /// The name of the button in the About window that opens the notices.
+    const BUTTON: &str = "Licences and notices…";
 
     #[test]
     fn the_window_shows_and_can_be_left_open() {
         let ctx = egui::Context::default();
         let mut open = true;
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| show(ui.ctx(), &mut open));
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            show(ui.ctx(), &mut open);
+        });
         // No renderer is behind these passes to take the font texture.
         output.textures_delta.clear();
         assert!(open);
+    }
+
+    /// The About window in a Voxa window `width` by `height` points large, in Voxa's look:
+    /// what its text held and showed, whether the text's bar is drawn, where the window is,
+    /// and where the button that opens the notices is, as a screen reader is told.
+    fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect, egui::Rect) {
+        let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
+        let ctx = egui::Context::default();
+        theme::apply(&ctx);
+        ctx.enable_accesskit();
+        let (mut scrolled, mut bar, mut button) = (None, false, None);
+        for _ in 0..3 {
+            let input = egui::RawInput {
+                screen_rect: Some(screen),
+                ..egui::RawInput::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                scrolled = show(ui.ctx(), &mut true).map(|text| Scrolled::of(&text));
+            });
+            // No renderer is behind these passes to take the font texture.
+            output.textures_delta.clear();
+            let shown = scrolled.map_or(egui::Rect::NOTHING, |scrolled| scrolled.shown);
+            bar = bar_drawn(&output.shapes, shown);
+            let update = output.platform_output.accesskit_update;
+            let nodes = update.map(|update| update.nodes).unwrap_or_default();
+            let named = nodes.iter().find(|(_, node)| node.label() == Some(BUTTON));
+            button = named.and_then(|(_, node)| node.bounds());
+        }
+        let window = ctx.memory(|memory| memory.area_rect(named()));
+        let window = window.expect("the window is shown");
+        let button = button.expect("the button is there");
+        let corner = |x: f64, y: f64| egui::pos2(narrowed(x), narrowed(y));
+        let button =
+            egui::Rect::from_min_max(corner(button.x0, button.y0), corner(button.x1, button.y1));
+        (scrolled.expect("the text is laid out"), bar, window, button)
+    }
+
+    /// A place in a window, as a screen reader is told it, in the interface's points.
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a place in a window of a usual size, far inside what an f32 holds"
+    )]
+    fn narrowed(at: f64) -> f32 {
+        at as f32
+    }
+
+    #[test]
+    fn the_button_for_the_notices_is_in_sight_and_the_bar_of_the_text_is_drawn() {
+        // The smallest window with the interface at 150%, and a usual one.
+        for (width, height) in [(427.0, 320.0), (900.0, 600.0)] {
+            let (scrolled, bar, window, button) = drawn_in(width, height);
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
+            assert!(
+                window.contains_rect(button) && screen.contains_rect(button),
+                "the button at {button:?} is out of sight of the window at {window:?}"
+            );
+            assert!(scrolled.is_cut(), "the text is whole at {width}x{height}");
+            assert!(bar, "no bar beside the text at {width}x{height}");
+        }
     }
 
     #[test]
@@ -183,7 +257,9 @@ mod tests {
                 screen_rect: Some(screen),
                 ..egui::RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| show(ui.ctx(), &mut open));
+            let mut output = ctx.run_ui(input, |ui| {
+                show(ui.ctx(), &mut open);
+            });
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         }

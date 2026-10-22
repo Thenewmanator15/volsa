@@ -6,10 +6,7 @@
 
 use std::process::ExitCode;
 
-use voxa_app::{Command, Outcome, outcome, parse_args, run, tell};
-
-/// Whether this program was built without a console to print to.
-const WINDOWED: bool = cfg!(all(windows, not(debug_assertions)));
+use voxa_app::{Command, Outcome, WINDOWED, outcome, parse_args, run, tell};
 
 fn main() -> ExitCode {
     let command = parse_args(std::env::args_os().skip(1));

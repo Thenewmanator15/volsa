@@ -7,10 +7,8 @@ use std::path::Path;
 use serde_json::json;
 use zip::ZipArchive;
 
-use super::{
-    DOCUMENTS, Sources, assemble, civil, pe, runtime_named, version_and_target,
-    with_static_runtime, without_visual_cpp, zip_time,
-};
+use super::zipped::{civil, zip_time};
+use super::{Asked, DOCUMENTS, Sources, asked, assemble, version_and_target};
 
 /// A made-up repository with every document the package carries, a made-up program, and a
 /// made-up runtime folder with its two libraries, its licence and notices, and DirectML.
@@ -43,13 +41,20 @@ impl Made {
         self.root.path().join(inner)
     }
 
-    /// Packs version 9.8.7 into `dist`, with the runtime folder if `runtime`.
+    /// Packs version 9.8.7 into `dist`, with the runtime folder if `runtime`, for release.
     fn pack(&self, runtime: bool) -> Result<super::Made, String> {
+        self.pack_as(runtime, false)
+    }
+
+    /// Packs version 9.8.7 into `dist`, with the runtime folder if `runtime`, and for this
+    /// computer alone if `local`.
+    fn pack_as(&self, runtime: bool, local: bool) -> Result<super::Made, String> {
         let (program, runtime_files) = (self.path("build/voxa.exe"), self.path("runtime-files"));
         let sources = Sources {
             program: &program,
             root: self.root.path(),
             runtime: runtime.then_some(runtime_files.as_path()),
+            local,
         };
         assemble(&sources, "9.8.7", &self.path("dist"))
     }
@@ -160,31 +165,83 @@ fn without_a_runtime_the_package_has_no_runtime_folder() {
 }
 
 #[test]
-fn a_runtime_folder_without_its_licence_or_notices_is_packed_and_said_to_lack_them() {
+fn a_runtime_folder_without_its_licence_or_notices_is_refused_for_a_release() {
     let made = Made::new();
     fs::remove_file(made.path("runtime-files/LICENSE")).expect("removed");
     fs::remove_file(made.path("runtime-files/ThirdPartyNotices.txt")).expect("removed");
-    let packed = made.pack(true).expect("packed all the same");
+    let why = made.pack(true).expect_err("refused");
+    let folder = made.path("runtime-files").display().to_string();
+    let sentence = format!(
+        concat!(
+            "{} holds no LICENSE or LICENSE.txt and no ThirdPartyNotices.txt or ",
+            "ThirdPartyNotices, ONNX Runtime's own licence and notices, which a release must ",
+            "carry with the runtime: put them in the folder, or give --local for a package ",
+            "that is not for release"
+        ),
+        folder
+    );
+    assert_eq!(why, sentence);
+    assert!(!made.path("dist").exists(), "nothing is made");
+    // Lacking one of them is enough.
+    let made = Made::new();
+    fs::remove_file(made.path("runtime-files/ThirdPartyNotices.txt")).expect("removed");
+    let why = made.pack(true).expect_err("refused");
+    assert!(
+        why.contains("holds no ThirdPartyNotices.txt or ThirdPartyNotices,"),
+        "{why}"
+    );
+}
+
+#[test]
+fn the_runtime_notices_are_found_with_or_without_txt_and_carried_by_one_name() {
+    let made = Made::new();
+    let runtime = made.path("runtime-files");
+    fs::rename(runtime.join("LICENSE"), runtime.join("LICENSE.txt")).expect("renamed");
+    let notices = runtime.join("ThirdPartyNotices.txt");
+    fs::rename(&notices, runtime.join("ThirdPartyNotices")).expect("renamed");
+    let packed = made.pack(true).expect("packed");
+    let carried = |name: &str| packed.files.iter().any(|file| file == name);
+    assert!(carried("runtime/LICENSE") && carried("runtime/ThirdPartyNotices.txt"));
+    let licence = fs::read_to_string(packed.folder.join("runtime/LICENSE")).expect("read");
+    assert_eq!(licence, "the made-up LICENSE");
+    assert!(packed.missing.is_empty(), "{:?}", packed.missing);
+}
+
+#[test]
+fn a_local_package_goes_without_them_says_so_and_is_named_not_for_release() {
+    let made = Made::new();
+    fs::remove_file(made.path("runtime-files/LICENSE")).expect("removed");
+    fs::remove_file(made.path("runtime-files/ThirdPartyNotices.txt")).expect("removed");
+    let packed = made.pack_as(true, true).expect("packed");
+    assert_eq!(
+        packed.zip,
+        made.path("dist/voxa-9.8.7-windows-x64-local.zip")
+    );
     assert!(packed.files.contains(&"runtime/onnxruntime.dll".to_owned()));
     assert!(
         !packed
             .files
             .iter()
-            .any(|name| name.ends_with("LICENSE") && name.starts_with("runtime"))
+            .any(|name| name.starts_with("runtime/LICENSE"))
     );
-    assert_eq!(packed.missing.len(), 2, "{:?}", packed.missing);
     let folder = made.path("runtime-files").display().to_string();
-    for (said, name) in packed
-        .missing
-        .iter()
-        .zip(["LICENSE", "ThirdPartyNotices.txt"])
-    {
-        let sentence = format!(
-            "{folder} holds no {name}, ONNX Runtime's own, so the package's runtime folder goes \
-             without it; a release must carry it"
-        );
-        assert_eq!(*said, sentence);
-    }
+    let goes = "so this package, which is not for release, goes without it";
+    let expected: Vec<String> = [
+        "LICENSE or LICENSE.txt",
+        "ThirdPartyNotices.txt or ThirdPartyNotices",
+    ]
+    .iter()
+    .map(|named| format!("{folder} holds no {named}, ONNX Runtime's own, {goes}"))
+    .collect();
+    assert_eq!(packed.missing, expected);
+    // A local package with everything in it is still named as one.
+    let made = Made::new();
+    let packed = made.pack_as(true, true).expect("packed");
+    assert!(packed.missing.is_empty(), "{:?}", packed.missing);
+    assert_eq!(
+        packed.zip,
+        made.path("dist/voxa-9.8.7-windows-x64-local.zip")
+    );
 }
 
 #[test]
@@ -237,134 +294,42 @@ fn the_version_and_the_target_folder_are_what_cargo_metadata_says() {
 }
 
 #[test]
-fn the_package_is_asked_for_with_a_runtime_folder_or_without_one() {
+fn the_package_is_asked_for_with_a_runtime_folder_and_for_this_computer_alone() {
     let args = |words: &[&str]| words.iter().map(ToString::to_string).collect::<Vec<_>>();
-    assert_eq!(runtime_named(&[]), Ok(None));
-    let named = runtime_named(&args(&["--runtime", "some folder"]));
-    assert_eq!(named, Ok(Some("some folder".into())));
-    let usage = Err("usage: cargo xtask dist [--runtime FOLDER]".to_owned());
+    let runtime = |folder: &str| Some(std::path::PathBuf::from(folder));
+    assert_eq!(asked(&[]), Ok(Asked::default()));
+    let named = asked(&args(&["--runtime", "some folder"]));
+    let expected = Asked {
+        runtime: runtime("some folder"),
+        local: false,
+    };
+    assert_eq!(named, Ok(expected));
+    let local = Asked {
+        runtime: runtime("x"),
+        local: true,
+    };
+    assert_eq!(
+        asked(&args(&["--runtime", "x", "--local"])),
+        Ok(local.clone())
+    );
+    assert_eq!(asked(&args(&["--local", "--runtime", "x"])), Ok(local));
+    let alone = Asked {
+        runtime: None,
+        local: true,
+    };
+    assert_eq!(asked(&args(&["--local"])), Ok(alone));
+    let usage = Err("usage: cargo xtask dist [--runtime FOLDER] [--local]".to_owned());
     for wrong in [
         &["--runtime"][..],
         &["runtime", "x"],
         &["--runtime", "x", "y"],
+        &["--runtime", "--local"],
+        &["--local", "--local"],
+        &["--runtime", "x", "--runtime", "y"],
         &["x"],
     ] {
-        assert_eq!(runtime_named(&args(wrong)), usage, "{wrong:?}");
+        assert_eq!(asked(&args(wrong)), usage, "{wrong:?}");
     }
-}
-
-#[test]
-fn the_c_runtime_inside_the_program_is_added_to_any_flags_already_given() {
-    let flag = "-C target-feature=+crt-static";
-    assert_eq!(with_static_runtime(None), flag);
-    assert_eq!(with_static_runtime(Some("  ")), flag);
-    assert_eq!(
-        with_static_runtime(Some("-C debuginfo=1 ")),
-        format!("-C debuginfo=1 {flag}")
-    );
-}
-
-#[test]
-fn a_program_that_imports_the_visual_cpp_runtime_is_refused_with_the_names() {
-    let names = |words: &[&str]| words.iter().map(ToString::to_string).collect::<Vec<_>>();
-    let fine = names(&[
-        "KERNEL32.dll",
-        "USER32.dll",
-        "api-ms-win-core-synch-l1-2-0.dll",
-    ]);
-    assert_eq!(without_visual_cpp(&fine), Ok(()));
-    let needing = names(&[
-        "KERNEL32.dll",
-        "VCRUNTIME140.dll",
-        "api-ms-win-crt-heap-l1-1-0.dll",
-    ]);
-    assert_eq!(
-        without_visual_cpp(&needing),
-        Err(
-            "voxa.exe imports VCRUNTIME140.dll, api-ms-win-crt-heap-l1-1-0.dll, so the C \
-             runtime is not inside it and it would need the Visual C++ redistributable"
-                .to_owned()
-        )
-    );
-    for one in ["msvcp140.dll", "ucrtbase.dll", "vcruntime140_1.dll"] {
-        assert!(without_visual_cpp(&names(&[one])).is_err(), "{one}");
-    }
-}
-
-/// A made-up 64-bit program of one section, whose import table names `libraries`.
-fn program_importing(libraries: &[&str]) -> Vec<u8> {
-    let mut image = vec![0_u8; 0x400];
-    let mut put = |at: usize, value: u32, width: usize| {
-        image[at..at + width].copy_from_slice(&value.to_le_bytes()[..width]);
-    };
-    put(0x3c, 0x80, 4);
-    put(0x80, u32::from_le_bytes(*b"PE\0\0"), 4);
-    let (coff, optional) = (0x84, 0x98);
-    put(coff + 2, 1, 2);
-    put(coff + 16, 240, 2);
-    put(optional, 0x20b, 2);
-    put(optional + 108, 16, 4);
-    put(optional + 120, 0x1000, 4);
-    // The one section: 0x200 bytes from 0x200 in the file, at 0x1000 when loaded.
-    let section = optional + 240;
-    for (at, value) in [(8, 0x200), (12, 0x1000), (16, 0x200), (20, 0x200)] {
-        put(section + at, value, 4);
-    }
-    let mut name = 0x100;
-    for (index, library) in libraries.iter().enumerate() {
-        put(
-            0x200 + index * 20 + 12,
-            0x1000 + u32::try_from(name).expect("small"),
-            4,
-        );
-        name += library.len() + 1;
-    }
-    let mut name = 0x300;
-    for library in libraries {
-        image[name..name + library.len()].copy_from_slice(library.as_bytes());
-        name += library.len() + 1;
-    }
-    image
-}
-
-#[test]
-fn the_import_table_of_a_program_names_the_libraries_it_imports() {
-    let image = program_importing(&["KERNEL32.dll", "USER32.dll", "VCRUNTIME140.dll"]);
-    let names = pe::imports(&image).expect("read");
-    assert_eq!(names, ["KERNEL32.dll", "USER32.dll", "VCRUNTIME140.dll"]);
-    assert_eq!(pe::imports(&program_importing(&[])), Ok(Vec::new()));
-    // A file that is not a program, or is cut short, cannot be read as one.
-    let unreadable = Err("the file cannot be read as a Windows program".to_owned());
-    assert_eq!(
-        pe::imports(b"a made-up text file, not a program"),
-        unreadable
-    );
-    assert_eq!(pe::imports(&image[..0x210]), unreadable);
-    assert_eq!(pe::imports(&[]), unreadable);
-}
-
-#[test]
-fn a_program_carries_resources_when_its_table_of_resources_is_not_empty() {
-    let mut image = program_importing(&["KERNEL32.dll"]);
-    assert_eq!(pe::has_resources(&image), Ok(false));
-    // The third table in the list: 0x100 bytes at 0x1200.
-    image[0x98 + 128..0x98 + 136].copy_from_slice(&[0, 0x12, 0, 0, 0, 1, 0, 0]);
-    assert_eq!(pe::has_resources(&image), Ok(true));
-    let unreadable = Err("the file cannot be read as a Windows program".to_owned());
-    assert_eq!(pe::has_resources(b"a made-up text file"), unreadable);
-}
-
-#[cfg(all(windows, target_env = "msvc"))]
-#[test]
-fn the_import_table_of_this_test_program_names_the_core_of_windows() {
-    let here = std::env::current_exe().expect("this program");
-    let names = pe::imports(&fs::read(here).expect("read")).expect("a Windows program");
-    assert!(
-        names
-            .iter()
-            .any(|name| name.eq_ignore_ascii_case("kernel32.dll")),
-        "{names:?}"
-    );
 }
 
 #[test]

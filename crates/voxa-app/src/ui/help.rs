@@ -1,8 +1,10 @@
 //! The list of keys, opened with `?`.
 
 use egui::RichText;
+use egui::scroll_area::ScrollAreaOutput;
 
 use super::overlay::SHORTCUTS;
+use super::scrolled;
 use super::theme;
 
 /// What the mouse does over a viewport, for the same window.
@@ -54,27 +56,30 @@ fn named() -> egui::Id {
 }
 
 /// Show the reference while `open` is true; closing it sets `open` to false. In a window too
-/// small to hold it all, it scrolls; in a narrow one, what each key does follows it.
-pub fn show(ctx: &egui::Context, open: &mut bool) {
+/// small to hold it all, it scrolls, with its bar in sight; in a narrow one, what each key
+/// does follows it. Gives what egui said of its list, while it is shown.
+pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
     let room = ctx.content_rect().size();
     let wide = (room.x - AROUND).clamp(AROUND, WIDEST);
-    egui::Window::new("Keys and mouse")
+    let shown = egui::Window::new("Keys and mouse")
         .id(named())
         .open(open)
         .collapsible(false)
         .auto_sized()
         .show(ctx, |ui| {
             ui.set_width(wide);
-            egui::ScrollArea::vertical()
-                .max_height((room.y - 2.0 * AROUND).max(AROUND))
-                .show(ui, |ui| {
-                    if wide >= BESIDE {
-                        side_by_side(ui);
-                    } else {
-                        run_on(ui);
-                    }
-                });
+            // The bar is always drawn, so that a list cut short does not look whole.
+            scrolled::solid_bars(ui);
+            let most = (room.y - 2.0 * AROUND).max(AROUND);
+            scrolled::up_and_down(most).show(ui, |ui| {
+                if wide >= BESIDE {
+                    side_by_side(ui);
+                } else {
+                    run_on(ui);
+                }
+            })
         });
+    shown.and_then(|window| window.inner)
 }
 
 /// A key or mouse action, as the reference names it.
@@ -113,12 +118,15 @@ fn run_on(ui: &mut egui::Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::ui::scrolled::{Scrolled, bar_drawn};
 
     #[test]
     fn the_reference_draws_and_lists_every_key_and_mouse_action() {
         let ctx = egui::Context::default();
         let mut open = true;
-        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| show(ui.ctx(), &mut open));
+        let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+            show(ui.ctx(), &mut open);
+        });
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
@@ -143,40 +151,59 @@ mod tests {
         assert_eq!(in_3d, 5, "what the mouse does in the 3D view is listed too");
     }
 
-    /// Where the reference is drawn in a Voxa window `width` by `height` points large.
-    fn drawn_in(width: f32, height: f32) -> egui::Rect {
+    /// The reference shown in a Voxa window `width` by `height` points large, in Voxa's
+    /// look: what its list held and showed, whether the list's bar is drawn, and where the
+    /// reference is.
+    fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect) {
         let ctx = egui::Context::default();
+        theme::apply(&ctx);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
         let mut open = true;
+        let (mut scrolled, mut bar) = (None, false);
         for _ in 0..3 {
             let input = egui::RawInput {
                 screen_rect: Some(screen),
                 ..egui::RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| show(ui.ctx(), &mut open));
+            let mut output = ctx.run_ui(input, |ui| {
+                scrolled = show(ui.ctx(), &mut open).map(|list| Scrolled::of(&list));
+            });
             // No renderer is behind this pass to take the font texture.
             output.textures_delta.clear();
+            let shown = scrolled.map_or(egui::Rect::NOTHING, |scrolled| scrolled.shown);
+            bar = bar_drawn(&output.shapes, shown);
         }
         let shown = ctx.memory(|memory| memory.area_rect(named()));
-        shown.expect("the reference is shown")
+        let shown = shown.expect("the reference is shown");
+        (scrolled.expect("its list is laid out"), bar, shown)
     }
 
     #[test]
-    fn the_reference_is_whole_in_a_usual_window() {
-        let shown = drawn_in(1440.0, 900.0);
-        assert!(shown.bottom() <= 900.0, "it runs off the bottom: {shown:?}");
-        // Every one of its lines is at least 20 points high: the whole list is shown.
-        let lines = u16::try_from(SHORTCUTS.len() + MOUSE.len()).expect("a short list");
-        assert!(
-            shown.height() > f32::from(lines) * 20.0,
-            "it is cut short: {shown:?}"
-        );
+    fn where_the_list_is_cut_short_its_bar_is_drawn() {
+        // In windows of these sizes the list is longer than the room for it, as the window
+        // itself shows: the bar beside it says so, with no pointer over it.
+        for (width, height) in [(900.0, 600.0), (1440.0, 900.0)] {
+            let (scrolled, bar, shown) = drawn_in(width, height);
+            assert!(scrolled.is_cut(), "the list is whole at {width}x{height}");
+            assert!(bar, "no bar beside the list at {width}x{height}: {shown:?}");
+            assert!(
+                shown.bottom() <= height,
+                "it runs off the bottom: {shown:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_list_is_whole_in_a_large_window_with_its_bar_still_drawn() {
+        let (scrolled, bar, shown) = drawn_in(2560.0, 1600.0);
+        assert!(!scrolled.is_cut(), "{scrolled:?}");
+        assert!(bar, "no bar beside the list: {shown:?}");
     }
 
     #[test]
     fn the_reference_fits_in_the_smallest_window() {
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(640.0, 480.0));
-        let shown = drawn_in(640.0, 480.0);
+        let (_, _, shown) = drawn_in(640.0, 480.0);
         assert!(screen.contains_rect(shown), "{shown:?}");
         assert!(
             shown.width() > 0.8 * screen.width(),
