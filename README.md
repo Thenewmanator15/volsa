@@ -240,9 +240,11 @@ cargo xtask dist
 builds the release program and makes `target/dist/voxa-<version>-windows-x64.zip`, the zip the
 Releases page offers, with the folder it holds beside it. The program is built with Microsoft's
 C runtime inside it, so that it needs no Visual C++ redistributable of its own, and the task
-checks that it imports none. `cargo xtask dist --runtime FOLDER` puts ONNX Runtime's two
-libraries from that folder in the zip's `runtime` folder, with its `LICENSE` and
-`ThirdPartyNotices.txt` when the folder holds them. A tag that starts with `v` has GitHub make a
+checks that it imports none, and that it records no path of the computer it was built on.
+`cargo xtask dist --runtime FOLDER` puts ONNX Runtime's two libraries from that folder in the
+zip's `runtime` folder, with its `LICENSE` and `ThirdPartyNotices.txt`; a folder without them is
+refused, unless `--local` is given for a package that is not for release, whose zip's name then
+ends `-windows-x64-local.zip`. A tag that starts with `v` has GitHub make a
 draft release with that zip, its SHA-256 and the version's section of the changelog
 (`.github/workflows/release.yml`), with ONNX Runtime taken from Microsoft's package on nuget.org.
 

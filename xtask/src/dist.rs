@@ -1,41 +1,37 @@
-//! `cargo xtask dist [--runtime FOLDER]` makes the package a release of Voxa offers for
-//! 64-bit Windows: `target/dist/voxa-VERSION-windows-x64.zip`, which holds one folder,
+//! `cargo xtask dist [--runtime FOLDER] [--local]` makes the package a release of Voxa offers
+//! for 64-bit Windows: `target/dist/voxa-VERSION-windows-x64.zip`, which holds one folder,
 //! `voxa-VERSION`, with the program, its readme, its licences and notices, how to set up
 //! labelling, the changelog and what Voxa is for. The same folder is left beside the zip.
 //!
-//! The program is built for release with Microsoft's C runtime inside it, so that it needs no
-//! Visual C++ redistributable, and its import table is read to be sure of that. Only the
-//! package is built so: the flag goes to this one build, for its own target folder, and an
-//! ordinary build is left as it was.
+//! How the program is built, and what is read of it before it is packed, is in
+//! [`program`]: the C runtime inside it, no Visual C++ to import, its icon, and no path of the
+//! computer it was built on.
 //!
 //! With `--runtime`, the package also carries ONNX Runtime from that folder, in a folder of its
-//! own called `runtime`: its two libraries, and its licence and notices when the folder holds
-//! them. `DirectML.dll` is never carried, since Windows has its own.
+//! own called `runtime`: its two libraries, and its licence and notices, which a release must
+//! carry with them. A runtime folder without them is refused, unless `--local` is given for a
+//! package that is not for release, whose zip then ends `-windows-x64-local.zip`.
+//! `DirectML.dll` is never carried, since Windows has its own.
 
 mod pe;
+mod program;
 #[cfg(test)]
 mod tests;
+mod zipped;
 
-use std::collections::BTreeSet;
-use std::fs::{self, File};
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde_json::Value;
-use zip::write::SimpleFileOptions;
-use zip::{CompressionMethod, DateTime, ZipWriter};
 
-use crate::notices::{TARGET, cargo};
+use crate::notices::cargo;
+use program::{PROGRAM, Remap};
 
 /// How the task is asked for.
-const USAGE: &str = "usage: cargo xtask dist [--runtime FOLDER]";
-/// The package that is the program, and the program's file as the build names it and as the
-/// package carries it.
+const USAGE: &str = "usage: cargo xtask dist [--runtime FOLDER] [--local]";
+/// The package that is the program.
 const PACKAGE: &str = "voxa-app";
-const PROGRAM: &str = "voxa.exe";
-/// What the build adds to the flags the compiler is given: the C runtime inside the program.
-const STATIC_RUNTIME: &str = "-C target-feature=+crt-static";
 /// The documents the package carries: the name of each in the package, and where it is in the
 /// repository.
 const DOCUMENTS: [(&str, &str); 8] = [
@@ -48,17 +44,31 @@ const DOCUMENTS: [(&str, &str); 8] = [
     ("CHANGELOG.md", "CHANGELOG.md"),
     ("INTENDED-USE.txt", "docs/intended-use.md"),
 ];
-/// The folder in the package that holds ONNX Runtime, with the libraries it must hold, and
-/// the runtime's own licence and notices, which go with it when the folder given holds them.
+/// The folder in the package that holds ONNX Runtime, with the libraries it must hold.
 const RUNTIME: &str = "runtime";
 const LIBRARIES: [&str; 2] = ["onnxruntime.dll", "onnxruntime_providers_shared.dll"];
-const RUNTIME_NOTICES: [&str; 2] = ["LICENSE", "ThirdPartyNotices.txt"];
-/// The libraries of Microsoft's C and C++ runtime, by how their names start in lower case,
-/// that a program with that runtime inside it does not import.
-const VISUAL_CPP: [&str; 4] = ["vcruntime", "msvcp", "ucrtbase", "api-ms-win-crt-"];
+/// ONNX Runtime's own licence and notices: the name each has in the package, and the names
+/// it may have in the runtime folder, with or without `.txt`, as Microsoft's packages have
+/// given them.
+const RUNTIME_NOTICES: [(&str, [&str; 2]); 2] = [
+    ("LICENSE", ["LICENSE", "LICENSE.txt"]),
+    (
+        "ThirdPartyNotices.txt",
+        ["ThirdPartyNotices.txt", "ThirdPartyNotices"],
+    ),
+];
 
 /// A file the package carries: its path in the package, and the file it comes from.
 type Carried = (String, PathBuf);
+
+/// What the task was asked for.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Asked {
+    /// The folder that holds ONNX Runtime, when the package is to carry it.
+    pub runtime: Option<PathBuf>,
+    /// Whether the package is for this computer alone, not for release.
+    pub local: bool,
+}
 
 /// Where the files of a package come from.
 pub struct Sources<'a> {
@@ -68,6 +78,9 @@ pub struct Sources<'a> {
     pub root: &'a Path,
     /// The folder that holds ONNX Runtime, when the package is to carry it.
     pub runtime: Option<&'a Path>,
+    /// Whether the package is for this computer alone, not for release: it may then go
+    /// without the runtime's licence and notices, and its zip's name says so.
+    pub local: bool,
 }
 
 /// A package, made: the folder, the zip of it, the paths of the files in the folder, and a
@@ -86,45 +99,49 @@ pub struct Made {
 
 /// `cargo xtask dist`, with the arguments after `dist`.
 pub fn make(args: &[String]) -> Result<(), String> {
-    let runtime = runtime_named(args)?;
+    let asked = asked(args)?;
     if !cfg!(windows) {
         return Err("cargo xtask dist makes the package for Windows, so it runs on Windows".into());
+    }
+    // A runtime folder a release cannot be made from is refused before anything is built.
+    if let Some(runtime) = &asked.runtime {
+        runtime_notices(runtime, asked.local)?;
     }
     let said = cargo(&["metadata", "--format-version", "1", "--no-deps"])?;
     let metadata: Value = serde_json::from_str(&said)
         .map_err(|error| format!("could not read what cargo metadata said: {error}"))?;
     let (version, target) = version_and_target(&metadata)
         .ok_or("cargo metadata did not say the program's version and the target folder")?;
-    let program = build(&target)?;
-    let image = fs::read(&program)
-        .map_err(|error| format!("could not read {}: {error}", program.display()))?;
-    let imported = pe::imports(&image).map_err(|why| format!("{}: {why}", program.display()))?;
-    without_visual_cpp(&imported)?;
-    let carried = pe::has_resources(&image).map_err(|why| format!("{}: {why}", program.display()));
-    if !carried? {
-        return Err(format!(
-            "{PROGRAM} carries no icon or version details: the build found no resource compiler \
-             (rc.exe, from the Windows SDK)"
-        ));
-    }
     let root = crate::workspace_root();
+    let (program, remapped) = program::build(&root, &target)?;
+    let imported = checked(&program, &remapped)?;
     let sources = Sources {
         program: &program,
         root: &root,
-        runtime: runtime.as_deref(),
+        runtime: asked.runtime.as_deref(),
+        local: asked.local,
     };
     let made = assemble(&sources, &version, &target.join("dist"))?;
     report(&made, &imported);
     Ok(())
 }
 
-/// The runtime folder the arguments name, if they name one, or how the task is asked for.
-fn runtime_named(args: &[String]) -> Result<Option<PathBuf>, String> {
-    match args {
-        [] => Ok(None),
-        [flag, folder] if flag == "--runtime" => Ok(Some(PathBuf::from(folder))),
-        _ => Err(USAGE.to_owned()),
+/// What the arguments ask for, or how the task is asked for: a runtime folder after
+/// `--runtime`, and `--local`, each at most once and in either order.
+fn asked(args: &[String]) -> Result<Asked, String> {
+    let mut asked = Asked::default();
+    let mut words = args.iter();
+    while let Some(word) = words.next() {
+        match word.as_str() {
+            "--runtime" if asked.runtime.is_none() => {
+                let folder = words.next().filter(|folder| !folder.starts_with("--"));
+                asked.runtime = Some(PathBuf::from(folder.ok_or(USAGE)?));
+            }
+            "--local" if !asked.local => asked.local = true,
+            _ => return Err(USAGE.to_owned()),
+        }
     }
+    Ok(asked)
 }
 
 /// The program's version and the folder cargo builds in, from what `cargo metadata` said.
@@ -137,54 +154,25 @@ fn version_and_target(metadata: &Value) -> Option<(String, PathBuf)> {
     Some((version.to_owned(), PathBuf::from(target)))
 }
 
-/// Builds the program for release, with the C runtime inside it, and says where it is.
-/// Naming the target puts the build in a folder of its own, and keeps the flag off the
-/// programs that run as it is built.
-fn build(target: &Path) -> Result<PathBuf, String> {
-    let flags = with_static_runtime(std::env::var("RUSTFLAGS").ok().as_deref());
-    let args = [
-        "build",
-        "--release",
-        "--locked",
-        "--package",
-        PACKAGE,
-        "--target",
-        TARGET,
-    ];
-    crate::run("cargo", &args, &[("RUSTFLAGS", &flags)])?;
-    Ok(target.join(TARGET).join("release").join(PROGRAM))
-}
-
-/// The flags the compiler is given for the package: any already given, and the C runtime
-/// inside the program.
-fn with_static_runtime(given: Option<&str>) -> String {
-    match given.map(str::trim) {
-        Some(given) if !given.is_empty() => format!("{given} {STATIC_RUNTIME}"),
-        _ => STATIC_RUNTIME.to_owned(),
+/// Reads the built program and fails if it imports Visual C++, carries no icon or still
+/// records a place of `remapped`. The libraries it imports, when it passes.
+fn checked(program: &Path, remapped: &[Remap]) -> Result<Vec<String>, String> {
+    let image = fs::read(program)
+        .map_err(|error| format!("could not read {}: {error}", program.display()))?;
+    let imported = pe::imports(&image).map_err(|why| format!("{}: {why}", program.display()))?;
+    program::without_visual_cpp(&imported)?;
+    let carried = pe::has_resources(&image).map_err(|why| format!("{}: {why}", program.display()));
+    if !carried? {
+        return Err(format!(
+            concat!(
+                "{} carries no icon or version details: the build found no resource ",
+                "compiler (rc.exe, from the Windows SDK)"
+            ),
+            PROGRAM
+        ));
     }
-}
-
-/// Fails, naming them, if any of the libraries a program imports is Microsoft's C or C++
-/// runtime: then the C runtime is not inside the program, and it would need the Visual C++
-/// redistributable on every computer it runs on.
-fn without_visual_cpp(imported: &[String]) -> Result<(), String> {
-    let runtime = |name: &&String| {
-        let name = name.to_ascii_lowercase();
-        VISUAL_CPP.iter().any(|start| name.starts_with(start))
-    };
-    let found: Vec<&str> = imported
-        .iter()
-        .filter(runtime)
-        .map(String::as_str)
-        .collect();
-    if found.is_empty() {
-        return Ok(());
-    }
-    Err(format!(
-        "{PROGRAM} imports {}, so the C runtime is not inside it and it would need the Visual \
-         C++ redistributable",
-        found.join(", ")
-    ))
+    program::without_places(&image, remapped)?;
+    Ok(imported)
 }
 
 /// Makes the package for `version` in `dist` from `sources`: the folder, then the zip of it.
@@ -193,13 +181,15 @@ fn without_visual_cpp(imported: &[String]) -> Result<(), String> {
 ///
 /// # Errors
 ///
-/// A sentence naming the file, when a file the package must carry is not there, and what went
-/// wrong when a file could not be copied or the zip written.
+/// A sentence naming the file, when a file the package must carry is not there, or naming
+/// what the runtime folder lacks, for a package that is for release; and what went wrong
+/// when a file could not be copied or the zip written.
 pub fn assemble(sources: &Sources, version: &str, dist: &Path) -> Result<Made, String> {
     let (files, missing) = contents(sources)?;
     let top = format!("voxa-{version}");
     let folder = dist.join(&top);
-    let zip = dist.join(format!("{top}-windows-x64.zip"));
+    let kind = if sources.local { "-local" } else { "" };
+    let zip = dist.join(format!("{top}-windows-x64{kind}.zip"));
     if folder.exists() {
         fs::remove_dir_all(&folder).map_err(|error| failed("clear", &folder, &error))?;
     }
@@ -214,7 +204,7 @@ pub fn assemble(sources: &Sources, version: &str, dist: &Path) -> Result<Made, S
         fs::copy(from, &to).map_err(|error| failed("copy", from, &error))?;
     }
     let names: Vec<String> = files.into_iter().map(|(name, _)| name).collect();
-    zipped(&folder, &top, &names, &zip)?;
+    zipped::zipped(&folder, &top, &names, &zip)?;
     Ok(Made {
         folder,
         zip,
@@ -237,18 +227,9 @@ fn contents(sources: &Sources) -> Result<(Vec<Carried>, Vec<String>), String> {
             .iter()
             .map(|name| (format!("{RUNTIME}/{name}"), runtime.join(name)));
         files.extend(libraries);
-        for name in RUNTIME_NOTICES {
-            let from = runtime.join(name);
-            if from.is_file() {
-                files.push((format!("{RUNTIME}/{name}"), from));
-            } else {
-                missing.push(format!(
-                    "{} holds no {name}, ONNX Runtime's own, so the package's runtime folder \
-                     goes without it; a release must carry it",
-                    runtime.display()
-                ));
-            }
-        }
+        let (notices, lacking) = runtime_notices(runtime, sources.local)?;
+        files.extend(notices);
+        missing = lacking;
     }
     if let Some((name, from)) = files.iter().find(|(_, from)| !from.is_file()) {
         let from = from.display();
@@ -259,72 +240,35 @@ fn contents(sources: &Sources) -> Result<(Vec<Carried>, Vec<String>), String> {
     Ok((files, missing))
 }
 
-/// Writes the zip: the folder `top`, its folders and then its files, each compressed and
-/// dated now.
-fn zipped(folder: &Path, top: &str, names: &[String], zip: &Path) -> Result<(), String> {
-    let written =
-        |error: &dyn std::fmt::Display| format!("could not write {}: {error}", zip.display());
-    let file = File::create(zip).map_err(|error| written(&error))?;
-    let mut writer = ZipWriter::new(file);
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default();
-    let options = SimpleFileOptions::default()
-        .compression_method(CompressionMethod::Deflated)
-        .last_modified_time(zip_time(now.as_secs()));
-    let mut folders = BTreeSet::from([format!("{top}/")]);
-    for name in names {
-        let parents = name
-            .match_indices('/')
-            .map(|(at, _)| format!("{top}/{}/", &name[..at]));
-        folders.extend(parents);
+/// ONNX Runtime's licence and notices in the folder `runtime`, as the package carries them,
+/// and a sentence for each that the folder lacks. For a package that is not `local`, a folder
+/// that lacks either is refused, with a sentence saying what it lacks.
+fn runtime_notices(runtime: &Path, local: bool) -> Result<(Vec<Carried>, Vec<String>), String> {
+    let (mut carried, mut lacking) = (Vec::new(), Vec::new());
+    for (name, found_as) in RUNTIME_NOTICES {
+        let found = found_as.iter().map(|named| runtime.join(named));
+        match found.into_iter().find(|from| from.is_file()) {
+            Some(from) => carried.push((format!("{RUNTIME}/{name}"), from)),
+            None => lacking.push(found_as.join(" or ")),
+        }
     }
-    for inner in folders {
-        writer
-            .add_directory(inner, options)
-            .map_err(|error| written(&error))?;
+    let folder = runtime.display();
+    if !lacking.is_empty() && !local {
+        return Err(format!(
+            concat!(
+                "{} holds no {}, ONNX Runtime's own licence and notices, which a release must ",
+                "carry with the runtime: put them in the folder, or give --local for a package ",
+                "that is not for release"
+            ),
+            folder,
+            lacking.join(" and no ")
+        ));
     }
-    for name in names {
-        let from = folder.join(name);
-        let mut read = File::open(&from).map_err(|error| failed("read", &from, &error))?;
-        writer
-            .start_file(format!("{top}/{name}"), options)
-            .map_err(|error| written(&error))?;
-        io::copy(&mut read, &mut writer).map_err(|error| written(&error))?;
-    }
-    writer.finish().map_err(|error| written(&error))?;
-    Ok(())
-}
-
-/// A zip's date and time for `seconds` after the start of 1970, at Greenwich. A time a zip
-/// cannot hold, before 1980 or after 2107, is given as the start of 1980.
-fn zip_time(seconds: u64) -> DateTime {
-    let (year, month, day) = civil(seconds / 86_400);
-    let of_day = seconds % 86_400;
-    let [hour, minute, second] = [of_day / 3600, of_day % 3600 / 60, of_day % 60]
-        .map(|part| u8::try_from(part).unwrap_or(0));
-    let year = u16::try_from(year).unwrap_or(0);
-    DateTime::from_date_and_time(year, month, day, hour, minute, second).unwrap_or_default()
-}
-
-/// The year, month and day of the day `days` after the first of January 1970.
-fn civil(days: u64) -> (u64, u8, u8) {
-    // Days counted from the first of March of the year 0, in eras of 400 years.
-    let counted = days + 719_468;
-    let era = counted / 146_097;
-    let of_era = counted % 146_097;
-    let year_of_era = (of_era - of_era / 1460 + of_era / 36_524 - of_era / 146_096) / 365;
-    let of_year = of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
-    let from_march = (5 * of_year + 2) / 153;
-    let day = of_year - (153 * from_march + 2) / 5 + 1;
-    let month = if from_march < 10 {
-        from_march + 3
-    } else {
-        from_march - 9
-    };
-    let year = era * 400 + year_of_era + u64::from(month <= 2);
-    let small = |part: u64| u8::try_from(part).unwrap_or(0);
-    (year, small(month), small(day))
+    let said = lacking.iter().map(|named| {
+        let goes = "so this package, which is not for release, goes without it";
+        format!("{folder} holds no {named}, ONNX Runtime's own, {goes}")
+    });
+    Ok((carried, said.collect()))
 }
 
 /// The words for a file or folder that could not be dealt with.
@@ -333,7 +277,7 @@ fn failed(what: &str, path: &Path, error: &io::Error) -> String {
 }
 
 /// Says what was made, how large it is, that the program carries its icon, what it imports,
-/// and what was left out.
+/// that it records no place of the computer it was built on, and what was left out.
 fn report(made: &Made, imported: &[String]) {
     let size = fs::metadata(&made.zip).map_or(0, |file| file.len());
     let megabytes = size as f64 / 1_048_576.0;
@@ -347,6 +291,7 @@ fn report(made: &Made, imported: &[String]) {
         "{PROGRAM} imports {}, and nothing of Visual C++",
         imported.join(", ")
     );
+    println!("{PROGRAM} records no place on the computer it was built on");
     for sentence in &made.missing {
         println!("warning: {sentence}");
     }
