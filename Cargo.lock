@@ -5509,6 +5509,7 @@ version = "0.5.0"
 dependencies = [
  "serde_json",
  "tempfile",
+ "zip",
 ]
 
 [[package]]

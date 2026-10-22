@@ -1,6 +1,6 @@
 [package]
 name = "xtask"
-description = "Project tasks for Voxa: `cargo xtask check`, `cargo xtask coverage` and `cargo xtask notices`."
+description = "Project tasks for Voxa: `cargo xtask check`, `coverage`, `check-models`, `notices` and `dist`."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -10,6 +10,8 @@ publish.workspace = true
 [dependencies]
 # Reads what `cargo metadata` says of the packages Voxa is built from.
 serde_json.workspace = true
+# Writes the zip a release offers.
+zip.workspace = true
 
 [dev-dependencies]
 # The made-up package folders the notices are tested on.
