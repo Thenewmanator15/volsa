@@ -47,6 +47,7 @@ fn beside(ui: &egui::Ui, notice: &Notice) -> bool {
         laid.size().x
     };
     let spacing = ui.spacing();
+    // A button is its words, the padding either side of them, and a point of frame each side.
     let button = wide(DISMISS, TextStyle::Button) + 2.0 * spacing.button_padding.x + 2.0;
     let words = wide(&notice.text, TextStyle::Small).min(LEAST_OF_A_NOTICE);
     let needed = wide(theme::DISCLAIMER, TextStyle::Small) + words + button;
