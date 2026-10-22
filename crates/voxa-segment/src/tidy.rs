@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `postprocess` in SynthSeg/predict_synthseg.py, with the lab2im functions it
+// calls, translated to Rust and changed for Voxa.
 //! Tidying what the networks found into labels on the volume's own grid, as `SynthSeg`'s own
 //! program tidies it. That program goes one of two ways, by which networks ran, and so does
 //! [`tidy`].

@@ -14,7 +14,7 @@
 
 - The disclaimer verbatim: "Voxa is not a medical device and is not for diagnostic use."
 - No network, no telemetry. No `unsafe`. Library crates never panic.
-- Nothing from a real export in a test, a document or a commit message. Made-up values only, checked against the owner's export before each commit (`shape_check.py`, `identity_audit.py`, `series_audit.py` in the owner's private folder).
+- Nothing from a real export in a test, a document or a commit message. Made-up values only, checked before each commit against a real export on the developer's machine, from which nothing is recorded.
 - Every dependency carries a licence on the allow-list in `deny.toml`.
 - `cargo xtask check` passes before every commit. Files under 400 lines, functions under 60.
 - The version number does not change. Nothing is merged into `main` or pushed without the owner.

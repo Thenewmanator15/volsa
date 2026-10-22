@@ -14,7 +14,7 @@
 
 ## Scope
 
-This is the half of the spec's milestone 4 that shows labels. The other half, running a labelling model inside Voxa (an ONNX runtime, converting SynthSeg, downloading weights whose licence is unsettled), is a milestone of its own and is not started here. A Python pipeline outside Voxa already writes label files; the owner asked for the labelled parts to be shown in Voxa, and was told twice that the quick route is to open those files.
+This is the half of the spec's milestone 4 that shows labels. The other half, running a labelling model inside Voxa (an ONNX runtime, converting SynthSeg, downloading weights whose licence is unsettled), is a milestone of its own and is not started here. Label files are already made by programs outside Voxa; showing labelled parts in Voxa was asked for, and was told twice that the quick route is to open those files.
 
 In: NIfTI-1 label volumes (`.nii`, `.nii.gz`); three kinds of table of names; one label set at a time, belonging to the study it was opened on; the Parts list; the overlay in the plane views; the Parts look in 3D with hover, click, fade and cuts; volumes, left against right, saving the list as CSV; a made-up labelled study for pictures; a check that runs on a whole export.
 
@@ -38,7 +38,7 @@ The owner's standing instruction, to keep it standardised, is this plan's readin
 
 ## Global Constraints
 
-Every constraint of the earlier plans still holds: the disclaimer verbatim; dual MIT / Apache-2.0; no network, no telemetry; patient data never in the repository; nothing from a real export in a test, a document or a commit message, and that includes the owner's label files, their names, titles and volumes; the repository stays local until the owner says so; no `unsafe` outside `voxa-render`; library crates never panic; `cargo xtask check` passes at every commit; every public item documented; conventional commits; crates depend only downward (core; then dicom, volume and labels; then render; then app); `Patient`, `Voxel` and `Screen` stay distinct types; `voxa-app` contains no image mathematics; tests that need a graphics device return early when there is none; a background task that panics must not stop the program; every sentence shown is plain words and says what the picture cannot show. In addition:
+Every constraint of the earlier plans still holds: the disclaimer verbatim; dual MIT / Apache-2.0; no network, no telemetry; patient data never in the repository; nothing from a real export in a test, a document or a commit message, and that includes label files made from a real export, their names, titles and volumes; the repository stays local until the owner says so; no `unsafe` outside `voxa-render`; library crates never panic; `cargo xtask check` passes at every commit; every public item documented; conventional commits; crates depend only downward (core; then dicom, volume and labels; then render; then app); `Patient`, `Voxel` and `Screen` stay distinct types; `voxa-app` contains no image mathematics; tests that need a graphics device return early when there is none; a background task that panics must not stop the program; every sentence shown is plain words and says what the picture cannot show. In addition:
 
 - `voxa-labels` joins the crates held to 80% line coverage.
 - Nothing a label file or a table contains may stop the program: every way they can be wrong is an error in plain words.

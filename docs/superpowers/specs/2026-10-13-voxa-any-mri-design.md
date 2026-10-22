@@ -105,6 +105,7 @@ later work. The version number does not change; this lands under "Unreleased".
 
 The disclaimer verbatim. No network, no telemetry. Scan data never in the repository, and
 nothing from a real export in a test, a document or a commit message: no name, date,
-description, identifier, size, count, spacing or position; made-up values, checked against
-the owner's export before each commit. No `unsafe`. Library crates never panic. Every
-dependency on the allow-list. `cargo xtask check` before every commit.
+description, identifier, size, count, spacing or position; made-up values, checked before
+each commit against a real export on the developer's machine, from which nothing is
+recorded. No `unsafe`. Library crates never panic. Every dependency on the allow-list.
+`cargo xtask check` before every commit.

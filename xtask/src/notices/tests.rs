@@ -7,17 +7,18 @@ use std::path::Path;
 
 use serde_json::{Value, json};
 
-use super::package::is_licence_file;
-use super::standard::{licence_ids, standard};
+use super::choice_tests::allowed;
+use super::standard::standard;
+use super::upstream_tests::KNOWN;
 use super::{held_to, notices, shipped};
 
 /// The made-up Apache text, as two packages ship it: the same words, spaced otherwise.
-const APACHE: &str = "Apache License\nVersion 2.0\n\nMade-up terms.\n";
+pub(super) const APACHE: &str = "Apache License\nVersion 2.0\n\nMade-up terms.\n";
 const APACHE_SPACED: &str = "Apache License\r\n  Version 2.0   \r\n\r\nMade-up terms.\r\n";
 
 /// Writes `files` into a package's folder under `root`, and gives the package as the metadata
 /// names it.
-fn package(
+pub(super) fn package(
     root: &Path,
     name_version: (&str, &str),
     licence: &str,
@@ -64,7 +65,7 @@ const FONTS: [(&str, &str); 8] = [
 ];
 
 /// The made-up workspace's packages, in no order, its own crate among them.
-fn packages(root: &Path) -> Vec<Value> {
+pub(super) fn packages(root: &Path) -> Vec<Value> {
     let zeta = [
         (
             "LICENSE-MIT",
@@ -98,7 +99,13 @@ fn packages(root: &Path) -> Vec<Value> {
             &[("LICENSE", "Never built in.\n")],
         ),
         own,
-        package(root, ("beta", "2.1.0"), "Apache-2.0/MIT", &beta),
+        package(root, ("beta", "2.1.0"), "Apache-2.0", &beta),
+        package(
+            root,
+            ("iota", "0.2.0"),
+            "Apache-2.0",
+            &[("LICENSE-APACHE", APACHE)],
+        ),
         gamma,
         package(
             root,
@@ -117,16 +124,17 @@ fn packages(root: &Path) -> Vec<Value> {
 
 /// What `cargo tree` lists for the made-up program: its own crate, marked by its folder, and
 /// a package met twice, marked `(*)`. `unused` is in the metadata but not in the program.
-const LISTED: &str = "voxa-app v0.5.0 (G:\\made\\up\\voxa-app)\nzeta v1.0.0\nbeta v2.1.0\n\
-                      gamma v0.3.0\ndelta v0.1.0\nzeta v1.0.0 (*)\nepaint_default_fonts v0.36.2\n";
+pub(super) const LISTED: &str = "voxa-app v0.5.0 (G:\\made\\up\\voxa-app)\nzeta v1.0.0\nbeta v2.1.0\n\
+                      gamma v0.3.0\ndelta v0.1.0\nzeta v1.0.0 (*)\nepaint_default_fonts v0.36.2\n\
+                      iota v0.2.0\n";
 
 /// The metadata of a made-up workspace whose one member is `voxa-app`.
-fn metadata(packages: &[Value]) -> Value {
+pub(super) fn metadata(packages: &[Value]) -> Value {
     json!({ "packages": packages, "workspace_members": ["path+file:///made/up/voxa-app#0.5.0"] })
 }
 
 /// The lines of the entry for one package: from its heading to the blank line after it.
-fn entry<'a>(notices: &'a str, heading: &str) -> Vec<&'a str> {
+pub(super) fn entry<'a>(notices: &'a str, heading: &str) -> Vec<&'a str> {
     let mut lines = notices.lines().skip_while(|line| *line != heading);
     let first = lines
         .next()
@@ -137,7 +145,7 @@ fn entry<'a>(notices: &'a str, heading: &str) -> Vec<&'a str> {
 }
 
 /// The number of the text an entry names for `what`, from its line `  what: text N`.
-fn number(entry: &[&str], what: &str) -> String {
+pub(super) fn number(entry: &[&str], what: &str) -> String {
     let start = format!("  {what}: text ");
     let line = entry.iter().find_map(|line| line.strip_prefix(&start));
     line.unwrap_or_else(|| panic!("{entry:?} names no text for {what}"))
@@ -147,12 +155,13 @@ fn number(entry: &[&str], what: &str) -> String {
 #[test]
 fn every_package_built_into_the_program_is_named_once_in_order() {
     let root = tempfile::tempdir().unwrap();
-    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED)).unwrap();
+    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED), &KNOWN).unwrap();
     let headings = [
         "beta 2.1.0",
         "delta 0.1.0",
         "epaint_default_fonts 0.36.2",
         "gamma 0.3.0",
+        "iota 0.2.0",
         "zeta 1.0.0",
     ];
     let at: Vec<usize> = headings
@@ -173,9 +182,10 @@ fn every_package_built_into_the_program_is_named_once_in_order() {
     // What the metadata says of each.
     let zeta = entry(&written, "zeta 1.0.0");
     assert_eq!(
-        zeta[1..3],
+        zeta[1..4],
         [
             "  Licence: MIT OR Apache-2.0",
+            "  Voxa takes it under: MIT",
             "  Repository: https://example.com/zeta"
         ]
     );
@@ -184,23 +194,26 @@ fn every_package_built_into_the_program_is_named_once_in_order() {
 #[test]
 fn the_same_words_are_written_once_and_referred_to() {
     let root = tempfile::tempdir().unwrap();
-    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED)).unwrap();
+    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED), &KNOWN).unwrap();
     assert_eq!(written.matches("Made-up terms.").count(), 1);
-    let zeta = number(&entry(&written, "zeta 1.0.0"), "LICENSE-APACHE");
     let beta = entry(&written, "beta 2.1.0");
-    assert_eq!(number(&beta, "license-apache"), zeta);
+    let apache = number(&beta, "license-apache");
+    assert_eq!(
+        number(&entry(&written, "iota 0.2.0"), "LICENSE-APACHE"),
+        apache
+    );
     // Only files whose names start as licences and notices do, and none in a folder.
-    assert!(written.contains("Copyright 2021 Beta.") && number(&beta, "COPYRIGHT") != zeta);
+    assert!(written.contains("Copyright 2021 Beta.") && number(&beta, "COPYRIGHT") != apache);
     assert!(!written.contains("Not a licence.") && !written.contains("In a folder"));
     // One line end closes the file, and no blank line.
     assert!(written.ends_with("Made-up MIT terms.\n"), "{written}");
     // A text is called after where it is first met, in the order the packages are written.
-    assert!(written.contains(&format!("Text {zeta}: license-apache of beta 2.1.0\n")));
+    assert!(written.contains(&format!("Text {apache}: license-apache of beta 2.1.0\n")));
     // The same metadata in another order writes the same file.
     let mut backwards = packages(root.path());
     backwards.reverse();
     assert_eq!(
-        notices(&metadata(&backwards), &shipped(LISTED)).unwrap(),
+        notices(&metadata(&backwards), &shipped(LISTED), &KNOWN).unwrap(),
         written
     );
 }
@@ -208,25 +221,33 @@ fn the_same_words_are_written_once_and_referred_to() {
 #[test]
 fn a_package_that_ships_no_text_is_given_the_standard_text_of_its_licence() {
     let root = tempfile::tempdir().unwrap();
-    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED)).unwrap();
+    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED), &KNOWN).unwrap();
     let gamma = entry(&written, "gamma 0.3.0");
     let mit = number(&gamma, "MIT");
     assert!(gamma.contains(&"  Repository: not given"), "{gamma:?}");
-    // Who holds the copyright, as far as the manifest says, without their addresses.
-    assert!(
-        gamma.contains(&"  Authors: Gam Ma, Another Author"),
-        "{gamma:?}"
+    // Who holds the copyright, as the licence file in its repository says. The manifest's
+    // authors are named only where that file names no one.
+    let said = [
+        "Copyright (c) 2019 Gam Ma",
+        "As written in: https://example.com/gamma",
+    ];
+    for (line, words) in gamma.iter().skip(3).zip(said) {
+        assert!(line.contains(words), "{gamma:?}");
+    }
+    assert!(!written.contains("Another Author") && !written.contains("gam@example.com"));
+    let kept = standard("MIT").unwrap().replace(
+        "Copyright (c) <year> <copyright holders>",
+        "Copyright (c) 2019 Gam Ma",
     );
-    assert!(!written.contains("gam@example.com"));
-    let kept = standard("MIT").unwrap();
-    let heading = format!("Text {mit}: the standard text of MIT\n");
+    let heading = "the standard text of MIT, with the copyright line of gamma 0.3.0\n";
+    let heading = format!("Text {mit}: {heading}");
     assert!(written.contains(&format!("{heading}{}\n\n{kept}", "=".repeat(72))));
 }
 
 #[test]
 fn the_typefaces_are_named_with_their_licences() {
     let root = tempfile::tempdir().unwrap();
-    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED)).unwrap();
+    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED), &KNOWN).unwrap();
     let fonts = entry(&written, "epaint_default_fonts 0.36.2");
     let said = [
         ("Hack", "Bitstream Vera", "fonts/Hack-Regular.txt"),
@@ -249,10 +270,13 @@ fn the_typefaces_are_named_with_their_licences() {
             "{line}"
         );
     }
-    // The package's own code is under MIT or Apache 2.0, and ships no text of either; the
-    // two font licences are in the typefaces' own files.
+    // The package's own code is under MIT or Apache 2.0, taken under MIT, and ships no text
+    // of either; the two font licences are in the typefaces' own files.
     number(&fonts, "MIT");
-    number(&fonts, "Apache-2.0");
+    assert!(
+        !fonts.iter().any(|line| line.starts_with("  Apache-2.0")),
+        "{fonts:?}"
+    );
     assert!(
         !fonts
             .iter()
@@ -263,7 +287,7 @@ fn the_typefaces_are_named_with_their_licences() {
 #[test]
 fn a_package_under_the_mozilla_licence_says_where_its_source_is() {
     let root = tempfile::tempdir().unwrap();
-    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED)).unwrap();
+    let written = notices(&metadata(&packages(root.path())), &shipped(LISTED), &KNOWN).unwrap();
     let delta = entry(&written, "delta 0.1.0").join("\n");
     assert!(
         delta.contains("https://crates.io/crates/delta/0.1.0"),
@@ -281,7 +305,7 @@ fn what_cannot_be_written_truly_is_refused() {
     let mut some = packages(path);
     some.push(package(path, ("eta", "1.0.0"), "Unlicense", &[]));
     let listed = format!("{LISTED}eta v1.0.0\n");
-    let said = notices(&metadata(&some), &shipped(&listed)).unwrap_err();
+    let said = notices(&metadata(&some), &shipped(&listed), &KNOWN).unwrap_err();
     assert!(
         said.contains("eta 1.0.0") && said.contains("Unlicense"),
         "{said}"
@@ -290,12 +314,12 @@ fn what_cannot_be_written_truly_is_refused() {
     let some = packages(path);
     let new_font = path.join("epaint_default_fonts-0.36.2/fonts/New-Font.ttf");
     fs::write(&new_font, "a font").unwrap();
-    let said = notices(&metadata(&some), &shipped(LISTED)).unwrap_err();
+    let said = notices(&metadata(&some), &shipped(LISTED), &KNOWN).unwrap_err();
     assert!(said.contains("New-Font.ttf"), "{said}");
     fs::remove_file(&new_font).unwrap();
     // A package the program is built from, that the metadata does not describe.
     let listed = format!("{LISTED}theta v0.0.1\n");
-    let said = notices(&metadata(&packages(path)), &shipped(&listed)).unwrap_err();
+    let said = notices(&metadata(&packages(path)), &shipped(&listed), &KNOWN).unwrap_err();
     assert!(said.contains("theta 0.0.1"), "{said}");
 }
 
@@ -307,6 +331,7 @@ fn the_list_cargo_tree_gives_names_each_package_once() {
         ("delta", "0.1.0"),
         ("epaint_default_fonts", "0.36.2"),
         ("gamma", "0.3.0"),
+        ("iota", "0.2.0"),
         ("voxa-app", "0.5.0"),
         ("zeta", "1.0.0"),
     ];
@@ -319,50 +344,11 @@ fn the_list_cargo_tree_gives_names_each_package_once() {
 }
 
 #[test]
-fn files_are_licences_and_notices_by_how_their_names_start() {
-    for name in [
-        "LICENSE",
-        "LICENSE-MIT",
-        "licence.txt",
-        "COPYING",
-        "Notice.md",
-        "COPYRIGHT",
-        "license-apache-2.0",
-    ] {
-        assert!(is_licence_file(name), "{name}");
-    }
-    for name in ["README.md", "UNLICENSE", "Cargo.toml", "src", "LICENS"] {
-        assert!(!is_licence_file(name), "{name}");
-    }
-}
-
-#[test]
-fn a_licence_expression_names_its_licences() {
-    assert_eq!(
-        licence_ids("(MIT OR Apache-2.0) AND OFL-1.1"),
-        ["MIT", "Apache-2.0", "OFL-1.1"]
-    );
-    assert_eq!(licence_ids("Apache-2.0/MIT"), ["Apache-2.0", "MIT"]);
-    assert_eq!(
-        licence_ids("Apache-2.0 WITH LLVM-exception OR MIT"),
-        ["Apache-2.0", "MIT"]
-    );
-}
-
-#[test]
 fn every_licence_the_workspace_allows_has_a_standard_text() {
-    let deny = fs::read_to_string(crate::workspace_root().join("deny.toml")).unwrap();
-    let (_, licences) = deny.split_once("[licenses]").unwrap();
-    let (_, allowed) = licences.split_once("allow = [").unwrap();
-    let (allowed, _) = allowed.split_once(']').unwrap();
-    let ids: Vec<&str> = allowed
-        .lines()
-        .map(|line| line.split('#').next().unwrap_or_default())
-        .filter_map(|line| line.trim().strip_prefix('"')?.strip_suffix("\","))
-        .collect();
+    let ids = allowed();
     assert!(ids.len() >= 10, "{ids:?}");
     for id in ids {
-        let text = standard(id).unwrap_or_else(|| panic!("no standard text is kept for {id}"));
+        let text = standard(&id).unwrap_or_else(|| panic!("no standard text is kept for {id}"));
         assert!(text.len() > 500, "{id}");
     }
 }

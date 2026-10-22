@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `preprocess` in SynthSeg/predict_synthseg.py, with the lab2im functions it
+// calls, translated to Rust and changed for Voxa.
 //! Turning one of Voxa's volumes into the image `SynthSeg`'s networks see, in `SynthSeg`'s own
 //! steps and order, and remembering how to come back:
 //!

@@ -9,7 +9,8 @@ lengths, angles and regions can be measured and points marked; and shows the par
 that have been labelled on a scan, over the planes and as solids in 3D, with a list of them and
 their volumes. It runs on your own computer and makes no network connections.
 
-**Voxa is not a medical device and is not for diagnostic use.**
+**Voxa is not a medical device and is not for diagnostic use.** What it is for, and what it is
+not for, is in [docs/intended-use.md](docs/intended-use.md).
 
 ![Voxa showing a made-up test study in three planes and in 3D, with measurements](docs/images/voxa-phantom-planes.png)
 
@@ -116,8 +117,8 @@ or a turntable of the 3D scene (which holds the picture and nothing else from th
 measurements, the list of parts, or labels. A table Voxa saves (CSV) ends every line with a
 column, `notice`, that says "Voxa is not a medical device and is not for diagnostic use.", so
 the sentence goes wherever a line is copied, sorted or filtered. The table of parts also says on
-every line which model made the labels (`model`: the model Voxa ran, or "made by another
-program") and how the model's own check of its work went (`model_check`: `passed`, `failed`,
+every line which model made the labels (`model`: the model Voxa ran, "made by another
+program", or "not said" when the labels name no model) and how the model's own check of its work went (`model_check`: `passed`, `failed`,
 or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
@@ -374,12 +375,15 @@ Labelling uses three things that are not in this repository, each under its own 
   and notices.
 - **DirectML** (Microsoft), which lets ONNX Runtime use a graphics card on Windows, under
   Microsoft's own licence: it may be passed on inside an application for use on Windows, it is
-  not open source, and its notices must stay with it. Windows 11 has a copy of its own, and
-  Voxa carries none.
+  not open source, and its notices must stay with it. Windows 10 from version 1903 and Windows
+  11 have a copy of their own, and Voxa carries none.
 - **SynthSeg 2.0** (Billot et al.), the model. Its code is Apache 2.0. Its trained networks
   carry no licence statement of their own and are distributed with FreeSurfer, under
   FreeSurfer's terms, so Voxa ships none and fetches none: you get SynthSeg's files under
   the terms they come with and turn them into a model folder on your own computer.
+  FreeSurfer's licence says the software is designed for research only and that clinical use
+  is neither recommended nor advised; [docs/intended-use.md](docs/intended-use.md) says what
+  that means for labels Voxa makes.
 
 The typefaces in the interface come with the `egui` library: Ubuntu Light (Ubuntu Font Licence
 1.0), Hack (MIT, and the Bitstream Vera licence for its Bitstream Vera glyphs), Noto Emoji (SIL

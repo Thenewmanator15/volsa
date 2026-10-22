@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `predict` in SynthSeg/predict_synthseg.py, translated to Rust and changed for
+// Voxa.
 //! From a volume all the way to a label set: the volume is made ready, the networks are run,
 //! what they found is tidied, and the table that names it is made. Each step is the one
 //! `SynthSeg`'s own program takes for the networks that were asked for: the standard network's

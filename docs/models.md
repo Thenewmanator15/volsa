@@ -1,33 +1,38 @@
 # The files labelling needs
 
 Voxa 0.5.0 labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX Runtime
-on this computer. No Python runs. For that it needs two things: a runtime, which the zip a
-release offers carries, and a model folder, which Voxa does not come with. Voxa without them is
-Voxa as it was at 0.4.0: it starts and does everything else, and the **Label this scan** button
-in the Parts tab is greyed and says which of the two is missing.
+on this computer. No Python runs. For that it needs two things: a runtime, and a model folder.
+A download of Voxa from the Releases page comes with the runtime; nothing comes with the model
+folder, which you make once. Voxa without them is Voxa as it was at 0.4.0: it starts and does
+everything else, and the **Label this scan** button in the Parts tab is greyed and says which
+of the two is missing.
 
 **Voxa is not a medical device and is not for diagnostic use.** A label made by a model is a
-guess that looks certain.
+guess that looks certain. What Voxa is for, and what it is not for, is in
+[intended-use.md](intended-use.md) (`INTENDED-USE.txt` in a download of Voxa).
 
-## Why Voxa comes without the model, and the runtime beside it
+## What comes with Voxa, and what does not
 
-- **The model.** SynthSeg's code is Apache 2.0, but its trained weights carry no licence
-  statement of their own. They are distributed with FreeSurfer, under FreeSurfer's terms.
-  Until that is settled Voxa ships no weights and fetches none: you get the files yourself,
-  under the terms they come with, and turn them into a model folder on your own computer.
-- **The runtime.** ONNX Runtime is MIT. The zip a release offers carries it in a folder of
-  its own, `runtime`, with its licence and notices, and not inside the program: Voxa stays one
-  executable under its own two licences that needs nothing else for everything it did at
-  0.4.0. DirectML comes under Microsoft's own licence, which lets it be passed on inside an
-  application for use on Windows but is not open source; Voxa carries none and uses the copy
-  Windows has.
+- **The runtime comes in the download.** The zip on the Releases page holds a folder called
+  `runtime` beside `voxa.exe`, with ONNX Runtime's `onnxruntime.dll` and
+  `onnxruntime_providers_shared.dll` and ONNX Runtime's own `LICENSE` and
+  `ThirdPartyNotices.txt`. ONNX Runtime is Microsoft's, under the MIT licence. Voxa looks in
+  that folder first. `DirectML.dll` is not in it: Voxa uses the copy that is part of Windows
+  ([below](#directml-from-windows)). A build of Voxa from source has no `runtime` folder, and
+  the files are fetched by hand, as [the runtime](#the-runtime) says.
+- **The model never comes with Voxa.** SynthSeg's code is Apache 2.0, but its trained weights
+  come with FreeSurfer, under FreeSurfer's licence, which says the software is designed for
+  research only and that clinical use is neither recommended nor advised
+  ([below](#the-terms-of-the-models-weights)). Voxa ships none and
+  fetches none: you get the files yourself, under the terms they come with, and turn them
+  into a model folder on your own computer.
 
 Voxa uses no network. Nothing here is downloaded by Voxa.
 
 ## What a person does
 
-1. In the zip a release offers, the runtime is already in the folder called `runtime` beside
-   Voxa's executable. With a build of your own, put the runtime's files there (below).
+1. With a download of Voxa, the runtime is in place already. With a build of your own, put
+   the runtime's files in a folder called `runtime` beside Voxa's executable (below).
 2. Make the model folder once, with the converter, and call it `models` beside Voxa's
    executable (below).
 3. Open a scan that has a 3D view, choose the Parts tab and press **Label this scan**.
@@ -37,10 +42,12 @@ models…** and **Folder of the runtime…**. Voxa remembers what was chosen.
 
 ## The runtime
 
-Two files from Microsoft's ONNX Runtime with DirectML, version 1.24.4:
+A download of Voxa has it. A build from source needs these files from Microsoft's ONNX
+Runtime with DirectML, version 1.24.4, fetched by hand:
 
 - `onnxruntime.dll`
 - `onnxruntime_providers_shared.dll`
+- `DirectML.dll`, which may be left out: then Windows' own copy is used, as in a download
 
 They are in Microsoft's `Microsoft.ML.OnnxRuntime.DirectML` package, under
 `runtimes/win-x64/native`, and in the Python package `onnxruntime-directml` under
@@ -53,8 +60,9 @@ The third file of that package, `DirectML.dll`, is not carried: without it in th
 Runtime uses the copy Windows has.
 
 ONNX Runtime needs Microsoft's Visual C++ 2015-2022 x64 redistributable, which many computers
-already have and Microsoft gives free. Voxa itself does not. If ONNX Runtime will not load
-because a library it needs is missing or old, Voxa says that it needs the redistributable.
+already have and Microsoft gives free ([below](#what-windows-needs-for-it)). The `voxa.exe` in a
+download does not need it for anything else. If ONNX Runtime will not load because a library
+it needs is missing or old, Voxa says that it needs the redistributable.
 
 Voxa loads the runtime as it starts, when it checks whether this computer can label a scan,
 once it has found a model folder; with no model folder it does not load it. A program can
@@ -63,15 +71,50 @@ after Voxa has loaded the runtime, the change takes effect when Voxa is next sta
 
 Any build of ONNX Runtime from 1.17 on has the interface Voxa asks for and loads; an older
 one is refused with a sentence that says so. 1.24.4 is the one the networks were measured
-with. On the Windows 11 this was tried on, Windows' own `DirectML.dll` (1.15.5) was found and
-gave the same answer when the file was left out of the folder. An older Windows was not tried.
+with.
 
 Microsoft's builds of ONNX Runtime report usage (not images) unless told not to. Voxa tells
 the runtime not to, before it asks anything else of it.
 
-DirectML is frozen: Microsoft supports it and ships it with Windows, and adds nothing new to
-it. 1.24.4 was the newest ONNX Runtime found with DirectML. On Linux and macOS there is no
+1.24.4 was the newest ONNX Runtime found with DirectML. On Linux and macOS there is no
 DirectML and the processor is used; this release has not been built or run there.
+
+### What Windows needs for it
+
+**The Microsoft Visual C++ Redistributable, x64.** ONNX Runtime is built with Microsoft's C++
+compiler and needs its runtime libraries, which Windows does not always have. ONNX Runtime's
+[installation page](https://onnxruntime.ai/docs/install/) says its Windows builds require the
+Visual C++ 2019 runtime and recommends the latest. That is the free Visual C++ 2015-2022
+Redistributable for x64. Microsoft's page
+[Latest supported Visual C++ Redistributable downloads](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist)
+now lists it as the Visual C++ v14 Redistributable, for Visual Studio 2017 to 2026, says that
+programs built with Visual Studio 2015 can use it too, and offers it for x64 at
+<https://aka.ms/vc14/vc_redist.x64.exe>. A computer may have it already, put there by another
+program.
+
+### DirectML from Windows
+
+DirectML, which lets ONNX Runtime use a graphics card, is part of Windows. Microsoft's
+[DirectML version history](https://learn.microsoft.com/en-us/windows/ai/directml/dml-version-history)
+says it is distributed as a system component of Windows, in Windows 10 version 1903 (build
+18362) and newer. Which version a Windows has depends on the Windows: that page lists
+DirectML 1.0.0 as first in Windows 10 version 1903, 1.1.0 in Windows 10 version 2004, 1.6.0
+in Windows 11 (21H2) and 1.8.0 in Windows 11 version 22H2. For the later versions it names
+no Windows, only Microsoft's own package of DirectML (`Microsoft.AI.DirectML`). ONNX
+Runtime's
+[page on DirectML](https://onnxruntime.ai/docs/execution-providers/DirectML-ExecutionProvider.html)
+says it uses DirectML 1.15.2.
+
+On the Windows 11 this was tried on, Windows' own `DirectML.dll` (1.15.5) was found and gave
+the same answer as the copy in Microsoft's package. Windows 10 and other versions of Windows 11
+were not tried, nor a Windows whose own copy is older than the one ONNX Runtime uses. If
+labelling on a graphics card fails on such a Windows, Voxa moves on to the next device it can
+use, in the end the processor, which is slower; putting `DirectML.dll` 1.15 or later, from
+Microsoft's `Microsoft.AI.DirectML` package, in the `runtime` folder may let the card be used.
+
+Microsoft says DirectML is in sustained engineering: it is still supported, and new work has
+moved to Windows ML. DirectML comes under Microsoft's own licence, not an open-source one;
+Voxa carries no copy of it.
 
 ## The model folder
 
@@ -79,7 +122,8 @@ DirectML and the processor is used; this release has not been built or run there
    with the 1.0 model only.
 2. Get the four 2.0 files and put them in that `models` folder: `synthseg_2.0.h5`,
    `synthseg_robust_2.0.h5`, `synthseg_parc_2.0.h5`, `synthseg_qc_2.0.h5`. They come with
-   FreeSurfer, in the folder of its `mri_synthseg` command, under FreeSurfer's terms.
+   FreeSurfer, in the folder of its `mri_synthseg` command, under FreeSurfer's terms
+   ([below](#the-terms-of-the-models-weights)).
 3. Run the converter in `tools/synthseg-to-onnx`; its README says how. It needs Python and
    TensorFlow, once. Voxa never does. On NumPy 2 SynthSeg's own code needs a few one-line
    fixes, which the README names.
@@ -99,6 +143,50 @@ file is there with the size and SHA-256 listed, and says which check failed if o
 That shows a file is the one the list describes: not damaged, not swapped for another. It
 does not show who made the folder. A model folder from someone else is as trustworthy as
 they are.
+
+## The terms of the model's weights
+
+SynthSeg's code is under the Apache License 2.0. Its trained 2.0 weights, the four `.h5` files
+above, carry no licence statement of their own. They are distributed with FreeSurfer: they
+are in the `mri_synthseg` folder of [FreeSurfer's repository](https://github.com/freesurfer/freesurfer)
+and come with its releases. FreeSurfer is under the
+[FreeSurfer Software License Agreement](https://surfer.nmr.mgh.harvard.edu/fswiki/FreeSurferSoftwareLicense),
+version 1.0 of February 2011, whose text is also
+[`LICENSE.txt`](https://github.com/freesurfer/freesurfer/blob/dev/LICENSE.txt) in that
+repository. It is given by The General Hospital Corporation of Boston, which it calls MGH, and
+covers software and data downloaded from FreeSurfer. Downloading or using them is accepting
+it.
+
+What its Part B, the licence for what is downloaded, says, in short. This is a summary, not
+legal advice; the agreement itself is what holds.
+
+- **What it allows.** A royalty-free, non-exclusive licence to use, reproduce, make derivative
+  works of, display and distribute the software and data, with the right to sublicense,
+  including putting them into proprietary programs.
+- **On what conditions.** Whoever passes on a copy of any of it passes on all of Part B's
+  terms with it, prefaced by a sentence the agreement gives; keeps the attributions,
+  copyright notices and licences that apply; and marks a changed version as changed, not as
+  the original. They are asked to consider, but need not, sharing the source of their changes.
+- **Research, not clinical use.** It says the software is "designed for research purposes
+  only", that it has not been reviewed or approved by the US Food and Drug Administration or
+  any other agency, and that clinical applications are neither recommended nor advised.
+- **Commercial use.** It does not forbid it. It says that any commercialisation is at the sole
+  risk of whoever undertakes it.
+- **No warranty.** The software comes as it is, with no promise of support. MGH and the
+  contributors disclaim every warranty and all liability, and the user takes on the liability
+  for their own use and agrees to hold them harmless.
+- **Names.** The names, logos and trademarks of MGH, of the contributors and of funders may not
+  be used to endorse or promote a product without written permission.
+- **Ending.** Use, copying or passing on that does not keep to it ends the rights it grants.
+
+Part C says the agreement is governed by the laws of Massachusetts.
+
+For Voxa this means: Voxa ships none of the weights and fetches none, so it passes on nothing
+of FreeSurfer's; you get the files under the agreement yourself, and make the model folder on
+your own computer. Whether, and on what terms, a model folder may be passed on
+is the agreement's to say: Part B covers derivative works and passing them on. Labels Voxa makes
+with the weights are under the agreement's caution as well as Voxa's own: designed for
+research, with clinical use neither recommended nor advised.
 
 ## What a run needs of this computer
 

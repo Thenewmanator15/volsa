@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `build_model` in SynthSeg/predict_synthseg.py, translated to Rust and changed
+// for Voxa.
 //! The robust networks: three, run one after another. The first finds a few broad classes in
 //! the image. The second tidies that map. The third finds the structures, from the image and
 //! the tidied map.

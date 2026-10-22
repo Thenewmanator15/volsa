@@ -6,13 +6,13 @@ Core i7-12700K, an NVIDIA GeForce RTX 5070 Ti (16 GB) and Intel UHD Graphics 770
 
 This record says what was checked, how, and with what result. Everything labelled here is the
 made-up head that the model converter paints, which is nobody's scan: nothing in this record
-describes a patient, and no real scan was labelled for it. The owner tries their own scans, and
-nothing of what they see is written down. The pictures were made with `VOXA_CAPTURE` and are
-kept in the workspace folder, never in this repository. What a person must try by hand is listed
-as not checked at the end.
+describes a patient, and no real scan was labelled for it. A real export is tried on the
+developer's machine, and nothing from it is recorded. The pictures were made with
+`VOXA_CAPTURE` and are kept in the workspace folder, never in this repository. What a person
+must try by hand is listed as not checked at the end.
 
 **Linux was neither built nor run.** This machine has no Linux target, and continuous integration
-runs on the private remote and was not run for this branch. Everything below is Windows.
+runs on GitHub and was not run for this branch. Everything below is Windows.
 
 ## Automated gates
 
@@ -212,4 +212,5 @@ These need a person at the window and have not been tried by hand:
   folder damaged in each way, in the window. (Each way a folder can be wrong is tested without
   a window.)
 - Linux and macOS, and the continuous-integration build.
-- The owner's own scans.
+- Labelling a real export. Any such check is made on the developer's machine, and nothing
+  from it is recorded.

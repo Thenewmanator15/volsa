@@ -1,12 +1,37 @@
 //! What the About window and the notices window say, as a screen reader is told of them.
 
-use super::{LICENCES, NOTICE, THIRD_PARTY, notices, open_notices, show};
+use super::{INTENDED_USE, LICENCES, NOTICE, THIRD_PARTY, notices, open_notices, show};
 use crate::ui::theme;
 
 /// The name of the button in the About window that opens the notices.
 const BUTTON: &str = "Licences and notices…";
 /// The title of the notices window.
 const TITLE: &str = "Licences and notices";
+/// The page that says what Voxa is for, which comes in a download of Voxa too.
+const INTENDED_USE_PAGE: &str = include_str!("../../../../../docs/intended-use.md");
+
+/// The words of a text with one space between each two, however its lines were wrapped.
+fn words(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+#[test]
+fn the_about_window_says_what_voxa_is_for_as_the_page_on_it_does() {
+    let ctx = egui::Context::default();
+    let says = about_says(&ctx);
+    for wanted in [INTENDED_USE, theme::DISCLAIMER] {
+        assert!(
+            says.iter().any(|said| said == wanted),
+            "the About window does not say {wanted:?}:\n{says:?}"
+        );
+    }
+    // What the window says, and then the disclaimer, is the page's paragraph word for word.
+    let paragraph = format!("{INTENDED_USE} {}", theme::DISCLAIMER);
+    assert!(
+        words(INTENDED_USE_PAGE).contains(&paragraph),
+        "docs/intended-use.md does not hold {paragraph:?}"
+    );
+}
 
 /// Every label's text and every button's name the interface gives a screen reader after a
 /// pass of `run`, with `input` for that pass.

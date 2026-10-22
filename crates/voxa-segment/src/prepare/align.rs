@@ -1,3 +1,6 @@
+// Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
+// Apache License 2.0: `get_ras_axes` and `align_volume_to_ref` in ext/lab2im/edit_volumes.py,
+// translated to Rust and changed for Voxa.
 //! Turning a volume's axes to the order and direction `SynthSeg`'s networks were trained on: x
 //! to the patient's right, y to the front, z to the top. No value changes; none is resampled.
 //!

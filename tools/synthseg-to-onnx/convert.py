@@ -1,5 +1,9 @@
 """Turn SynthSeg 2.0's files into a model folder that Voxa reads.
 
+Builds SynthSeg's networks as SynthSeg's own build_model does (SynthSeg/predict_synthseg.py,
+Copyright 2020 Benjamin Billot, Apache License 2.0), keeping its layer names; translated
+and changed for Voxa, as docs/models.md says.
+
     python convert.py SYNTHSEG_CHECKOUT OUT_FOLDER
 
 SYNTHSEG_CHECKOUT is a copy of github.com/BBillot/SynthSeg with the four 2.0 `.h5` files in

@@ -10,7 +10,7 @@ use serde_json::Value;
 /// Where a package on crates.io comes from, as `cargo metadata` writes it.
 const CRATES_IO: &str = "registry+https://github.com/rust-lang/crates.io-index";
 /// How the name of a licence or notice file starts, in capitals.
-const LICENCE_FILES: [&str; 5] = ["LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT"];
+pub const LICENCE_FILES: [&str; 5] = ["LICENSE", "LICENCE", "COPYING", "NOTICE", "COPYRIGHT"];
 
 /// What the notices say of one package, and where its files are.
 pub struct Package {

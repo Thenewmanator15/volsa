@@ -1,4 +1,4 @@
-//! What the workers keep: the result of a run, written under the settings folder for its
+//! What the workers keep: the result of a run, written under the local folder for its
 //! series, found again, deleted and saved where the person chooses; and what the person chose
 //! for labelling. Nothing here writes a path or a file's name anywhere, and a notice here has
 //! none.

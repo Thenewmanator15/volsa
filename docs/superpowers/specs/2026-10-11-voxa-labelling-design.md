@@ -119,7 +119,7 @@ menu beside the button chooses:
 
 - the model: **Automatic**, **Standard** or **Robust**. Automatic picks Robust when the
   series' slices are more than 3 mm apart, otherwise Standard, and says which it picked and
-  why. **(default; the 3 mm rule is the one the owner's pipeline uses)**
+  why. **(default; the 3 mm rule is the one used before, outside this repository)**
 - **Cortex areas**: on or off. On by default. **(default)**
 
 If labelling cannot run, the button is greyed and the line says why and what to do, in a
@@ -431,7 +431,8 @@ skipped, and saying so, where they are not):
 - Decision record 0006 is written (0005 was taken by another record while this was being
   built); the README, the architecture notes and the design's sections A3, A4 and A7 say
   what is now true; an acceptance record for 0.5.0 exists.
-- The owner has tried it on their own scans. What they see is not written down here.
+- A real export has been tried on the developer's machine. Nothing from it is recorded
+  here.
 
 ## 10. What to prove first
 
@@ -468,7 +469,7 @@ These change what gets built and were not asked:
    The other way gives one larger executable and a build that fetches a prebuilt runtime
    from the `ort` project's server.
 2. **The converter kept in this repository** as a Python script under `tools/` (6.2). The
-   other way keeps it with the owner's pipeline, and Voxa's documents describe the format.
+   other way keeps it outside this repository, and Voxa's documents describe the format.
 3. **All of SynthSeg in one milestone**, built in the order standard with scores, then
    robust, then cortex areas, with a release possible after any of them (section 3).
 4. **Results kept on the computer by default**, with a switch to turn that off (6.7).
