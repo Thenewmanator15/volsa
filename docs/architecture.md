@@ -213,7 +213,8 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 ## What is kept on this machine
 
 In the folder the system gives Voxa: the saved views and annotations of each study,
-`preferences.json` (the window's size, the layout, orientation, linking and how labels are
+`preferences.json` (the window's size, the interface's size, the shares of the window's width
+the series list and the column take, the layout, orientation, linking and how labels are
 drawn), `choices.json` (what was chosen for labelling: the model, the cortex areas, where a
 run goes by the card's name, whether results are kept, and the two folders of the model and
 the runtime, which are its only paths), a `labels` folder holding the result of labelling
