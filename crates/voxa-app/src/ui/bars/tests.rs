@@ -26,9 +26,11 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
     let mut state = AppState::default();
     state.notices.push(Notice {
         kind: NoticeKind::Warning,
-        text: "A notice long enough to run across the whole of a narrow window and on past \
-               the disclaimer, which it must not cover"
-            .to_owned(),
+        text: concat!(
+            "A notice long enough to run across the whole of a narrow window and on past ",
+            "the disclaimer, which it must not cover"
+        )
+        .to_owned(),
         details: Vec::new(),
         key: None,
     });
