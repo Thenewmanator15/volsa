@@ -6,6 +6,112 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+Work towards a first public release: a download for Windows, the notices and credits that go
+with it, a window that fits any screen, and smaller fixes found by an audit of what a public
+release needs.
+
+### Added
+
+- A download for Windows. `voxa-<version>-windows-x64.zip` holds one folder with `voxa.exe`, a
+  `README.txt` for someone who has just downloaded it, `INTENDED-USE.txt`, `MODELS.md`, this
+  changelog, the two licences, `NOTICE`, `THIRD-PARTY-NOTICES.txt`, and ONNX Runtime's two
+  libraries with their licence and notices in a `runtime` folder. `cargo xtask dist [--runtime
+  FOLDER]` makes it. A tag that starts with `v` has GitHub run every check, build the zip with
+  ONNX Runtime 1.24.4 from Microsoft's package (taken only if its SHA-256 matches the value
+  pinned in the workflow), write the zip's SHA-256 beside it and make a draft release, with that
+  version's section of this changelog as its notes.
+- `voxa.exe` needs no Visual C++ redistributable of its own: Microsoft's C runtime is built into
+  it, and `cargo xtask dist` reads the program to make sure. It carries its icon and the details
+  Explorer lists, among them that Voxa is not a medical device and is not for diagnostic use.
+- `docs/intended-use.md` says what Voxa is for and what it is not for, and that the labelling
+  model's weights come under FreeSurfer's licence. The README links it beside the disclaimer,
+  and the About window shows its first paragraph.
+- `THIRD-PARTY-NOTICES.txt` gives the licence and notice texts of every package built into Voxa
+  and of the four typefaces in the interface. Where a package offers a choice of licences it
+  says which one Voxa takes, and packages that ship no licence file carry the copyright lines
+  from their repositories. `cargo xtask notices` writes it, and `cargo xtask check` fails when it
+  is out of date. `NOTICE` credits SynthSeg (Copyright 2020 Benjamin Billot, Apache License
+  2.0), whose code Voxa's labelling is ported from, and each ported file says so at its top.
+  The About window names all four typefaces, credits SynthSeg, and has a **Licences and
+  notices…** button that shows both files.
+- Voxa opens at a size that fits the screen it is on: the size it was left at if that fits,
+  and otherwise most of the screen, centred. Its window can be made as small as 640 by 480 at
+  the display's scale.
+- The list of series and the column beside the large part each take a share of the window's
+  width, can be dragged wider or narrower, and keep what was dragged from one run to the next.
+  On a large screen the column grows with the window instead of staying a narrow strip.
+- **B**, or **Series** in the toolbar, shows or hides the list of series, which starts hidden in
+  a narrow window. **F11** enters and leaves full screen. **Size** in the toolbar draws the
+  interface larger or smaller, as Ctrl+= and Ctrl+- do (Ctrl+0 for its usual size), and the
+  size is remembered.
+- Keys to move through the slices of the active viewport, as the wheel does: Up and Down one
+  slice, Page Up and Page Down ten, Home and End the first and the last. No key acts while you
+  are typing in a field.
+- The measurements table and the table of parts (CSV) carry on every line a `notice` column
+  with the disclaimer. The table of parts also says which model made the labels (`model`) and
+  how the model's own check of its work went (`model_check`).
+- `SECURITY.md` says how to report a vulnerability privately, and never with a real scan. Forms
+  for reporting a fault or asking for something open with a warning never to attach a scan, an
+  export, a screenshot showing patient details or tag values; pull requests have a template.
+- For pictures of the window, `VOXA_CAPTURE_ZOOM` draws the interface at another size, so one
+  display can show what a larger screen would, and `VOXA_CAPTURE_SHOW` gains `nolist` and
+  `fitted`.
+
+### Changed
+
+- The program is now `voxa.exe` (it was `voxa-app.exe`).
+- What comes of your scans is kept on this computer only. Saved views, annotations, the
+  choices for labelling and kept labelling results move from `%APPDATA%\Voxa\config`, in the
+  roaming profile that a managed network may copy to its servers, to `%LOCALAPPDATA%\Voxa\data`,
+  beside the log; only `preferences.json` stays. On the first start Voxa moves what an earlier
+  version left there, and says in the log what it moved.
+- With **Patient details** off, the tag browser also hides, and cannot find by searching, the
+  accession number, the institution's name and address, the physicians and operators, the
+  station's name, the device's serial number, the order and visit numbers and every private
+  tag, and says how many values it has hidden.
+- When something keeps Voxa from labelling a scan, the message points to `MODELS.md` beside the
+  program. When ONNX Runtime will not load because a library it needs is missing or too old,
+  Voxa says it needs Microsoft's free Visual C++ 2015-2022 x64 redistributable.
+- `docs/models.md` says that a download comes with ONNX Runtime and a build from source fetches
+  it by hand, that ONNX Runtime needs the Visual C++ redistributable, that Windows' own DirectML
+  is used (in Windows 10 from version 1903 and in Windows 11), and what FreeSurfer's licence
+  says of the model's weights.
+- The README is for someone who downloads Voxa: how to download, start and remove it, the
+  SmartScreen warning, what it needs, what it keeps on your computer, and how to get help.
+  CONTRIBUTING.md is for someone new to Voxa. The design records are kept as a record of their
+  time, say so, and no longer speak of the developer's own scans or of tools outside the
+  repository.
+- The window is no longer opened at a fixed 1440 by 900 points, and a remembered size that does
+  not fit the screen is not taken.
+- `cargo xtask check` runs every test program even after one fails, so one failure no longer
+  hides another; the gate still fails if any test did. CI's Windows build keeps the zip that
+  `cargo xtask dist` makes.
+- `zip` 9 in place of 8.6, which `cargo deny` refused for RUSTSEC-2026-0367, -0368 and -0369,
+  all about extracting an archive to disk; Voxa reads a ZIP export in place and extracts
+  nothing. `deny.toml` passes the notices that `zvariant`, `zbus_names` and `zvariant_derive`
+  are no longer maintained (RUSTSEC-2026-0370 to -0372), which come only through accessibility
+  on Linux and have no safe upgrade yet, giving the reason for each.
+
+### Fixed
+
+- On Windows' software graphics device, which a computer with no graphics card draws with, the
+  Parts look drew nothing when a line of sight took every step instead of stepping over the
+  empty blocks, which is what the tests do; GitHub's Windows checks failed on it. It now draws
+  the same picture either way.
+- The About window no longer calls every library's licence permissive; one is under the Mozilla
+  Public License 2.0.
+- The list of keys and the About window scroll when Voxa's window is too short to hold them.
+- In a narrow window the bars put whole buttons on the next line, a long notice in the status
+  line is cut short instead of covering the disclaimer, and a long word on a series card ends
+  in an ellipsis.
+
+### Security
+
+- A small DICOM file that claimed a huge image could make a decoder ask for many gigabytes and
+  stop Voxa. Voxa now refuses, with a sentence and before decoding, a file whose images would
+  each take more than 256 MiB once decoded, far more than any MRI image, and a file whose
+  uncompressed pixels are fewer bytes than its header says.
+
 ## [0.5.0] - 2026-10-22
 
 The fifth release, which finishes the fourth milestone: Voxa labels a brain scan itself, with
