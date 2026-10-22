@@ -25,7 +25,9 @@ a marker measured on it, and the slice through its middle beside them. There are
    download `voxa-<version>-windows-x64.zip`.
 2. Unzip it: right-click it, choose **Extract All…** and pick a folder of your own, such as one
    in Documents. It holds one folder, `voxa-<version>`, with `voxa.exe`, a short `README.txt`,
-   the licences and notices, `MODELS.md` (how to set up labelling) and the changelog.
+   `INTENDED-USE.txt` (what Voxa is for and what it is not for), the licences and notices,
+   `MODELS.md` (how to set up labelling), the changelog, and a `runtime` folder with ONNX
+   Runtime, which labelling uses.
 3. Start `voxa.exe`. Open a scan with **Folder…** or **File…** in the toolbar (a folder of
    DICOM files, a zip of them, or a `DICOMDIR`), or drop it on the window.
 
@@ -50,7 +52,7 @@ screen, start afresh each time. **?** lists every key.
 ### Removing Voxa
 
 Voxa has no installer. To remove it, close it and delete the `voxa-<version>` folder you
-unzipped, with any `runtime` and `models` folders you put in it. Then delete the two folders
+unzipped, with the `models` folder in it, if you made one. Then delete the two folders
 where it keeps things between runs ([below](#what-voxa-keeps-on-your-computer)): type
 `%APPDATA%\Voxa` into File Explorer's address bar and delete that folder, then do the same for
 `%LOCALAPPDATA%\Voxa`.
@@ -107,10 +109,14 @@ and the old one is left where it was. The log says what was moved and what was l
 **The log**, `%LOCALAPPDATA%\Voxa\data\voxa.log`, is for finding out why something went wrong.
 It says when Voxa started, its version and the system, which graphics device it draws with, how
 many studies, series and skipped files an export held, the messages Voxa showed (a message whose
-words may name a file is logged by its kind alone), and where in Voxa's code a crash happened.
-It never holds a patient's name, identifier or date, a value from a file, or a path. Once it
-passes 1 MB it is cut back to its newest 512 KB the next time Voxa starts. The **About** window
-shows where it is, with a button that copies the path.
+words may name a file is logged by its kind alone), and where a crash happened. It never holds a
+patient's name, identifier or date, a value from a file, or the name of any of your files. A
+crash is logged by the place in the source code where it happened: a file and line in Voxa's own
+code or in a library's. For a library that place can be a path on the computer Voxa was built
+on, which for the program in a download is not yours, so its log holds no path on your
+computer; for a Voxa you built yourself, it can be a path on your own. Once the log passes 1 MB
+it is cut back to its newest 512 KB the next time Voxa starts. The **About** window shows where
+it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
@@ -122,13 +128,28 @@ program", or "not said" when the labels name no model) and how the model's own c
 or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and the tag browser hides, and cannot find by searching, the value of
-every tag that could identify the patient: every tag in the patient group (0010); the accession
-number; the institution's name and address; the referring, performing and reading physicians and
-the operators; the station's name and the device's serial number; the numbers of the order and
-the visit; and every private tag (any in a group of odd number), since what a maker keeps there
-is not said. It says how many it has hidden. **Patient details** in the toolbar shows them until
-you switch it off or close Voxa. The study's date and description are shown either way.
+left out of the viewports, and the **DICOM tags** window (**Tags** in the toolbar) hides, and
+cannot find by searching, the values of these tags, and only these:
+
+- every tag in the patient group, 0010;
+- every private tag, which is any in a group of odd number, since what a maker keeps there is
+  not said;
+- and this list: the accession number; the institution's name, address and department; the
+  referring physician's name, address and telephone numbers; the physicians of record; the
+  performing, reading, requesting and scheduled performing physicians; the operators; the
+  station's name, the performed station's name and the performed location; the device's serial
+  number; the admission ID; the placer order number; the requested procedure ID; and the
+  scheduled and performed procedure step IDs.
+
+The window says how many values it has hidden. A sequence, a tag that holds other tags, is shown
+only as the number of items in it. **Patient details** in the toolbar shows the hidden values
+until you switch it off or close Voxa.
+
+**Every other value stays shown**, and some of them can still identify a scan or lead to the
+person in it: dates and times, unique identifiers (UIDs), the study ID, and free-text comments
+and descriptions among them. The study's date and description are in each viewport's corner
+either way. Take care with a screenshot of the **DICOM tags** window, or of a viewport, even with
+**Patient details** off.
 
 ONNX Runtime, which runs the labelling networks, reports usage (not images) in Microsoft's
 Windows builds unless told not to. Voxa tells it not to before it asks anything else of it.
@@ -198,11 +219,14 @@ them Voxa starts and does everything else, and the button says what is missing.
 
 ## Status
 
-Version 0.5.0, which finishes the fourth milestone: 0.4.0 showed labels from files, and 0.5.0
-labels a brain scan inside Voxa. It also reads more kinds of MRI export. What it does and what
-it does not yet do are in the [changelog](CHANGELOG.md); how it was checked is in
-[docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and for the reading of more kinds of
-export in [docs/acceptance-any-mri.md](docs/acceptance-any-mri.md). The design and the plan for
+Version 0.6.0, the first with a download for Windows: the zip, with ONNX Runtime in it for
+labelling, the notices and credits that go with it, a window that fits any screen, keys for the
+slices, the list of series and full screen, and fixes found by an audit of what a public release
+needs. It builds on 0.5.0, which finished the fourth milestone: 0.4.0 showed labels from files,
+and 0.5.0 labels a brain scan inside Voxa and reads more kinds of MRI export. What Voxa does
+and what it does not yet do are in the [changelog](CHANGELOG.md); how labelling was checked is in
+[docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and the reading of more kinds of export
+in [docs/acceptance-any-mri.md](docs/acceptance-any-mri.md). The design and the plan for
 every milestone are in [docs/superpowers](docs/superpowers), and why labelling is built as it
 is in [docs/adr/0006-voxa-runs-a-labelling-model.md](docs/adr/0006-voxa-runs-a-labelling-model.md).
 
@@ -361,7 +385,8 @@ them to the licences listed in [deny.toml](deny.toml). The licence and notice te
 package built into the program are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt), which
 `cargo xtask notices` writes. [NOTICE](NOTICE) holds Voxa's own notice and SynthSeg's
 attribution. Both come in the zip. This software is based in part on the work of the
-Independent JPEG Group.
+Independent JPEG Group. The `voxa.exe` a release offers also has Microsoft's C runtime built
+into it, which is under Microsoft's own licence terms, not an open-source licence.
 
 Voxa's labelling steps (`voxa-segment`) are a port to Rust of SynthSeg's own code, Copyright 2020
 Benjamin Billot, under the Apache License 2.0. [NOTICE](NOTICE) carries the attribution and says

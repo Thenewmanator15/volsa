@@ -4527,7 +4527,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "voxa-app"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "criterion",
  "directories",
@@ -4555,7 +4555,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proptest",
  "thiserror 2.0.21",
@@ -4563,7 +4563,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-dicom"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -4580,7 +4580,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-labels"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "flate2",
  "proptest",
@@ -4592,7 +4592,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-models"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "ort",
  "serde",
@@ -4605,7 +4605,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-render"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -4622,7 +4622,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-segment"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde_json",
  "thiserror 2.0.21",
@@ -4633,7 +4633,7 @@ dependencies = [
 
 [[package]]
 name = "voxa-volume"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "proptest",
  "serde",
@@ -5515,7 +5515,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "serde_json",
  "tempfile",

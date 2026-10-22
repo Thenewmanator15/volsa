@@ -14,8 +14,20 @@ Voxa is not a medical device and is not for diagnostic use, and neither is anyth
   `models` folder: `synthseg_2.0.h5`, `synthseg_robust_2.0.h5`, `synthseg_parc_2.0.h5` and
   `synthseg_qc_2.0.h5`. `docs/models.md` says where they come from.
 - Python 3.13 with the packages in `requirements.txt`, in an environment of its own.
-- On NumPy 2, SynthSeg's own code needs a few one-line fixes. They are proposed to SynthSeg
-  as pull request 127; without them the converter stops inside SynthSeg with a NumPy error.
+- On NumPy 2, SynthSeg's own code needs four one-line fixes, made by hand in your copy of
+  SynthSeg; without them the converter stops inside SynthSeg with a NumPy error. In two
+  functions SynthSeg uses what `np.where` gives, an array, where a single number belongs, and
+  each fix takes the first index of it, `np.where(...)[0][0]`:
+  - `get_flip_indices` in `SynthSeg/predict.py`, three lines: where it fills `lr_indices`,
+    and the two lines that fill `flip_indices` for a left and for a right label;
+  - `align_volume_to_ref` in `ext/lab2im/edit_volumes.py`, one line: `swapped_axis_idx`.
+
+  They are proposed to SynthSeg as
+  [pull request 127](https://github.com/BBillot/SynthSeg/pull/127), which shows each line.
+  Nothing else of SynthSeg's needs changing: as it imports SynthSeg, the converter itself
+  serves Keras 2 from `tf_keras` and puts back, where NumPy no longer has them, the old names
+  `np.int`, `np.float`, `np.bool` and `np.object` that SynthSeg still uses. It changes none of
+  SynthSeg's files.
 - Windows, to check the networks on graphics cards. Elsewhere the check runs on the processor
   only.
 

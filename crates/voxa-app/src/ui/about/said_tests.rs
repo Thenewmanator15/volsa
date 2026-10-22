@@ -1,6 +1,6 @@
 //! What the About window and the notices window say, as a screen reader is told of them.
 
-use super::{INTENDED_USE, LICENCES, NOTICE, THIRD_PARTY, notices, open_notices, show};
+use super::{INTENDED_USE, LICENCES, LOG_SAYS, NOTICE, THIRD_PARTY, notices, open_notices, show};
 use crate::ui::theme;
 
 /// The name of the button in the About window that opens the notices.
@@ -87,6 +87,44 @@ fn the_about_window_names_every_typeface_with_its_licence_and_credits_synthseg()
     // Not every licence is permissive: one of the libraries is under the Mozilla licence.
     assert!(!says.contains("permissive"), "{says}");
     assert!(LICENCES.iter().all(|line| says.contains(line)));
+}
+
+#[test]
+fn the_about_window_and_notice_say_microsofts_c_runtime_is_built_in_under_its_own_terms() {
+    // The voxa.exe a release offers is built with Microsoft's C runtime inside it, which is
+    // not one of the open-source libraries the notices list.
+    let ctx = egui::Context::default();
+    let says = about_says(&ctx).join("\n");
+    for words in [
+        "voxa.exe a release offers has Microsoft's C runtime built in",
+        "under Microsoft's own terms, not an open-source licence",
+    ] {
+        assert!(
+            says.contains(words),
+            "the About window does not say {words:?}:\n{says}"
+        );
+    }
+    let notice = words(NOTICE);
+    for said in [
+        "has Microsoft's C runtime built into it",
+        "under Microsoft's own licence terms",
+    ] {
+        assert!(notice.contains(said), "NOTICE does not say {said:?}");
+    }
+}
+
+#[test]
+fn what_the_about_window_says_of_the_log_holds_for_a_crash_too() {
+    // A crash is logged by its place in the source code, which for a library can be a path
+    // on the computer Voxa was built on: so no promise of no file names or no path.
+    assert!(!LOG_SAYS.contains("no file names"), "{LOG_SAYS}");
+    for said in [
+        "nothing about a patient",
+        "none of your files' names",
+        "A crash is logged by the place in the source code of Voxa, or of a library",
+    ] {
+        assert!(LOG_SAYS.contains(said), "{LOG_SAYS}");
+    }
 }
 
 #[test]
