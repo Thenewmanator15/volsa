@@ -36,6 +36,11 @@ tempfile.workspace = true
 zip.workspace = true
 criterion.workspace = true
 
+# The program is `voxa.exe`; the package keeps its name.
+[[bin]]
+name = "voxa"
+path = "src/main.rs"
+
 [[bench]]
 name = "decode"
 harness = false
