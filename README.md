@@ -67,16 +67,31 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 | File | What it holds |
 |---|---|
 | `preferences.json` | The window's size, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+
+`%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
+its servers, so it holds nothing else.
+
+**What comes of your scans, and the log**, in `%LOCALAPPDATA%\Voxa\data`, which stays on this
+computer:
+
+| File | What it holds |
+|---|---|
 | `views.json` | The views of the 3D scene you saved, for each series. |
 | `annotations.json` | Your markers, rulers, angles and regions for each series, with the names you gave them. |
 | `choices.json` | What you chose for labelling under **Options**, with the two folders you named, if any. |
 | `labels\` | Labelling results kept to be shown again: for each series, a label file and the table of its parts' names. |
+| `voxa.log` | The log, below. |
 
 Each series is filed under a 16-digit hash of its identifier, not under the identifier, and
 nothing in these files names a patient. Still, a kept label file is a map of someone's head and
 an annotation holds whatever name you typed, so treat this folder as you would the scans.
 Labelling results are kept unless you switch off **Keep results on this computer** under
 **Options** in the Parts tab, and **Delete**, beside a kept result, removes it.
+
+Voxa 0.5.0 and earlier kept the views, annotations, choices and labelling results in
+`%APPDATA%\Voxa\config`. The first time a newer Voxa starts, it moves them to
+`%LOCALAPPDATA%\Voxa\data`, each file whole; a file that is already there is not written over,
+and the old one is left where it was. The log says what was moved and what was left.
 
 **The log**, `%LOCALAPPDATA%\Voxa\data\voxa.log`, is for finding out why something went wrong.
 It says when Voxa started, its version and the system, which graphics device it draws with, how
@@ -88,12 +103,21 @@ shows where it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
-measurements, the list of parts, or labels.
+measurements, the list of parts, or labels. A table Voxa saves (CSV) ends every line with a
+column, `notice`, that says "Voxa is not a medical device and is not for diagnostic use.", so
+the sentence goes wherever a line is copied, sorted or filtered. The table of parts also says on
+every line which model made the labels (`model`: the model Voxa ran, or "made by another
+program") and how the model's own check of its work went (`model_check`: `passed`, `failed`,
+or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and in the tag browser the value of every tag in the patient group
-(0010) is hidden and cannot be found by searching. **Patient details** in the toolbar shows them
-until you switch it off or close Voxa. The study's date and description are shown either way.
+left out of the viewports, and the tag browser hides, and cannot find by searching, the value of
+every tag that could identify the patient: every tag in the patient group (0010); the accession
+number; the institution's name and address; the referring, performing and reading physicians and
+the operators; the station's name and the device's serial number; the numbers of the order and
+the visit; and every private tag (any in a group of odd number), since what a maker keeps there
+is not said. It says how many it has hidden. **Patient details** in the toolbar shows them until
+you switch it off or close Voxa. The study's date and description are shown either way.
 
 ONNX Runtime, which runs the labelling networks, reports usage (not images) in Microsoft's
 Windows builds unless told not to. Voxa tells it not to before it asks anything else of it.

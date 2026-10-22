@@ -1,20 +1,22 @@
 //! What Voxa keeps between one run and the next: the saved views of each series, in one small
-//! file in the person's settings folder. The file holds a hash for each series and the
-//! views saved for it, and nothing that says whose scan it was.
+//! file in the folder Voxa keeps on this computer alone (see [`crate::moved`]). The file holds
+//! a hash for each series and the views saved for it, and nothing that says whose scan it
+//! was. The folder the system gives for settings holds only the preferences.
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use crate::views::SavedView;
 
-/// The name of the file within the settings folder.
+/// The name of the file within its folder.
 const FILE: &str = "views.json";
 
 /// Every series' views, under each series' key.
 type Kept = BTreeMap<String, Vec<SavedView>>;
 
-/// The folder the system gives Voxa for its settings. `None` when the system has no such
-/// place, in which case nothing is kept between runs.
+/// The folder the system gives Voxa for its settings, which on Windows roams with the
+/// person's profile: it holds only the preferences. `None` when the system has no such place,
+/// in which case they are not kept between runs.
 pub fn folder() -> Option<PathBuf> {
     let places = directories::ProjectDirs::from("", "", "Voxa")?;
     Some(places.config_dir().to_owned())

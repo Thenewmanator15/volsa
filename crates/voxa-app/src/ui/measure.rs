@@ -232,7 +232,7 @@ pub fn save(kind: Save, state: &AppState) -> Option<Notice> {
     let placement = grid(state).map(|(placement, _)| placement);
     let rows = rows(&state.annotations.items, placement.as_ref());
     let text = match kind {
-        Save::Csv => measurements_csv(&rows),
+        Save::Csv => measurements_csv(&rows, theme::DISCLAIMER),
         Save::Json => measurements_json(&rows, theme::DISCLAIMER),
     };
     Some(said(&path, write(&path, text.as_bytes())))

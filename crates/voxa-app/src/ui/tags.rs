@@ -11,8 +11,14 @@ use crate::action::Action;
 use crate::state::AppState;
 use crate::worker::Workers;
 
-/// What stands in for the value of an element that describes the patient.
+/// What stands in for the value of an element that could identify the patient.
 pub const HIDDEN: &str = "hidden";
+/// What the values hidden while the patient's details are hidden are.
+const HIDDEN_KINDS: &str = "that could identify the patient: the patient's own, the people and \
+                            the place of the scan, the numbers of its order, and makers' \
+                            private values.";
+/// Where the patient's details are shown again.
+const SHOWS_THEM: &str = "\"Patient details\" in the toolbar shows them.";
 
 /// The rows of a file, or why they could not be listed.
 pub type Listing = Result<Vec<TagRow>, String>;
@@ -26,14 +32,14 @@ pub struct ShownTag<'a> {
     pub keyword: &'a str,
     /// Its value representation.
     pub vr: &'a str,
-    /// Its value, or [`HIDDEN`] for an element that describes the patient.
+    /// Its value, or [`HIDDEN`] for an element that could identify the patient.
     pub value: &'a str,
 }
 
 /// The rows to show: those whose number, name or value contains `query`, whatever its case.
-/// An element that describes the patient shows [`HIDDEN`] in place of its value unless
-/// `show_patient` is true, and it is that stand-in the search sees, so a name cannot be found
-/// by typing it.
+/// An element that could identify the patient (see [`is_patient_identifying`]) shows
+/// [`HIDDEN`] in place of its value unless `show_patient` is true, and it is that stand-in the
+/// search sees, so a name cannot be found by typing it.
 pub fn filter_tags<'a>(rows: &'a [TagRow], query: &str, show_patient: bool) -> Vec<ShownTag<'a>> {
     let wanted = query.trim().to_lowercase();
     let shown = rows.iter().map(|row| {
@@ -51,6 +57,21 @@ pub fn filter_tags<'a>(rows: &'a [TagRow], query: &str, show_patient: bool) -> V
         wanted.is_empty() || within(tag.tag) || within(tag.keyword) || within(tag.value)
     };
     shown.filter(matches).collect()
+}
+
+/// What the window says while the patient's details are hidden: how many values of the file
+/// in `rows` are hidden, and which kinds, or only that the details are hidden when there are
+/// no rows to count.
+pub fn hidden_note(rows: &[TagRow]) -> String {
+    let hidden = rows
+        .iter()
+        .filter(|row| is_patient_identifying(&row.tag))
+        .count();
+    match hidden {
+        0 => format!("The patient's details are hidden. {SHOWS_THEM}"),
+        1 => format!("1 value is hidden {HIDDEN_KINDS} {SHOWS_THEM}"),
+        many => format!("{many} values are hidden {HIDDEN_KINDS} {SHOWS_THEM}"),
+    }
 }
 
 /// The tag browser's window and the listing it shows. The rows hold the patient's details,
@@ -122,28 +143,34 @@ pub fn show(
     listing: &Listing,
     actions: &mut Vec<Action>,
 ) {
-    egui::Window::new("DICOM tags").open(open).default_size([620.0, 440.0]).show(ctx, |ui| {
-        let mut filter = state.tag_filter.clone();
-        ui.horizontal(|ui| {
-            ui.label("Search");
-            if ui.text_edit_singleline(&mut filter).changed() {
-                actions.push(Action::SetTagFilter(filter.clone()));
+    egui::Window::new("DICOM tags")
+        .open(open)
+        .default_size([620.0, 440.0])
+        .show(ctx, |ui| {
+            let mut filter = state.tag_filter.clone();
+            ui.horizontal(|ui| {
+                ui.label("Search");
+                if ui.text_edit_singleline(&mut filter).changed() {
+                    actions.push(Action::SetTagFilter(filter.clone()));
+                }
+            });
+            if !state.show_patient {
+                let note = hidden_note(listing.as_deref().unwrap_or_default());
+                ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+            }
+            match listing {
+                Err(why) => {
+                    ui.label(RichText::new(why).color(theme::WARNING));
+                }
+                Ok(rows) if rows.is_empty() => {
+                    ui.label("Show a series to see the tags of the file behind the slice.");
+                }
+                Ok(rows) => table(
+                    ui,
+                    &filter_tags(rows, &state.tag_filter, state.show_patient),
+                ),
             }
         });
-        if !state.show_patient {
-            let note = "The patient's details are hidden. \"Patient details\" in the toolbar shows them.";
-            ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
-        }
-        match listing {
-            Err(why) => {
-                ui.label(RichText::new(why).color(theme::WARNING));
-            }
-            Ok(rows) if rows.is_empty() => {
-                ui.label("Show a series to see the tags of the file behind the slice.");
-            }
-            Ok(rows) => table(ui, &filter_tags(rows, &state.tag_filter, state.show_patient)),
-        }
-    });
 }
 
 fn table(ui: &mut egui::Ui, shown: &[ShownTag<'_>]) {
@@ -242,6 +269,68 @@ mod tests {
         let open = filter_tags(&rows, "phantom", true);
         assert_eq!(keywords(&open), ["PatientName", "PatientID"]);
         assert_eq!(open[0].value, "Phantom^Test");
+    }
+
+    /// A file with the people and the place of the scan, and a maker's private elements.
+    fn rows_with_who_and_where() -> Vec<TagRow> {
+        let mut rows = rows();
+        rows.extend([
+            row("(0008,0050)", "AccessionNumber", "SH", "ACC-0042"),
+            row("(0008,0080)", "InstitutionName", "LO", "Made-up Infirmary"),
+            row("(0008,1070)", "OperatorsName", "PN", "Nobody^Operator"),
+            row("(0018,1000)", "DeviceSerialNumber", "LO", "SN-31337"),
+            row("(0029,0010)", "", "LO", "MADE UP CREATOR"),
+            row("(0029,1010)", "", "OB", "<120 bytes>"),
+        ]);
+        rows
+    }
+
+    #[test]
+    fn the_people_the_place_and_private_values_are_hidden_with_the_patients_details() {
+        let rows = rows_with_who_and_where();
+        let shown = filter_tags(&rows, "", false);
+        let hidden: Vec<&str> = shown
+            .iter()
+            .filter(|tag| tag.value == HIDDEN)
+            .map(|tag| tag.tag)
+            .collect();
+        let expected = [
+            "(0010,0010)",
+            "(0010,0020)",
+            "(0008,0050)",
+            "(0008,0080)",
+            "(0008,1070)",
+            "(0018,1000)",
+            "(0029,0010)",
+            "(0029,1010)",
+        ];
+        assert_eq!(hidden, expected);
+        for word in ["infirmary", "ACC-0042", "nobody", "SN-31337", "creator"] {
+            assert_eq!(filter_tags(&rows, word, false).len(), 0, "{word} is found");
+        }
+        let open = filter_tags(&rows, "infirmary", true);
+        assert_eq!(keywords(&open), ["InstitutionName"]);
+        assert_eq!(open[0].value, "Made-up Infirmary");
+    }
+
+    #[test]
+    fn the_window_says_how_many_values_are_hidden() {
+        let shows = "\"Patient details\" in the toolbar shows them.";
+        let kinds = "that could identify the patient: the patient's own, the people and the place \
+                     of the scan, the numbers of its order, and makers' private values.";
+        assert_eq!(
+            hidden_note(&rows_with_who_and_where()),
+            format!("8 values are hidden {kinds} {shows}")
+        );
+        let one = [row("(0010,0010)", "PatientName", "PN", "Phantom^Test")];
+        assert_eq!(
+            hidden_note(&one),
+            format!("1 value is hidden {kinds} {shows}")
+        );
+        assert_eq!(
+            hidden_note(&[]),
+            format!("The patient's details are hidden. {shows}")
+        );
     }
 
     #[test]

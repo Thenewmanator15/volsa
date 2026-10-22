@@ -14,8 +14,9 @@ pub const MEASUREMENTS_NAME: &str = "voxa-measurements";
 const VERSION: u32 = 1;
 /// What the points' numbers are.
 const SPACE: &str = "DICOM patient coordinates (LPS), millimetres";
-/// The columns of the table. An annotation has at most three points.
-const HEADER: &str = "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3";
+/// The columns of the table. An annotation has at most three points; the last column holds
+/// the notice that Voxa is not for diagnostic use.
+const HEADER: &str = "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice";
 /// How many coordinates a row of the table has room for.
 const COORDINATES: usize = 9;
 
@@ -52,9 +53,12 @@ pub fn rows(items: &[Annotation], placement: Option<&Affine<Voxel, Patient>>) ->
 
 /// The rows as a table any spreadsheet opens: one line of column names, then a line for each
 /// measurement, fields separated by commas as RFC 4180 has it, lines ending CR LF. A name
-/// that a spreadsheet would take for a formula is written with an apostrophe before it.
-pub fn measurements_csv(rows: &[Row]) -> String {
+/// that a spreadsheet would take for a formula is written with an apostrophe before it. The
+/// last column of every line, `notice`, holds `notice`: the sentence that this is not for
+/// diagnostic use, which so goes wherever a line of the table is copied, sorted or filtered.
+pub fn measurements_csv(rows: &[Row], notice: &str) -> String {
     let mut table = format!("{HEADER}\r\n");
+    let notice = field(&not_a_formula(notice));
     for row in rows {
         let words = [
             field(&row.kind),
@@ -65,7 +69,8 @@ pub fn measurements_csv(rows: &[Row]) -> String {
         let numbers = row.points.iter().flatten().map(|part| format!("{part:.3}"));
         let blank = std::iter::repeat(String::new());
         let coordinates = numbers.chain(blank).take(COORDINATES);
-        let line: Vec<String> = words.into_iter().chain(coordinates).collect();
+        let last = std::iter::once(notice.clone());
+        let line: Vec<String> = words.into_iter().chain(coordinates).chain(last).collect();
         table.push_str(&line.join(","));
         table.push_str("\r\n");
     }
@@ -136,17 +141,19 @@ mod tests {
     }
 
     #[test]
-    fn the_table_is_one_line_of_names_and_one_line_a_measurement() {
-        let table = measurements_csv(&two());
+    fn the_table_is_one_line_of_names_and_one_line_a_measurement_each_with_the_notice() {
+        let table = measurements_csv(&two(), NOTICE);
         let lines: Vec<&str> = table.split("\r\n").collect();
         assert_eq!(lines.len(), 4, "three lines, each ended: {table}");
         assert_eq!(
             lines[0],
-            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3"
+            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice"
         );
-        let ruler = "Ruler,\"He said \"\"wide\"\", I think\",5.0 mm,,0.000,0.000,10.000,3.000,-4.000,10.000,,,";
+        let ruler = "Ruler,\"He said \"\"wide\"\", I think\",5.0 mm,,0.000,0.000,10.000,3.000,-4.000,10.000,,,,\
+                     Voxa is not a medical device and is not for diagnostic use.";
         assert_eq!(lines[1], ruler);
-        let marker = "Marker,Marker 2,\"R 12.0, P 4.5, S 30.2 mm\",,-12.000,4.500,30.250,,,,,,";
+        let marker = "Marker,Marker 2,\"R 12.0, P 4.5, S 30.2 mm\",,-12.000,4.500,30.250,,,,,,,\
+                      Voxa is not a medical device and is not for diagnostic use.";
         assert_eq!(lines[2], marker, "three coordinates and six empty fields");
         assert_eq!(lines[3], "", "the last line is ended too");
         assert!(
@@ -154,8 +161,8 @@ mod tests {
             "no bare line feeds"
         );
         assert_eq!(
-            measurements_csv(&[]),
-            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3\r\n"
+            measurements_csv(&[], NOTICE),
+            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice\r\n"
         );
     }
 
@@ -164,7 +171,7 @@ mod tests {
         for start in ['=', '+', '-', '@'] {
             let label = format!("{start}SUM(A1:A9)");
             let marker = Shape::Marker { at: [0.0; 3] };
-            let table = measurements_csv(&rows(&[annotation(1, &label, marker)], None));
+            let table = measurements_csv(&rows(&[annotation(1, &label, marker)], None), NOTICE);
             assert!(table.contains(&format!("Marker,'{label},")), "{table}");
         }
     }
@@ -201,7 +208,10 @@ mod tests {
             study.patient_name.clone(),
             study.patient_id.clone(),
         ];
-        let written = [measurements_csv(&two()), measurements_json(&two(), NOTICE)];
+        let written = [
+            measurements_csv(&two(), NOTICE),
+            measurements_json(&two(), NOTICE),
+        ];
         for word in private.iter().flatten().filter(|word| !word.is_empty()) {
             for text in &written {
                 assert!(!text.contains(word.as_str()), "it names {word}");

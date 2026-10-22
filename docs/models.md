@@ -159,9 +159,10 @@ tab lists them.
 
 ## What is kept
 
-A result is kept on this computer, in the folder the system gives Voxa for its settings, so
-that it can be shown again when the same scan is opened. It is a label file and a table of
-names filed under a hash of the series, and holds nothing that says whose scan it was. The
+A result is kept on this computer, in the folder the system gives Voxa that stays on it
+(`%LOCALAPPDATA%\Voxa\data` on Windows), so that it can be shown again when the same scan is
+opened. It is a label file and a table of names filed under a hash of the series, and holds
+nothing that says whose scan it was. The
 Parts tab then offers **Show**, **Make again** and **Delete**. **Save as** writes the label
 file and its table wherever you choose, for other programs; the file's name always ends in
 `.nii.gz`, which is added if you leave it out. **Keep results on this computer**,

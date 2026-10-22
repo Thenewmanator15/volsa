@@ -1,7 +1,8 @@
 //! A labelling result kept on this computer for its series, to be shown again: a label file
-//! and the table that names its parts, in a `labels` folder under the settings folder. They
-//! are named by the series' key (see [`series_key`](crate::series_key)), a hash that says
-//! nothing of the scan, and hold nothing that does.
+//! and the table that names its parts, in a `labels` folder in the folder on this computer
+//! alone, beside the log. They are named by the series' key (see
+//! [`series_key`](crate::series_key)), a hash that says nothing of the scan, and hold nothing
+//! that does.
 //!
 //! Each file is written beside itself under a `.part` name and then renamed, the table last,
 //! so a result counts as kept only when both are there and whole.
@@ -9,7 +10,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// The folder within the settings folder that holds the results.
+/// The folder within Voxa's own folder that holds the results.
 const FOLDER: &str = "labels";
 /// How the label file and its table end.
 const LABELS_END: &str = "nii.gz";

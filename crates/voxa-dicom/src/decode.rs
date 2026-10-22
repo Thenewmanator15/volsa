@@ -12,6 +12,9 @@ use crate::index::SliceRef;
 use crate::source::SeriesSource;
 
 mod colour;
+mod declared;
+
+use declared::Declared;
 
 /// The pixels of one slice as values, row by row.
 #[derive(Debug, Clone, PartialEq)]
@@ -37,8 +40,9 @@ pub struct Frame {
 ///
 /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
 /// it; [`VoxaError::NotDicom`] when the entry is not a DICOM file; [`VoxaError::Decode`] when
-/// the file is damaged or cut short, is in a kind of colour Voxa does not show, or lacks the
-/// frame asked for; and the
+/// the file is damaged or cut short, says its images are larger than Voxa makes room for (see
+/// [`ImageFile::open`]), is in a kind of colour Voxa does not show, or lacks the frame asked
+/// for; and the
 /// source's own error when the entry cannot be read from it.
 pub fn decode_slice(source: &mut dyn SeriesSource, slice: &SliceRef) -> Result<Frame, VoxaError> {
     let bytes = source.read(&slice.entry)?;
@@ -59,7 +63,10 @@ impl ImageFile {
     /// [`VoxaError::NotDicom`] when the bytes are not a DICOM file,
     /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
     /// it, and [`VoxaError::Decode`] when the file is damaged or its images are in a kind of
-    /// colour Voxa does not show.
+    /// colour Voxa does not show. A file is refused before any room is made for its pixels
+    /// when it says one of its images takes more than 256 MiB once decoded, larger than any
+    /// MRI image, or when its pixels are stored uncompressed and it holds fewer bytes of them
+    /// than it says.
     pub fn open(bytes: &[u8]) -> Result<Self, VoxaError> {
         guarded(|| {
             let file = open(bytes)?;
@@ -67,6 +74,9 @@ impl ImageFile {
                 return Err(VoxaError::UnsupportedTransferSyntax(name));
             }
             colour::check(&file)?;
+            if let Some(declared) = Declared::of(&file) {
+                declared.check()?;
+            }
             Ok(Self { file })
         })
     }
@@ -168,5 +178,7 @@ pub(crate) fn guarded<T>(work: impl FnOnce() -> Result<T, VoxaError>) -> Result<
 mod colour_tests;
 #[cfg(test)]
 mod compressed_tests;
+#[cfg(test)]
+mod declared_tests;
 #[cfg(test)]
 mod tests;

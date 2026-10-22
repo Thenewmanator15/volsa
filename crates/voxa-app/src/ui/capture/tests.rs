@@ -145,6 +145,20 @@ fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
 }
 
 #[test]
+fn preferences_are_kept_in_the_settings_folder_and_what_comes_of_scans_beside_the_log() {
+    assert_eq!(folders(true), (None, None), "a picture keeps nothing");
+    let (settings, local) = folders(false);
+    assert_eq!(settings, crate::settings::folder());
+    assert_eq!(local, crate::log::folder());
+    if cfg!(windows) {
+        assert_ne!(
+            settings, local,
+            "the roaming profile is not this computer's own"
+        );
+    }
+}
+
+#[test]
 fn a_picture_of_the_window_neither_shows_nor_changes_what_is_kept_between_runs() {
     let folder = || Some(PathBuf::from("where settings are kept"));
     assert_eq!(kept_between_runs(false, folder()), folder());

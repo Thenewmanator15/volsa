@@ -89,7 +89,7 @@ The plane views and measuring hang on one point, the position:
    kept with the series they were made on. What each measures is worked out in `voxa-volume`
    from those points and from the scan's own values, never from the screen. A plane view shows
    the ones that lie in its layer; the 3D scene shows them all, in front of the picture.
-5. The list is written to `annotations.json` in the settings folder, filed under a hash of
+5. The list is written to `annotations.json` in Voxa's local folder, filed under a hash of
    the series, and can be saved as a table or as JSON. None of these holds anything that says
    whose scan it was.
 
@@ -173,7 +173,7 @@ built as it is. Nothing else in Voxa depends on any of it.
    even when **Stop** is pressed between the report and the state's taking it.
 6. **Keeping.** After the report, the worker writes a gzipped label file and its table, for
    every result so that **Save as** can offer them, and, once the state has taken the result
-   in, keeps them under the settings folder if the person has not switched keeping off. A kept
+   in, keeps them under the local folder if the person has not switched keeping off. A kept
    result is found again when the same series is shown, and the Parts tab offers to show it,
    make it again or delete it.
 7. **Stopping.** A run says what it says with its own number. It ends when the person presses
@@ -212,13 +212,20 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 
 ## What is kept on this machine
 
-In the folder the system gives Voxa: the saved views and annotations of each study,
+In two folders the system gives Voxa. The settings folder (`config_dir`, on Windows in the
+roaming profile, which a managed network may copy to its servers) holds only
 `preferences.json` (the window's size, the layout, orientation, linking and how labels are
-drawn), `choices.json` (what was chosen for labelling: the model, the cortex areas, where a
-run goes by the card's name, whether results are kept, and the two folders of the model and
-the runtime, which are its only paths), a `labels` folder holding the result of labelling
-kept for each series, as a label file and a table named by a hash of the series, and
-`voxa.log`. The log is written by Voxa's own `tracing` subscriber, which takes
+drawn). The local folder (`data_local_dir`, which stays on the machine) holds the rest: the
+saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
+model, the cortex areas, where a run goes by the card's name, whether results are kept, and
+the two folders of the model and the runtime, which are its only paths), a `labels` folder
+holding the result of labelling kept for each series, as a label file and a table named by a
+hash of the series, and `voxa.log`. Voxa 0.5.0 and earlier kept all but the log in the
+settings folder; as a newer Voxa starts, `moved.rs` moves what is there into the local folder,
+each file whole and never over a different file of the same name (a result's two files go
+together or not at all), and logs in a sentence what it moved and what it left, by Voxa's own
+file names and a count of result files, whose names are hashes. The log is written by Voxa's
+own `tracing` subscriber, which takes
 only Voxa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
 file says can reach it. Labelling adds no subscriber of its own: its notices are logged by
 kind and key only, and the runtime's own words for a failed network, with every path taken
@@ -260,7 +267,12 @@ a sentence that names them.
 
 The decoders for compressed images come from `dicom-pixeldata`. They are other people's code fed
 with whatever a file holds, so each call is wrapped: a panic inside a decoder becomes a `Decode`
-error for that one slice.
+error for that one slice. A decoder makes room for a whole frame from what the header says, and
+a request for memory that fails stops the program outright, which no wrapping catches. So
+before any decoder is called, a file is refused in a sentence when it says one of its images
+takes more than 256 MiB once decoded (larger than any MRI image: a slice of 1024 by 1024 values
+of 16 bits takes 2 MiB), or when its pixels are stored uncompressed and it holds fewer bytes of
+them than its header says (`decode/declared.rs`).
 
 Label files are made the same way for tests, by the `testkit` feature of `voxa-labels`: NIfTI
 files of every kind of number labels are stored as, in either byte order, placed either way a

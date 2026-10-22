@@ -18,8 +18,11 @@ const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 /// Said in a corner when the files do not say where the slices are.
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
 
+/// How many slices Page Up and Page Down step.
+const PAGE: i32 = 10;
+
 /// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 14] = [
+pub const SHORTCUTS: [(&str, &str); 17] = [
     ("H", "Mirror the picture left to right"),
     ("V", "Mirror the picture top to bottom"),
     ("R", "Turn the picture a quarter turn clockwise"),
@@ -31,6 +34,9 @@ pub const SHORTCUTS: [(&str, &str); 14] = [
     ("2", "Two viewports side by side"),
     ("4", "Four viewports"),
     ("Space", "Play or pause through the slices"),
+    ("Up and Down", "The slice before and the slice after"),
+    ("Page Up and Page Down", "Ten slices back and ten on"),
+    ("Home and End", "The first slice and the last"),
     (
         "[ and ]",
         "The volume before and the volume after, of a series that holds several",
@@ -275,8 +281,18 @@ pub fn input_to_actions(viewport: usize, input: &ViewportInput) -> Vec<Action> {
     actions
 }
 
+/// Whether a key steps through the slices, and so steps again while it is held down.
+pub fn steps_slices(key: Key) -> bool {
+    matches!(
+        key,
+        Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown
+    )
+}
+
 /// What a key asks of the active viewport or the layout. `None` for a key Voxa does not use,
-/// and for `?`, which opens the reference without changing any state.
+/// and for `?`, which opens the reference without changing any state. Down and Page Down
+/// move on to later slices, as the wheel does turned towards the person; End asks for the
+/// largest slice there is, which stops at the last.
 pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
     let viewport = active;
     Some(match key {
@@ -294,6 +310,24 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
         Key::Num2 => Action::SetLayout(Layout::TwoAcross),
         Key::Num4 => Action::SetLayout(Layout::TwoByTwo),
         Key::Space => Action::CineToggle { viewport },
+        Key::ArrowDown => Action::Scroll { viewport, delta: 1 },
+        Key::ArrowUp => Action::Scroll {
+            viewport,
+            delta: -1,
+        },
+        Key::PageDown => Action::Scroll {
+            viewport,
+            delta: PAGE,
+        },
+        Key::PageUp => Action::Scroll {
+            viewport,
+            delta: -PAGE,
+        },
+        Key::Home => Action::SetSlice { viewport, slice: 0 },
+        Key::End => Action::SetSlice {
+            viewport,
+            slice: usize::MAX,
+        },
         Key::OpenBracket => Action::StepVolume { viewport, by: -1 },
         Key::CloseBracket => Action::StepVolume { viewport, by: 1 },
         Key::Escape => Action::SetMain(MainPanel::Scene),
@@ -301,6 +335,8 @@ pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
     })
 }
 
+#[cfg(test)]
+mod slice_keys_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

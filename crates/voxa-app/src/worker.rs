@@ -63,7 +63,7 @@ struct Shared {
     device_does: volume::DeviceDoes,
     /// The series whose volume is being built. Its slices are decoded for the volume.
     wanted_volume: Mutex<Option<SeriesId>>,
-    /// The folder settings are kept in, if there is one.
+    /// The folder views, annotations and labelling are kept in, if there is one.
     settings: Option<PathBuf>,
     /// How many times the saved views have been asked to be written, and the newest of
     /// those requests that has been.

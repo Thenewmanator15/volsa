@@ -52,6 +52,15 @@ pub fn kept_between_runs(capturing: bool, folder: Option<PathBuf>) -> Option<Pat
     folder.filter(|_| !capturing)
 }
 
+/// The settings folder, for the preferences alone, and the folder on this computer alone, for
+/// the log and the rest (see [`crate::moved`]), as [`kept_between_runs`] has them.
+pub fn folders(capturing: bool) -> (Option<PathBuf>, Option<PathBuf>) {
+    (
+        kept_between_runs(capturing, crate::settings::folder()),
+        kept_between_runs(capturing, crate::log::folder()),
+    )
+}
+
 /// A window size written as width `x` height. `None` unless both are numbers above zero.
 pub fn size_from(text: &str) -> Option<[f32; 2]> {
     let (width, height) = text.split_once('x')?;
