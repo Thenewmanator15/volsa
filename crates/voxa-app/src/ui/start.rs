@@ -2,13 +2,8 @@
 
 use std::path::PathBuf;
 
-use egui_wgpu::wgpu::Backends;
-
 use super::{VoxaApp, capture, icon};
 use crate::prefs::SMALLEST_WINDOW;
-
-#[cfg(test)]
-mod tests;
 
 /// The size the window opens at, in points at the interface's usual size, when no size is
 /// remembered: small enough for most screens, until it is fitted to the one it is on.
@@ -53,30 +48,6 @@ fn opening_size(capturing: bool) -> [f32; 2] {
     [wide.max(least_w), high.max(least_h)]
 }
 
-/// The graphics backends the window may start on: those named from outside (`WGPU_BACKEND`,
-/// which wgpu reads), when any are; otherwise, on Windows, Vulkan and DirectX 12, and
-/// elsewhere eframe's own choice. Every backend tried at start-up loads its drivers, and on
-/// Windows OpenGL was only ever tried, never drawn on: without it Voxa holds about 12 MiB less
-/// of its own memory and four threads fewer. DirectX 12 stays for a computer without Vulkan,
-/// and for one with no card to use, where it draws in software (WARP).
-fn window_backends(named: Option<Backends>) -> Backends {
-    let own = if cfg!(windows) {
-        Backends::VULKAN | Backends::DX12
-    } else {
-        Backends::PRIMARY | Backends::GL
-    };
-    named.unwrap_or(own)
-}
-
-/// eframe's options, with the window to start on these graphics backends and all else as it
-/// was.
-fn with_backends(mut options: eframe::NativeOptions, backends: Backends) -> eframe::NativeOptions {
-    if let egui_wgpu::WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
-        create.instance_descriptor.backends = backends;
-    }
-    options
-}
-
 /// Open the Voxa window and run until it is closed. `initial` is a scan to open at once,
 /// and `labels` a label file to open on it as soon as it can be shown in 3D.
 ///
@@ -104,7 +75,6 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
         viewport,
         ..Default::default()
     };
-    let options = with_backends(options, window_backends(Backends::from_env()));
     let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
         Ok(Box::new(VoxaApp::new(creation, initial, labels)))
     };
