@@ -65,6 +65,23 @@ what a public release needs. Voxa is not a medical device and is not for diagnos
 
 ### Changed
 
+- Exports open much faster. An ordinary zip is opened where its end record says its directory
+  is, instead of after a search of the whole file; indexing reads of each file only what its
+  header needs, never the pixels, and finds exactly what it found before; and the workers read
+  a zip or a folder at the same time, each through a reader of its own. On a made-up export of
+  1,500 slices of 512 x 512, from starting Voxa to its slice and 3D scene on the screen takes
+  1.3 s instead of 4.5 s for a compressed zip (1.8 s instead of 8.4 s when the file is not in
+  the system's cache), and 1.1 s instead of 1.6 s for a folder; indexing the compressed zip
+  takes 0.27 s instead of 3.06 s. A zip with data before it, or a second end record near its
+  end, is searched as before, and a DICOMDIR is passed over without being read. A zip whose
+  file is damaged after a file's header no longer stops indexing; the damage is reported when
+  that slice is read.
+- Labelling no longer chooses a graphics card that other programs have nearly filled. Before a
+  run Voxa also counts how much of the card's memory every program holds (Windows' own count,
+  the one Task Manager shows), not only the system's budget for Voxa, which does not fall as
+  other programs fill the card. Such a run goes to the processor instead of spilling into
+  ordinary memory, and the Parts tab says how much of the card was free. A card chosen by hand
+  that other programs have filled is refused with what it actually has free.
 - The program is now `voxa.exe` (it was `voxa-app.exe`).
 - What comes of your scans is kept on this computer only. Saved views, annotations, the
   choices for labelling and kept labelling results move from `%APPDATA%\Voxa\config`, in the
