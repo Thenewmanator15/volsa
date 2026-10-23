@@ -21,11 +21,14 @@ coordinates lives below it, where it can be tested without a window.
 ## Data flow
 
 1. A `SeriesSource` yields named byte streams from a folder, a zip (read in place, nothing is
-   extracted to disk) or the folder beside a `DICOMDIR`.
-2. `voxa-dicom` parses headers on a worker and emits an index of studies and series. The browser
-   fills as results arrive. Entries that are not DICOM are skipped and counted.
+   extracted to disk) or the folder beside a `DICOMDIR`. An ordinary zip is opened where its
+   end record says its directory is, without searching the whole file for it.
+2. `voxa-dicom` parses headers on a worker and emits an index of studies and series. Of each
+   file it reads only as much as the header needs, never the pixels. The browser fills as
+   results arrive. Entries that are not DICOM are skipped and counted.
 3. Selecting a series queues decoding of its slices on worker threads, nearest slices first.
-   Decoded frames are cached under a memory budget.
+   Each worker reads through a reader of the source of its own, so a zip or a folder is read
+   by several at once. Decoded frames are cached under a memory budget.
 4. `voxa-render` uploads the current frame once as a single-channel floating-point texture. A
    shader applies window/level, so changing contrast never decodes or uploads again.
 5. The app draws overlays (orientation letters, scale bar, corner text) with `egui` above the GPU

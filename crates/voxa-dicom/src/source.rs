@@ -49,7 +49,8 @@ pub trait SeriesSource: Send {
     ///
     /// # Errors
     /// The first error met opening or reading a file, or given by `visit`. No file after it
-    /// is visited. A file larger than a source will read whole is refused before it is visited.
+    /// is visited. A folder's or a zip's file too large to be read whole is refused before it
+    /// is visited, in the words reading it whole would refuse it with.
     fn visit_files(
         &mut self,
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
