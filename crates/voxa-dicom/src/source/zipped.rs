@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
+use std::sync::Arc;
 
 use voxa_core::VoxaError;
 use zip::ZipArchive;
@@ -12,11 +13,12 @@ use zip::result::ZipResult;
 use super::archive_file::ArchiveFile;
 use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited, within_limit};
 
-/// The files inside a zip archive, read straight from the archive.
+/// The files inside a zip archive, read straight from the archive. Its other readers share
+/// the open file and what was read of the archive's directory, each reading where it likes.
 pub(super) struct ZipSource {
     archive: ZipArchive<ArchiveFile>,
     /// (name with `/`, position in the archive) of every file, sorted by name.
-    files: Vec<(String, usize)>,
+    files: Arc<[(String, usize)]>,
 }
 
 impl ZipSource {
@@ -31,7 +33,10 @@ impl ZipSource {
             }
         }
         files.sort();
-        Ok(Self { archive, files })
+        Ok(Self {
+            archive,
+            files: files.into(),
+        })
     }
 
     fn read_at(&mut self, at: usize) -> Result<Vec<u8>, VoxaError> {
@@ -109,10 +114,14 @@ fn archive_error(error: zip::result::ZipError) -> VoxaError {
 
 impl SeriesSource for ZipSource {
     fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
-        let files = self.files.clone();
-        Box::new(files.into_iter().map(|(name, at)| {
-            let bytes = self.read_at(at)?;
-            Ok(Entry { name, bytes })
+        let files = Arc::clone(&self.files);
+        Box::new((0..files.len()).filter_map(move |i| {
+            let (name, at) = files.get(i)?;
+            let entry = self.read_at(*at).map(|bytes| Entry {
+                name: name.clone(),
+                bytes,
+            });
+            Some(entry)
         }))
     }
 
@@ -132,12 +141,19 @@ impl SeriesSource for ZipSource {
         &mut self,
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
     ) -> Result<(), VoxaError> {
-        for (name, at) in &self.files {
+        for (name, at) in self.files.iter() {
             let mut entry = self.archive.by_index(*at).map_err(archive_error)?;
             within_limit(entry.size(), MAX_ENTRY_BYTES)?;
             visit(name, &mut entry)?;
         }
         Ok(())
+    }
+
+    fn another_reader(&self) -> Option<Box<dyn SeriesSource>> {
+        Some(Box::new(Self {
+            archive: self.archive.clone(),
+            files: Arc::clone(&self.files),
+        }))
     }
 }
 

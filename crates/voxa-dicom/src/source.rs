@@ -60,6 +60,15 @@ pub trait SeriesSource: Send {
         }
         Ok(())
     }
+
+    /// Another reader of the same files, which reads them without waiting for this one, so
+    /// that each thread decoding slices can read with a reader of its own. `None` when the
+    /// source cannot give one and its reads must take turns.
+    ///
+    /// Folders and zips give one: a zip's readers share what was read of its directory.
+    fn another_reader(&self) -> Option<Box<dyn SeriesSource>> {
+        None
+    }
 }
 
 /// Open a folder, a zip file, a `DICOMDIR` (the folder beside it is read) or a single file.
@@ -119,6 +128,8 @@ pub(crate) fn too_large(limit: u64) -> VoxaError {
     ))
 }
 
+#[cfg(test)]
+mod reader_tests;
 #[cfg(test)]
 mod visit_tests;
 

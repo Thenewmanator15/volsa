@@ -60,6 +60,21 @@ impl Opened {
 }
 
 impl Shared {
+    /// Read one file of the source that is open; `None` when none is. A source that gives
+    /// readers of their own is held only while one is made, and read through that, so that
+    /// workers read at the same time; any other is held while it reads.
+    pub(super) fn read_entry(&self, entry: &str) -> Option<Result<Vec<u8>, VoxaError>> {
+        let mut source = lock(&self.source);
+        let own = source.as_ref()?.another_reader();
+        match own {
+            Some(mut reader) => {
+                drop(source);
+                Some(reader.read(entry))
+            }
+            None => source.as_mut().map(|source| source.read(entry)),
+        }
+    }
+
     /// The file a batch's slices are in, opened for decoding, or why it could not be. `None`
     /// when no export is open. A file of many frames is kept for the next request.
     pub(super) fn file_of(
@@ -69,10 +84,9 @@ impl Shared {
     ) -> Option<Result<Arc<ImageFile>, String>> {
         lock(&self.source).as_ref()?;
         let open = || {
-            let bytes = match lock(&self.source).as_mut() {
-                Some(source) => source.read(&batch.entry),
-                None => Err(VoxaError::MissingEntry(batch.entry.clone())),
-            };
+            let bytes = self
+                .read_entry(&batch.entry)
+                .unwrap_or_else(|| Err(VoxaError::MissingEntry(batch.entry.clone())));
             ImageFile::open(&bytes?)
         };
         let many_frames = batch.slices.iter().any(|(_, frame)| frame.is_some());
@@ -89,8 +103,12 @@ impl Shared {
 mod tests {
     use std::cell::Cell;
     use std::collections::HashMap;
+    use std::sync::Barrier;
 
-    use voxa_dicom::testkit::{EnhancedFrame, EnhancedOptions, SliceOptions, enhanced_series};
+    use voxa_core::SeriesId;
+    use voxa_dicom::testkit::{
+        EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
+    };
     use voxa_dicom::{Entry, SeriesSource};
 
     use super::super::tests::{Bench, ONE, folder_of};
@@ -203,5 +221,64 @@ mod tests {
         kept.clear();
         kept.get("a", 2, open).expect("opens");
         assert_eq!(opens.get(), 8, "let go of, it is opened again");
+    }
+
+    /// A source whose every read, by it or by a reader of its own, waits at `gate` twice: once
+    /// on coming in, and once more before it gives its bytes.
+    struct Gated {
+        gate: Arc<Barrier>,
+        bytes: Vec<u8>,
+    }
+
+    impl SeriesSource for Gated {
+        fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
+            Box::new(std::iter::empty())
+        }
+
+        fn read(&mut self, _: &str) -> Result<Vec<u8>, VoxaError> {
+            self.gate.wait();
+            self.gate.wait();
+            Ok(self.bytes.clone())
+        }
+
+        fn another_reader(&self) -> Option<Box<dyn SeriesSource>> {
+            Some(Box::new(Self {
+                gate: Arc::clone(&self.gate),
+                bytes: self.bytes.clone(),
+            }))
+        }
+    }
+
+    #[test]
+    fn a_source_that_gives_readers_of_their_own_is_not_held_while_one_reads() {
+        let bench = Bench::with_budget(64 * ONE);
+        let gate = Arc::new(Barrier::new(2));
+        let gated = Gated {
+            gate: Arc::clone(&gate),
+            bytes: classic_slice(&SliceOptions::default()),
+        };
+        *lock(&bench.workers.shared.source) = Some(Box::new(gated));
+        let shared = Arc::clone(&bench.workers.shared);
+        let reading = std::thread::spawn(move || {
+            let batch = Batch {
+                entry: "slice.dcm".to_owned(),
+                slices: vec![(0, None)],
+            };
+            let request = Request {
+                series: SeriesId("one".to_owned()),
+                around: 0,
+                opened: 0,
+                number: 0,
+            };
+            shared.file_of(&batch, &request).map(|file| file.is_ok())
+        });
+        gate.wait(); // the read has begun
+        let free = bench.workers.shared.source.try_lock().is_ok();
+        gate.wait(); // and may end
+        assert_eq!(
+            reading.join().expect("the reader did not panic"),
+            Some(true)
+        );
+        assert!(free, "the source was held while a reader of its own read");
     }
 }

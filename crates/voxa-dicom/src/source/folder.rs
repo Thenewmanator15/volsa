@@ -3,6 +3,7 @@
 use std::fs::File;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use voxa_core::VoxaError;
 
@@ -10,8 +11,9 @@ use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited, within_limit};
 
 /// Files under a folder on disk, or one file on its own.
 pub(super) struct FolderSource {
-    /// (name relative to the root with `/`, path on disk), sorted by name.
-    files: Vec<(String, PathBuf)>,
+    /// (name relative to the root with `/`, path on disk), sorted by name. Shared with the
+    /// source's other readers.
+    files: Arc<[(String, PathBuf)]>,
 }
 
 impl FolderSource {
@@ -19,7 +21,9 @@ impl FolderSource {
         let mut files = Vec::new();
         collect_files(root, "", &mut files)?;
         files.sort();
-        Ok(Self { files })
+        Ok(Self {
+            files: files.into(),
+        })
     }
 
     pub(super) fn single(path: &Path) -> Self {
@@ -28,7 +32,7 @@ impl FolderSource {
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         Self {
-            files: vec![(name, path.to_path_buf())],
+            files: Arc::new([(name, path.to_path_buf())]),
         }
     }
 }
@@ -80,11 +84,17 @@ impl SeriesSource for FolderSource {
         &mut self,
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
     ) -> Result<(), VoxaError> {
-        for (name, path) in &self.files {
+        for (name, path) in self.files.iter() {
             let mut file = File::open(path)?;
             within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
             visit(name, &mut file)?;
         }
         Ok(())
+    }
+
+    fn another_reader(&self) -> Option<Box<dyn SeriesSource>> {
+        Some(Box::new(Self {
+            files: Arc::clone(&self.files),
+        }))
     }
 }
