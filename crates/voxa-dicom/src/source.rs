@@ -6,6 +6,7 @@ use std::path::Path;
 
 use voxa_core::VoxaError;
 
+mod archive_file;
 mod folder;
 mod zipped;
 

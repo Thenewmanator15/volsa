@@ -1,24 +1,27 @@
 //! The files inside a zip archive, read straight from the archive.
 
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 
 use voxa_core::VoxaError;
+use zip::ZipArchive;
+use zip::read::{ArchiveOffset, Config};
+use zip::result::ZipResult;
 
+use super::archive_file::ArchiveFile;
 use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited};
 
 /// The files inside a zip archive, read straight from the archive.
 pub(super) struct ZipSource {
-    archive: zip::ZipArchive<BufReader<File>>,
+    archive: ZipArchive<ArchiveFile>,
     /// (name with `/`, position in the archive) of every file, sorted by name.
     files: Vec<(String, usize)>,
 }
 
 impl ZipSource {
     pub(super) fn open(path: &Path) -> Result<Self, VoxaError> {
-        let mut archive =
-            zip::ZipArchive::new(BufReader::new(File::open(path)?)).map_err(archive_error)?;
+        let (mut archive, _) = open_archive(File::open(path)?).map_err(archive_error)?;
         let mut files = Vec::new();
         for at in 0..archive.len() {
             let entry = archive.by_index_raw(at).map_err(archive_error)?;
@@ -35,6 +38,59 @@ impl ZipSource {
         let mut entry = self.archive.by_index(at).map_err(archive_error)?;
         read_limited(&mut entry, MAX_ENTRY_BYTES)
     }
+}
+
+/// How an archive was opened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Opening {
+    /// As its end record says, with the archive starting where the file does: quick.
+    AsItsEndSays,
+    /// By searching the file for its directory, as the zip library does by default.
+    BySearching,
+}
+
+/// The signature that starts an archive's end record.
+const END_SIGNATURE: &[u8] = b"PK\x05\x06";
+/// How far back from a file's end its end record is looked for: at least as far as the zip
+/// library looks (the longest comment an archive can have, the record, and a little more).
+const END_SEARCHED: u64 = 64 * 1024 + 1024;
+
+/// Open the zip archive in `file`.
+///
+/// The zip library's default opening searches the whole file for the archive's directory,
+/// reading every byte of it: seconds for an export of hundreds of megabytes, far longer when
+/// the file is not in the system's cache. An archive that starts where its file does needs no
+/// search, since its end record says where the directory is. Told so, the library looks there
+/// and only there; and when the record it reads is the only one near the file's end, what it
+/// finds is what its search would have found. Any other file, such as one with data before the
+/// archive or with a second end record near its end, is searched as before.
+fn open_archive(file: File) -> ZipResult<(ZipArchive<ArchiveFile>, Opening)> {
+    let reader = ArchiveFile::new(file);
+    if one_end_record(&mut reader.clone()) {
+        let at_the_start = Config {
+            archive_offset: ArchiveOffset::Known(0),
+        };
+        if let Ok(archive) = ZipArchive::with_config(at_the_start, reader.clone()) {
+            return Ok((archive, Opening::AsItsEndSays));
+        }
+    }
+    ZipArchive::new(reader).map(|archive| (archive, Opening::BySearching))
+}
+
+/// Whether the end of `file` holds the signature of an end record exactly once, so that the
+/// record the zip library takes is the only one it could. False when the end cannot be read.
+fn one_end_record(file: &mut ArchiveFile) -> bool {
+    let mut end = Vec::new();
+    let read = file
+        .seek(SeekFrom::End(0))
+        .and_then(|len| file.seek(SeekFrom::Start(len.saturating_sub(END_SEARCHED))))
+        .and_then(|_| file.read_to_end(&mut end));
+    read.is_ok()
+        && end
+            .windows(END_SIGNATURE.len())
+            .filter(|four| *four == END_SIGNATURE)
+            .count()
+            == 1
 }
 
 /// A zip library error as a message for the person using Voxa. Entry names are left out: they
@@ -72,3 +128,6 @@ impl SeriesSource for ZipSource {
         self.read_at(at)
     }
 }
+
+#[cfg(test)]
+mod tests;
