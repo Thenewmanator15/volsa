@@ -36,6 +36,9 @@ use taken::Unclaimed;
 use turn::on_its_own;
 
 #[cfg(test)]
+#[path = "labelling_full_card_tests.rs"]
+mod full_card_tests;
+#[cfg(test)]
 #[path = "kept_saved_tests.rs"]
 mod kept_saved_tests;
 #[cfg(test)]

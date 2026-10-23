@@ -200,8 +200,10 @@ research, with clinical use neither recommended nor advised.
 Memory is what limits a run, not time. Before a run Voxa works out what the scan needs and
 goes only where the system can still promise it, trying in this order:
 
-1. the whole scan on a graphics card with memory of its own, if it fits in what the system
-   lets Voxa use there;
+1. the whole scan on a graphics card with memory of its own, if it fits there: what it needs
+   (below, with its quarter) within what the system lets Voxa use, and what its networks take
+   (without the quarter) within what no program holds of the card, so a card that other
+   programs have all but filled is passed over;
 2. the whole scan on the processor, if the computer's ordinary memory can back it;
 3. the scan cut to the head, on the card and then on the processor, where cutting makes it
    smaller.

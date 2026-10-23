@@ -52,6 +52,10 @@ pub trait Labeller: Send + Sync {
     /// cannot be read.
     fn budget(&self, card: CardId) -> Option<u64>;
 
+    /// How many bytes of a card's own memory no program holds now, what every program holds of
+    /// it counted, this one's included; `None` where that cannot be read.
+    fn unheld(&self, card: CardId) -> Option<u64>;
+
     /// How much more ordinary memory this program can have now.
     fn free_memory(&self) -> FreeMemory;
 
@@ -115,6 +119,10 @@ impl Labeller for ThisComputer {
 
     fn budget(&self, card: CardId) -> Option<u64> {
         voxa_models::budget(card)
+    }
+
+    fn unheld(&self, card: CardId) -> Option<u64> {
+        voxa_models::unheld(card)
     }
 
     fn free_memory(&self) -> FreeMemory {

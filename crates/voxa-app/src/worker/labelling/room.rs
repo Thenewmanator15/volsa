@@ -24,17 +24,19 @@ const CARD_GONE: &str = "The graphics card chosen for labelling is not one Voxa 
 /// What stands in the log in place of a path.
 const A_PATH: &str = "(a path)";
 
-/// What the computer has now, as the labeller reads it: the cards and what the system lets
-/// this program use on each, the card Voxa draws on found by its name with what Voxa holds
-/// there, and the ordinary memory the system can still give.
+/// What the computer has now, as the labeller reads it: the cards, what the system lets this
+/// program use on each and what no program holds of each, the card Voxa draws on found by its
+/// name with what Voxa holds there, and the ordinary memory the system can still give.
 pub(super) fn room_of(labeller: &dyn Labeller, drawing_on: Option<&str>, held: u64) -> Room {
     let cards = labeller.cards();
     let budgets = cards.iter().map(|card| labeller.budget(card.id)).collect();
+    let unheld = cards.iter().map(|card| labeller.unheld(card.id)).collect();
     let drawing_on = drawing_on.and_then(|name| card_named(&cards, name));
     let free_memory = free_bytes(labeller.free_memory());
     Room {
         cards,
         budgets,
+        unheld,
         drawing_on,
         held,
         free_memory,
@@ -137,15 +139,15 @@ pub(super) fn does_not_fit(sizes: Sizes, wanted: Wanted, room: &Room, runs_on: R
 }
 
 /// What the smallest run, of `smallest` voxels, needs of a place and what the place has, in the
-/// units and the rounding `why_not` uses. For a card: what its networks need there against its
-/// room, or, when it has room, what the run asks of ordinary memory against what is free. For
-/// the processor: the second.
+/// units and the rounding `why_not` uses. For a card: what its networks need there against what
+/// it has, when it has no room for them, or, when it has, what the run asks of ordinary memory
+/// against what is free. For the processor: the second.
 fn short_of(chosen: Device, smallest: u64, wanted: Wanted, room: &Room) -> String {
     let mut words = String::new();
     if let Device::Card(_) = chosen {
         let needed = needs(smallest, wanted, chosen);
         let has = room.space_on(chosen).unwrap_or_default();
-        if needed > has {
+        if !room.has_room_for(chosen, smallest, wanted) {
             return format!(
                 " At its smallest it needs about {} GB there, and the card has {} GB to spare.",
                 needed_gb(needed),

@@ -1,7 +1,7 @@
 //! Tests of which devices a run fits on and in what order they are tried. Every volume, card
 //! and figure here is made up.
 
-use super::{Cut, Room, Rung, RunsOn, Wanted, needs, rungs};
+use super::{Cut, Room, Rung, RunsOn, Space, Wanted, needs, rungs};
 use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
 
@@ -50,6 +50,7 @@ pub(super) fn room() -> Room {
             card(1, CardKind::Discrete, 16 * GIB),
         ],
         budgets: vec![None, None],
+        unheld: vec![None, None],
         drawing_on: Some(id(1)),
         held: GIB,
         free_memory: 20 * GIB,
@@ -160,6 +161,7 @@ fn a_discrete_cards_room_is_its_budget_else_its_memory_less_what_voxa_holds() {
         let room = Room {
             cards: vec![card(1, CardKind::Discrete, own)],
             budgets,
+            unheld: Vec::new(),
             drawing_on: drawing_on.map(id),
             held: GIB,
             free_memory: 20 * GIB,
@@ -276,9 +278,15 @@ fn an_integrated_cards_room_is_the_free_ordinary_memory_whatever_it_says_of_its_
     room.budgets = vec![Some(GIB), Some(3 * GIB), Some(32 * GIB)];
     for free in [0, GIB, 20 * GIB, u64::MAX] {
         room.free_memory = free;
-        assert_eq!(room.room_on(0, &room.cards[0]), Some(free));
+        assert_eq!(
+            room.room_on(0, &room.cards[0]).map(Space::spare),
+            Some(free)
+        );
     }
-    assert_eq!(room.room_on(1, &room.cards[1]), Some(3 * GIB));
+    assert_eq!(
+        room.room_on(1, &room.cards[1]).map(Space::spare),
+        Some(3 * GIB)
+    );
     assert_eq!(room.room_on(2, &room.cards[2]), None);
 }
 

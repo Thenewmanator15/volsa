@@ -61,7 +61,7 @@ pub fn why_not(whole: u64, head: u64, wanted: Wanted, room: &Room) -> String {
         .iter()
         .enumerate()
         .filter(|(_, card)| card.kind == CardKind::Discrete)
-        .map(|(place, card)| room.discrete_room(place, card))
+        .map(|(place, card)| room.discrete_room(place, card).spare())
         .max();
     // Which card makes no difference to what a run needs; only that it is a card.
     let on_a_card = Device::Card(CardId(0));

@@ -151,6 +151,7 @@ fn with_no_room_anywhere_a_run_fails_with_what_it_needs_and_what_there_is() {
     let room = Room {
         cards: Vec::new(),
         budgets: Vec::new(),
+        unheld: Vec::new(),
         drawing_on: None,
         held: 0,
         free_memory: GIB,
@@ -252,11 +253,13 @@ fn what_the_computer_has_is_read_with_the_card_voxa_draws_on_found_by_its_name()
     assert_eq!(card_named(&cards, "Made-up card B"), Some(CardId(3)));
     assert_eq!(card_named(&cards, "Made-up card C"), None);
     let budgets = vec![None, Some(16 * GIB), Some(3 * GIB)];
-    let stand_in = StandIn::of(cards.clone(), budgets.clone(), 64 * GIB);
+    let unheld = vec![Some(GIB), Some(12 * GIB), None];
+    let stand_in = StandIn::of(cards.clone(), budgets.clone(), 64 * GIB).unheld(unheld.clone());
     let room = room_of(&stand_in, Some("Made-up card A"), 2 * GIB);
     let expected = Room {
         cards,
         budgets,
+        unheld,
         drawing_on: Some(card_a().id),
         held: 2 * GIB,
         free_memory: 64 * GIB,

@@ -28,7 +28,9 @@ mod tensor;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
-pub use cards::{Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of};
+pub use cards::{
+    Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of, unheld,
+};
 pub use model::{
     KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,
 };

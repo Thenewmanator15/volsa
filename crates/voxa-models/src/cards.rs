@@ -2,9 +2,9 @@
 //! and how much ordinary memory the system can still give this program.
 //!
 //! This is the one module of the crate that may use `unsafe`: on Windows the list is DXGI's,
-//! and every call into it is marked unsafe, as is the call that says how much memory is left.
-//! Each use says why it is sound. On a system with no such list there are no cards and
-//! nothing is known of their memory.
+//! and every call into it is marked unsafe, as are the call that says how much of a card every
+//! program holds and the one that says how much memory is left. Each use says why it is sound.
+//! On a system with no such list there are no cards and nothing is known of their memory.
 //!
 //! A card is known by what it is, a [`CardId`], and not by where it stands in the list. The
 //! list changes its order while a program runs, and a place kept from before is then another
@@ -72,11 +72,23 @@ pub(crate) fn place_now(id: CardId) -> Option<u32> {
     place_of(&cards(), id)
 }
 
-/// How many bytes the system lets this program use on a card now. The figure already allows
-/// for what other programs hold on the card. `None` where it cannot be read: the card is no
-/// longer listed, or the system keeps no such count.
+/// How many bytes the system lets this program use on a card now: its share of the card, this
+/// program's own use included. It does not fall as other programs take the card's memory, so
+/// it is not what is free. Measured on a card of 16 GB: it stayed at 14.9 GB while other
+/// programs held 13 GB of the card, and the lowest it went was 11.7 GB, with 0.6 GB actually
+/// free (see [`unheld`]). `None` where it cannot be read: the card is no longer listed, or the
+/// system keeps no such count.
 pub fn budget(id: CardId) -> Option<u64> {
     place_now(id).and_then(system::budget)
+}
+
+/// How many bytes of a card's own memory no program holds now: what the card has of its own,
+/// less what every program on the computer holds of it, this one included. It is the count the
+/// system's task manager shows the card's memory in use by, taken from what the card has, and
+/// it falls as soon as another program takes some. `None` where it cannot be read: the card is
+/// not one the system knows, or the system keeps no such count.
+pub fn unheld(id: CardId) -> Option<u64> {
+    system::unheld(id)
 }
 
 /// How many bytes of a card this program holds now. For integrated graphics, which have
@@ -117,6 +129,37 @@ pub(crate) fn available_in(meminfo: &str) -> Option<u64> {
     kibibytes.checked_mul(1024)
 }
 
+/// One part of a card's memory, as the system counts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+pub(crate) struct Segment {
+    /// How many bytes it has.
+    pub(crate) size: u64,
+    /// How many of them every program on the computer holds now.
+    pub(crate) held: u64,
+    /// Whether it is a window onto the computer's ordinary memory.
+    pub(crate) aperture: bool,
+}
+
+/// What no program holds of a card's own memory, from the system's count of the parts of it:
+/// the bytes of each part that is the card's own, less what is held of that part. A window onto
+/// the computer's ordinary memory is not the card's. `None` when no part is the card's own.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+pub(crate) fn unheld_in(segments: impl IntoIterator<Item = Segment>) -> Option<u64> {
+    let own = segments.into_iter().filter(|segment| !segment.aperture);
+    own.map(|segment| segment.size.saturating_sub(segment.held))
+        .reduce(u64::saturating_add)
+}
+
+/// The two halves of the number the system gives a card, from its identity: what
+/// [`identity`] joins.
+#[cfg_attr(not(any(windows, test)), allow(dead_code))]
+pub(crate) fn halves(id: CardId) -> (i32, u32) {
+    let [high, low] = [id.0 >> 32, id.0 & u64::from(u32::MAX)].map(u32::try_from);
+    let high = high.unwrap_or_default().cast_signed();
+    (high, low.unwrap_or_default())
+}
+
 /// A card's identity from the two halves of the number the system gives it.
 #[cfg_attr(not(any(windows, test)), allow(dead_code))]
 pub(crate) fn identity(high: i32, low: u32) -> CardId {
@@ -139,6 +182,12 @@ pub(crate) fn kind(software: bool, own_bytes: u64) -> CardKind {
 
 #[cfg(windows)]
 mod system {
+    use windows::Wdk::Graphics::Direct3D::{
+        D3DKMT_QUERYSTATISTICS, D3DKMT_QUERYSTATISTICS_ADAPTER,
+        D3DKMT_QUERYSTATISTICS_QUERY_SEGMENT, D3DKMT_QUERYSTATISTICS_RESULT,
+        D3DKMT_QUERYSTATISTICS_SEGMENT, D3DKMT_QUERYSTATISTICS_TYPE, D3DKMTQueryStatistics,
+    };
+    use windows::Win32::Foundation::LUID;
     use windows::Win32::Graphics::Dxgi::{
         CreateDXGIFactory1, DXGI_ADAPTER_FLAG_SOFTWARE, DXGI_MEMORY_SEGMENT_GROUP_LOCAL,
         DXGI_QUERY_VIDEO_MEMORY_INFO, IDXGIAdapter3, IDXGIFactory1,
@@ -146,10 +195,12 @@ mod system {
     use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     use windows::core::Interface;
 
-    use super::{Card, FreeMemory, identity, kind};
+    use super::{Card, CardId, FreeMemory, Segment, halves, identity, kind, unheld_in};
 
     /// More adapters than any computer lists: the walk of the list ends here at the latest.
     const MOST_CARDS: u32 = 64;
+    /// More parts than the system counts any card's memory in: no more are asked about.
+    const MOST_SEGMENTS: u32 = 64;
 
     /// The system's list of adapters as it is now.
     fn list() -> Option<IDXGIFactory1> {
@@ -201,6 +252,60 @@ mod system {
         memory(index).map(|memory| memory.CurrentUsage)
     }
 
+    /// What the kernel's graphics statistics say of the card with that identity: the parts its
+    /// memory is counted in, each with its size, how much of it every program holds (what is
+    /// resident there), and whether it is a window onto ordinary memory. The task manager's
+    /// figure for the card's memory in use is the same count. The identity is the card's own
+    /// number in the system, so no place in a list is needed.
+    pub(super) fn unheld(id: CardId) -> Option<u64> {
+        let (high, low) = halves(id);
+        let card = LUID {
+            LowPart: low,
+            HighPart: high,
+        };
+        let adapter = statistics(card, D3DKMT_QUERYSTATISTICS_ADAPTER, 0)?;
+        // SAFETY: the system answered a question about the adapter, so it wrote the adapter's
+        // part of the answer; every part of the answer is made of plain numbers, for which any
+        // bits are a value, and the whole was set to zeros before the call.
+        let count = unsafe { adapter.AdapterInformation.NbSegments };
+        let segment = |number| {
+            let answer = statistics(card, D3DKMT_QUERYSTATISTICS_SEGMENT, number)?;
+            // SAFETY: as for the adapter, for the segment's part of the answer.
+            let segment = unsafe { answer.SegmentInformation };
+            Some(Segment {
+                size: segment.CommitLimit,
+                held: segment.BytesResident,
+                aperture: segment.Aperture != 0,
+            })
+        };
+        let segments: Option<Vec<Segment>> = (0..count.min(MOST_SEGMENTS)).map(segment).collect();
+        unheld_in(segments?)
+    }
+
+    /// One question to the kernel's graphics statistics about the card with that number: of
+    /// the card as a whole, or of one part of its memory (`segment`, which the question about
+    /// the whole does not read). The answer, or `None` where the system gives none.
+    fn statistics(
+        card: LUID,
+        kind: D3DKMT_QUERYSTATISTICS_TYPE,
+        segment: u32,
+    ) -> Option<D3DKMT_QUERYSTATISTICS_RESULT> {
+        let mut question = D3DKMT_QUERYSTATISTICS {
+            Type: kind,
+            AdapterLuid: card,
+            ..D3DKMT_QUERYSTATISTICS::default()
+        };
+        question.Anonymous.QuerySegment =
+            D3DKMT_QUERYSTATISTICS_QUERY_SEGMENT { SegmentId: segment };
+        // SAFETY: `question` is a plain structure of ours, all zeros but for what is set above,
+        // and it outlives the call. The call reads the question and writes its answer into the
+        // same structure, which is why the pointer is made from a place that may be written,
+        // though the call's own declaration calls it constant. No process is named, so the
+        // answer is the whole computer's.
+        let answered = unsafe { D3DKMTQueryStatistics((&raw mut question).cast_const()) };
+        answered.is_ok().then_some(question.QueryResult)
+    }
+
     /// What the system says of this program's memory on the card at that place, now.
     fn memory(index: u32) -> Option<DXGI_QUERY_VIDEO_MEMORY_INFO> {
         let list = list()?;
@@ -245,7 +350,7 @@ mod system {
 
 #[cfg(not(windows))]
 mod system {
-    use super::{Card, FreeMemory, available_in};
+    use super::{Card, CardId, FreeMemory, available_in};
 
     pub(super) fn cards() -> Vec<Card> {
         Vec::new()
@@ -256,6 +361,10 @@ mod system {
     }
 
     pub(super) fn in_use(_index: u32) -> Option<u64> {
+        None
+    }
+
+    pub(super) fn unheld(_id: CardId) -> Option<u64> {
         None
     }
 
