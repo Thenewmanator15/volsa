@@ -347,9 +347,8 @@ impl Shared {
 
     /// Read and parse one file of the source that is open.
     fn open(&self, entry: &str) -> Result<ImageFile, String> {
-        let bytes = match lock(&self.source).as_mut() {
-            Some(source) => source.read(entry),
-            None => return Err("No scan is open.".to_owned()),
+        let Some(bytes) = self.read_entry(entry) else {
+            return Err("No scan is open.".to_owned());
         };
         bytes
             .and_then(|bytes| ImageFile::open(&bytes))

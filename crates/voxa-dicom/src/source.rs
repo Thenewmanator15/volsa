@@ -1,15 +1,22 @@
 //! Where scan files come from: a folder, a zip read in place, or the folder beside a `DICOMDIR`.
 
 use std::fs::File;
-use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::io::Read;
+use std::path::Path;
 
 use voxa_core::VoxaError;
+
+mod archive_file;
+mod folder;
+mod zipped;
+
+use folder::FolderSource;
+use zipped::ZipSource;
 
 /// Largest single entry that will be read into memory. Whole multi-frame series fit in one
 /// file, so the limit is generous; it exists so a damaged or hostile archive cannot ask for
 /// more memory than the machine has.
-const MAX_ENTRY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+pub(crate) const MAX_ENTRY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 /// One file from a source: its name relative to the source's root, with `/` between folders,
 /// and its contents.
@@ -32,6 +39,37 @@ pub trait SeriesSource: Send {
     /// [`VoxaError::MissingEntry`] when the source has no such file; an I/O or archive error
     /// when it cannot be read.
     fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError>;
+
+    /// Every file in the source, in name order, handed to `visit` with its name and a reader
+    /// of its contents, so that no more of a file is read than `visit` reads. Indexing reads
+    /// each file only as far as its header goes.
+    ///
+    /// The default reads each file whole through [`SeriesSource::entries`]; a folder and a zip
+    /// read only what `visit` asks for.
+    ///
+    /// # Errors
+    /// The first error met opening or reading a file, or given by `visit`. No file after it
+    /// is visited. A folder's or a zip's file too large to be read whole is refused before it
+    /// is visited, in the words reading it whole would refuse it with.
+    fn visit_files(
+        &mut self,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        for entry in self.entries() {
+            let entry = entry?;
+            visit(&entry.name, &mut entry.bytes.as_slice())?;
+        }
+        Ok(())
+    }
+
+    /// Another reader of the same files, which reads them without waiting for this one, so
+    /// that each thread decoding slices can read with a reader of its own. `None` when the
+    /// source cannot give one and its reads must take turns.
+    ///
+    /// Folders and zips give one: a zip's readers share what was read of its directory.
+    fn another_reader(&self) -> Option<Box<dyn SeriesSource>> {
+        None
+    }
 }
 
 /// Open a folder, a zip file, a `DICOMDIR` (the folder beside it is read) or a single file.
@@ -66,153 +104,35 @@ fn has_zip_signature(path: &Path) -> Result<bool, VoxaError> {
 }
 
 /// Read everything from `reader`, refusing more than `limit` bytes.
-fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VoxaError> {
+pub(crate) fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VoxaError> {
     let mut bytes = Vec::new();
     let read = reader
         .take(limit.saturating_add(1))
         .read_to_end(&mut bytes)?;
-    if read as u64 > limit {
-        return Err(VoxaError::Archive(format!(
-            "one of its files is larger than {} MB",
-            limit / (1024 * 1024)
-        )));
-    }
+    within_limit(read as u64, limit)?;
     Ok(bytes)
 }
 
-/// Files under a folder on disk, or one file on its own.
-struct FolderSource {
-    /// (name relative to the root with `/`, path on disk), sorted by name.
-    files: Vec<(String, PathBuf)>,
-}
-
-impl FolderSource {
-    fn walk(root: &Path) -> Result<Self, VoxaError> {
-        let mut files = Vec::new();
-        collect_files(root, "", &mut files)?;
-        files.sort();
-        Ok(Self { files })
-    }
-
-    fn single(path: &Path) -> Self {
-        let name = path
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
-        Self {
-            files: vec![(name, path.to_path_buf())],
-        }
-    }
-}
-
-/// Add every file under `folder` to `files`. Links to folders are not followed, so a loop of
-/// links cannot trap the walk.
-fn collect_files(
-    folder: &Path,
-    prefix: &str,
-    files: &mut Vec<(String, PathBuf)>,
-) -> Result<(), VoxaError> {
-    for entry in std::fs::read_dir(folder)? {
-        let entry = entry?;
-        let name = format!("{prefix}{}", entry.file_name().to_string_lossy());
-        let kind = entry.file_type()?;
-        if kind.is_dir() {
-            collect_files(&entry.path(), &format!("{name}/"), files)?;
-        } else if kind.is_file() || (kind.is_symlink() && entry.path().is_file()) {
-            files.push((name, entry.path()));
-        }
+/// Refuse a file of `len` bytes when that is more than `limit`.
+pub(crate) fn within_limit(len: u64, limit: u64) -> Result<(), VoxaError> {
+    if len > limit {
+        return Err(too_large(limit));
     }
     Ok(())
 }
 
-impl SeriesSource for FolderSource {
-    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
-        Box::new(self.files.iter().map(|(name, path)| {
-            let bytes = read_limited(&mut File::open(path)?, MAX_ENTRY_BYTES)?;
-            Ok(Entry {
-                name: name.clone(),
-                bytes,
-            })
-        }))
-    }
-
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError> {
-        let found = self
-            .files
-            .binary_search_by(|(known, _)| known.as_str().cmp(name));
-        let path = found
-            .ok()
-            .and_then(|at| self.files.get(at))
-            .map(|(_, path)| path)
-            .ok_or_else(|| VoxaError::MissingEntry(name.to_owned()))?;
-        read_limited(&mut File::open(path)?, MAX_ENTRY_BYTES)
-    }
+/// Why a file larger than `limit` bytes is not read.
+pub(crate) fn too_large(limit: u64) -> VoxaError {
+    VoxaError::Archive(format!(
+        "one of its files is larger than {} MB",
+        limit / (1024 * 1024)
+    ))
 }
 
-/// The files inside a zip archive, read straight from the archive.
-struct ZipSource {
-    archive: zip::ZipArchive<BufReader<File>>,
-    /// (name with `/`, position in the archive) of every file, sorted by name.
-    files: Vec<(String, usize)>,
-}
-
-impl ZipSource {
-    fn open(path: &Path) -> Result<Self, VoxaError> {
-        let mut archive =
-            zip::ZipArchive::new(BufReader::new(File::open(path)?)).map_err(archive_error)?;
-        let mut files = Vec::new();
-        for at in 0..archive.len() {
-            let entry = archive.by_index_raw(at).map_err(archive_error)?;
-            if entry.is_file() {
-                let name = entry.name().map_err(archive_error)?;
-                files.push((name.replace('\\', "/"), at));
-            }
-        }
-        files.sort();
-        Ok(Self { archive, files })
-    }
-
-    fn read_at(&mut self, at: usize) -> Result<Vec<u8>, VoxaError> {
-        let mut entry = self.archive.by_index(at).map_err(archive_error)?;
-        read_limited(&mut entry, MAX_ENTRY_BYTES)
-    }
-}
-
-/// A zip library error as a message for the person using Voxa. Entry names are left out: they
-/// can contain a patient's name.
-fn archive_error(error: zip::result::ZipError) -> VoxaError {
-    use zip::result::ZipError;
-    match error {
-        ZipError::Io(io) => VoxaError::Io(io),
-        ZipError::UnsupportedArchive(what) => {
-            VoxaError::Archive(format!("it uses a feature Voxa cannot read ({what})"))
-        }
-        ZipError::InvalidArchive(_) => VoxaError::Archive("it is damaged or incomplete".to_owned()),
-        _ => VoxaError::Archive("it could not be opened".to_owned()),
-    }
-}
-
-impl SeriesSource for ZipSource {
-    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
-        let files = self.files.clone();
-        Box::new(files.into_iter().map(|(name, at)| {
-            let bytes = self.read_at(at)?;
-            Ok(Entry { name, bytes })
-        }))
-    }
-
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError> {
-        let found = self
-            .files
-            .binary_search_by(|(known, _)| known.as_str().cmp(name));
-        let at = found
-            .ok()
-            .and_then(|i| self.files.get(i))
-            .map(|(_, at)| *at)
-            .ok_or_else(|| VoxaError::MissingEntry(name.to_owned()))?;
-        self.read_at(at)
-    }
-}
+#[cfg(test)]
+mod reader_tests;
+#[cfg(test)]
+mod visit_tests;
 
 #[cfg(test)]
 mod tests {
