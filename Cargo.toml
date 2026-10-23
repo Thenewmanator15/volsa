@@ -67,9 +67,10 @@ sha2 = "0.11"
 # the person names: nothing is linked or fetched when Voxa is built. Pinned to one release,
 # the one the networks were measured with. The crate that uses it adds `directml` on Windows.
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
-# The system's own list of graphics adapters, and the memory it can still promise a program,
-# on Windows. The version wgpu already brings.
-windows = { version = "0.62.2", features = ["Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_SystemInformation"] }
+# The system's own list of graphics adapters, how much of each card's memory every program
+# together holds, and the memory it can still promise a program, on Windows. The version wgpu
+# already brings.
+windows = { version = "0.62.2", features = ["Wdk_Graphics_Direct3D", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_SystemInformation"] }
 
 # The icon and the details Explorer shows for voxa.exe, put into it as the program is built,
 # with the resource compiler of the Windows SDK that building for Windows already needs.

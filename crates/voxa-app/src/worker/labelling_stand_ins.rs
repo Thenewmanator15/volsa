@@ -52,6 +52,8 @@ pub(super) struct StandIn {
     pub(super) cards: Vec<Card>,
     /// What the system lets this program use on each card, beside `cards`.
     pub(super) budgets: Vec<Option<u64>>,
+    /// What no program holds of each card, beside `cards`: none known unless a test says.
+    pub(super) unheld: Vec<Option<u64>>,
     pub(super) free: FreeMemory,
     /// What a network asked for on a device says in place of opening, each once, in order.
     refusals: Mutex<Vec<(Device, RunError)>>,
@@ -83,6 +85,7 @@ impl StandIn {
         Self {
             cards,
             budgets,
+            unheld: Vec::new(),
             free: FreeMemory::Promised(free),
             refusals: Mutex::new(Vec::new()),
             opened: Mutex::new(Vec::new()),
@@ -98,6 +101,11 @@ impl StandIn {
     /// Room for everything on the card.
     pub(super) fn roomy() -> Self {
         Self::with(16 * GIB, 64 * GIB)
+    }
+
+    /// What no program holds of each card, beside `cards`.
+    pub(super) fn unheld(self, unheld: Vec<Option<u64>>) -> Self {
+        Self { unheld, ..self }
     }
 
     /// A network asked for on `device` says `why` in place of opening, once.
@@ -195,6 +203,11 @@ impl Labeller for StandIn {
     fn budget(&self, card: CardId) -> Option<u64> {
         let place = self.cards.iter().position(|listed| listed.id == card)?;
         self.budgets.get(place).copied().flatten()
+    }
+
+    fn unheld(&self, card: CardId) -> Option<u64> {
+        let place = self.cards.iter().position(|listed| listed.id == card)?;
+        self.unheld.get(place).copied().flatten()
     }
 
     fn free_memory(&self) -> FreeMemory {

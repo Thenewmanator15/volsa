@@ -200,8 +200,10 @@ research, with clinical use neither recommended nor advised.
 Memory is what limits a run, not time. Before a run Voxa works out what the scan needs and
 goes only where the system can still promise it, trying in this order:
 
-1. the whole scan on a graphics card with memory of its own, if it fits in what the system
-   lets Voxa use there;
+1. the whole scan on a graphics card with memory of its own, if it fits there: what it needs
+   (below, with its quarter) within what the system lets Voxa use, and what its networks take
+   (without the quarter) within what no program holds of the card, so a card that other
+   programs have all but filled is passed over;
 2. the whole scan on the processor, if the computer's ordinary memory can back it;
 3. the scan cut to the head, on the card and then on the processor, where cutting makes it
    smaller.
@@ -252,8 +254,9 @@ Every result carries its check and its history.
   local one. Over the 3D view a failed check is said before who made the labels.
 - **Notes.** A line for anything a reader should know: the slices are more than 3 mm apart,
   so it is a rough map; the run was on the processor, or on another card, because the card
-  had no room or stopped answering; the check of the work ran on the processor; the scan was
-  cut to the head.
+  had no room or stopped answering; the run was on the processor because, as it began, other
+  programs were using most of the card's memory, with how much was free; the check of the work
+  ran on the processor; the scan was cut to the head.
 - **The model.** Automatic picks the robust model when the slices are more than 3 mm apart
   and the standard model otherwise, and says which it picked and why. The cortex areas
   divide the cortex into 34 areas a side and are on unless you switch them off.

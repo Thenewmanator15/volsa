@@ -3,8 +3,8 @@
 //! computer's own, whatever it holds. And of the ordinary memory the system can still give.
 
 use super::{
-    Card, CardId, CardKind, FreeMemory, available_in, budget, cards, free_memory, identity, in_use,
-    kind, place_of,
+    Card, CardId, CardKind, FreeMemory, Segment, available_in, budget, cards, free_memory, halves,
+    identity, in_use, kind, place_of, unheld, unheld_in,
 };
 
 const GIB: u64 = 1 << 30;
@@ -41,12 +41,79 @@ fn the_cards_are_listed_and_each_has_a_name_and_is_found_by_what_it_is() {
         assert_eq!(place_of(&listed, card.id), first.map(|first| first.index));
         // Asking what a card has to spare, or holds, never fails, whether or not the system
         // knows.
-        let _ = (budget(card.id), in_use(card.id));
+        let _ = (budget(card.id), in_use(card.id), unheld(card.id));
     }
     // No card is this one: nothing is known of it.
     let nowhere = CardId(u64::MAX);
     assert_eq!(place_of(&listed, nowhere), None);
     assert_eq!((budget(nowhere), in_use(nowhere)), (None, None));
+    assert_eq!(unheld(nowhere), None);
+}
+
+#[test]
+fn on_windows_what_no_program_holds_of_a_discrete_card_is_read_and_is_of_its_own_memory() {
+    // A window onto the computer's ordinary memory, counted as the card's, would make it far
+    // more than the card has. A computer with no discrete card, as CI's, has nothing to read.
+    for card in cards()
+        .iter()
+        .filter(|card| card.kind == CardKind::Discrete)
+    {
+        let free = unheld(card.id);
+        if cfg!(windows) {
+            assert!(free.is_some(), "{}", card.name);
+        }
+        assert!(
+            free.unwrap_or_default() <= card.own_bytes,
+            "{}: {free:?}",
+            card.name
+        );
+    }
+}
+
+#[test]
+fn what_no_program_holds_of_a_card_is_its_own_segments_less_what_is_held_of_them() {
+    let own = |size, held| Segment {
+        size,
+        held,
+        aperture: false,
+    };
+    let window = |size, held| Segment {
+        size,
+        held,
+        aperture: true,
+    };
+    // A 16 GiB card with 5 GiB of it held, between two windows onto ordinary memory, which
+    // are not the card's own however large they are.
+    let card = [
+        window(32 * GIB, GIB),
+        own(16 * GIB, 5 * GIB),
+        window(u64::MAX, 2),
+    ];
+    assert_eq!(unheld_in(card), Some(11 * GIB));
+    // Every segment of its own counts.
+    assert_eq!(
+        unheld_in([own(GIB / 4, GIB / 8), own(15 * GIB, 3 * GIB)]),
+        Some(GIB / 8 + 12 * GIB)
+    );
+    // A segment with more held than it has, as a count read part-way through a change might
+    // say, leaves none of itself, takes nothing from the others and does not wrap round.
+    assert_eq!(unheld_in([own(GIB, 2 * GIB), own(GIB, 0)]), Some(GIB));
+    assert_eq!(
+        unheld_in([own(u64::MAX, 0), own(u64::MAX, 0)]),
+        Some(u64::MAX)
+    );
+    // All held is none free; no segment of its own is nothing known.
+    assert_eq!(unheld_in([own(16 * GIB, 16 * GIB)]), Some(0));
+    assert_eq!(unheld_in([window(32 * GIB, 0)]), None);
+    assert_eq!(unheld_in([]), None);
+}
+
+#[test]
+fn a_cards_identity_gives_back_both_halves_of_the_systems_number() {
+    let numbers = [(0, 0), (0, 70_000), (1, 128), (-1, u32::MAX), (i32::MIN, 7)];
+    for (high, low) in numbers {
+        assert_eq!(halves(identity(high, low)), (high, low), "({high}, {low})");
+    }
 }
 
 #[test]

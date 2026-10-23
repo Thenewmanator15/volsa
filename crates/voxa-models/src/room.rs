@@ -2,11 +2,16 @@
 //! has, what is wanted of it and what the computer has, [`rungs`] lists the places a run can
 //! be tried, best first, and [`why_not`] says why there are none.
 //!
-//! Nothing here asks the system anything. The card list, the budgets and the free memory all
-//! come in through [`Room`], read by the caller at the moment it asks.
+//! Nothing here asks the system anything. The card list, the budgets, what no program holds of
+//! each card and the free memory all come in through [`Room`], read by the caller at the moment
+//! it asks.
 
 use crate::cards::{Card, CardId, CardKind};
 use crate::network::Device;
+
+mod words;
+
+pub use words::{needed_gb, spare_gb, why_not};
 
 #[cfg(test)]
 mod ask_tests;
@@ -14,6 +19,8 @@ mod ask_tests;
 mod need_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod unheld_tests;
 
 /// A GiB, in bytes. The figures below are in these, and so are the ones `why_not` says.
 const GIB: u64 = 1 << 30;
@@ -107,12 +114,19 @@ pub struct Room {
     pub cards: Vec<Card>,
     /// What the system lets this program use on each card, in bytes: [`budget`](crate::budget)
     /// of that card's `id`. It lies beside `cards`, in the same order. A `None`, or a place
-    /// past the end, is a budget that could not be read.
+    /// past the end, is a budget that could not be read. It does not fall as other programs
+    /// take a card's memory: `unheld` does.
     pub budgets: Vec<Option<u64>>,
+    /// How many bytes of each card's own memory no program holds now:
+    /// [`unheld`](crate::unheld) of that card's `id`, which counts what every program holds,
+    /// Voxa included. What a run's networks take of a card must fit in it. It lies beside
+    /// `cards`, in the same order. A `None`, or a place past the end, is a figure that could not
+    /// be read.
+    pub unheld: Vec<Option<u64>>,
     /// The card Voxa draws on, by its `id`, if it draws on one.
     pub drawing_on: Option<CardId>,
-    /// How many bytes of that card Voxa itself holds, for drawing. It matters only when that
-    /// card has no budget.
+    /// How many bytes of that card Voxa itself holds, for drawing. It matters only when
+    /// neither that card's budget nor what no program holds of it could be read.
     pub held: u64,
     /// How many more bytes of ordinary memory the system can promise this program now: on
     /// Windows the commit still available. It is what a refused allocation runs into. The
@@ -137,17 +151,24 @@ const fn on_the_processor(wanted: Wanted) -> u64 {
     }
 }
 
+/// How many bytes the largest network of a run takes of a device for a grid of `voxels`, with
+/// no quarter added. The figures a voxel were measured on made-up volumes and rounded up, so
+/// they are no less than the networks were seen to hold.
+fn takes(voxels: u64, wanted: Wanted, device: Device) -> u64 {
+    let a_voxel = match device {
+        Device::Card(_) => ON_A_CARD,
+        Device::Processor => on_the_processor(wanted),
+    };
+    voxels.saturating_mul(a_voxel)
+}
+
 /// How many bytes the networks of a run need on a device, to give the labels of a grid of
 /// `voxels`: what the largest of them takes for each voxel, and a quarter more. Measured on a
 /// made-up head, that is 1 400 bytes of a card, and 700 of the processor's ordinary memory
 /// (900 with the cortex network). The scores network is not counted, since it takes the same
 /// whatever the grid; it is checked apart.
 pub fn needs(voxels: u64, wanted: Wanted, device: Device) -> u64 {
-    let a_voxel = match device {
-        Device::Card(_) => ON_A_CARD,
-        Device::Processor => on_the_processor(wanted),
-    };
-    with_a_quarter(voxels.saturating_mul(a_voxel))
+    with_a_quarter(takes(voxels, wanted, device))
 }
 
 /// What a whole run on this rung asks the system for in ordinary memory, at its peak: what
@@ -169,18 +190,64 @@ pub fn asks(voxels: u64, wanted: Wanted, rung: Rung) -> u64 {
     with_a_quarter(own.saturating_add(largest))
 }
 
-/// A device a run might go on, and how many bytes it has for the run.
-type Place = (Device, u64);
+/// What a device has for a run, as [`rungs`] counts it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Space {
+    /// What a run's needs, a quarter included, must fit in: the ordinary memory the system can
+    /// still promise, for the processor and an integrated card; for a discrete card the
+    /// system's budget for Voxa, or where none could be read the card's own memory less what
+    /// Voxa holds of it.
+    share: u64,
+    /// What no program holds of a discrete card, where it could be read: what a run's networks
+    /// take, with no quarter added, must fit in it. It is what is there now, not a share to
+    /// keep working room within, and what the networks take is no less than they were seen to
+    /// hold. The budget does not fall as other programs fill the card; this does.
+    free: Option<u64>,
+}
+
+impl Space {
+    /// Whether a network that takes `take` bytes has room: that and a quarter more within the
+    /// share, and that alone within what is free.
+    fn holds(self, take: u64) -> bool {
+        with_a_quarter(take) <= self.share && self.free.is_none_or(|free| take <= free)
+    }
+
+    /// The bytes it has, as words speak of them: the lesser of its share and what is free.
+    fn spare(self) -> u64 {
+        self.free.map_or(self.share, |free| free.min(self.share))
+    }
+}
+
+/// A device a run might go on, and what it has for the run.
+type Place = (Device, Space);
 
 impl Room {
-    /// How many bytes a device has for a run, as [`rungs`] counts them: what the system can
-    /// still promise for the processor and for an integrated card, which shares it, and for a
-    /// discrete card its budget, or its own memory less what Voxa holds of it. `None` for a
-    /// card the computer does not list, and for software standing in for one, which is never
-    /// a place to run.
+    /// How many bytes a device has for a run, as words speak of them: what the system can still
+    /// promise for the processor and for an integrated card, which shares it, and for a
+    /// discrete card the lesser of its budget and what no program holds of it, or its own
+    /// memory less what Voxa holds of it. Whether a run fits is [`has_room_for`]'s to say: its
+    /// needs are held to the budget, and what its networks take to what is free. `None` for a
+    /// card the computer does not list, and for software standing in for one, which is never a
+    /// place to run.
+    ///
+    /// [`has_room_for`]: Self::has_room_for
     pub fn space_on(&self, device: Device) -> Option<u64> {
+        self.space(device).map(Space::spare)
+    }
+
+    /// Whether the networks of a run of `voxels` fit on a device, as [`rungs`] first asks: what
+    /// they need, a quarter included, within what the device may use, and on a discrete card
+    /// what they take within what no program holds of it. False for a card the computer does
+    /// not list, and for software standing in for one.
+    pub fn has_room_for(&self, device: Device, voxels: u64, wanted: Wanted) -> bool {
+        let take = takes(voxels, wanted, device);
+        self.space(device).is_some_and(|space| space.holds(take))
+    }
+
+    /// What a device has for a run, or `None` for a card not listed, or software.
+    fn space(&self, device: Device) -> Option<Space> {
         match device {
-            Device::Processor => Some(self.free_memory),
+            Device::Processor => Some(self.shared()),
             Device::Card(id) => {
                 let (place, card) = self.cards.iter().enumerate().find(|(_, c)| c.id == id)?;
                 self.room_on(place, card)
@@ -188,33 +255,41 @@ impl Room {
         }
     }
 
-    /// How many bytes a discrete card has for a run. `place` is the card's place in `cards`.
-    /// The system's budget already allows for what every program holds on the card, Voxa
-    /// included. Where it could not be read, the card's own memory less what Voxa holds, if
-    /// it is the card Voxa draws on.
-    fn discrete_room(&self, place: usize, card: &Card) -> u64 {
+    /// What the processor has, and an integrated card, which shares its memory.
+    fn shared(&self) -> Space {
+        let share = self.free_memory;
+        Space { share, free: None }
+    }
+
+    /// What a discrete card has for a run. `place` is the card's place in `cards`. Its share is
+    /// the system's budget for Voxa, or, where none could be read, the card's own memory less
+    /// what Voxa holds if it is the card Voxa draws on; and what is free is what no program
+    /// holds of it, Voxa's own hold already counted, where that could be read.
+    fn discrete_room(&self, place: usize, card: &Card) -> Space {
         let held = if self.drawing_on == Some(card.id) {
             self.held
         } else {
             0
         };
         let budget = self.budgets.get(place).copied().flatten();
-        budget.unwrap_or_else(|| card.own_bytes.saturating_sub(held))
+        let share = budget.unwrap_or_else(|| card.own_bytes.saturating_sub(held));
+        let free = self.unheld.get(place).copied().flatten();
+        Space { share, free }
     }
 
-    /// How many bytes a card has for a run, or `None` for one that is never used: software
-    /// standing in for a card.
-    fn room_on(&self, place: usize, card: &Card) -> Option<u64> {
+    /// What a card has for a run, or `None` for one that is never used: software standing in
+    /// for a card.
+    fn room_on(&self, place: usize, card: &Card) -> Option<Space> {
         match card.kind {
             CardKind::Discrete => Some(self.discrete_room(place, card)),
-            CardKind::Integrated => Some(self.free_memory),
+            CardKind::Integrated => Some(self.shared()),
             CardKind::Software => None,
         }
     }
 
     /// The devices a run may go on, in the order to try them, each with what it has.
     fn places(&self, runs_on: RunsOn) -> Vec<Place> {
-        let on_the_processor = (Device::Processor, self.free_memory);
+        let on_the_processor = (Device::Processor, self.shared());
         let cards = self.cards.iter().enumerate();
         match runs_on {
             RunsOn::Automatic => cards
@@ -231,16 +306,16 @@ impl Room {
         }
     }
 
-    /// Where the scores network may run for a rung on `device`, which has `space` bytes, in
-    /// the order to try: there when it fits there, then on the processor when that much is
-    /// free. Empty when it fits in neither place.
-    fn scores_places(&self, device: Device, space: u64) -> Vec<Device> {
+    /// Where the scores network may run for a rung on `device`, which has `space`, in the
+    /// order to try: there when it fits there, then on the processor when that much is free.
+    /// Empty when it fits in neither place.
+    fn scores_places(&self, device: Device, space: Space) -> Vec<Device> {
         let there = match device {
-            Device::Card(_) => SCORES_NEED_ON_A_CARD,
-            Device::Processor => SCORES_NEED_ON_THE_PROCESSOR,
+            Device::Card(_) => SCORES_ON_A_CARD,
+            Device::Processor => SCORES_ON_THE_PROCESSOR,
         };
         let mut places = Vec::new();
-        if there <= space {
+        if space.holds(there) {
             places.push(device);
         }
         if device != Device::Processor && SCORES_NEED_ON_THE_PROCESSOR <= self.free_memory {
@@ -273,7 +348,7 @@ pub fn rungs(whole: u64, head: u64, wanted: Wanted, room: &Room, runs_on: RunsOn
         .filter(|&(cut, voxels)| cut == Cut::Whole || voxels < whole)
     {
         for &(device, space) in &places {
-            if needs(voxels, wanted, device) > space {
+            if !space.holds(takes(voxels, wanted, device)) {
                 continue;
             }
             let tries = room
@@ -293,99 +368,4 @@ pub fn rungs(whole: u64, head: u64, wanted: Wanted, room: &Room, runs_on: RunsOn
         }
     }
     found
-}
-
-/// The gigabytes of a figure, to one place, rounded up: what is needed is never said to be
-/// less than it is. A GB is a GiB, as the system shows memory.
-pub fn needed_gb(bytes: u64) -> String {
-    let tenths = (u128::from(bytes) * 10).div_ceil(u128::from(GIB));
-    format!("{}.{}", tenths / 10, tenths % 10)
-}
-
-/// The gigabytes of a figure, to one place, rounded down: what there is is never said to be
-/// more than it is. A GB is a GiB, as the system shows memory.
-pub fn spare_gb(bytes: u64) -> String {
-    let tenths = u128::from(bytes) * 10 / u128::from(GIB);
-    format!("{}.{}", tenths / 10, tenths % 10)
-}
-
-/// What a computer without a discrete card has to say of its graphics: none at all, or some
-/// that have no memory of their own.
-fn no_card(room: &Room) -> &'static str {
-    let shares = room
-        .cards
-        .iter()
-        .any(|card| card.kind == CardKind::Integrated);
-    if shares {
-        "There is no graphics card with memory of its own."
-    } else {
-        "There is no graphics card."
-    }
-}
-
-/// Why [`rungs`] gave none, in words fit to show: what the smallest cut needs, what the
-/// scores network needs, what the best card and the computer have, and how much of the
-/// computer's ordinary memory the smallest run asks for. Rounded so that the figures never
-/// seem to fit when they do not. It describes the computer, not a card asked for by name.
-/// Only a discrete card is spoken of as a place to run: without one, the processor is the
-/// only place there is, and the words say so.
-pub fn why_not(whole: u64, head: u64, wanted: Wanted, room: &Room) -> String {
-    let smallest = whole.min(head);
-    let cut = if head < whole { Cut::Head } else { Cut::Whole };
-    // The least a run asks of ordinary memory has the scores network on the processor.
-    let asked = |device| {
-        let scores_on = Device::Processor;
-        let rung = Rung {
-            device,
-            cut,
-            scores_on,
-        };
-        needed_gb(asks(smallest, wanted, rung))
-    };
-    let on_the_processor = needed_gb(needs(smallest, wanted, Device::Processor));
-    let scores_there = needed_gb(SCORES_NEED_ON_THE_PROCESSOR);
-    let asked_there = asked(Device::Processor);
-    let best_card = room
-        .cards
-        .iter()
-        .enumerate()
-        .filter(|(_, card)| card.kind == CardKind::Discrete)
-        .map(|(place, card)| room.discrete_room(place, card))
-        .max();
-    // Which card makes no difference to what a run needs; only that it is a card.
-    let on_a_card = Device::Card(CardId(0));
-    let (needing, scoring, asking, card) = match best_card {
-        Some(bytes) => (
-            format!(
-                "{} GB on a graphics card or {on_the_processor} GB on the processor",
-                needed_gb(needs(smallest, wanted, on_a_card))
-            ),
-            format!(
-                "{} GB on a graphics card or {scores_there} GB on the processor",
-                needed_gb(SCORES_NEED_ON_A_CARD)
-            ),
-            format!(
-                "{} GB of that when the networks are on a graphics card, and {asked_there} GB \
-                 when they are on the processor",
-                asked(on_a_card)
-            ),
-            format!(
-                "The best graphics card has {} GB to spare.",
-                spare_gb(bytes)
-            ),
-        ),
-        None => (
-            format!("{on_the_processor} GB on the processor"),
-            format!("{scores_there} GB on the processor"),
-            format!("{asked_there} GB of that on the processor"),
-            no_card(room).to_owned(),
-        ),
-    };
-    format!(
-        "There is not enough memory to label this scan. \
-         At its smallest it needs about {needing}, and scoring the result needs about \
-         {scoring}. {card} The computer has {} GB of ordinary memory free. \
-         The smallest run asks for about {asking}.",
-        spare_gb(room.free_memory),
-    )
 }

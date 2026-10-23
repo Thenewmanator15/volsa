@@ -31,7 +31,7 @@ use voxa_core::{SeriesId, Volume};
 use voxa_labels::label_set;
 use voxa_models::{
     Cut, Device, FreeMemory, Model, Network, Role, Room, RunError, Rung, RunsOn, Runtime, Stop,
-    Wanted, budget, cards, free_memory, read_model, rungs, why_not,
+    Wanted, budget, cards, free_memory, read_model, rungs, unheld, why_not,
 };
 use voxa_segment::{ModelChoice, Networks, choose, label, sizes};
 
@@ -151,6 +151,7 @@ fn largest(session: &mut Session, export: &Path) -> Result<Scan, String> {
 fn room() -> Room {
     let cards = cards();
     let budgets = cards.iter().map(|card| budget(card.id)).collect();
+    let unheld = cards.iter().map(|card| unheld(card.id)).collect();
     let free_memory = match free_memory() {
         FreeMemory::Promised(bytes) | FreeMemory::Physical(bytes) => bytes,
         FreeMemory::Unknown => 0,
@@ -158,6 +159,7 @@ fn room() -> Room {
     Room {
         cards,
         budgets,
+        unheld,
         drawing_on: None,
         held: 0,
         free_memory,
