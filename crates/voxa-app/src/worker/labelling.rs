@@ -15,7 +15,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use voxa_core::{SeriesId, Volume};
 use voxa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
-use voxa_segment::{LabelError, Stage, label, sizes};
+use voxa_segment::{LabelError, Sizes, Stage, label, sizes};
 
 use super::{Shared, Workers, lock, shielded};
 use crate::action::{Action, Effect};
@@ -31,7 +31,7 @@ pub use labeller::Labeller;
 use labeller::{OnRung, ThisComputer};
 #[cfg(test)]
 use room::{card_named, free_bytes, without_paths};
-use room::{does_not_fit, logged_words, place, room_of};
+use room::{does_not_fit, logged_words, passed_over, place, room_of};
 use taken::Unclaimed;
 use turn::on_its_own;
 
@@ -251,13 +251,22 @@ impl Shared {
         if rungs.is_empty() {
             return self.fail(job, &does_not_fit(sizes, job.wanted, &room, job.runs_on));
         }
-        self.climb(job, volume, model, &room, rungs);
+        self.climb(job, volume, sizes, model, &room, rungs);
     }
 
     /// Try each rung in turn. A card without room, or that stops answering, gives way to the
     /// next rung, and a card that stopped answering is not tried again. Anything else ends
-    /// the run, and so does the last rung's failure.
-    fn climb(&self, job: &Job, volume: &Volume, model: &Model, room: &Room, rungs: Vec<Rung>) {
+    /// the run, and so does the last rung's failure. A result that no card gave way to says
+    /// so if a card was passed over as the run began because programs held most of it.
+    fn climb(
+        &self,
+        job: &Job,
+        volume: &Volume,
+        sizes: Sizes,
+        model: &Model,
+        room: &Room,
+        rungs: Vec<Rung>,
+    ) {
         let opener = self.labelling.labeller.as_ref();
         let (mut gave_way, mut cards_gone, mut why_last) = (None, Vec::new(), RunError::NoRoom);
         for rung in rungs {
@@ -277,7 +286,13 @@ impl Shared {
             let (cut, lists) = (rung.cut, &model.lists);
             let outcome = label(volume, cut, lists, job.wanted, &mut networks, &mut said);
             let why = match outcome {
-                Ok(result) => return self.done(job, model, room, rung, result, gave_way),
+                Ok(mut result) => {
+                    if gave_way.is_none() {
+                        let full = passed_over(job.runs_on, rung, sizes, job.wanted, room);
+                        result.notes.extend(full);
+                    }
+                    return self.done(job, model, room, rung, result, gave_way);
+                }
                 Err(LabelError::Run(why @ (RunError::NoRoom | RunError::DeviceLost))) => why,
                 Err(LabelError::Run(RunError::Stopped)) => return,
                 Err(LabelError::Run(RunError::Failed(words))) => {

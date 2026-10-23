@@ -180,6 +180,47 @@ fn short_of(chosen: Device, smallest: u64, wanted: Wanted, room: &Room) -> Strin
     )
 }
 
+/// The note on a result that Voxa, left to choose, ran on the processor because a graphics card
+/// with memory of its own had too little of it free for the run's networks when the run began,
+/// though by the system's budget for Voxa alone they would have had room there: programs held
+/// the rest of the card. It says how much was free. `None` for a run whose place was chosen
+/// by hand, a run on a card, and a card passed over for any other reason, which a result has
+/// never spoken of. A card that gave way during the run is `fall`'s to speak of, not this.
+pub(super) fn passed_over(
+    runs_on: RunsOn,
+    rung: Rung,
+    sizes: Sizes,
+    wanted: Wanted,
+    room: &Room,
+) -> Option<String> {
+    if runs_on != RunsOn::Automatic || rung.device != Device::Processor {
+        return None;
+    }
+    let voxels = match rung.cut {
+        Cut::Whole => sizes.whole,
+        Cut::Head => sizes.head,
+    };
+    let by_budget = Room {
+        unheld: Vec::new(),
+        ..room.clone()
+    };
+    let discrete = room
+        .cards
+        .iter()
+        .filter(|card| card.kind == CardKind::Discrete);
+    let free = discrete
+        .map(|card| Device::Card(card.id))
+        .find_map(|card| {
+            let filled = !room.has_room_for(card, voxels, wanted)
+                && by_budget.has_room_for(card, voxels, wanted);
+            filled.then(|| room.space_on(card)).flatten()
+        })?;
+    let free = spare_gb(free);
+    Some(format!(
+        "{NO_ROOM} Only {free} GB of its memory was free; programs were using the rest."
+    ))
+}
+
 /// Words with every path taken out. Each of the `known` paths goes wherever it stands, the
 /// first first. Then, in every line, nothing stays from the first sign of a path to the end
 /// of the line: a path may hold spaces, and any fragment of one tells something of whose
