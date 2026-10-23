@@ -16,7 +16,7 @@ use zipped::ZipSource;
 /// Largest single entry that will be read into memory. Whole multi-frame series fit in one
 /// file, so the limit is generous; it exists so a damaged or hostile archive cannot ask for
 /// more memory than the machine has.
-const MAX_ENTRY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+pub(crate) const MAX_ENTRY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
 
 /// One file from a source: its name relative to the source's root, with `/` between folders,
 /// and its contents.
@@ -39,6 +39,27 @@ pub trait SeriesSource: Send {
     /// [`VoxaError::MissingEntry`] when the source has no such file; an I/O or archive error
     /// when it cannot be read.
     fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError>;
+
+    /// Every file in the source, in name order, handed to `visit` with its name and a reader
+    /// of its contents, so that no more of a file is read than `visit` reads. Indexing reads
+    /// each file only as far as its header goes.
+    ///
+    /// The default reads each file whole through [`SeriesSource::entries`]; a folder and a zip
+    /// read only what `visit` asks for.
+    ///
+    /// # Errors
+    /// The first error met opening or reading a file, or given by `visit`. No file after it
+    /// is visited. A file larger than a source will read whole is refused before it is visited.
+    fn visit_files(
+        &mut self,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        for entry in self.entries() {
+            let entry = entry?;
+            visit(&entry.name, &mut entry.bytes.as_slice())?;
+        }
+        Ok(())
+    }
 }
 
 /// Open a folder, a zip file, a `DICOMDIR` (the folder beside it is read) or a single file.
@@ -73,19 +94,33 @@ fn has_zip_signature(path: &Path) -> Result<bool, VoxaError> {
 }
 
 /// Read everything from `reader`, refusing more than `limit` bytes.
-fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VoxaError> {
+pub(crate) fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VoxaError> {
     let mut bytes = Vec::new();
     let read = reader
         .take(limit.saturating_add(1))
         .read_to_end(&mut bytes)?;
-    if read as u64 > limit {
-        return Err(VoxaError::Archive(format!(
-            "one of its files is larger than {} MB",
-            limit / (1024 * 1024)
-        )));
-    }
+    within_limit(read as u64, limit)?;
     Ok(bytes)
 }
+
+/// Refuse a file of `len` bytes when that is more than `limit`.
+pub(crate) fn within_limit(len: u64, limit: u64) -> Result<(), VoxaError> {
+    if len > limit {
+        return Err(too_large(limit));
+    }
+    Ok(())
+}
+
+/// Why a file larger than `limit` bytes is not read.
+pub(crate) fn too_large(limit: u64) -> VoxaError {
+    VoxaError::Archive(format!(
+        "one of its files is larger than {} MB",
+        limit / (1024 * 1024)
+    ))
+}
+
+#[cfg(test)]
+mod visit_tests;
 
 #[cfg(test)]
 mod tests {

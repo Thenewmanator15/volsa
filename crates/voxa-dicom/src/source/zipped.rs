@@ -10,7 +10,7 @@ use zip::read::{ArchiveOffset, Config};
 use zip::result::ZipResult;
 
 use super::archive_file::ArchiveFile;
-use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited};
+use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited, within_limit};
 
 /// The files inside a zip archive, read straight from the archive.
 pub(super) struct ZipSource {
@@ -126,6 +126,18 @@ impl SeriesSource for ZipSource {
             .map(|(_, at)| *at)
             .ok_or_else(|| VoxaError::MissingEntry(name.to_owned()))?;
         self.read_at(at)
+    }
+
+    fn visit_files(
+        &mut self,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        for (name, at) in &self.files {
+            let mut entry = self.archive.by_index(*at).map_err(archive_error)?;
+            within_limit(entry.size(), MAX_ENTRY_BYTES)?;
+            visit(name, &mut entry)?;
+        }
+        Ok(())
     }
 }
 

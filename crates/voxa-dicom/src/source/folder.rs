@@ -1,11 +1,12 @@
 //! Files under a folder on disk, or one file on its own.
 
 use std::fs::File;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use voxa_core::VoxaError;
 
-use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited};
+use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited, within_limit};
 
 /// Files under a folder on disk, or one file on its own.
 pub(super) struct FolderSource {
@@ -73,5 +74,17 @@ impl SeriesSource for FolderSource {
             .map(|(_, path)| path)
             .ok_or_else(|| VoxaError::MissingEntry(name.to_owned()))?;
         read_limited(&mut File::open(path)?, MAX_ENTRY_BYTES)
+    }
+
+    fn visit_files(
+        &mut self,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        for (name, path) in &self.files {
+            let mut file = File::open(path)?;
+            within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
+            visit(name, &mut file)?;
+        }
+        Ok(())
     }
 }

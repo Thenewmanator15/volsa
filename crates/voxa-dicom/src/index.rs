@@ -8,8 +8,8 @@ use crate::decode::unreadable;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
-use crate::header::{Header, Told, read_header};
-use crate::source::SeriesSource;
+use crate::header::{Header, Told, read_header_from};
+use crate::source::{MAX_ENTRY_BYTES, SeriesSource};
 
 mod volumes;
 
@@ -52,10 +52,11 @@ pub struct Index {
 
 /// Read the header of every entry in `source` and group the images into studies and series.
 ///
-/// Only headers are read, never pixels. Entries that are not DICOM images are listed in
-/// [`Index::skipped`]; a `DICOMDIR` is passed over without comment. `on_progress` is given the
-/// index so far each time a new series appears, at intervals in between, and once more with
-/// the finished index.
+/// Only headers are read, never pixels: of each file, no more than its header needs (see
+/// [`SeriesSource::visit_files`]). Entries that are not DICOM images are listed in
+/// [`Index::skipped`]; a `DICOMDIR` is passed over without comment, and without being read.
+/// `on_progress` is given the index so far each time a new series appears, at intervals in
+/// between, and once more with the finished index.
 ///
 /// # Errors
 ///
@@ -65,20 +66,23 @@ pub fn index(
     on_progress: &mut dyn FnMut(&Index),
 ) -> Result<Index, VoxaError> {
     let mut found = Found::default();
-    for (seen, entry) in source.entries().enumerate() {
-        let entry = entry?;
-        if is_directory_file(&entry.name) {
-            continue;
+    let mut seen = 0;
+    source.visit_files(&mut |name, contents| {
+        let at = seen;
+        seen += 1;
+        if is_directory_file(name) {
+            return Ok(());
         }
-        let Some(header) = read_header(&entry.bytes) else {
-            found.skipped.push(entry.name);
-            continue;
+        let Some(header) = read_header_from(contents, MAX_ENTRY_BYTES)? else {
+            found.skipped.push(name.to_owned());
+            return Ok(());
         };
-        let starts_a_series = found.add(entry.name, header);
-        if starts_a_series || seen % REPORT_EVERY == 0 {
+        let starts_a_series = found.add(name.to_owned(), header);
+        if starts_a_series || at % REPORT_EVERY == 0 {
             on_progress(&found.index());
         }
-    }
+        Ok(())
+    })?;
     let finished = found.index();
     on_progress(&finished);
     Ok(finished)
@@ -363,6 +367,8 @@ fn typical_step(steps_mm: &[f64], problems: &mut Vec<SeriesProblem>) -> Option<f
 
 #[cfg(test)]
 mod placement_tests;
+#[cfg(test)]
+mod reading_tests;
 #[cfg(test)]
 mod scan_tests;
 #[cfg(test)]

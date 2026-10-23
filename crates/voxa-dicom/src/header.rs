@@ -1,15 +1,19 @@
 //! Reading what the indexer needs from one file's header, without touching its pixels.
 
+use std::cell::Cell;
 use std::io::Cursor;
+use std::panic::AssertUnwindSafe;
 
 use dicom_core::Tag;
 use dicom_dictionary_std::tags;
-use dicom_object::{InMemDicomObject, OpenFileOptions};
+use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions};
 use voxa_core::ScanFacts;
 
+mod head;
 mod scan;
 mod told;
 
+pub(crate) use head::read_header_from;
 pub(crate) use told::Told;
 
 /// What one image file says about itself.
@@ -48,26 +52,61 @@ pub(crate) struct Header {
     pub told: Vec<Told>,
 }
 
-/// Parse the header of one file. `None` when the bytes are not a DICOM image: not DICOM at
-/// all, or DICOM without the identifiers and size every image has. A file the DICOM library
-/// panics on is `None` too, and is skipped like any other file that cannot be read.
+/// Parse the header of one whole file, as [`read_header_start`] does.
+#[cfg(test)]
 pub(crate) fn read_header(bytes: &[u8]) -> Option<Header> {
-    std::panic::catch_unwind(|| parse(bytes)).ok().flatten()
+    read_header_start(bytes, true).unwrap_or(None)
 }
 
-fn parse(bytes: &[u8]) -> Option<Header> {
-    let file = OpenFileOptions::new()
-        .read_until(tags::PIXEL_DATA)
-        .from_reader(Cursor::new(bytes))
-        .ok()?;
+/// The start of a file was too short to be sure of its header: more of the file is needed.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct NeedMore;
+
+/// Parse the header at the start of a file; `whole` says whether `start` is all of it.
+///
+/// The header is `None` when the file is not a DICOM image: not DICOM at all, or DICOM without
+/// the identifiers and size every image has. A file the DICOM library panics on is `None` too,
+/// and is skipped like any other file that cannot be read. What is given is what the whole
+/// file gives; when the parse needed more than a start that is not the whole file holds,
+/// [`NeedMore`] is given instead.
+pub(crate) fn read_header_start(start: &[u8], whole: bool) -> Result<Option<Header>, NeedMore> {
+    let short = Cell::new(false);
+    // Only `short` outlives a panic, and it holds a plain flag.
+    let parsed = std::panic::catch_unwind(AssertUnwindSafe(|| parse(start, whole, &short)));
+    if short.get() {
+        return Err(NeedMore);
+    }
+    Ok(parsed.ok().flatten())
+}
+
+/// The file at the start of `bytes`, read up to its pixels: all of the file when `whole`, and
+/// otherwise its start, with `short` set when that was too short to be sure.
+fn up_to_the_pixels(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<DefaultDicomObject> {
+    let options = OpenFileOptions::new().read_until(tags::PIXEL_DATA);
+    let file = if whole {
+        options.from_reader(Cursor::new(bytes))
+    } else {
+        options.from_reader(head::Watched::new(bytes, short))
+    };
+    file.ok()
+}
+
+fn parse(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<Header> {
+    let file = up_to_the_pixels(bytes, whole, short)?;
     let obj: &InMemDicomObject = &file;
     let groups = items(obj, tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).len();
     let stated = int(obj, tags::NUMBER_OF_FRAMES)
         .and_then(|n| usize::try_from(n).ok())
         .filter(|n| *n > 0);
     let multi_frame = stated.is_some_and(|n| n > 1) || groups > 0;
-    // A file cannot hold more frames than it has bytes, whatever its header claims.
-    let frames = stated.unwrap_or(groups.max(1)).min(bytes.len());
+    // A file cannot hold more frames than it has bytes, whatever its header claims; of a file
+    // read in part, that is known only once that many bytes are in.
+    let wanted = stated.unwrap_or(groups.max(1));
+    if !whole && wanted > bytes.len() {
+        short.set(true);
+        return None;
+    }
+    let frames = wanted.min(bytes.len());
     let orientation = of_the_plane(obj, tags::PLANE_ORIENTATION_SEQUENCE, IMAGE_ORIENTATION)
         .and_then(|v| <[f64; 6]>::try_from(v).ok());
     Some(Header {
