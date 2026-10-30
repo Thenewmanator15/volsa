@@ -185,11 +185,11 @@ chrono 0.4.45
   Repository: https://github.com/chronotope/chrono
   LICENSE.txt: text 18
 
-clipboard-win 5.4.1
+clipboard-win 5.4.3
   Licence: BSL-1.0
   Repository: https://github.com/DoumanAsh/clipboard-win
   Authors: Douman
-  Copyright: no holder is named in https://github.com/DoumanAsh/clipboard-win/blob/3b27cf2bfd1adcfa6e0264eb51c1025ddaf0f342/LICENSE
+  Copyright: no holder is named in https://github.com/DoumanAsh/clipboard-win/blob/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/LICENSE
   Its code comes with no licence file; these standard texts stand in:
   BSL-1.0: text 19
 
