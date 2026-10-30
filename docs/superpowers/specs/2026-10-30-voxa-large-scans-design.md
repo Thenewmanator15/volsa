@@ -127,9 +127,10 @@ race is rare, but it is the same race.
 
 ### 3.5 Zips
 
-0.6.0's zip work holds: a zip costs 1.27-1.32 times a folder for the CT, most of it
-inflating or checking 1 GB, and a cold first open was no slower than a warm one on this
-disk. Zips need no new design; they are kept within a budget (B10).
+0.6.0's zip work holds: a zip costs 1.27-1.32 times a folder for the CT (0.8-0.9 s more),
+and a cold first open was no slower than a warm one on this disk. A compressed zip's extra
+time is mostly inflating 1 GB; a stored zip's is not yet explained and is looked into in
+phase 2 (B10).
 
 ### 3.6 The card's limits
 
@@ -142,7 +143,10 @@ own limits to be asked for.
 
 On the machine of section 3, with the export in Windows' file cache, made-up studies,
 medians of three. The headless tool's own base (its device and the empty session) is about
-300 MiB; the window's is about 445 MiB (0.6.0 report).
+300 MiB; the window's is about 445 MiB (0.6.0 report). The memory budgets B5-B7 and B13
+are measured on the RTX, a card with memory of its own; on the Intel card the same runs
+are recorded beside them, with the card's shared memory (which Windows does not count in
+the process's private memory) reported separately *(my call)*.
 
 | No. | What | Head-like 512²×300 | CT 512²×2000 | Whole body 512×384×832 |
 |---|---|---|---|---|
@@ -155,10 +159,15 @@ medians of three. The headless tool's own base (its device and the empty session
 | B7 | Held after opening, above the base | ≤ 1.05 × values at 16 bits + 64 MiB | | |
 | B8 | Still VR picture 1280×800, RTX, drawn and read back | ≤ 8 ms | ≤ 33 ms | ≤ 8 ms |
 | B9 | Reading back a 3840×2160 picture | ≤ 15 ms | | |
-| B10 | Zip against folder, time to full detail | ≤ 1.3 × | ≤ 1.3 × | ≤ 1.3 × |
+| B10 | Zip against folder, time to full detail | stored ≤ 1.2 ×, compressed ≤ 1.5 × | | |
 | B11 | Window frame while a volume uploads | ≤ 16 ms on the RTX | | |
 | B12 | WARP, scan at launch, window resized while loading | no stop in 20 runs | | |
-| B13 | With the budget set to 512 MiB, held in ordinary memory | ≤ budget + 64 MiB, and the CT still opens in full detail | | |
+| B13 | With the budget set to 512 MiB, on the RTX | Voxa's own count of decoded values held ≤ budget + one slab; private memory ≤ base + budget + 200 MiB; the CT still opens in full detail | | |
+
+B10 is a ratio, and the folder gets faster with this work while a zip's extra cost does
+not shrink by itself: today a zip adds 0.8-0.9 s to the CT. A compressed zip has 1 GB to
+inflate, so it keeps a wider allowance; a stored zip has nothing to inflate, so its extra
+time is looked into in phase 2 and removed where it is cheap to *(my call)*.
 
 Moving pictures keep 0.5.0's rule (drawn at full, ¾ or ½ size to fit 8 ms), which this work
 does not change. On a slower computer the times grow; the memory budgets do not.
@@ -203,6 +212,14 @@ intercept). Any value read from it is the value 0.6.0's decoding gives, to the b
 values of more than 16 bits, floating-point pixel data, slices whose rescales differ,
 `MONOCHROME1` (whose inversion is per slice), and colour.
 
+A series held in 32 bits is held the same way as one held in 16: the same slabs, budget,
+spill file, preview and slab textures, with 32-bit numbers in the slabs and 16-bit floats
+on the card, as 0.6.0 puts them there *(my call)*. Whether a series can be held in 16 bits
+is decided from its first decoded slice (bits stored, signedness, photometric
+interpretation, rescale). If a later slice disagrees (another rescale, say), the build
+starts again holding 32 bits, and the slices already decoded are decoded again; this is
+rare, and it keeps the index, where the redesign is adding fields, untouched *(my call)*.
+
 The held volume is split into slabs: runs of whole slices of at most 32 MiB *(my call)*.
 Each slab is in memory or in the spill file (6.6). Readers ask for a value, a line of values,
 a slice as 32-bit numbers, or a slab's raw 16-bit values; none needs the whole volume at
@@ -217,9 +234,11 @@ either, so `voxa-segment` is not touched (the plugin session works there).
 
 The worker that builds a series' volume:
 
-1. Checks the memory first (LS-16): the values at 16 bits must fit in what Windows can
-   still promise Voxa, less a margin of 512 MiB *(my call)*; if not, the 3D view says so
-   in a sentence and nothing is built.
+1. Checks the memory first (LS-16): what will be held in ordinary memory (the values, or
+   the budget if the values are larger and spill, plus one slab) must fit in what Windows
+   can still promise Voxa, less a margin of 512 MiB *(my call)*; if not, the 3D view says
+   so in a sentence and nothing is built. A series past the budget is therefore not turned
+   away for being large: only for there being too little memory for the budget itself.
 2. Decodes the slice on screen first (it is already in hand for the 2D viewport), then, for
    a series of more than 256 slices *(my call)*, every eighth slice for the preview (6.4),
    then the rest slab by slab, each slab's slices in parallel, each decoded straight into
@@ -289,8 +308,13 @@ redesign gives it a place. The frame cache keeps at least 64 MiB of it.
   let go. A slab asked for later (a slice to show, a region to measure, a line to pick
   along, labelling) is read back and kept while there is room, the slab least lately used
   going first.
-- On an integrated card the card's copy is in the same memory, so the slabs held count
-  against the budget together with what the card holds *(my call)*.
+- On an integrated card the card's copy is in the same memory. Its size is bounded as on
+  any card, by the room Windows gives Voxa on it (6.3). Beside it, Voxa keeps a slab that
+  is on the card in its own memory only while the two together stay within the budget;
+  past that, such slabs spill *(my call)*. So on the Intel card the study CT (1,000 MiB on
+  the card) keeps about half its slabs in memory at the default budget and spills the
+  rest, and with a budget smaller than the card's copy it spills them all; it is still
+  shown in full detail.
 - The spill file is in Voxa's local folder (never the roaming one), opened by Voxa alone,
   named by a random number, holding only 16-bit values and no header, name or tag. It is
   deleted when its volume gives way, when Voxa closes, and, if Voxa was stopped, at the next
@@ -311,7 +335,7 @@ themselves, is refused for a series past the budget, with a sentence (LS-19).
    16 bits; decoding straight into slabs; the card holding values as stored; uploads only
    from the window's thread. Meets B5-B9, B11, B12 for series that fit one texture.
 2. Phase 2, full detail and speed: the card's own limits; slab textures; the preview;
-   indexing in parallel. Meets B1-B4.
+   indexing in parallel; where a stored zip's extra time goes. Meets B1-B4 and B10.
 3. Phase 3, the budget: the spill file, the memory check before building, labelling's
    input by section, the CPU curve refused past the budget. Meets B13.
 
@@ -337,10 +361,10 @@ own. "Shown by" is filled in by the plan as tests are written.
 | LS-11 | For a series of more than 256 slices a preview is drawn first and labelled as one with how far loading has got; while it is drawn nothing is measured or picked in 3D and no plane view is drawn from it; the full volume replaces it when all of it is on the card. | 6.4 | R-LS-02 |
 | LS-12 | The slice on screen is decoded before any other slice of its series. | 6.2, 6.5 | |
 | LS-13 | Indexing reads files' headers on several threads and gives the same index as 0.6.0. | 6.5 | |
-| LS-14 | The decoded values held in ordinary memory stay within the budget (default 2 GiB or a quarter of the computer's memory, whichever is less) plus one slab (B13). | 6.6 | R-LS-06 |
+| LS-14 | The decoded values held in ordinary memory stay within the budget (default 2 GiB or a quarter of the computer's memory, whichever is less) plus one slab (B13); on an integrated card, together with the card's copy. Series held in 32 bits are held the same way. | 6.1, 6.6 | R-LS-05 |
 | LS-15 | The spill file is used only past the budget, lives in Voxa's local folder, is opened by Voxa alone, holds no names or tags, and is deleted when its volume gives way, when Voxa closes, and at the next start after a stop. | 6.6 | R-LS-07 |
-| LS-16 | Before building a volume Voxa checks that Windows can still promise the memory, and says in a sentence when it cannot instead of failing. | 6.2 | R-LS-06 |
-| LS-17 | Opening a zip takes no more than 1.3 times as long as the same files in a folder (B10). | 3.5 | |
+| LS-16 | Before building a volume Voxa checks that Windows can still promise the memory it will hold (the values, or at most the budget and one slab), and says in a sentence when it cannot instead of failing. | 6.2 | R-LS-06 |
+| LS-17 | Opening a stored zip takes no more than 1.2 times as long as the same files in a folder, and a compressed zip no more than 1.5 times (B10). | 3.5, 4 | |
 | LS-18 | Labelling's input is made from the held volume for the run only, and can be a range of slices. | 6.7 | |
 | LS-19 | The smooth planes' curve is not worked out on the processor for a series past the budget, and the person is told why. | 6.7 | R-LS-06 |
 | LS-20 | The budgets of section 4 are measured with `measure_big` and `voxa.exe` on the made-up studies, and the results recorded. | 4 | |
@@ -419,8 +443,12 @@ makes a 32-bit `Volume` from the held volume, whole or for a range of slices (6.
 1. Approach A, built in the three phases of 6.8.
 2. The memory budget's default: 2 GiB, or a quarter of the computer's memory if less.
 3. Writing decoded pixels of a series past the budget to a file in Voxa's local folder,
-   deleted when done (6.6). The alternative is never to write them: past the budget a
-   series would be shown at reduced detail, or not in 3D.
+   deleted when done (6.6). The alternative is never to write them: past the budget the
+   3D view and the planes would be built at reduced detail, halved until the held values
+   fit the budget, and say so; the 2D slices would stay full, decoded from the export as
+   they are shown. Then B13 becomes "the CT opens at reduced detail, said on screen",
+   LS-15 and R-LS-07 go, and on an integrated card the study CT is halved at the default
+   budget.
 4. Region refinement (section 9) left for later.
 
 ## 12. Left to the builder
