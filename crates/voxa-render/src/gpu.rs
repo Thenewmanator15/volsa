@@ -256,12 +256,22 @@ impl Gpu {
         let bytes = copied
             .get_mapped_range(..)
             .map_err(|error| failed(error.to_string()))?;
-        let picture = bytes
-            .chunks(padded_row)
-            .flat_map(|row| row.iter().take(row_bytes).copied())
-            .collect();
-        Ok(picture)
+        let rows = bytes.len() / padded_row.max(1);
+        Ok(unpadded(&bytes, row_bytes, padded_row, rows))
     }
+}
+
+/// The first `rows` rows of a picture copied with each row padded to `padded_row` bytes,
+/// without the padding: `row_bytes` of each, a whole row at a time. A row the bytes do not
+/// hold whole is left out.
+fn unpadded(bytes: &[u8], row_bytes: usize, padded_row: usize, rows: usize) -> Vec<u8> {
+    let mut picture = Vec::with_capacity(rows * row_bytes);
+    for row in bytes.chunks(padded_row.max(1)).take(rows) {
+        if let Some(kept) = row.get(..row_bytes) {
+            picture.extend_from_slice(kept);
+        }
+    }
+    picture
 }
 
 /// The first adapter found of those asked for in turn: `false` asks for the machine's own,
@@ -307,3 +317,6 @@ fn draw_into(
     });
     draw(&mut pass);
 }
+
+#[cfg(test)]
+mod tests;
