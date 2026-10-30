@@ -151,8 +151,8 @@ fn common_elements(opts: &SliceOptions, sop_class: &str) -> InMemDicomObject {
         (tags::ROWS, opts.rows),
         (tags::COLUMNS, opts.cols),
         (tags::BITS_ALLOCATED, 16),
-        (tags::BITS_STORED, 16),
-        (tags::HIGH_BIT, 15),
+        (tags::BITS_STORED, opts.bits_stored),
+        (tags::HIGH_BIT, opts.bits_stored.saturating_sub(1)),
         (tags::PIXEL_REPRESENTATION, u16::from(opts.signed)),
     ];
     let mut obj = InMemDicomObject::new_empty();

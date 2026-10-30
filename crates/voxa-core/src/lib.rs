@@ -15,6 +15,7 @@
 mod error;
 mod kind;
 mod model;
+mod rescale;
 mod scan;
 mod space;
 mod volume;
@@ -23,6 +24,7 @@ mod window;
 pub use error::VoxaError;
 pub use kind::{MOST_LOCATING, SeriesKind};
 pub use model::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VolumeSet};
+pub use rescale::Rescale;
 pub use scan::{Facing, Family, Plane, ScanFacts};
 pub use space::{Affine, Patient, Point, Screen, Voxel};
 pub use volume::Volume;

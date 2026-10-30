@@ -21,7 +21,7 @@ mod tags;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
-pub use decode::{Frame, ImageFile, decode_slice};
+pub use decode::{Frame, ImageFile, StoredFrame, StoredSamples, decode_slice};
 pub use geometry::{StackGeometry, stack_geometry};
 pub use index::{Index, IndexedSeries, SliceRef, best_series, index};
 pub use source::{Entry, SeriesSource, open_source};

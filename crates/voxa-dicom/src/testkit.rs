@@ -62,6 +62,9 @@ pub struct SliceOptions {
     pub stored: Vec<u16>,
     /// `PixelRepresentation`: whether stored values are signed.
     pub signed: bool,
+    /// `BitsStored`, with `HighBit` one less; 16 unless given. The bits above it are written
+    /// as `stored` has them, as a scanner may leave other things there.
+    pub bits_stored: u16,
     /// `RescaleSlope`.
     pub slope: f64,
     /// `RescaleIntercept`.
@@ -159,6 +162,7 @@ impl Default for SliceOptions {
             slice_thickness: Some(5.0),
             stored: Vec::new(),
             signed: false,
+            bits_stored: 16,
             slope: 1.0,
             intercept: 0.0,
             monochrome1: false,
