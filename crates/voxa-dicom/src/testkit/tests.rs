@@ -104,6 +104,25 @@ fn dropped_pixels_shorten_the_pixel_data() {
 }
 
 #[test]
+fn a_detectors_spacing_and_a_rescale_type_are_written_when_given() {
+    let opts = SliceOptions {
+        imager_pixel_spacing: Some([0.2, 0.25]),
+        rescale_type: Some("HU".to_owned()),
+        ..SliceOptions::default()
+    };
+    let obj = dicom_object::from_reader(Cursor::new(classic_slice(&opts))).expect("parses");
+    let detector = obj.element(tags::IMAGER_PIXEL_SPACING).expect("detector");
+    assert_eq!(detector.to_multi_float64().expect("floats"), [0.2, 0.25]);
+    let kind = obj.element(tags::RESCALE_TYPE).expect("rescale type");
+    assert_eq!(kind.to_str().expect("text").trim(), "HU");
+
+    let plain = classic_slice(&SliceOptions::default());
+    let obj = dicom_object::from_reader(Cursor::new(plain)).expect("parses");
+    assert!(obj.element(tags::IMAGER_PIXEL_SPACING).is_err());
+    assert!(obj.element(tags::RESCALE_TYPE).is_err());
+}
+
+#[test]
 fn a_memory_source_yields_names_in_order_and_reads_by_name() {
     let mut source = MemorySource::new(vec![("b".to_owned(), vec![2]), ("a".to_owned(), vec![1])]);
     let names: Vec<String> = source.entries().map(|e| e.expect("entry").name).collect();

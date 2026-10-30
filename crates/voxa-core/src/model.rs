@@ -92,6 +92,10 @@ pub struct SeriesInfo {
     pub slices: usize,
     /// Distance between voxel centres along columns, rows and slices, in millimetres.
     pub spacing_mm: [f64; 3],
+    /// True only when the first image's files gave a Pixel Spacing. When false, the first two
+    /// entries of `spacing_mm` are a 1 mm stand-in so the picture can be drawn, and are not a
+    /// length to measure with. A detector's Imager Pixel Spacing does not count.
+    pub spacing_given: bool,
     /// Where each voxel lies in the patient, when the files say.
     pub voxel_to_patient: Option<Affine<Voxel, Patient>>,
     /// Anything that stops the series being treated as a regular volume.
@@ -102,6 +106,9 @@ pub struct SeriesInfo {
     pub set: Option<VolumeSet>,
     /// True when the images are stored in colour.
     pub colour: bool,
+    /// The Rescale Type of the first image, such as `HU`, with its padding removed; `None` when
+    /// the files do not give one.
+    pub rescale_type: Option<String>,
 }
 
 /// The place of one volume among the volumes of a series that holds several: the weightings
@@ -132,11 +139,13 @@ impl Default for SeriesInfo {
             cols: 0,
             slices: 1,
             spacing_mm: [1.0; 3],
+            spacing_given: false,
             voxel_to_patient: None,
             problems: Vec::new(),
             scan: ScanFacts::default(),
             set: None,
             colour: false,
+            rescale_type: None,
         }
     }
 }

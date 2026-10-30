@@ -55,6 +55,9 @@ pub struct SliceOptions {
     pub orientation: Option<[f64; 6]>,
     /// `PixelSpacing` (between rows, between columns), or absent.
     pub pixel_spacing: Option<[f64; 2]>,
+    /// `ImagerPixelSpacing` (a detector's spacing, which says nothing about the body), or
+    /// absent.
+    pub imager_pixel_spacing: Option<[f64; 2]>,
     /// `SliceThickness`, or absent.
     pub slice_thickness: Option<f64>,
     /// Stored 16-bit values, row by row. Empty means a ramp 0, 1, 2, … For signed pixels give
@@ -66,6 +69,9 @@ pub struct SliceOptions {
     pub slope: f64,
     /// `RescaleIntercept`.
     pub intercept: f64,
+    /// `RescaleType`, or absent. A multi-frame file writes it in each frame's pixel value
+    /// transformation, beside that frame's slope and intercept.
+    pub rescale_type: Option<String>,
     /// Write `MONOCHROME1` (bright stored values are dark) instead of `MONOCHROME2`.
     pub monochrome1: bool,
     /// Transfer syntax named in the file header. The data are always written as explicit VR
@@ -156,11 +162,13 @@ impl Default for SliceOptions {
             position: Some([-100.0, -120.0, 0.0]),
             orientation: Some([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]),
             pixel_spacing: Some([0.9, 0.9]),
+            imager_pixel_spacing: None,
             slice_thickness: Some(5.0),
             stored: Vec::new(),
             signed: false,
             slope: 1.0,
             intercept: 0.0,
+            rescale_type: None,
             monochrome1: false,
             transfer_syntax: EXPLICIT_VR_LITTLE_ENDIAN.to_owned(),
             drop_pixels: 0,
@@ -208,8 +216,8 @@ impl EnhancedFrame {
 #[derive(Debug, Clone)]
 pub struct EnhancedOptions {
     /// The values shared with single-frame files: study, patient, series, size, orientation,
-    /// pixel spacing and thickness. Its `position`, `stored`, `slope` and `intercept` are
-    /// ignored in favour of each frame's own.
+    /// pixel spacing, thickness and rescale type. Its `position`, `stored`, `slope` and
+    /// `intercept` are ignored in favour of each frame's own.
     pub common: SliceOptions,
     /// The frames, in the order they are stored in the file.
     pub frames: Vec<EnhancedFrame>,

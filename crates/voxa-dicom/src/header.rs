@@ -45,6 +45,8 @@ pub(crate) struct Header {
     pub positions: Vec<Option<[f64; 3]>>,
     /// True when the images are stored in colour: three samples for every pixel.
     pub colour: bool,
+    /// The `RescaleType`, such as `HU`: what the rescaled values are in.
+    pub rescale_type: Option<String>,
     /// What the file says about how the series was acquired.
     pub scan: ScanFacts,
     /// What each frame says that sets it apart from others at its position; one entry
@@ -136,6 +138,9 @@ fn parse(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<Header> {
             vec![position(obj)]
         },
         colour: int(obj, tags::SAMPLES_PER_PIXEL) == Some(3),
+        rescale_type: stated_or_grouped(obj, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, |from| {
+            text(from, tags::RESCALE_TYPE)
+        }),
         scan: scan::facts(obj, orientation),
         told: if multi_frame {
             told::of_frames(obj, frames)
@@ -151,13 +156,23 @@ const IMAGE_ORIENTATION: Tag = tags::IMAGE_ORIENTATION_PATIENT;
 /// frames keeps it in a functional group, shared by every frame or repeated for each, in which
 /// case the first frame's is taken.
 fn of_the_plane(obj: &InMemDicomObject, group: Tag, wanted: Tag) -> Option<Vec<f64>> {
+    stated_or_grouped(obj, group, |from| floats(from, wanted))
+}
+
+/// What `read` finds in the file itself or, failing that, in the first item of `group` among
+/// the shared functional groups, then among those of the first frame.
+fn stated_or_grouped<T>(
+    obj: &InMemDicomObject,
+    group: Tag,
+    read: impl Fn(&InMemDicomObject) -> Option<T>,
+) -> Option<T> {
     let shared = first_item(obj, tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE);
     let first_frame = first_item(obj, tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE);
-    floats(obj, wanted).or_else(|| {
+    read(obj).or_else(|| {
         [shared, first_frame]
             .into_iter()
             .flatten()
-            .find_map(|groups| first_item(groups, group).and_then(|item| floats(item, wanted)))
+            .find_map(|groups| first_item(groups, group).and_then(&read))
     })
 }
 
@@ -271,6 +286,47 @@ mod tests {
         assert_eq!(header.positions, vec![None]);
         assert_eq!(header.orientation, None);
         assert_eq!(header.pixel_spacing, None);
+    }
+
+    #[test]
+    fn a_detectors_spacing_is_not_read_as_the_pixel_spacing() {
+        let opts = SliceOptions {
+            pixel_spacing: None,
+            imager_pixel_spacing: Some([0.2, 0.2]),
+            ..SliceOptions::default()
+        };
+        let header = read_header(&classic_slice(&opts)).expect("is an image");
+        assert_eq!(header.pixel_spacing, None);
+    }
+
+    #[test]
+    fn the_rescale_type_of_a_plain_file_is_read_and_trimmed() {
+        let named = |rescale_type: Option<&str>| {
+            let opts = SliceOptions {
+                rescale_type: rescale_type.map(str::to_owned),
+                ..SliceOptions::default()
+            };
+            read_header(&classic_slice(&opts)).expect("is an image")
+        };
+        assert_eq!(named(Some("HU ")).rescale_type.as_deref(), Some("HU"));
+        assert_eq!(named(None).rescale_type, None);
+    }
+
+    #[test]
+    fn the_rescale_type_of_an_enhanced_file_is_read_from_its_transformation_group() {
+        let frames = (0..2)
+            .map(|i| EnhancedFrame::at([0.0, 0.0, f64::from(i) * 2.5]))
+            .collect();
+        let bytes = enhanced_series(&EnhancedOptions {
+            common: SliceOptions {
+                rescale_type: Some("US".to_owned()),
+                ..SliceOptions::default()
+            },
+            frames,
+        });
+        let header = read_header(&bytes).expect("is an image");
+        assert!(header.multi_frame);
+        assert_eq!(header.rescale_type.as_deref(), Some("US"));
     }
 
     #[test]

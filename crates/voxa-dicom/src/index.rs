@@ -299,10 +299,12 @@ fn assembled(
             cols: first.cols,
             slices: slices.len(),
             spacing_mm: [between_cols, between_rows, between_slices],
+            spacing_given: first.pixel_spacing.is_some(),
             voxel_to_patient,
             problems,
             scan,
             colour: first.colour,
+            rescale_type: first.rescale_type.clone(),
             ..SeriesInfo::default()
         },
         slices: slices
@@ -371,6 +373,8 @@ mod placement_tests;
 mod reading_tests;
 #[cfg(test)]
 mod scan_tests;
+#[cfg(test)]
+mod spacing_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
