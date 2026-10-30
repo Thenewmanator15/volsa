@@ -253,13 +253,34 @@ impl HeldVolume {
         if !self.has_slice(slice) {
             return None;
         }
+        let mut values = Vec::with_capacity(self.in_slice());
+        self.extend_with_slice(slice, &mut values)?;
+        Some(values)
+    }
+
+    /// Put the values of a slice that has been put on the end of `into`, a whole slice at a
+    /// time. `None`, with nothing put, when it has not been put.
+    fn extend_with_slice(&self, slice: u32, into: &mut Vec<f32>) -> Option<()> {
+        if !self.has_slice(slice) {
+            return None;
+        }
         let first = (slice % self.per_slab) as usize * self.in_slice();
         let cell = self.slabs.get((slice / self.per_slab) as usize)?;
         let values = cell.read().unwrap_or_else(PoisonError::into_inner);
-        let values = values.as_ref()?;
-        (first..first + self.in_slice())
-            .map(|at| values.value(at, self.rescale))
-            .collect()
+        let range = first..first + self.in_slice();
+        let rescale = self.rescale;
+        match values.as_ref()? {
+            Values::Unsigned(numbers) => {
+                let numbers = numbers.get(range)?;
+                into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
+            }
+            Values::Signed(numbers) => {
+                let numbers = numbers.get(range)?;
+                into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
+            }
+            Values::Float(numbers) => into.extend_from_slice(numbers.get(range)?),
+        }
+        Some(())
     }
 
     /// Read a slab's numbers as held, if it has been made.
@@ -281,7 +302,7 @@ impl HeldVolume {
         }
         let mut values = Vec::with_capacity(slices.len() * self.in_slice());
         for slice in slices.clone() {
-            values.extend(self.slice_values(slice)?);
+            self.extend_with_slice(slice, &mut values)?;
         }
         let [columns, rows, across] = self.voxel_to_patient.columns();
         let first = Point::new(0.0, 0.0, f64::from(slices.start));
