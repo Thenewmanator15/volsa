@@ -26,6 +26,7 @@ mod labels;
 mod log;
 mod measurements;
 mod moved;
+mod naming;
 mod parts_table;
 mod planes;
 mod prefs;
@@ -58,6 +59,7 @@ pub use labels::{
     on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
+pub use naming::{Group, group_of, plain_name};
 pub use planes::{ColumnShows, PlanePanel, Planes};
 pub use profile::{CT_WINDOWS, NamedWindow, Profile, Unit, readout, unit_of};
 pub use reducer::reduce;
