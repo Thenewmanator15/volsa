@@ -1,8 +1,10 @@
 # Very large scans, fast and within a memory budget: design
 
 Date: 2026-10-30
-Status: draft for the owner's approval. Choices marked *my call* are mine, for the owner to
-overrule. Branch `claude/big-scans-c8aec7`, cut from `release` (0.6.0, ddc5686).
+Status: approved by the owner on 2026-10-30 ("Approve, allow spill"): approach A in three
+phases, the 2 GiB default budget, and the spill file past the budget. Choices marked *my
+call* are mine, for the owner to overrule. Branch `claude/big-scans-c8aec7`, cut from
+`release` (0.6.0, ddc5686).
 
 ## 1. Why
 
@@ -250,21 +252,39 @@ The worker that builds a series' volume:
 5. Fails the whole build if a slice cannot be decoded, with today's sentence; a slab is
    never shown with slices missing.
 
-The frame cache holds 16-bit slices too, and shares the one budget (6.6).
+The frame cache shares the one budget (6.6). It keeps its slices as 32-bit numbers, as the
+2D viewport draws them, counted at that size: a series held as a volume reads its slices
+out of the volume, so the cache holds only slices of series that are not *(my call)*.
+
+For a series of more than 256 slices the preview's slices are decoded in a first pass and
+reduced into the preview, not kept; the main pass then decodes every slice slab by slab.
+The preview's slices are decoded twice (one in eight), which keeps each slab whole as it is
+made, so that it can go to the card and, past the budget, to the spill file at once *(my
+call)*.
 
 ### 6.3 The card
 
 - The window's device asks for the card's own limits for the largest 3D texture and the
   largest buffer, and for 16-bit normalised textures where the card offers them (LS-08).
-- The card holds the values as stored: `R16Unorm` for unsigned, `R16Snorm` for signed, with
-  the rescale and window applied in the shader; a card without them gets 16-bit floats,
-  converted slab by slab as they go (LS-09). The 0.6.0 conversion pass and its copy go.
+- The card holds the values as stored, in `R16Unorm`: unsigned values as they are, signed
+  ones moved up by 32,768 as they go (the card's search for empty blocks assumes nothing
+  below zero, and `R16Snorm` would break it) *(my call, after the builder check)*. The
+  value a texel stands for is then still "smallest + texel × span", as in 0.6.0, so the
+  shaders' windowing is unchanged. A card without 16-bit normalised textures, and a series
+  held in 32 bits, get 16-bit floats, converted slab by slab as they go (LS-09). The 0.6.0
+  conversion pass over the whole volume and its copy go. A series with a slope of zero or
+  less is held in 32 bits.
 - A series longer than the card's largest 3D side, or larger than one texture may be
   (512 MiB *(my call)*, lowered if the card refuses), is held in up to four slab
   textures along the slices. Neighbouring slabs share one slice, so a ray reading between
-  two slices never needs both textures. The volume, plane and Parts shaders read the value
-  through one function that picks the slab; the blocks of largest values and the smooth
-  planes' curve are split the same way (LS-07).
+  two slices never needs both textures, and each slab but the last is a whole number of
+  8-slice blocks long, so no block of largest values straddles two. The volume and plane
+  shaders read the value through one function that picks the slab (the Parts shader reads
+  no scan values); the blocks of largest values are worked out slab by slab into one
+  texture (LS-07). The smooth planes' curve is worked out on the card only for a series
+  held in one texture: its working copy is four bytes a voxel over the whole volume, and
+  for a series past one texture it would not fit; such a series is drawn without the
+  curve, and the planes say so *(my call, after the builder check)*.
 - A series that does not fit in four slabs, or in the room the card has (Windows' own count
   of what Voxa may use on that card, as labelling reads it today), is reduced, halving
   along the slices first when its slices are closer than its pixels, and the 3D view says
@@ -436,9 +456,12 @@ For the redesign (it does not touch reading, caching, volume building or drawing
 
 For the plugin engine: labelling and other models get their input through one call that
 makes a 32-bit `Volume` from the held volume, whole or for a range of slices (6.7).
-`voxa-segment` is not changed by this work.
+`voxa-segment` is not changed by this work. `voxa-models` gains one additive function,
+`total_memory()`, beside `free_memory()`, for the budget's default.
 
-## 11. Open for the owner
+## 11. Settled by the owner
+
+All four were approved as written on 2026-10-30, the spill file included:
 
 1. Approach A, built in the three phases of 6.8.
 2. The memory budget's default: 2 GiB, or a quarter of the computer's memory if less.
