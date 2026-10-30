@@ -16,6 +16,8 @@
 mod assemble;
 mod auto_window;
 mod bspline;
+#[cfg(test)]
+mod held_tests;
 mod histogram;
 mod measure;
 mod plane;

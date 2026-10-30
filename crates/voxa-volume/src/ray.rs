@@ -1,6 +1,6 @@
 //! Lines of sight through a volume.
 
-use voxa_core::{Patient, Point, Volume};
+use voxa_core::{Grid, Patient, Point};
 
 use crate::sample::sample;
 
@@ -29,7 +29,7 @@ impl Ray {
 
 /// How far along a ray, in millimetres, it enters a volume and leaves it. The entry is 0 for
 /// a ray that starts inside. `None` when the ray misses the volume or the volume is behind it.
-pub fn enter_and_leave(volume: &Volume, ray: &Ray) -> Option<(f64, f64)> {
+pub fn enter_and_leave(volume: &(impl Grid + ?Sized), ray: &Ray) -> Option<(f64, f64)> {
     // In voxel coordinates the volume is a box along the axes, however the slices are tilted.
     let to_voxel = volume.patient_to_voxel();
     let start = to_voxel.apply(ray.origin);
@@ -57,7 +57,11 @@ pub fn enter_and_leave(volume: &Volume, ray: &Ray) -> Option<(f64, f64)> {
 /// surface a person would point at. The ray is followed in steps of half the smallest voxel
 /// spacing, and the place found is then narrowed down eight times. `None` when the ray meets
 /// nothing that bright.
-pub fn first_hit(volume: &Volume, ray: &Ray, threshold: f32) -> Option<Point<Patient>> {
+pub fn first_hit(
+    volume: &(impl Grid + ?Sized),
+    ray: &Ray,
+    threshold: f32,
+) -> Option<Point<Patient>> {
     let (enter, leave) = enter_and_leave(volume, ray)?;
     let step = volume
         .spacing_mm()
@@ -98,7 +102,7 @@ fn narrowed_down(mut dark: f64, mut bright_at: f64, bright: &impl Fn(f64) -> boo
 
 #[cfg(test)]
 mod tests {
-    use voxa_core::Affine;
+    use voxa_core::{Affine, Volume};
 
     use super::*;
     use crate::testing::ball;

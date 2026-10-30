@@ -1,19 +1,19 @@
 //! Reading a volume between its voxels.
 
-use voxa_core::{Patient, Point, Volume};
+use voxa_core::{Grid, Patient, Point};
 
 /// The value of a volume at a point in the patient, blended from the eight voxels around it.
 /// `None` outside the volume: more than half a voxel beyond the centres of its edge voxels.
 /// Within that last half voxel the edge value is used.
-pub fn sample(volume: &Volume, at: Point<Patient>) -> Option<f32> {
+pub fn sample(volume: &(impl Grid + ?Sized), at: Point<Patient>) -> Option<f32> {
     let voxel = volume.patient_to_voxel().apply(at);
     let [cols, rows, slices] = volume.dims();
     let (col, next_col, across) = between(voxel.x, cols)?;
     let (row, next_row, down) = between(voxel.y, rows)?;
     let (slice, next_slice, through) = between(voxel.z, slices)?;
     let along_columns = |in_row, in_slice| {
-        let from = volume.get(col, in_row, in_slice)?;
-        let to = volume.get(next_col, in_row, in_slice)?;
+        let from = volume.value(col, in_row, in_slice)?;
+        let to = volume.value(next_col, in_row, in_slice)?;
         Some(mix(from, to, across))
     };
     let near = mix(
@@ -70,7 +70,7 @@ fn narrowed(part: f64) -> f32 {
 #[cfg(test)]
 mod tests {
     use proptest::prelude::*;
-    use voxa_core::Affine;
+    use voxa_core::{Affine, Volume};
 
     use super::*;
     use crate::testing::ball;

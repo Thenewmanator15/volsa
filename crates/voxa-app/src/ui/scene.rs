@@ -267,7 +267,12 @@ fn pointed(
         } else {
             at.and_then(|at| {
                 let at = at - area.min;
-                pick(volume?, &scene_params(state, 1.0)?, size, [at.x, at.y])
+                pick(
+                    volume?.as_ref(),
+                    &scene_params(state, 1.0)?,
+                    size,
+                    [at.x, at.y],
+                )
             })
         };
         let (begun, asked) = tools::clicked(state.tool, *ruler_from, pointed_at);

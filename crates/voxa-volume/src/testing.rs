@@ -29,3 +29,24 @@ pub(crate) fn ball() -> Volume {
         }
     })
 }
+
+/// The same values as `volume`, held as 32-bit numbers in a held volume of slabs of three
+/// slices, as the application holds a series it cannot keep in 16 bits.
+pub(crate) fn held_from(volume: &Volume) -> voxa_core::HeldVolume {
+    use voxa_core::{HeldVolume, Rescale, SliceIn, Stored};
+    let [cols, rows, slices] = volume.dims();
+    let slab = 3 * cols as usize * rows as usize * 4;
+    let held = HeldVolume::new(
+        volume.dims(),
+        volume.voxel_to_patient(),
+        Stored::Float32,
+        Rescale::default(),
+        slab,
+    )
+    .expect("the same placement");
+    for slice in 0..slices {
+        let values = volume.slice_values(slice).expect("a slice");
+        held.put_slice(slice, SliceIn::Float(values)).expect("fits");
+    }
+    held
+}
