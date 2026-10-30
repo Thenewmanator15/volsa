@@ -32,8 +32,8 @@ that work is next changed.
 | UI-14 | When an export holds studies of more than one person, the rail says so and groups the studies by person. | 7.4 | R-UI-05 | |
 | UI-15 | The pictures are shown in one of four arrangements chosen from a strip: Slices (1, 2 or 4), Slices + 3D, Planes, 3D. | 7.5 | | |
 | UI-16 | Voxa opens an export on Slices with the remembered number of viewports (one on a first start), showing the best scan as chosen today; with no such scan, the scan with the most pixels; with no scans, the first of the other files. | 7.5 | | |
-| UI-17 | Each scan has a profile, CT, MR or basic, chosen from its Modality. | 7.6 | R-UI-02 | |
-| UI-18 | For a CT scan the View tab offers the windows brain (W80 L40), soft tissue (W400 L40), lung (W1500 L−600) and bone (W1800 L400), and Auto. | 7.6 | | |
+| UI-17 | Each scan has a profile, CT, MR or basic, chosen from its Modality. | 7.6 | R-UI-02 | `crates/voxa-app/src/profile/tests.rs::the_profile_comes_from_the_modality` |
+| UI-18 | For a CT scan the View tab offers the windows brain (W80 L40), soft tissue (W400 L40), lung (W1500 L−600) and bone (W1800 L400), and Auto. | 7.6 | | `crates/voxa-app/src/profile/tests.rs::ct_windows_are_the_common_teaching_values` (the four windows; the buttons that offer them are shown by the View tab's tests) |
 | UI-19 | The value under the pointer is shown; for a CT scan whose rescale says HU or says nothing, in HU; otherwise with no unit unless the file names one. | 7.6 | R-UI-02 | |
 | UI-20 | For an MR scan the View tab offers Auto, Soft and Hard, as 0.6.0 does. | 7.6 | | |
 | UI-21 | Patient details are hidden unless "Show patient details" is turned on; the setting starts off in every run. | 7.12 | R-UI-05 | |

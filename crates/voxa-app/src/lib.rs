@@ -29,6 +29,7 @@ mod moved;
 mod parts_table;
 mod planes;
 mod prefs;
+mod profile;
 mod reducer;
 mod said;
 mod scene;
@@ -58,6 +59,7 @@ pub use labels::{
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
+pub use profile::{CT_WINDOWS, NamedWindow, Profile, Unit, readout, unit_of};
 pub use reducer::reduce;
 pub use said::{Outcome, WINDOWED, outcome, tell};
 pub use scene::{MainPanel, Scene, SceneStatus};
