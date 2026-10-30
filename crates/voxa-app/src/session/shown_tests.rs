@@ -30,3 +30,24 @@ fn the_windows_of_a_slice_shown_from_a_held_series_become_known() {
         "nor are the windows of a slice never shown worked out"
     );
 }
+
+#[test]
+fn a_slice_from_the_volume_waits_for_its_viewports_automatic_window() {
+    let mut session = session();
+    let (_folder, path) = zip_of(&three_series_files());
+    open_until(&mut session, &path, |session| {
+        ready_in_3d(session, FINE_SCAN)
+    });
+    let shown = &mut session.state.viewports[0];
+    (shown.slice, shown.wl_pending) = (10, true);
+    assert!(
+        session.cached(&id(FINE_SCAN), 10).is_none(),
+        "not drawn in a window chosen for nothing"
+    );
+    assert!(
+        session.cached(&id(FINE_SCAN), 11).is_some(),
+        "a slice no viewport waits on is read from the volume"
+    );
+    session.state.viewports[0].wl_pending = false;
+    assert!(session.cached(&id(FINE_SCAN), 10).is_some());
+}

@@ -5,7 +5,7 @@ use egui::{Align2, Color32, Rect, Sense, Stroke, Ui};
 use std::sync::Arc;
 
 use egui_wgpu::RenderState;
-use voxa_core::{Volume, WindowLevel};
+use voxa_core::{HeldVolume, WindowLevel};
 use voxa_labels::LabelSet;
 use voxa_render::{LabelsOnDevice, Overlay, PlaneView, SmoothedTexture, VolumePipeline};
 use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
@@ -59,10 +59,10 @@ pub struct PlanesView {
     drawing: tools::Drawing,
     /// The curve the planes are drawn from when they are drawn smooth, on the graphics
     /// device, with the volume it runs through.
-    curve: Option<(Arc<Volume>, SmoothedTexture)>,
+    curve: Option<(Arc<HeldVolume>, SmoothedTexture)>,
     /// The volume the graphics device had no room to work the curve out for: a worker
     /// was asked instead, and the device is not asked again for the same volume.
-    refused: Option<Arc<Volume>>,
+    refused: Option<Arc<HeldVolume>>,
 }
 
 impl PlanesView {
@@ -102,7 +102,7 @@ pub fn no_room_to_smooth() -> Notice {
 /// for telling which part lies under the pointer.
 pub type Sources<'a> = (
     Option<(&'a VolumePipeline, &'a RenderState)>,
-    Option<&'a Volume>,
+    Option<&'a HeldVolume>,
     Option<&'a LabelSet>,
 );
 
@@ -196,7 +196,7 @@ fn handled(
     state: &AppState,
     kind: PlaneKind,
     input: &PlaneInput,
-    (plane, scan): (&Plane, Option<&Volume>),
+    (plane, scan): (&Plane, Option<&HeldVolume>),
     drawing: &mut tools::Drawing,
 ) -> Vec<Action> {
     let navigating = state.tool == Tool::Navigate;
@@ -217,7 +217,7 @@ fn handled(
 
 /// A region with what the scan holds inside it worked out, if there is a scan to read; any
 /// other annotation as it is.
-fn measured_on(shape: Shape, plane: &Plane, scan: Option<&Volume>) -> Shape {
+fn measured_on(shape: Shape, plane: &Plane, scan: Option<&HeldVolume>) -> Shape {
     match shape {
         Shape::Region {
             centre,

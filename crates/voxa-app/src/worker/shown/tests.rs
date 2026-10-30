@@ -35,10 +35,7 @@ fn a_held_series_reports_windows_for_the_slice_shown() {
     };
     bench.workers.run(shown, Some(&index));
     let volume = stored(&bench, THICK_SCAN).expect("kept");
-    let values = volume
-        .slice_values(7)
-        .expect("there is such a slice")
-        .to_vec();
+    let values = volume.slice_values(7).expect("there is such a slice");
     let windows = PRESETS.map(|preset| preset.window(&values));
     let wanted = Action::FrameReady {
         series: id(THICK_SCAN),

@@ -13,7 +13,7 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{Grid, HeldVolume, SeriesId, Volume};
 use voxa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
 use voxa_segment::{LabelError, Sizes, Stage, label, sizes};
 
@@ -152,7 +152,7 @@ struct Job {
     /// The volume kept for the series when the run was asked for. It is let go when the run
     /// has said all it will say, or gives up waiting for its turn. The run is over, and says so
     /// once, when the store no longer keeps this very volume for the series.
-    volume: Option<Arc<Volume>>,
+    volume: Option<Arc<HeldVolume>>,
     /// The model the newest look found.
     model: Option<Arc<Model>>,
 }
@@ -233,7 +233,7 @@ impl Shared {
         if !self.current(job) {
             return;
         }
-        let (Some(volume), Some(model)) = (&job.volume, &job.model) else {
+        let (Some(held), Some(model)) = (&job.volume, &job.model) else {
             let why = if job.volume.is_none() {
                 NO_VOLUME
             } else {
@@ -241,6 +241,11 @@ impl Shared {
             };
             return self.fail(job, why);
         };
+        // The networks are given 32-bit values: made here, for the run only.
+        let Some(volume) = held.to_volume(0..held.dims()[2]) else {
+            return self.fail(job, NO_VOLUME);
+        };
+        let volume = &volume;
         let sizes = match sizes(volume) {
             Ok(sizes) => sizes,
             Err(why) => return self.fail(job, &why.to_string()),

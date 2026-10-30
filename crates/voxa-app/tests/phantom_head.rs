@@ -7,7 +7,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use voxa_app::{Action, NoticeKind, SceneStatus, Session};
-use voxa_core::{Patient, Point, Volume};
+use voxa_core::{Grid, Patient, Point, Volume};
 
 #[path = "../examples/write_phantom/head.rs"]
 mod head;
@@ -71,7 +71,7 @@ fn volume_of(export: &Path) -> Volume {
         .clone()
         .expect("a series is in the scene");
     let kept = session.volume(&series).expect("the volume is kept");
-    (*kept).clone()
+    kept.to_volume(0..kept.dims()[2]).expect("every slice")
 }
 
 /// Where voxel `(col, row, slice)` of the made-up head lies in the patient, in millimetres: the

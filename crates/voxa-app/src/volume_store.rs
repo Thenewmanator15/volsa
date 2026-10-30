@@ -3,13 +3,13 @@
 
 use std::sync::Arc;
 
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{HeldVolume, SeriesId};
 use voxa_render::{Prepared, Smoothed};
 
 /// The one volume in use. A volume is large, so only the newest is kept.
 #[derive(Debug, Default)]
 pub struct VolumeStore {
-    held: Option<(SeriesId, Arc<Volume>)>,
+    held: Option<(SeriesId, Arc<HeldVolume>)>,
     /// The volume kept, made ready for the graphics device, until the window takes it.
     ready: Option<Prepared>,
     /// The curve through the volume kept, for planes drawn smooth, until the window takes it.
@@ -20,7 +20,7 @@ pub struct VolumeStore {
 
 impl VolumeStore {
     /// The volume of a series, if that is the one kept.
-    pub fn get(&self, series: &SeriesId) -> Option<Arc<Volume>> {
+    pub fn get(&self, series: &SeriesId) -> Option<Arc<HeldVolume>> {
         let (of, volume) = self.held.as_ref()?;
         (of == series).then(|| Arc::clone(volume))
     }
@@ -35,8 +35,8 @@ impl VolumeStore {
     pub fn put(
         &mut self,
         series: SeriesId,
-        volume: Arc<Volume>,
-    ) -> Option<(SeriesId, Arc<Volume>)> {
+        volume: Arc<HeldVolume>,
+    ) -> Option<(SeriesId, Arc<HeldVolume>)> {
         self.ready = None;
         self.curve = None;
         self.held.replace((series, volume))
@@ -71,7 +71,12 @@ impl VolumeStore {
 
     /// Keep the curve through `of`, the volume of a series, if it is wanted and that very
     /// volume is still the one kept. Whether it was kept.
-    pub fn put_smoothed(&mut self, series: &SeriesId, of: &Arc<Volume>, curve: Smoothed) -> bool {
+    pub fn put_smoothed(
+        &mut self,
+        series: &SeriesId,
+        of: &Arc<HeldVolume>,
+        curve: Smoothed,
+    ) -> bool {
         let held = self.held.as_ref();
         let its_own = held.is_some_and(|(kept, volume)| kept == series && Arc::ptr_eq(volume, of));
         if its_own && self.curve_wanted {
@@ -100,14 +105,23 @@ impl VolumeStore {
 
 #[cfg(test)]
 mod tests {
-    use voxa_core::Affine;
+    use voxa_core::{Affine, Grid, Volume};
     use voxa_render::MAX_VOLUME_BYTES;
 
     use super::*;
-    use crate::testing::{FINE_SCAN, THICK_SCAN, id};
+    use crate::testing::{FINE_SCAN, THICK_SCAN, held_of, id};
 
-    fn volume(value: f32) -> Arc<Volume> {
-        Arc::new(Volume::new([1, 1, 2], vec![value; 2], Affine::identity()).expect("adds up"))
+    fn plain(value: f32) -> Volume {
+        Volume::new([1, 1, 2], vec![value; 2], Affine::identity()).expect("adds up")
+    }
+
+    fn volume(value: f32) -> Arc<HeldVolume> {
+        Arc::new(held_of(&plain(value)))
+    }
+
+    /// The value a volume holds, all of its values being one.
+    fn value_of(volume: Option<Arc<HeldVolume>>) -> Option<f32> {
+        volume?.value(0, 0, 0)
     }
 
     #[test]
@@ -115,7 +129,7 @@ mod tests {
         let mut store = VolumeStore::default();
         assert!(store.get(&id(THICK_SCAN)).is_none());
         store.put(id(THICK_SCAN), volume(1.0));
-        assert_eq!(store.get(&id(THICK_SCAN)), Some(volume(1.0)));
+        assert_eq!(value_of(store.get(&id(THICK_SCAN))), Some(1.0));
         assert!(
             store.get(&id(FINE_SCAN)).is_none(),
             "it is not another series' volume"
@@ -127,7 +141,7 @@ mod tests {
     #[test]
     fn what_was_made_ready_for_the_device_is_kept_with_its_volume_and_taken_once() {
         let mut store = VolumeStore::default();
-        let ready = || Prepared::of(&volume(1.0), 2048, MAX_VOLUME_BYTES);
+        let ready = || Prepared::of(&plain(1.0), 2048, MAX_VOLUME_BYTES);
         store.put_prepared(&id(THICK_SCAN), ready());
         assert!(
             store.take_prepared(&id(THICK_SCAN)).is_none(),
@@ -160,14 +174,15 @@ mod tests {
         assert!(before.is_none(), "nothing gave way");
         assert!(store.holds(&id(THICK_SCAN)) && !store.holds(&id(FINE_SCAN)));
         let before = store.put(id(FINE_SCAN), volume(2.0));
-        assert_eq!(before, Some((id(THICK_SCAN), volume(1.0))));
+        let (was, gone) = before.expect("one gave way");
+        assert_eq!((was, value_of(Some(gone))), (id(THICK_SCAN), Some(1.0)));
     }
 
     #[test]
     fn the_curve_is_kept_only_with_the_very_volume_it_runs_through_and_while_it_is_wanted() {
         let mut store = VolumeStore::default();
         let first = volume(1.0);
-        let curve = || Smoothed::of(&volume(1.0), 2048, MAX_VOLUME_BYTES);
+        let curve = || Smoothed::of(&plain(1.0), 2048, MAX_VOLUME_BYTES);
         let head = id(THICK_SCAN);
         store.put(head.clone(), Arc::clone(&first));
         assert!(
@@ -191,7 +206,7 @@ mod tests {
     fn a_newer_volume_leaves_no_curve_of_the_old_one_and_nor_does_turning_it_off() {
         let mut store = VolumeStore::default();
         let (first, head) = (volume(1.0), id(THICK_SCAN));
-        let curve = || Smoothed::of(&volume(1.0), 2048, MAX_VOLUME_BYTES);
+        let curve = || Smoothed::of(&plain(1.0), 2048, MAX_VOLUME_BYTES);
         store.want_smoothed(true);
         store.put(head.clone(), Arc::clone(&first));
         assert!(store.put_smoothed(&head, &first, curve()));
@@ -223,6 +238,6 @@ mod tests {
         store.put(id(THICK_SCAN), volume(1.0));
         store.put(id(FINE_SCAN), volume(2.0));
         assert!(store.get(&id(THICK_SCAN)).is_none());
-        assert_eq!(store.get(&id(FINE_SCAN)), Some(volume(2.0)));
+        assert_eq!(value_of(store.get(&id(FINE_SCAN))), Some(2.0));
     }
 }

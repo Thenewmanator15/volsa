@@ -1,6 +1,6 @@
 //! Building volumes on the workers: every slice decoded, stacked, and kept in the store.
 
-use voxa_core::Volume;
+use voxa_core::{Grid, HeldVolume};
 use voxa_dicom::testkit::{SliceOptions, classic_slice};
 
 use super::tests::{Bench, folder_of};
@@ -42,7 +42,7 @@ pub(super) fn until_the_volume_ends(bench: &Bench) -> Vec<Action> {
     }
 }
 
-pub(super) fn stored(bench: &Bench, series: &str) -> Option<Arc<Volume>> {
+pub(super) fn stored(bench: &Bench, series: &str) -> Option<Arc<HeldVolume>> {
     bench
         .volumes
         .lock()
@@ -61,7 +61,7 @@ fn a_volume_is_built_from_every_slice_and_kept_in_the_store() {
     let volume = stored(&bench, THICK_SCAN).expect("the volume is kept");
     assert_eq!(volume.dims(), [4, 4, 30]);
     assert_eq!(
-        volume.get(1, 0, 29),
+        volume.value(1, 0, 29),
         Some(465.0),
         "the second value of the last slice"
     );
@@ -123,7 +123,7 @@ fn slices_already_decoded_are_taken_from_the_cache() {
         "{reports:?}"
     );
     assert_eq!(
-        stored(&bench, THICK_SCAN).and_then(|volume| volume.get(0, 0, 2)),
+        stored(&bench, THICK_SCAN).and_then(|volume| volume.value(0, 0, 2)),
         Some(32.0)
     );
 }

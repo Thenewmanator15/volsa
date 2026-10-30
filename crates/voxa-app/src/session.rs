@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{Grid, HeldVolume, SeriesId};
 use voxa_dicom::Frame;
 use voxa_labels::LabelSet;
 use voxa_render::{Prepared, Smoothed};
@@ -83,9 +83,18 @@ impl Session {
         let cached = cache.get(series, slice);
         drop(cache);
         cached.or_else(|| {
+            // A viewport still waiting for its automatic window is not given the slice yet:
+            // it would be drawn once in a window chosen for nothing. Its window comes with
+            // the slice it asked for, a moment after the volume is kept.
+            let waiting = self.state.viewports.iter().any(|shown| {
+                shown.series.as_ref() == Some(series) && shown.slice == slice && shown.wl_pending
+            });
+            if waiting {
+                return None;
+            }
             let volume = self.volume(series)?;
             let [cols, rows, _] = volume.dims();
-            let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
+            let values = volume.slice_values(u32::try_from(slice).ok()?)?;
             let colour = None;
             Some(Arc::new(Frame {
                 rows,
@@ -97,7 +106,7 @@ impl Session {
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
-    pub fn volume(&self, series: &SeriesId) -> Option<Arc<Volume>> {
+    pub fn volume(&self, series: &SeriesId) -> Option<Arc<HeldVolume>> {
         self.volumes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

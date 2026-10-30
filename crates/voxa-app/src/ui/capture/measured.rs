@@ -1,7 +1,7 @@
 //! The annotations a picture of the window can ask for, made as the tools would have made
 //! them.
 
-use voxa_core::{Patient, Point, Volume};
+use voxa_core::{HeldVolume, Patient, Point};
 use voxa_volume::{PlaneKind, ellipse_stats};
 
 use crate::action::Action;
@@ -12,7 +12,7 @@ use crate::state::AppState;
 /// For a picture that asks for it with the word `measured`: a ruler, an angle, a region and
 /// a marker in the axial plane through the position, as the tools would have made them from
 /// `scan`, the scene's volume. Nothing while there is no volume ready.
-pub fn sample_annotations(state: &AppState, scan: &Volume) -> Vec<Action> {
+pub fn sample_annotations(state: &AppState, scan: &HeldVolume) -> Vec<Action> {
     let Some((axial, corners)) = plane(state, PlaneKind::Axial).zip(state.scene.corners) else {
         return Vec::new();
     };

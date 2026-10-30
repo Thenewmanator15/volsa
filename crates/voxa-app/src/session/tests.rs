@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 use super::*;
+use voxa_core::Grid;
 use voxa_render::{Camera, NamedView};
 
 use crate::scene::{Scene, SceneStatus};
@@ -379,7 +380,7 @@ fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
             .cached(&series, slice as usize)
             .expect("read from the volume");
         assert_eq!((frame.rows, frame.cols, frame.values.len()), (8, 8, 64));
-        assert_eq!(Some(frame.values[9]), volume.get(1, 1, slice));
+        assert_eq!(Some(frame.values[9]), volume.value(1, 1, slice));
     }
     assert!(
         session.cached(&series, 64).is_none(),

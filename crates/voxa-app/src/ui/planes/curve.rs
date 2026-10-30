@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use egui_wgpu::RenderState;
-use voxa_core::Volume;
+use voxa_core::HeldVolume;
 use voxa_render::{Smoothed, SmoothedTexture, VolumePipeline};
 
 use super::PlanesView;
@@ -29,18 +29,18 @@ impl PlanesView {
     pub fn smooth(
         &mut self,
         render: Option<&RenderState>,
-        volume: Option<&Arc<Volume>>,
+        volume: Option<&Arc<HeldVolume>>,
         on_device: Option<&VolumePipeline>,
         take: impl FnOnce() -> Option<Smoothed>,
     ) -> Smoothing {
-        let its_own = |(of, _): &(Arc<Volume>, SmoothedTexture)| {
+        let its_own = |(of, _): &(Arc<HeldVolume>, SmoothedTexture)| {
             volume.is_some_and(|volume| Arc::ptr_eq(of, volume))
         };
         if self.curve.as_ref().is_some_and(|held| !its_own(held)) {
             self.set_curve(None);
         }
         let same =
-            |refused: &Arc<Volume>| volume.is_some_and(|volume| Arc::ptr_eq(refused, volume));
+            |refused: &Arc<HeldVolume>| volume.is_some_and(|volume| Arc::ptr_eq(refused, volume));
         self.refused = self.refused.take().filter(same);
         let (Some(volume), None) = (volume, &self.curve) else {
             return Smoothing::Nothing;
@@ -74,7 +74,7 @@ impl PlanesView {
     }
 
     /// Hold a curve, or none, and have every panel draw from it.
-    fn set_curve(&mut self, curve: Option<(Arc<Volume>, SmoothedTexture)>) {
+    fn set_curve(&mut self, curve: Option<(Arc<HeldVolume>, SmoothedTexture)>) {
         self.curve = curve;
         let placed = self.curve.as_ref().map(|(_, placed)| placed);
         for gpu in self.gpus.iter().flatten() {

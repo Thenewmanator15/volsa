@@ -1,6 +1,7 @@
 //! What a picture of the window can ask for.
 
 use super::*;
+use crate::testing::held_of;
 
 #[test]
 fn a_picture_can_ask_for_the_scene_to_be_posed() {
@@ -143,7 +144,7 @@ fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
     let info = &state.series(&id(THICK_SCAN)).expect("listed").info;
     let placement = info.voxel_to_patient.expect("placed");
     let scan = Volume::new([4, 4, 30], vec![5.0; 480], placement).expect("adds up");
-    let made = sample_annotations(&state, &scan);
+    let made = sample_annotations(&state, &held_of(&scan));
     let shapes: Vec<&Shape> = made
         .iter()
         .filter_map(|action| match action {
@@ -163,7 +164,7 @@ fn a_picture_can_ask_for_one_of_each_kind_of_annotation_in_the_axial_plane() {
         assert!(shape.points().iter().all(on_the_plane), "{shape:?}");
     }
     assert_eq!(
-        sample_annotations(&AppState::default(), &scan),
+        sample_annotations(&AppState::default(), &held_of(&scan)),
         [],
         "nothing with no volume"
     );

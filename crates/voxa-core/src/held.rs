@@ -56,7 +56,7 @@ pub enum SlabRaw<'a> {
 }
 
 /// Why a slice could not be put in a held volume.
-#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum HeldError {
     /// The slice's numbers are not of the kind the volume holds.
     #[error("the slice is not of the kind the volume holds")]

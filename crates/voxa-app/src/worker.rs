@@ -17,6 +17,7 @@ use crate::volume_store::VolumeStore;
 
 mod annotations;
 mod frames;
+mod held;
 mod kept;
 pub(crate) mod labelling;
 mod labels;

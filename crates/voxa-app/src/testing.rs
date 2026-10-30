@@ -277,3 +277,22 @@ pub fn lose(device: &egui_wgpu::wgpu::Device) {
     device.destroy();
     let _ = device.poll(egui_wgpu::wgpu::PollType::wait_indefinitely());
 }
+
+/// The same values as `volume`, held as 32-bit numbers, as the store holds a series.
+pub fn held_of(volume: &voxa_core::Volume) -> voxa_core::HeldVolume {
+    use voxa_core::{HeldVolume, Rescale, SliceIn, Stored};
+    let [_, _, slices] = volume.dims();
+    let held = HeldVolume::new(
+        volume.dims(),
+        volume.voxel_to_patient(),
+        Stored::Float32,
+        Rescale::default(),
+        1 << 20,
+    )
+    .expect("the same placement");
+    for slice in 0..slices {
+        let values = volume.slice_values(slice).expect("a slice");
+        held.put_slice(slice, SliceIn::Float(values)).expect("fits");
+    }
+    held
+}

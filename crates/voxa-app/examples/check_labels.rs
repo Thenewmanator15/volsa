@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use voxa_app::{
     Action, LabelsStatus, NOWHERE_NEAR, NoticeKind, SceneStatus, Session, png, table_beside,
 };
-use voxa_core::{Patient, Point, SeriesId, Volume, WindowLevel};
+use voxa_core::{Grid, Patient, Point, SeriesId, Volume, WindowLevel};
 use voxa_labels::{LabelSet, pairs};
 use voxa_render::{HeadlessScene, Look, Overlay, PartLook, PlaneView, SceneParams};
 use voxa_volume::{PlaneKind, plane_of};
@@ -257,7 +257,10 @@ fn one_series(
             return Err("The labels were not opened.".to_owned());
         }
     }
-    let volume = session.volume(id).ok_or("The volume is not kept.")?;
+    let volume = session
+        .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
+        .ok_or("The volume is not kept.")?;
     let set = session.labels().ok_or("The labels are not kept.")?;
     let Some((share, through)) = reach(&set, &volume) else {
         println!("Series {number}: nothing labelled lies inside it");

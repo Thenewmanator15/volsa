@@ -7,6 +7,7 @@ use super::tests::{Bench, folder_of};
 use super::volume_tests::{build, counted, stored, until_the_volume_ends};
 use super::*;
 use crate::testing::{FINE_SCAN, THICK_SCAN, id, series_files};
+use voxa_core::Grid;
 use voxa_volume::PRESETS;
 
 /// How many times each slice of a series was announced as decoded.

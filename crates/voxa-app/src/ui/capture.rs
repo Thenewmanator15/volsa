@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{HeldVolume, SeriesId};
 use voxa_render::Look;
 
 use super::VoxaApp;
@@ -263,7 +263,7 @@ impl Capture {
 
     /// The annotations the picture asks for, when it asks for them: given once, when the
     /// scene's volume is there to make them on.
-    pub fn sample(&mut self, state: &AppState, scan: Option<&Volume>) -> Vec<Action> {
+    pub fn sample(&mut self, state: &AppState, scan: Option<&HeldVolume>) -> Vec<Action> {
         let made = scan
             .filter(|_| self.measured)
             .map(|scan| sample_annotations(state, scan));

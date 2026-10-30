@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
-use voxa_core::{Patient, Point, Volume};
+use voxa_core::{HeldVolume, Patient, Point};
 use voxa_labels::LabelSet;
 use voxa_render::{LabelsOnDevice, Prepared, RenderError, SceneParams, VolumePipeline, pick};
 
@@ -70,7 +70,7 @@ impl SceneView {
     }
 
     /// Whether this volume has still to be put on the graphics device.
-    pub fn needs(&self, volume: &Arc<Volume>) -> bool {
+    pub fn needs(&self, volume: &Arc<HeldVolume>) -> bool {
         self.gpu.as_ref().is_some_and(|gpu| !gpu.holds(volume))
     }
 
@@ -126,7 +126,7 @@ impl SceneView {
         ui: &Ui,
         area: Rect,
         state: &AppState,
-        volume: Option<&Arc<Volume>>,
+        volume: Option<&Arc<HeldVolume>>,
         render: Option<&RenderState>,
         actions: &mut Vec<Action>,
     ) -> Option<egui::TextureId> {
@@ -179,7 +179,7 @@ pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
-    (volume, labels): (Option<&Arc<Volume>>, Option<&LabelSet>),
+    (volume, labels): (Option<&Arc<HeldVolume>>, Option<&LabelSet>),
     view: &mut SceneView,
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
@@ -244,7 +244,7 @@ pub fn show(
 /// which is put in the middle as well.
 fn pointed(
     state: &AppState,
-    (volume, labels): (Option<&Arc<Volume>>, Option<&LabelSet>),
+    (volume, labels): (Option<&Arc<HeldVolume>>, Option<&LabelSet>),
     response: &egui::Response,
     area: Rect,
     ruler_from: &mut Option<Point<Patient>>,

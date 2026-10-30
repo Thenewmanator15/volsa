@@ -19,7 +19,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use voxa_app::{Action, NoticeKind, SceneStatus, Session, png};
-use voxa_core::{SeriesId, Volume, WindowLevel};
+use voxa_core::{Grid, SeriesId, Volume, WindowLevel};
 use voxa_render::{HeadlessScene, MAX_VOLUME_BYTES, PlaneView, Smoothed};
 use voxa_volume::{PlaneKind, central_voxel, pitch_along, plane_of};
 
@@ -120,7 +120,10 @@ fn one_series(
         println!("Series {number}: no 3D view, so no plane views");
         return Ok(None);
     }
-    let volume = session.volume(id).ok_or("The volume is not kept.")?;
+    let volume = session
+        .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
+        .ok_or("The volume is not kept.")?;
     // The window is chosen from the slice shown, which arrives a moment after the volume.
     let chosen = |session: &Session| {
         let shown = session.state().viewports.first();

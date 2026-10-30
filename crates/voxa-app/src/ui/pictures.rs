@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use egui_wgpu::RenderState;
-use voxa_core::Volume;
+use voxa_core::HeldVolume;
 use voxa_render::VolumePipeline;
 
 use super::{VoxaApp, labels, layout, parts, planes, scene, shares, viewport};
@@ -107,7 +107,7 @@ impl VoxaApp {
         session: &Session,
         (scene, planes): (&scene::SceneView, &mut planes::PlanesView),
         render: Option<&RenderState>,
-        volume: Option<&Arc<Volume>>,
+        volume: Option<&Arc<HeldVolume>>,
         actions: &mut Vec<Action>,
     ) {
         let state = session.state();

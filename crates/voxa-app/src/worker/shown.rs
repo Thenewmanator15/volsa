@@ -2,6 +2,7 @@
 //! was decoded: slices read out of a volume, and slices a volume put by in the frame cache.
 //! Working them out for every slice decoded for a volume cost more than decoding it did.
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use voxa_core::SeriesId;
@@ -32,12 +33,13 @@ impl Workers {
             let values = match (&volume, &frame) {
                 (Some(volume), _) => u32::try_from(slice)
                     .ok()
-                    .and_then(|at| volume.slice_values(at)),
-                (None, Some(frame)) => Some(frame.values.as_slice()),
+                    .and_then(|at| volume.slice_values(at))
+                    .map(Cow::Owned),
+                (None, Some(frame)) => Some(Cow::Borrowed(frame.values.as_slice())),
                 (None, None) => None,
             };
             if let Some(values) = values {
-                let windows = PRESETS.map(|preset| preset.window(values));
+                let windows = PRESETS.map(|preset| preset.window(&values));
                 shared.report(Action::FrameReady {
                     series,
                     slice,

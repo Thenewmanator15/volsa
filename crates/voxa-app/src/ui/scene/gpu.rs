@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use egui_wgpu::{RenderState, wgpu};
-use voxa_core::Volume;
+use voxa_core::{Grid, HeldVolume};
 use voxa_render::{
     LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, Prepared, RenderError, SceneParams,
     VolumePipeline, timed_submit,
@@ -54,7 +54,7 @@ pub struct SceneGpu {
     labels: u64,
     picture: Option<Picture>,
     /// The volume the device was last given, so it is given once and not every frame.
-    given: Weak<Volume>,
+    given: Weak<HeldVolume>,
     drawn: Option<Drawn>,
     timing: Timing,
 }
@@ -74,7 +74,7 @@ impl SceneGpu {
     }
 
     /// Whether this volume is the one the graphics device was last given.
-    pub fn holds(&self, volume: &Arc<Volume>) -> bool {
+    pub fn holds(&self, volume: &Arc<HeldVolume>) -> bool {
         Weak::ptr_eq(&self.given, &Arc::downgrade(volume))
     }
 
@@ -108,7 +108,7 @@ impl SceneGpu {
     pub fn hold(
         &mut self,
         render: &RenderState,
-        volume: &Arc<Volume>,
+        volume: &Arc<HeldVolume>,
         ready: Option<Prepared>,
     ) -> Option<u32> {
         if self.holds(volume) {
@@ -117,7 +117,12 @@ impl SceneGpu {
         let (device, queue) = (&render.device, &render.queue);
         let quick =
             ready.and_then(|ready| self.pipeline.upload_prepared(device, queue, &ready).ok());
-        let halved = quick.or_else(|| self.pipeline.upload(device, queue, volume).ok());
+        // Only when nothing was made ready: its values as 32-bit numbers, made for this once.
+        let whole = || volume.to_volume(0..volume.dims()[2]);
+        let halved = quick.or_else(|| {
+            let values = whole()?;
+            self.pipeline.upload(device, queue, &values).ok()
+        });
         self.given = Arc::downgrade(volume);
         self.drawn = None;
         self.timing = Timing::default();

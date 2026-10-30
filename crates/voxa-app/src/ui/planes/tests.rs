@@ -282,7 +282,7 @@ fn the_curve_is_asked_for_only_while_smoothing_is_wanted() {
 
     let mut view = super::PlanesView::new(None);
     let volume = Volume::new([1, 1, 2], vec![1.0; 2], Affine::identity()).expect("adds up");
-    let volume = Arc::new(volume);
+    let volume = Arc::new(crate::testing::held_of(&volume));
     let asked = Cell::new(0);
     let take = || {
         asked.set(asked.get() + 1);

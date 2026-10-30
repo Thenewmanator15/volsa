@@ -4,6 +4,7 @@ use super::tests::{Bench, folder_of};
 use super::volume_tests::{build, counted, stored, until_the_volume_ends};
 use super::*;
 use crate::testing::{THICK_SCAN, id};
+use voxa_core::Grid;
 
 #[test]
 fn with_the_blocks_left_to_the_device_a_volume_is_made_ready_without_them() {

@@ -10,7 +10,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use tempfile::TempDir;
-use voxa_core::Volume;
+use voxa_core::HeldVolume;
 use voxa_models::RunsOn;
 use voxa_segment::Stage;
 
@@ -19,7 +19,7 @@ use super::stand_ins::{PATIENCE, ROBUST, StandIn, head, held, long_head, models}
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::labelling::{LabellingAction, Ready};
-use crate::testing::{FINE_SCAN, THICK_SCAN, id};
+use crate::testing::{FINE_SCAN, THICK_SCAN, held_of, id};
 use crate::volume_store::VolumeStore;
 use crate::worker::Workers;
 
@@ -29,7 +29,7 @@ pub(super) struct Lab {
     pub(super) workers: Workers,
     reports: Receiver<Action>,
     pub(super) stand_in: Arc<StandIn>,
-    volume: Arc<Volume>,
+    volume: Arc<HeldVolume>,
     volumes: Arc<Mutex<VolumeStore>>,
     pub(super) folder: TempDir,
     /// The folder settings are kept in, when the lab made one.
@@ -51,7 +51,7 @@ impl Lab {
         let labeller: Arc<dyn Labeller> = Arc::clone(&stand_in) as Arc<dyn Labeller>;
         let kept = Arc::clone(&volumes);
         let workers = Workers::new(sender, cache, kept, settings, Some(labeller));
-        let volume = Arc::new(head());
+        let volume = Arc::new(held_of(&head()));
         held(&volumes).put(id(THICK_SCAN), Arc::clone(&volume));
         Self {
             workers,
@@ -75,7 +75,7 @@ impl Lab {
     /// volume: one whose image is smaller cut to the head than whole.
     pub(super) fn with_a_long_head(stand_in: StandIn) -> Self {
         let mut lab = Self::new(stand_in);
-        let volume = Arc::new(long_head());
+        let volume = Arc::new(held_of(&long_head()));
         held(&lab.volumes).put(id(THICK_SCAN), Arc::clone(&volume));
         lab.volume = volume;
         lab
@@ -201,12 +201,12 @@ impl Lab {
     /// Another series' volume takes the place of the one kept, as when the person chooses
     /// another series for the scene.
     pub(super) fn another_series(&self) {
-        held(&self.volumes).put(id(FINE_SCAN), Arc::new(head()));
+        held(&self.volumes).put(id(FINE_SCAN), Arc::new(held_of(&head())));
     }
 
     /// The volume of the same series is made again, and takes the place of the one kept.
     pub(super) fn the_volume_made_again(&self) {
-        held(&self.volumes).put(id(THICK_SCAN), Arc::new(head()));
+        held(&self.volumes).put(id(THICK_SCAN), Arc::new(held_of(&head())));
     }
 
     /// What has been said and not yet read.
