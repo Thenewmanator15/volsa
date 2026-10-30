@@ -89,9 +89,9 @@ const HOLDERS: [Holders; 10] = [
         source: "https://github.com/AccessKit/accesskit/blob/1bbcf100942bac96c2c3a4a91cb67b0b20201a24/LICENSE-APACHE",
     },
     Holders {
-        packages: &["clipboard-win 5.4.1"],
+        packages: &["clipboard-win 5.4.3"],
         lines: &[],
-        source: "https://github.com/DoumanAsh/clipboard-win/blob/3b27cf2bfd1adcfa6e0264eb51c1025ddaf0f342/LICENSE",
+        source: "https://github.com/DoumanAsh/clipboard-win/blob/ed27008ae5d1f10cfbb266de039f0fb35fd05a56/LICENSE",
     },
     // The commits 0.10.0 was published from are not on GitHub; the tag v0.10.0 is.
     Holders {
