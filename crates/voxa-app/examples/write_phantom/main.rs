@@ -25,17 +25,34 @@
 //! ```text
 //! cargo run -p voxa-app --example write_phantom -- head some/models/check some/folder [whole]
 //! ```
+//!
+//! For measuring Voxa on scans as large as CT and whole-body MRI, the words `ct` and `body`
+//! write a made-up body from the thighs to the head: `ct` as one CT series of thin slices
+//! (512 x 512, 2,000 slices unless a number is given), `body` as a whole-body MR study taken
+//! in overlapping stations (five unless a number is given), each a series, beside the
+//! stations joined into one. `zip` puts a folder into a zip, compressed unless `stored`:
+//!
+//! ```text
+//! cargo run --release -p voxa-app --example write_phantom -- ct some/ct [SLICES]
+//! cargo run --release -p voxa-app --example write_phantom -- body some/body [STATIONS]
+//! cargo run --release -p voxa-app --example write_phantom -- zip some/ct some/ct.zip [stored]
+//! ```
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+mod big;
+mod body;
 mod head;
 mod labels;
 mod more;
 mod study;
 
-const USAGE: &str =
-    "Usage: write_phantom [FOLDER]\n       write_phantom head CHECK_FOLDER OUT [whole]";
+const USAGE: &str = "Usage: write_phantom [FOLDER]
+       write_phantom head CHECK_FOLDER OUT [whole]
+       write_phantom ct OUT [SLICES]
+       write_phantom body OUT [STATIONS]
+       write_phantom zip FOLDER OUT [stored]";
 
 fn main() -> ExitCode {
     let args: Vec<PathBuf> = std::env::args_os().skip(1).map(PathBuf::from).collect();
@@ -50,6 +67,10 @@ fn main() -> ExitCode {
             head::write(check, out, whole).map(|()| out.clone())
         }
         [word, ..] if word.as_os_str() == "head" => return usage(),
+        [word, rest @ ..] if is_large(word) => match large(word, rest) {
+            Some(written) => written,
+            None => return usage(),
+        },
         [folder] => phantom(folder),
         _ => return usage(),
     };
@@ -63,6 +84,35 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
+}
+
+fn is_large(word: &Path) -> bool {
+    ["ct", "body", "zip"]
+        .iter()
+        .any(|large| word.as_os_str() == *large)
+}
+
+/// Write a large study, or a zip of one, as the words after `word` say; `None` when they do
+/// not say it right.
+fn large(word: &Path, rest: &[PathBuf]) -> Option<std::io::Result<PathBuf>> {
+    let number = |given: Option<&PathBuf>, otherwise: u32| match given {
+        None => Some(otherwise),
+        Some(given) => given.to_str()?.parse().ok().filter(|n| *n > 0),
+    };
+    let written = match (word.to_str()?, rest) {
+        ("ct", [out, more @ ..]) if more.len() < 2 => {
+            big::ct(out, number(more.first(), 2000)?).map(|()| out.clone())
+        }
+        ("body", [out, more @ ..]) if more.len() < 2 => {
+            big::whole_body(out, number(more.first(), 5)?).map(|()| out.clone())
+        }
+        ("zip", [folder, out]) => big::zip(folder, out, false).map(|()| out.clone()),
+        ("zip", [folder, out, how]) if how.as_os_str() == "stored" => {
+            big::zip(folder, out, true).map(|()| out.clone())
+        }
+        _ => return None,
+    };
+    Some(written)
 }
 
 fn usage() -> ExitCode {
