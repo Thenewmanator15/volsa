@@ -11,6 +11,7 @@ use voxa_volume::PRESETS;
 
 use super::*;
 use crate::testing::{THICK_SCAN, id, series_files, slice_options};
+use voxa_dicom::Frame;
 
 /// Bytes held by one decoded 4 × 4 frame.
 pub(super) const ONE: usize = 64;

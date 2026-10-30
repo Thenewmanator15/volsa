@@ -10,7 +10,7 @@ use rayon::prelude::*;
 use voxa_core::{SeriesId, Volume};
 use voxa_dicom::{Frame, ImageFile, IndexedSeries};
 use voxa_render::{MAX_VOLUME_BYTES, Prepared, Smoothed};
-use voxa_volume::{PRESETS, assemble};
+use voxa_volume::assemble;
 
 use super::{Batch, Shared, Workers, batches, lock, shielded};
 use crate::action::Action;
@@ -217,12 +217,11 @@ impl Shared {
                 break;
             }
             let cached = lock(&self.cache).get(series, *slice);
+            // Nothing is said of the slice: its windows are worked out if it is shown.
             let decoded = cached.map_or_else(
                 || {
                     let image = opened.get_or_insert_with(|| self.open(&file.entry));
-                    let fresh = decoded_from(image, *frame)?;
-                    self.announce(series, *slice, &fresh, build);
-                    Ok(fresh)
+                    decoded_from(image, *frame)
                 },
                 Ok,
             );
@@ -230,21 +229,6 @@ impl Shared {
             one_more();
         }
         slices
-    }
-
-    /// Say that a slice has been decoded, with the window each preset gives for it, as is
-    /// said of a slice decoded for the viewport: the viewport shows it, out of the volume
-    /// once that is built, and needs its windows.
-    fn announce(&self, series: &SeriesId, slice: usize, decoded: &Frame, build: &Build) {
-        if self.building(build) {
-            let windows = PRESETS.map(|preset| preset.window(&decoded.values));
-            let series = series.clone();
-            self.report(Action::FrameReady {
-                series,
-                slice,
-                windows,
-            });
-        }
     }
 
     /// Keep a volume in the store, with what makes it ready for the graphics device, and
@@ -301,7 +285,8 @@ impl Shared {
                 values: values.to_vec(),
                 colour: None,
             };
-            if !self.hold(series, slice as usize, Arc::new(frame), middle, opened) {
+            let frame = Arc::new(frame);
+            if !self.hold(series, slice as usize, frame, (middle, opened), false) {
                 return;
             }
         }
@@ -315,7 +300,7 @@ impl Shared {
             let Ok(frame) = frame else {
                 continue;
             };
-            if !self.hold(series, slice, frame, middle, build.opened) {
+            if !self.hold(series, slice, frame, (middle, build.opened), false) {
                 return;
             }
         }
@@ -324,14 +309,15 @@ impl Shared {
     /// Put a decoded slice of a series in the frame cache, for the viewport to show, unless
     /// the series' volume is the one kept: its slices are then read from that, and are not
     /// held a second time. False, with nothing done, when another export has been opened
-    /// since the one numbered `opened`: the cache is that export's now.
+    /// since the one numbered `opened`: the cache is that export's now. `announced` says
+    /// whether its windows have been said; if not, they are said when it is shown.
     pub(super) fn hold(
         &self,
         series: &SeriesId,
         slice: usize,
         frame: Arc<Frame>,
-        keep_near: usize,
-        opened: u64,
+        (keep_near, opened): (usize, u64),
+        announced: bool,
     ) -> bool {
         // Wherever both are locked, the store is locked first.
         let volumes = lock(&self.volumes);
@@ -340,7 +326,11 @@ impl Shared {
             return false;
         }
         if !volumes.holds(series) {
-            cache.insert(series, slice, frame, keep_near);
+            if announced {
+                cache.insert(series, slice, frame, keep_near);
+            } else {
+                cache.insert_unannounced(series, slice, frame, keep_near);
+            }
         }
         true
     }

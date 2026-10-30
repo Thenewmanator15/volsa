@@ -170,4 +170,6 @@ mod kept_tests;
 #[cfg(test)]
 mod lost_tests;
 #[cfg(test)]
+mod shown_tests;
+#[cfg(test)]
 mod tests;

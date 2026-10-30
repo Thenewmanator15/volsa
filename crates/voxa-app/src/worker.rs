@@ -8,20 +8,21 @@ use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use voxa_core::SeriesId;
-use voxa_dicom::{Frame, Index, IndexedSeries, SeriesSource, index, open_source};
+use voxa_dicom::{Index, IndexedSeries, SeriesSource, index, open_source};
 use voxa_labels::LabelSet;
-use voxa_volume::PRESETS;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+mod frames;
 mod kept;
 pub(crate) mod labelling;
 mod labels;
 mod opened;
 mod post;
+mod shown;
 mod tags;
 mod views;
 mod volume;
@@ -210,9 +211,9 @@ impl Workers {
     fn request_frames(&self, listed: &IndexedSeries, around: usize, at_most: usize) {
         let shared = &self.shared;
         let series = listed.info.id.clone();
-        // A series with a volume has its slices read from that. One whose volume is being
-        // built is decoded there, once; here only the slice shown is, so it is seen at once.
-        if lock(&shared.volumes).holds(&series) {
+        // A held series' slices and windows come from its volume. One whose volume is being
+        // built is decoded there once; here only the slice shown.
+        if self.say_windows(&series, around) {
             return;
         }
         let building = lock(&shared.wanted_volume).as_ref() == Some(&series);
@@ -296,57 +297,6 @@ impl Shared {
             Ok((_, found)) => self.report(Action::IndexFailed(post::nothing_found(path, &found))),
             Err(error) => self.could_not_open(&error),
         }
-    }
-
-    /// Decode the slices of one batch, in order, unless the request has been overtaken.
-    fn decode(&self, batch: &Batch, request: &Request) {
-        if !self.still_wanted(request) {
-            return;
-        }
-        let Some(file) = self.file_of(batch, request) else {
-            return;
-        };
-        for (slice, frame) in &batch.slices {
-            if !self.still_wanted(request) {
-                return;
-            }
-            let decoded = match &file {
-                Ok(file) => file.decode(*frame).map_err(|error| error.to_string()),
-                Err(error) => Err(error.clone()),
-            };
-            self.deliver(request, *slice, decoded);
-        }
-    }
-
-    /// Hold a decoded slice for the viewport and announce it, or announce that it failed.
-    fn deliver(&self, request: &Request, slice: usize, decoded: Result<Frame, String>) {
-        let series = request.series.clone();
-        let report = match decoded {
-            Ok(frame) => {
-                let windows = PRESETS.map(|preset| preset.window(&frame.values));
-                let frame = Arc::new(frame);
-                if !self.hold(&series, slice, frame, request.around, request.opened) {
-                    return;
-                }
-                Action::FrameReady {
-                    series,
-                    slice,
-                    windows,
-                }
-            }
-            Err(reason) => Action::FrameFailed {
-                series,
-                slice,
-                reason,
-            },
-        };
-        self.report(report);
-    }
-
-    /// Whether a request is still the newest for its series, in the source still open.
-    fn still_wanted(&self, request: &Request) -> bool {
-        self.opened.load(Ordering::SeqCst) == request.opened
-            && lock(&self.newest).get(&request.series) == Some(&request.number)
     }
 
     fn report(&self, action: Action) {

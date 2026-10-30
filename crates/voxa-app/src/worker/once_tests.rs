@@ -7,6 +7,7 @@ use super::tests::{Bench, folder_of};
 use super::volume_tests::{build, counted, stored, until_the_volume_ends};
 use super::*;
 use crate::testing::{FINE_SCAN, THICK_SCAN, id, series_files};
+use voxa_volume::PRESETS;
 
 /// How many times each slice of a series was announced as decoded.
 fn announced(reports: &[Action], series: &str, slices: usize) -> Vec<usize> {
@@ -28,13 +29,12 @@ fn held_in_the_cache(bench: &Bench, series: &str, slices: usize) -> usize {
 }
 
 #[test]
-fn building_a_volume_announces_every_slice_once_and_keeps_no_second_copy() {
+fn building_a_volume_keeps_no_second_copy() {
     let bench = Bench::with_budget(1 << 20);
     let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
     let index = bench.index(folder.path()).expect("indexes");
     build(&bench, &index, THICK_SCAN);
-    let reports = until_the_volume_ends(&bench);
-    assert_eq!(announced(&reports, THICK_SCAN, 30), vec![1; 30]);
+    until_the_volume_ends(&bench);
     let held = held_in_the_cache(&bench, THICK_SCAN, 30);
     assert_eq!(
         held, 0,
@@ -54,7 +54,18 @@ fn once_a_volume_is_built_its_slices_are_not_decoded_again() {
         around: 3,
     };
     bench.workers.run(frames, Some(&index));
-    assert_eq!(bench.drain(), [], "they are read from the volume");
+    let reports = bench.drain();
+    assert_eq!(
+        announced(&reports, THICK_SCAN, 30)[3],
+        1,
+        "the slice shown is said to be ready, with its windows: {reports:?}"
+    );
+    assert_eq!(reports.len(), 1, "and nothing else: {reports:?}");
+    assert_eq!(
+        held_in_the_cache(&bench, THICK_SCAN, 30),
+        0,
+        "they are read from the volume"
+    );
 }
 
 #[test]
@@ -71,14 +82,11 @@ fn while_a_volume_is_wanted_the_viewport_decodes_only_the_slice_it_shows() {
     bench.workers.run(frames, Some(&index));
     let mut reports = until_the_volume_ends(&bench);
     reports.extend(bench.drain());
-    let times = announced(&reports, THICK_SCAN, 30);
-    assert!(times.iter().all(|times| *times >= 1), "{times:?}");
-    // The slice shown may be decoded by both, each wanting it at once; no other is.
-    let twice: Vec<usize> = (0..30).filter(|slice| times[*slice] > 1).collect();
-    assert!(
-        twice.is_empty() || twice == [15],
-        "decoded twice: {twice:?}"
-    );
+    // Only the slice shown is said to be ready: the viewport decoded it, and the volume's
+    // own slices are said only when shown.
+    let mut once = vec![0; 30];
+    once[15] = 1;
+    assert_eq!(announced(&reports, THICK_SCAN, 30), once);
     assert!(held_in_the_cache(&bench, THICK_SCAN, 30) <= 1);
 }
 
@@ -126,20 +134,26 @@ fn slices_decoded_for_a_volume_that_failed_are_kept_for_the_viewport() {
     );
     let good: Vec<usize> = (0..30).filter(|slice| *slice != 6).collect();
     let times = announced(&reports, THICK_SCAN, 30);
-    let told: Vec<usize> = (0..30).filter(|slice| times[*slice] == 1).collect();
-    assert_eq!(
-        (told, times[6]),
-        (good.clone(), 0),
-        "each good slice once: {times:?}"
-    );
+    assert_eq!(times, vec![0; 30], "none is said while the volume is built");
     let held: Vec<usize> = (0..30)
         .filter(|slice| bench.cached(THICK_SCAN, *slice).is_some())
         .collect();
     assert_eq!(held, good, "what was decoded is there to show");
-    // Asking for the series' frames now decodes only the slice that is missing.
-    let after = bench.frames(&index, THICK_SCAN, 0, 1);
+    // Asking for the series' frames now decodes only the slice that is missing, and says
+    // the slice shown is ready, with the windows of what the cache holds.
+    let after = bench.frames(&index, THICK_SCAN, 0, 2);
+    let shown = bench.cached(THICK_SCAN, 0).expect("held");
+    let windows = PRESETS.map(|preset| preset.window(&shown.values));
+    let ready = Action::FrameReady {
+        series: id(THICK_SCAN),
+        slice: 0,
+        windows,
+    };
+    assert!(after.contains(&ready), "{after:?}");
     assert!(
-        matches!(after[..], [Action::FrameFailed { slice: 6, .. }]),
+        after
+            .iter()
+            .any(|report| matches!(report, Action::FrameFailed { slice: 6, .. })),
         "{after:?}"
     );
     assert!(bench.is_quiet());
