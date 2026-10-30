@@ -1,8 +1,9 @@
 # Voxa's window, redesigned: design
 
 Date: 2026-10-30
-Status: draft for the owner's approval. Decisions the owner made are marked *owner*, with the
-day; the rest are mine, marked *my call*, for the owner to overrule. Nothing here is built.
+Status: approved by the owner on 2026-10-30, with the calls marked *my call* and the new
+intended-use wording (section 8). Decisions the owner made are marked *owner*, with the day;
+the rest are mine, marked *my call*, for the owner to overrule.
 
 Living documents this work starts, and keeps current from now on:
 [requirements](../../quality/requirements.md),
@@ -90,8 +91,9 @@ and again on the redesign.
   errors. Green before every commit.
 - How a scan is read, cached, built into a volume and drawn on the GPU stays as it is, and
   so do the workers. The window's state and its rules change where the new window needs
-  them: `AppState` gains the arrangement (7.5), the open tab, the theme and the folds, in
-  place of today's `MainPanel` and `ColumnShows`; the reducer gains actions and lets
+  them: `AppState` gains the arrangement (7.5) in place of today's `MainPanel` and
+  `ColumnShows`; the window's own state (beside today's list width and interface size)
+  gains the open tab, the theme and the folds; the reducer gains actions and lets
   measuring happen on slices without a volume (7.7); the file of measurements kept per
   series gets a new version that still reads the old one, and the saved CSV and JSON gain
   columns saying where a measurement's millimetres came from (*my call*, after the builder

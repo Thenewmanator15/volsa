@@ -52,6 +52,6 @@ that work is next changed.
 | UI-34 | A DICOM structured report is listed in Other files and opens as text, headed "Shown as text. The original report is the reference." | 7.15 | R-UI-10 | |
 | UI-35 | A PDF stored in DICOM is listed and can be saved as a PDF file where the person chooses; Voxa starts no other program. | 7.15 | | |
 | UI-36 | A settings file written by 0.6.0 opens without error and its settings are honoured; 3D views and measurements kept per series are kept. | 7.16 | | |
-| UI-37 | Drawing the bars, rail and panel adds no work per frame that grows with the scan's size; with a made-up study of 500 series it takes no longer than 0.6.0's bars and list. | 7.17 | | |
+| UI-37 | Drawing the bars, rail and panel adds no work per frame that grows with the scan's size: with a made-up study of 500 series the rail lays out only the cards in sight, and the search's index is not rebuilt while nothing changes; a recorded measurement shows the frame no slower than 0.6.0's bars and list. | 7.17 | | |
 | UI-38 | No wording on screen says or suggests a finding: no "normal", "abnormal", "lesion" or score. | 4 | R-UI-08 | |
 | UI-39 | Help topics on opening an export, finding your scan, brightness, measuring and where its millimetres come from, left and right, labels, and what Voxa is not for, are found by search and listed under help. | 7.18 | R-UI-03, R-UI-08 | |
