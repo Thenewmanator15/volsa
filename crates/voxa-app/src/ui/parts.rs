@@ -27,7 +27,7 @@ const NAMED: &str = "Names from the table beside the labels.";
 const NAMED_BY_THE_MODEL: &str = "Names from the model's own list.";
 const NOT_NAMED: &str = "No table of names: the parts are called by their numbers.";
 const OTHER_STUDY: &str = "The labels open belong to another study than the one shown.";
-const NO_VOLUME: &str = "Labels are put on the 3D view of a series, and this one has none yet.";
+pub const NO_VOLUME: &str = "Labels are put on the 3D view of a series, and this one has none yet.";
 /// A column this wide has room for each part's volume beside its name.
 const WIDE: f32 = 300.0;
 /// The side of a part's swatch of colour, in points.

@@ -3,14 +3,15 @@
 use egui::Ui;
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
+use super::commands;
 use super::scene::{export, views};
 use crate::action::Action;
-use crate::labels::{look_drawn, on_this_series};
-use crate::scene::SceneStatus;
+use crate::labels::look_drawn;
 use crate::state::AppState;
 
 /// The looks offered, with the label and hover text of each button. The labels are the names
-/// radiology uses; the hover text says what each means.
+/// radiology uses; the hover text says what each means. The list of actions takes its entries
+/// for the looks from these.
 pub const LOOKS: [(Look, &str, &str); 3] = [
     (
         Look::Surface,
@@ -30,10 +31,11 @@ pub const LOOKS: [(Look, &str, &str); 3] = [
 ];
 
 /// What the Parts look is, and why it cannot be chosen while there are no labels.
-const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
+pub const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
 pub const PARTS_NEED_LABELS: &str = "Open labels in the Parts tab to see them as solids here";
 
-/// The sides the patient can be seen from, with the letter on each button and what it means.
+/// The sides the patient can be seen from, with the letter on each button and what it means,
+/// from which the list of actions takes its entries for them.
 pub const VIEWS: [(NamedView, &str, &str); 6] = [
     (NamedView::Anterior, "A", "From the front (anterior)"),
     (NamedView::Posterior, "P", "From behind (posterior)"),
@@ -43,27 +45,45 @@ pub const VIEWS: [(NamedView, &str, &str); 6] = [
     (NamedView::Inferior, "I", "From below the feet (inferior)"),
 ];
 
-/// Why the slice shown in 2D cannot be drawn in the scene while it shows the Parts look.
-const NO_SLICE_AMONG_PARTS: &str =
-    "The slice is a picture of the scan: it is not drawn among the labelled parts";
+/// The looks to choose between, each by the action that chooses it: the three of the scan,
+/// and then the labelled parts as solids, which can be chosen when there are labels on this
+/// series to draw.
+const LOOK_IDS: [(Look, &str); 4] = [
+    (Look::Surface, "scene.look.surface"),
+    (Look::Vr, "scene.look.vr"),
+    (Look::Mip, "scene.look.mip"),
+    (Look::Parts, "scene.look.parts"),
+];
 
-/// The looks to choose between: the three of the scan, and then the labelled parts as
-/// solids, which can be chosen when there are labels on this series to draw.
+/// The sides the patient can be seen from, by their actions, in the order of [`VIEWS`].
+const SIDE_IDS: [&str; 6] = [
+    "scene.side.anterior",
+    "scene.side.posterior",
+    "scene.side.left",
+    "scene.side.right",
+    "scene.side.superior",
+    "scene.side.inferior",
+];
+
+/// The actions that remove each cut there can be, the first cut's first.
+const UNCUT_IDS: [&str; MAX_CUTS] = ["scene.uncut.1", "scene.uncut.2", "scene.uncut.3"];
+
+/// Draw the button of the action `id`, and put the change it makes onto `actions`.
+fn offer(ui: &mut Ui, id: &str, state: &AppState, on: Option<bool>, actions: &mut Vec<Action>) {
+    if let Some(does) = commands::button(ui, id, state, on) {
+        let _ = does.run(state, actions);
+    }
+}
+
+/// The looks to choose between. The look in use is not asked for again.
 fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let drawn = look_drawn(state);
-    for (look, label, hint) in LOOKS {
+    for (look, id) in LOOK_IDS {
         let chosen = drawn == look;
-        let button = ui.selectable_label(chosen, label);
-        if button.on_hover_text(hint).clicked() && !chosen {
-            actions.push(Action::SceneLook(look));
+        let pressed = commands::button(ui, id, state, Some(chosen));
+        if let Some(does) = pressed.filter(|_| !chosen) {
+            let _ = does.run(state, actions);
         }
-    }
-    let chosen = drawn == Look::Parts;
-    let parts = egui::Button::selectable(chosen, "Parts");
-    let parts = ui.add_enabled(on_this_series(state), parts);
-    let parts = parts.on_disabled_hover_text(PARTS_NEED_LABELS);
-    if parts.on_hover_text(PARTS_HINT).clicked() && !chosen {
-        actions.push(Action::SceneLook(Look::Parts));
     }
 }
 
@@ -81,47 +101,20 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<
         looks(ui, state, actions);
         ui.separator();
         ui.label("View");
-        for (view, letter, hint) in VIEWS {
-            if ui.button(letter).on_hover_text(hint).clicked() {
-                actions.push(Action::SceneView(view));
-            }
+        for id in SIDE_IDS {
+            offer(ui, id, state, None, actions);
         }
         ui.separator();
-        let room = scene.cuts.len() < MAX_CUTS;
-        let cut = ui.add_enabled(room, egui::Button::new("Cut"));
-        let hint = "Cut the volume open straight across the view; drag the cut's handle to move it";
-        if cut
-            .on_hover_text(hint)
-            .on_disabled_hover_text("Three cuts at most")
-            .clicked()
-        {
-            actions.push(Action::CutAdd);
-        }
-        for cut in 0..scene.cuts.len() {
-            let remove = ui.button(format!("Remove cut {}", cut + 1));
-            if remove
-                .on_hover_text("Put back what this cut took away")
-                .clicked()
-            {
-                actions.push(Action::CutRemove { cut });
-            }
+        offer(ui, "scene.cut", state, None, actions);
+        for id in UNCUT_IDS.iter().take(scene.cuts.len()) {
+            offer(ui, id, state, None, actions);
         }
         ui.separator();
         // The slice is a picture of the scan: it is not drawn among the labelled solids.
-        let shown = scene.slice_shown;
-        let scan = look_drawn(state) != Look::Parts;
-        let slice = ui.add_enabled(scan, egui::Button::selectable(shown, "Slice in 3D"));
-        let slice = slice.on_disabled_hover_text(NO_SLICE_AMONG_PARTS);
-        if slice
-            .on_hover_text("Draw the slice shown in 2D inside the 3D scene")
-            .clicked()
-        {
-            actions.push(Action::ShowSliceInScene(!shown));
-        }
+        offer(ui, "scene.slice", state, Some(scene.slice_shown), actions);
         ui.separator();
         views::menu(ui, state, actions);
-        let there = scene.status == SceneStatus::Ready;
-        let menu = ui.menu_button("Export", |ui| saving = export::contents(ui, there));
+        let menu = ui.menu_button("Export", |ui| saving = export::contents(ui, state));
         menu.response
             .on_hover_text("Save the 3D view as a picture or as a turntable");
     });

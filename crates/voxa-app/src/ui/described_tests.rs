@@ -20,7 +20,23 @@ fn the_toolbar_names_its_buttons_for_a_screen_reader() {
         let is_it = |(_, node): &(_, egui::accesskit::Node)| node.label() == Some(wanted);
         update.nodes.iter().any(is_it)
     };
-    for button in ["Series", "Folder…", "File…", "Tags", "Size 100%", "About"] {
-        assert!(named(button), "nothing is named {button}");
+    // A button is named by its action's name in plain words, whatever its label says.
+    let ids = [
+        "rail.fold",
+        "open.folder",
+        "open.file",
+        "tags.show",
+        "help.keys",
+        "about",
+    ];
+    for id in ids {
+        let command = super::commands::find(id).expect("listed");
+        assert!(named(command.name), "nothing is named {}", command.name);
+        assert!(
+            !named(command.label),
+            "{} is named by its label",
+            command.id
+        );
     }
+    assert!(named("Size 100%"), "the Size menu is named by its button");
 }

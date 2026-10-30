@@ -10,7 +10,8 @@ use crate::export::{
     ExportError, SUGGESTED_NAME, TURNTABLE_FRAMES, TURNTABLE_SECONDS, gif, png, turntable_size,
     write,
 };
-use crate::state::{Notice, NoticeKind};
+use crate::state::{AppState, Notice, NoticeKind};
+use crate::ui::commands::{self, Does, Request};
 use crate::worker::Workers;
 
 /// The key of the notice that says how saving went.
@@ -25,21 +26,14 @@ pub enum Asked {
     Turntable,
 }
 
-/// What the Export menu holds: a button for each kind of file. Greyed until there is a 3D
-/// view to save.
-pub fn contents(ui: &mut Ui, there: bool) -> Option<Asked> {
-    let not_yet = "There is no 3D view to save yet";
-    let picture = ui.add_enabled(there, egui::Button::new("Save picture…"));
-    let picture = picture.on_hover_text("The 3D view as it is now, as a PNG file");
-    let turning = ui.add_enabled(there, egui::Button::new("Save turntable…"));
-    let turning =
-        turning.on_hover_text("The 3D view going once round the patient, as an animated GIF");
-    if picture.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Picture)
-    } else if turning.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Turntable)
-    } else {
-        None
+/// What the Export menu holds: a button for each kind of file, each an action of the list of
+/// actions. Greyed until there is a 3D view to save.
+pub fn contents(ui: &mut Ui, state: &AppState) -> Option<Asked> {
+    let picture = commands::button(ui, "scene.save.picture", state, None);
+    let turning = commands::button(ui, "scene.save.turntable", state, None);
+    match picture.or(turning)? {
+        Does::Ask(Request::SaveScene(asked)) => Some(asked),
+        _ => None,
     }
 }
 
@@ -218,13 +212,17 @@ mod tests {
     /// Click down the menu and gather what was asked for, in the order met.
     fn sweep(there: bool) -> Vec<Asked> {
         let ctx = egui::Context::default();
+        let mut state = AppState::default();
+        if there {
+            state.scene.status = crate::scene::SceneStatus::Ready;
+        }
         let mut asked = Vec::new();
         let mut pass = |events: Vec<Event>| {
             let input = RawInput {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, there)));
+            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, &state)));
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         };

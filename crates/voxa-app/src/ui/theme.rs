@@ -71,6 +71,23 @@ pub fn apply(ctx: &egui::Context) {
     });
 }
 
+/// Which theme the window is drawn in: the system's, or light or dark whatever the system
+/// says. Only dark is drawn so far; the choice is offered and applied by later work.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[expect(
+    dead_code,
+    reason = "light and dark are offered by Task 10's theme button and drawn by Task 17"
+)]
+pub enum ThemeChoice {
+    /// As the system is set.
+    #[default]
+    System,
+    /// Light.
+    Light,
+    /// Dark.
+    Dark,
+}
+
 /// Set the lines of a bar closer together in a window shorter than [`SHORT`]: the buttons
 /// a little less tall and the lines a little nearer.
 pub fn closer_in_a_short_window(ui: &mut egui::Ui) {

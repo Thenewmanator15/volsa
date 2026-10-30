@@ -1,0 +1,313 @@
+//! The list of every action a person can take, each described once: its name, the other
+//! words it may be searched by, its key, where it lives, when it can be used and why not, and
+//! what it does. The buttons of the bars, the keys and the list of keys in the help all read
+//! it, so a name, a key or a hint is written in one place only.
+//!
+//! The entries themselves are in [`table`], a file for each part of the window.
+
+use std::sync::LazyLock;
+
+use egui::{Button, Key, Ui};
+
+use super::keys::Held;
+use super::measure::Save;
+use super::scene::export;
+use super::theme::ThemeChoice;
+use super::toolbar::Pick;
+use crate::action::Action;
+use crate::profile::Profile;
+use crate::state::AppState;
+
+mod table;
+
+/// One action a person can take.
+#[derive(Debug, Clone, Copy)]
+pub struct Command {
+    /// What the action is known by in the code, which never changes: `slice.after`.
+    pub id: &'static str,
+    /// What it does in plain words: what the help, search and a screen reader say of it.
+    pub name: &'static str,
+    /// What its button shows, which may be short: `1`, `◀`, `VR`, `A`.
+    pub label: &'static str,
+    /// More about it, shown under its name when the pointer rests on its button; empty when
+    /// the name says enough.
+    pub explains: &'static str,
+    /// Other words a person may look for it by.
+    #[cfg_attr(not(test), expect(dead_code, reason = "search reads them (Task 5)"))]
+    pub words: &'static [&'static str],
+    /// Its key, if it has one.
+    pub key: Option<Shortcut>,
+    /// Where in the window it lives.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "the panel, the strip and the top bar read it (Tasks 6 to 10)"
+        )
+    )]
+    pub place: Place,
+    /// The profiles of scan it is offered for; empty when it is offered for every scan.
+    pub profiles: &'static [Profile],
+    /// Why it cannot be used now, in a sentence; `None` when it can.
+    pub why_not: fn(&AppState) -> Option<&'static str>,
+    /// What it does.
+    pub does: Does,
+}
+
+/// A key, with the keys held with it, and how the help writes it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Shortcut {
+    /// The key pressed.
+    pub key: Key,
+    /// Whether Ctrl, or Command on a Mac, is held with it.
+    pub command: bool,
+    /// Whether Shift is held with it.
+    pub shift: bool,
+    /// How the help and the hints write it: `Ctrl+Z`, `Page Up`.
+    pub shown: &'static str,
+}
+
+/// Where in the window an action lives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Place {
+    /// The bar across the top of the window.
+    TopBar,
+    /// The menu of the top bar.
+    Menu,
+    /// The strip above the pictures that arranges them.
+    Strip,
+    /// A tab of the panel at the right.
+    Tab(Tab),
+    /// The card of a scan.
+    Card,
+    /// Nowhere but its key.
+    Keys,
+}
+
+/// The tabs of the panel at the right of the window.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tab {
+    /// Brightness, orientation, the slices and how they are shown.
+    View,
+    /// The tools that measure, and what has been measured.
+    Measure,
+    /// The 3D scene.
+    Scene,
+    /// The labelled parts.
+    Labels,
+    /// Tools that work on the scan, such as labelling it.
+    #[expect(dead_code, reason = "Task 8 puts labelling in the Tools tab")]
+    Tools,
+}
+
+/// What an action does.
+#[derive(Debug, Clone, Copy)]
+pub enum Does {
+    /// A change of state, made from the state as it is; `None` when there is nothing to change.
+    Act(fn(&AppState) -> Option<Action>),
+    /// Something of the window, not of the state.
+    Ask(Request),
+}
+
+impl Does {
+    /// Do it in `state`: a change of state goes onto `actions`; what is asked of the window
+    /// is given back.
+    pub fn run(self, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
+        match self {
+            Self::Act(act) => {
+                actions.extend(act(state));
+                None
+            }
+            Self::Ask(request) => Some(request),
+        }
+    }
+}
+
+/// What a person asks of the window rather than of the scan.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Request {
+    /// To choose a scan to open, of this kind.
+    Open(Pick),
+    /// To search the actions, parts, scans and help.
+    #[expect(dead_code, reason = "Task 5 adds search")]
+    Search,
+    /// To open or close the help, at a topic if one is named.
+    Help(Option<&'static str>),
+    /// To see the About window.
+    About,
+    /// To open or close the tags of the file shown.
+    Tags,
+    /// To go into full screen, or out of it.
+    FullScreen,
+    /// To show a tab of the panel.
+    ShowTab(Tab),
+    /// To fold the column of scans, or unfold it.
+    FoldRail,
+    /// To fold the panel of tabs, or unfold it.
+    #[expect(dead_code, reason = "Task 6 adds the panel of tabs")]
+    FoldPanel,
+    /// To draw the window in this theme.
+    #[expect(dead_code, reason = "Task 10 adds the theme button")]
+    Theme(ThemeChoice),
+    /// To draw the interface at this size, 1 being its usual size.
+    Size(f32),
+    /// To draw the interface a step larger.
+    Larger,
+    /// To draw the interface a step smaller.
+    Smaller,
+    /// To save the measurements as this kind of file.
+    SaveMeasurements(Save),
+    /// To save the 3D scene as a picture or a turntable.
+    SaveScene(export::Asked),
+    /// To open a file of labels.
+    OpenLabels,
+    /// To show the files that are not scans.
+    #[expect(dead_code, reason = "Task 11 adds the other files")]
+    ShowOtherFiles,
+}
+
+/// Every entry, in the order the help lists their keys.
+static ALL: LazyLock<Vec<Command>> = LazyLock::new(table::all);
+
+/// Every action, in the order the help lists their keys.
+pub fn all() -> &'static [Command] {
+    &ALL
+}
+
+/// The action known by `id`.
+pub fn find(id: &str) -> Option<&'static Command> {
+    all().iter().find(|command| command.id == id)
+}
+
+/// Keys that do what another action's key does, for the keyboards that type it another way:
+/// Ctrl+Shift+Z redoes, as in many programs, and a question mark is Shift with slash on some.
+const OTHER_KEYS: [(Key, Held, &str); 2] = [
+    (
+        Key::Z,
+        Held {
+            command: true,
+            shift: true,
+        },
+        "measure.redo",
+    ),
+    (
+        Key::Slash,
+        Held {
+            command: false,
+            shift: true,
+        },
+        "help.keys",
+    ),
+];
+
+/// The action a key asks for in `state`, if any. Ctrl must be held exactly when the key's
+/// shortcut says; Shift too, except that a key without Shift is still taken with Shift held,
+/// as Voxa always has. Ctrl+=, Ctrl+- and Ctrl+0 are left to egui, which sizes the interface.
+pub fn for_key(key: Key, held: Held, state: &AppState) -> Option<&'static Command> {
+    if left_to_egui(key, held) {
+        return None;
+    }
+    let keyed = |shift: bool| {
+        all().iter().find(|command| {
+            command.key.is_some_and(|shortcut| {
+                (shortcut.key, shortcut.command, shortcut.shift) == (key, held.command, shift)
+            })
+        })
+    };
+    let other = OTHER_KEYS
+        .iter()
+        .find(|(other, with, _)| (*other, *with) == (key, held))
+        .and_then(|(_, _, id)| find(id));
+    let found = other
+        .or_else(|| keyed(held.shift))
+        .or_else(|| keyed(false).filter(|_| held.shift))?;
+    offered(found, state).then_some(found)
+}
+
+/// Whether egui itself answers this key, as it does the keys that size the interface.
+fn left_to_egui(key: Key, held: Held) -> bool {
+    use egui::gui_zoom::kb_shortcuts::{ZOOM_IN, ZOOM_IN_SECONDARY, ZOOM_OUT, ZOOM_RESET};
+    let sizing = [ZOOM_IN, ZOOM_IN_SECONDARY, ZOOM_OUT, ZOOM_RESET];
+    held.command && sizing.iter().any(|shortcut| shortcut.logical_key == key)
+}
+
+/// Whether an action is offered for the scan shown in the active viewport: an action for
+/// some profiles only is not offered while no scan is shown.
+pub fn offered(command: &Command, state: &AppState) -> bool {
+    let shown = state
+        .viewports
+        .get(state.active)
+        .and_then(|viewport| viewport.series.as_ref())
+        .and_then(|series| state.series(series))
+        .map(|listed| Profile::of(&listed.info));
+    command.profiles.is_empty() || shown.is_some_and(|profile| command.profiles.contains(&profile))
+}
+
+/// What an action's button says when the pointer rests on it: its name and key, as
+/// `Name (Key)`, or its name alone, and beneath, what explains it.
+pub fn hint(command: &Command) -> String {
+    let mut hint = match command.key {
+        Some(key) => format!("{} ({})", command.name, key.shown),
+        None => command.name.to_owned(),
+    };
+    if !command.explains.is_empty() {
+        hint.push('\n');
+        hint.push_str(command.explains);
+    }
+    hint
+}
+
+/// Draw the button of the action `id`, showing its label, and give what it does when it is
+/// clicked. `selected` draws a button that stays pressed while it is `Some(true)`. While the
+/// action cannot be used, the button is greyed and says why; for a scan it is not offered
+/// for, nothing is drawn.
+pub fn button(ui: &mut Ui, id: &str, state: &AppState, selected: Option<bool>) -> Option<Does> {
+    let command = find(id)?;
+    drawn(ui, command, command.label, state, selected)
+}
+
+/// As [`button`], with a label that follows the state, such as Play that becomes Pause.
+pub fn button_labelled(
+    ui: &mut Ui,
+    id: &str,
+    label: &str,
+    state: &AppState,
+    selected: Option<bool>,
+) -> Option<Does> {
+    drawn(ui, find(id)?, label, state, selected)
+}
+
+/// Draw an action's button with this label: its hint, why not while it cannot be used, and
+/// its name for a screen reader, whatever the label.
+fn drawn(
+    ui: &mut Ui,
+    command: &Command,
+    label: &str,
+    state: &AppState,
+    selected: Option<bool>,
+) -> Option<Does> {
+    if !offered(command, state) {
+        return None;
+    }
+    let why_not = (command.why_not)(state);
+    let button = match selected {
+        Some(on) => Button::selectable(on, label),
+        None => Button::new(label),
+    };
+    let response = ui.add_enabled(why_not.is_none(), button);
+    // A screen reader says the name, which a short label such as `◀` does not.
+    ui.ctx()
+        .accesskit_node_builder(response.id, |node| node.set_label(command.name));
+    let mut response = response.on_hover_text(hint(command));
+    if let Some(why) = why_not {
+        response = response.on_disabled_hover_text(why);
+    }
+    response.clicked().then_some(command.does)
+}
+
+#[cfg(test)]
+mod button_tests;
+#[cfg(test)]
+mod table_tests;
+#[cfg(test)]
+mod tests;

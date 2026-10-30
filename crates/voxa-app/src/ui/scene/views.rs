@@ -4,8 +4,8 @@
 use egui::Ui;
 
 use crate::action::Action;
-use crate::scene::SceneStatus;
 use crate::state::AppState;
+use crate::ui::commands;
 use crate::views::ViewsAction;
 
 /// The menu itself, closed until it is pressed.
@@ -27,14 +27,8 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     ui.horizontal(|ui| {
         let field = egui::TextEdit::singleline(&mut name).hint_text("Name (optional)");
         ui.add(field.desired_width(150.0));
-        let there = state.scene.status == SceneStatus::Ready;
-        let save = ui.add_enabled(there, egui::Button::new("Save this view"));
-        let hint = "Keep where the scene is seen from, its look, its window and its cuts";
-        if save
-            .on_hover_text(hint)
-            .on_disabled_hover_text("There is no 3D view to save yet")
-            .clicked()
-        {
+        // The view is saved under the name typed beside the button.
+        if commands::button(ui, "scene.view.save", state, None).is_some() {
             actions.push(Action::Views(ViewsAction::Save {
                 name: std::mem::take(&mut name),
             }));
@@ -70,6 +64,7 @@ mod tests {
     use voxa_core::WindowLevel;
 
     use super::*;
+    use crate::scene::SceneStatus;
     use crate::views::SavedView;
 
     /// Click all over what the menu holds and gather everything that was asked for, once

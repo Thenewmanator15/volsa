@@ -3,9 +3,7 @@
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
-use super::overlay::SHORTCUTS;
-use super::scrolled;
-use super::theme;
+use super::{commands, scrolled, theme};
 
 /// What the mouse does over a viewport, for the same window.
 pub const MOUSE: [(&str, &str); 14] = [
@@ -82,6 +80,20 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
     shown.and_then(|window| window.inner)
 }
 
+/// Every key Voxa answers to, from the list of actions, with what it does: each action that
+/// has a key, in the list's order.
+pub fn keys_listed() -> Vec<(&'static str, &'static str)> {
+    let keyed = commands::all().iter();
+    keyed
+        .filter_map(|command| Some((command.key?.shown, command.name)))
+        .collect()
+}
+
+/// What the reference lists, in order: the keys, then what the mouse does.
+fn listed() -> impl Iterator<Item = (&'static str, &'static str)> {
+    keys_listed().into_iter().chain(MOUSE)
+}
+
 /// A key or mouse action, as the reference names it.
 fn key(input: &str) -> RichText {
     RichText::new(input).monospace().color(theme::ACCENT)
@@ -93,9 +105,9 @@ fn side_by_side(ui: &mut egui::Ui) {
         .num_columns(2)
         .spacing([24.0, 6.0])
         .show(ui, |ui| {
-            for (input, does) in SHORTCUTS.iter().chain(&MOUSE) {
+            for (input, does) in listed() {
                 ui.label(key(input));
-                ui.add(egui::Label::new(*does).wrap());
+                ui.add(egui::Label::new(does).wrap());
                 ui.end_row();
             }
         });
@@ -106,13 +118,46 @@ fn run_on(ui: &mut egui::Ui) {
     let keys = egui::TextStyle::Monospace.resolve(ui.style());
     let words = egui::TextStyle::Body.resolve(ui.style());
     let colour = ui.visuals().text_color();
-    for (input, does) in SHORTCUTS.iter().chain(&MOUSE) {
+    for (input, does) in listed() {
         let mut line = egui::text::LayoutJob::default();
         let named = egui::TextFormat::simple(keys.clone(), theme::ACCENT);
         line.append(input, 0.0, named);
         line.append(does, 12.0, egui::TextFormat::simple(words.clone(), colour));
         ui.add(egui::Label::new(line).wrap());
     }
+}
+
+/// Every piece of text the reference draws, open in a window `width` by `height` points
+/// large, after it has had a frame to lay itself out.
+#[cfg(test)]
+pub fn drawn_words(width: f32, height: f32) -> Vec<String> {
+    fn words_of(shape: &egui::Shape, into: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(text) => into.push(text.galley.text().to_owned()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| words_of(shape, into)),
+            _ => {}
+        }
+    }
+    let ctx = egui::Context::default();
+    theme::apply(&ctx);
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
+    let mut words = Vec::new();
+    for _ in 0..2 {
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            let _ = show(ui.ctx(), &mut true);
+        });
+        // No renderer is behind this pass to take the font texture.
+        output.textures_delta.clear();
+        words.clear();
+        for clipped in &output.shapes {
+            words_of(&clipped.shape, &mut words);
+        }
+    }
+    words
 }
 
 #[cfg(test)]
@@ -130,7 +175,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 34);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 40);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
@@ -149,6 +194,24 @@ mod tests {
             .filter(|(input, _)| input.ends_with("in 3D"))
             .count();
         assert_eq!(in_3d, 5, "what the mouse does in the 3D view is listed too");
+    }
+
+    #[test]
+    fn the_list_of_keys_has_the_ones_for_measuring_and_the_screen() {
+        let listed = keys_listed();
+        let does = |key: &str| listed.iter().find(|(shown, _)| *shown == key);
+        let does = |key| does(key).map(|(_, does)| *does);
+        for key in ["Ctrl+Z", "Ctrl+Y or Ctrl+Shift+Z", "M", "B", "F11", "?"] {
+            assert!(does(key).is_some(), "{key}");
+        }
+        let escape = does("Esc").expect("listed");
+        assert!(escape.contains("tool"), "Esc puts the tool down: {escape}");
+        for key in ["Ctrl+=", "Ctrl+-", "Ctrl+0"] {
+            let size = does(key).expect("listed");
+            assert!(size.contains("interface"), "{key}: {size}");
+        }
+        let pages = does("Page Up").expect("listed");
+        assert!(pages.contains("Ten slices"), "{pages}");
     }
 
     /// The reference shown in a Voxa window `width` by `height` points large, in Voxa's

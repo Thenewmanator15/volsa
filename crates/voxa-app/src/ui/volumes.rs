@@ -3,6 +3,7 @@
 use egui::Ui;
 use voxa_core::SeriesInfo;
 
+use super::commands;
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -29,7 +30,7 @@ pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
     let Some(info) = listed.map(|listed| &listed.info) else {
         return;
     };
-    let (Some(set), Some(label)) = (&info.set, label(info)) else {
+    let Some(label) = label(info) else {
         return;
     };
     // The three go onto the next row of the toolbar together when they must.
@@ -37,18 +38,15 @@ pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         ui.end_row();
     }
     ui.separator();
+    // Each button is greyed at its end of the volumes.
     let together = ui.horizontal(|ui| {
-        let back = ui.add_enabled(set.at > 0, egui::Button::new("◀"));
+        let back = commands::button(ui, "volume.before", state, None);
         ui.label(label);
-        let on = ui.add_enabled(set.at + 1 < set.count, egui::Button::new("▶"));
-        (back, on)
+        let on = commands::button(ui, "volume.after", state, None);
+        back.or(on)
     });
-    let (back, on) = together.inner;
-    if back.on_hover_text("The volume before ([)").clicked() {
-        actions.push(Action::StepVolume { viewport, by: -1 });
-    }
-    if on.on_hover_text("The volume after (])").clicked() {
-        actions.push(Action::StepVolume { viewport, by: 1 });
+    if let Some(does) = together.inner {
+        let _ = does.run(state, actions);
     }
 }
 
@@ -136,7 +134,8 @@ mod tests {
             let mut found = named.filter(|node| node.label() == Some(wanted));
             found.find_map(egui::accesskit::Node::bounds).expect(wanted)
         };
-        let (back, on) = (bounds("◀"), bounds("▶"));
+        // A screen reader is told what each button does, not its arrow.
+        let (back, on) = (bounds("The volume before"), bounds("The volume after"));
         assert!((back.y0 - on.y0).abs() < 0.5, "one row: {back:?} {on:?}");
         assert!(on.x1 <= f64::from(WIDE), "inside the toolbar: {on:?}");
     }

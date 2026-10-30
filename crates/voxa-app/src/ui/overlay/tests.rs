@@ -3,7 +3,6 @@ use voxa_render::ViewTransform;
 
 use super::*;
 use crate::action::Action;
-use crate::state::Layout;
 
 /// A slice whose columns run along `across` and whose rows run along `down`, in the patient.
 fn placed(across: [f64; 3], down: [f64; 3]) -> Affine<Voxel, Patient> {
@@ -335,60 +334,4 @@ fn presses_drags_and_double_clicks_each_do_their_one_thing() {
         },
     ];
     assert_eq!(input_to_actions(3, &everything), expected);
-}
-
-#[test]
-fn each_key_does_what_the_reference_says() {
-    use egui::Key;
-    let on = |key| shortcut_action(key, 2);
-    assert_eq!(
-        on(Key::H),
-        Some(Action::Flip {
-            viewport: 2,
-            horizontal: true
-        })
-    );
-    assert_eq!(
-        on(Key::V),
-        Some(Action::Flip {
-            viewport: 2,
-            horizontal: false
-        })
-    );
-    assert_eq!(on(Key::R), Some(Action::Rotate { viewport: 2 }));
-    assert_eq!(on(Key::F), Some(Action::Fit { viewport: 2 }));
-    assert_eq!(on(Key::Num1), Some(Action::SetLayout(Layout::One)));
-    assert_eq!(on(Key::Num2), Some(Action::SetLayout(Layout::TwoAcross)));
-    assert_eq!(on(Key::Num4), Some(Action::SetLayout(Layout::TwoByTwo)));
-    assert_eq!(on(Key::Space), Some(Action::CineToggle { viewport: 2 }));
-    assert_eq!(on(Key::Num3), None);
-    assert_eq!(
-        on(Key::Questionmark),
-        None,
-        "the reference window is not a change of state"
-    );
-    let listed: Vec<&str> = SHORTCUTS.iter().map(|(key, _)| *key).collect();
-    let keys = concat!(
-        "H, V, R, F, 1, 2, 4, Space, Up and Down, Page Up and Page Down, Home and End, ",
-        "[ and ], M, Ctrl+Z, Ctrl+Y, Esc, B, F11"
-    );
-    assert_eq!(listed.join(", "), format!("{keys}, {SIZE_KEYS}, ?"));
-}
-
-#[test]
-fn escape_gives_the_3d_view_the_large_part_of_the_window() {
-    use crate::scene::MainPanel;
-    assert_eq!(
-        shortcut_action(Key::Escape, 2),
-        Some(Action::SetMain(MainPanel::Scene))
-    );
-    assert_eq!(
-        shortcut_action(Key::F, 2),
-        Some(Action::Fit { viewport: 2 }),
-        "F is still F"
-    );
-    assert!(
-        SHORTCUTS.iter().any(|(key, _)| *key == "Esc"),
-        "and Esc is in the list"
-    );
 }

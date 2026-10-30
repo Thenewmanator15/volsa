@@ -14,6 +14,7 @@ mod bars;
 mod browser;
 mod capture;
 mod cine;
+mod commands;
 #[cfg(test)]
 mod described_tests;
 mod help;
@@ -29,6 +30,7 @@ mod pen;
 mod pictures;
 mod planes;
 mod remembered;
+mod requests;
 mod saving;
 mod scene;
 mod scene_bar;
@@ -78,6 +80,9 @@ pub struct VoxaApp {
     label_pose: Vec<Action>,
     /// A turntable of the 3D scene that is being drawn, a picture each frame.
     turntable: Option<scene::export::Turntable>,
+    /// A picture or a turntable of the 3D scene asked for this frame, made once the frame's
+    /// graphics device is in hand.
+    scene_asked: Option<scene::export::Asked>,
     /// What is remembered from one run to the next.
     kept: crate::prefs::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
@@ -170,6 +175,7 @@ impl VoxaApp {
             pose: Vec::new(),
             label_pose: Vec::new(),
             turntable: None,
+            scene_asked: None,
             card: lost::Card::watching(render, &creation.egui_ctx),
         };
         app.recall();
@@ -297,15 +303,11 @@ impl eframe::App for VoxaApp {
         let list_shown = self.screen.list_shown;
         let shown = bars::show(ui, self.session.state(), list_shown, &mut actions);
         let ((asked, saving), _disclaimer) = shown;
-        self.about_open |= asked.about;
-        self.help_open |= asked.shortcuts;
-        self.tags.open ^= asked.tags;
-        self.measure.open ^= asked.measure;
-        self.screen.list_shown ^= asked.list;
-        if let Some(size) = asked.size {
-            ui.ctx().set_zoom_factor(size);
+        let scene = saving.map(commands::Request::SaveScene);
+        for request in asked.requests().into_iter().chain(scene) {
+            self.ask(ui.ctx(), request);
         }
-        if let Some(path) = toolbar::chosen(ui.ctx(), asked.open) {
+        if let Some(path) = toolbar::dropped(ui.ctx()) {
             actions.push(self.labels.opening(path));
         }
         let list = self.list(ui, &mut actions);
@@ -319,11 +321,14 @@ impl eframe::App for VoxaApp {
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
-        let state = self.session.state();
-        let save = self.measure.show(ui.ctx(), state, &mut actions);
-        let saved = save.and_then(|kind| measure::save(kind, state));
-        actions.extend(saved.map(Action::Post));
+        let save = self
+            .measure
+            .show(ui.ctx(), self.session.state(), &mut actions);
+        if let Some(kind) = save {
+            self.ask(ui.ctx(), commands::Request::SaveMeasurements(kind));
+        }
         self.keys(ui.ctx(), &mut actions);
+        let saving = self.scene_asked.take();
         self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
         for action in actions {
             self.dispatch(action);
