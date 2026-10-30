@@ -88,18 +88,17 @@ pub struct VoxaApp {
 }
 
 impl VoxaApp {
-    /// Tell the workers what the window's graphics device is like, and give it to them.
+    /// Tell the workers what the window's graphics device is like. They are never given the
+    /// device itself: only this thread hands it work, so that no other does while the
+    /// window sets itself up.
     fn tell_the_workers_of(&self, render: &egui_wgpu::RenderState) {
         let workers = self.session.workers();
-        // Volumes are made ready on the workers to fit this device.
-        workers.set_volume_side(render.device.limits().max_texture_dimension_3d);
+        // A volume this device cannot hold whole is halved for it on a worker.
+        workers.set_card_room(self.scene.card_room());
         // What this device works out itself is not worked out on a worker first.
         let pipeline = self.scene.volume_pipeline();
-        let blocks = pipeline.is_some_and(|pipeline| pipeline.makes_blocks(&render.device));
         let curves = pipeline.is_some_and(|pipeline| pipeline.makes_curves(&render.device));
-        workers.leave_to_the_device(blocks, curves);
-        // And a volume is handed to the device by the worker that made it ready.
-        workers.give_device(render.device.clone(), render.queue.clone());
+        workers.leave_to_the_device(curves);
     }
 
     /// Tell labelling the name of the graphics card the window draws on, if it draws on one,

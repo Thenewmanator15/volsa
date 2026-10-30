@@ -7,8 +7,8 @@ use std::time::Duration;
 use egui_wgpu::{RenderState, wgpu};
 use voxa_core::{Grid, HeldVolume};
 use voxa_render::{
-    LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, Prepared, RenderError, SceneParams,
-    VolumePipeline, timed_submit,
+    CardRoom, LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, RenderError, SceneParams,
+    UPLOAD_BYTES_A_FRAME, UploadState, VolumePipeline, timed_submit,
 };
 
 use super::pace::{TIME_EVERY, TIMING_TRIES};
@@ -57,6 +57,8 @@ pub struct SceneGpu {
     given: Weak<HeldVolume>,
     drawn: Option<Drawn>,
     timing: Timing,
+    /// How often the volume being handed over was halved to fit.
+    halved: u32,
 }
 
 impl SceneGpu {
@@ -70,6 +72,7 @@ impl SceneGpu {
             given: Weak::new(),
             drawn: None,
             timing: Timing::default(),
+            halved: 0,
         }
     }
 
@@ -100,33 +103,52 @@ impl SceneGpu {
         params.look == Look::Parts && self.parts.has_labels()
     }
 
-    /// Put a volume on the graphics device, unless it is the one already given. `ready` is
-    /// the volume as a worker made it ready, if it did: handing that over is quick. Without
-    /// it, or if it does not fit this device, the volume is made ready here. Says how many
-    /// times it was halved to fit when it was put there now. If the device has no room for
-    /// it at all, nothing is left there to draw, and it is not tried again.
+    /// Hand a volume to the graphics device, a slab a frame, unless it is the one given
+    /// already. `card` is what the device is to hold of it, the volume or a copy halved to
+    /// fit, with how often it was halved, and what the device can hold. Asks for another
+    /// frame while the volume is on its way, and says how many times it was halved once the
+    /// whole of it is there. A volume the device has no room for as it is is put there
+    /// halved as often as it takes, here and now; if there is no room for it at all,
+    /// nothing is left there to draw, and it is not tried again.
     pub fn hold(
         &mut self,
         render: &RenderState,
         volume: &Arc<HeldVolume>,
-        ready: Option<Prepared>,
+        (card, room): (Option<(Arc<HeldVolume>, u32)>, CardRoom),
+        ctx: &egui::Context,
     ) -> Option<u32> {
-        if self.holds(volume) {
-            return None;
-        }
         let (device, queue) = (&render.device, &render.queue);
-        let quick =
-            ready.and_then(|ready| self.pipeline.upload_prepared(device, queue, &ready).ok());
-        // Only when nothing was made ready: its values as 32-bit numbers, made for this once.
-        let whole = || volume.to_volume(0..volume.dims()[2]);
-        let halved = quick.or_else(|| {
-            let values = whole()?;
-            self.pipeline.upload(device, queue, &values).ok()
-        });
-        self.given = Arc::downgrade(volume);
-        self.drawn = None;
-        self.timing = Timing::default();
-        halved
+        if !self.holds(volume) {
+            let (held, halved) = card.unwrap_or_else(|| (Arc::clone(volume), 0));
+            self.given = Arc::downgrade(volume);
+            self.drawn = None;
+            self.timing = Timing::default();
+            self.halved = halved;
+            if self.pipeline.start_upload(device, held, room).is_err() {
+                return self.halved_here(render, volume);
+            }
+        }
+        match self
+            .pipeline
+            .continue_upload(device, queue, UPLOAD_BYTES_A_FRAME)
+        {
+            UploadState::Going { .. } => {
+                ctx.request_repaint();
+                None
+            }
+            UploadState::Done => Some(self.halved),
+            UploadState::Failed(RenderError::NoRoom) => self.halved_here(render, volume),
+            UploadState::Failed(_) | UploadState::Idle => None,
+        }
+    }
+
+    /// Put a volume on the device halved as often as it takes, from its values made here:
+    /// what is done only when the device turned down what it was offered.
+    fn halved_here(&mut self, render: &RenderState, volume: &Arc<HeldVolume>) -> Option<u32> {
+        let values = volume.to_volume(0..volume.dims()[2])?;
+        self.pipeline
+            .upload(&render.device, &render.queue, &values)
+            .ok()
     }
 
     /// Draw the scene into a picture of its own, `pixels` wide and high, and give it back as

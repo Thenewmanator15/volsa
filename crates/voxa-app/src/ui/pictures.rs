@@ -36,13 +36,13 @@ impl VoxaApp {
         let areas = layout::areas(large, column, main, side);
         let shown = state.scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));
-        // If it has still to go on the graphics device, take what a worker made ready of it.
+        // If it has still to go on the graphics device, what the device is to hold of it.
         let waiting = volume
             .as_ref()
             .is_some_and(|volume| self.scene.needs(volume));
         let ready = shown.filter(|_| waiting);
         self.scene
-            .offer(ready.and_then(|series| self.session.take_prepared(series)));
+            .offer(ready.and_then(|series| self.session.for_card(series)));
         // One copy of the labels on the device, for the planes and the scene to draw from.
         let set = self.session.labels();
         if self.held.keep(render, state, set.as_ref()) {

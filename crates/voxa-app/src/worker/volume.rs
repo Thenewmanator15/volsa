@@ -1,13 +1,13 @@
 //! The volume of a series for the 3D scene: asked for, kept, and given way. A series is held
 //! once: as its volume while that is the one kept, and as frames in the cache otherwise.
 
+use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
 
-use egui_wgpu::wgpu;
 use voxa_core::{Grid, HeldVolume, SeriesId};
 use voxa_dicom::{Frame, ImageFile, IndexedSeries};
-use voxa_render::{MAX_VOLUME_BYTES, Prepared, Smoothed};
+use voxa_render::{CardRoom, MAX_VOLUME_BYTES, Smoothed, card_mapping};
+use voxa_volume::halved_held;
 
 use super::held::Built;
 use super::{Shared, Workers, lock, shielded};
@@ -27,36 +27,23 @@ pub(super) struct Build {
 /// What the window's graphics device does itself from a volume it holds.
 #[derive(Debug, Default)]
 pub(super) struct DeviceDoes {
-    /// Working out the largest value in each block of voxels.
-    blocks: AtomicBool,
     /// Working out the curve through the values.
     curves: AtomicBool,
-    /// The device itself and its queue, once the window has given them: a volume made
-    /// ready is then handed to the device by the worker that made it.
-    device: Mutex<Option<(wgpu::Device, wgpu::Queue)>>,
 }
 
 impl Workers {
-    /// Give the workers the window's graphics device. From now on the worker that makes a
-    /// volume ready also hands its values to the device, so that the window, when it
-    /// shows the volume, has no bytes left to hand over and does not pause to.
-    pub fn give_device(&self, device: wgpu::Device, queue: wgpu::Queue) {
-        *lock(&self.shared.device_does.device) = Some((device, queue));
-    }
-
-    /// Say what the window's graphics device does itself: the largest value in each block
-    /// of a volume, and the curve through its values. What it does is left to it from now
-    /// on, and not done on a worker first.
-    pub fn leave_to_the_device(&self, blocks: bool, curves: bool) {
+    /// Say whether the window's graphics device works out the curve through a volume's
+    /// values itself. What it does is left to it from now on, and not done on a worker first.
+    /// The workers never hand the device anything: only the window's thread does.
+    pub fn leave_to_the_device(&self, curves: bool) {
         let does = &self.shared.device_does;
-        does.blocks.store(blocks, Ordering::SeqCst);
         does.curves.store(curves, Ordering::SeqCst);
     }
 
-    /// Say how long a side, in voxels, the window's graphics device allows a volume. Volumes
-    /// built from now on are made ready to fit it.
-    pub fn set_volume_side(&self, longest: u32) {
-        self.shared.volume_side.store(longest, Ordering::SeqCst);
+    /// Say what the window's graphics device can hold of a volume, and how. A volume built
+    /// from now on that it cannot hold whole is given a halved copy for it.
+    pub fn set_card_room(&self, room: CardRoom) {
+        *lock(&self.shared.card_room) = room;
     }
 
     /// Build the volume of a series for the 3D scene, in place of any being built.
@@ -79,15 +66,20 @@ impl Workers {
         let Some(volume) = store.get(&series) else {
             return;
         };
+        // The curve is through what the device holds: the volume, or its halved copy.
+        let card = store
+            .for_card(&series)
+            .map_or_else(|| Arc::clone(&volume), |(copy, _)| copy);
         drop(store);
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             shielded(|| {
-                let side = shared.volume_side.load(Ordering::SeqCst);
-                let Some(values) = volume.to_volume(0..volume.dims()[2]) else {
+                let room = *lock(&shared.card_room);
+                let Some(values) = card.to_volume(0..card.dims()[2]) else {
                     return;
                 };
-                let curve = Smoothed::of(&values, side, MAX_VOLUME_BYTES);
+                let limits = (room.longest_side, MAX_VOLUME_BYTES);
+                let curve = Smoothed::mapped(&values, limits, Some(card_mapping(&card, &room)));
                 drop(values);
                 if lock(&shared.volumes).put_smoothed(&series, &volume, curve) {
                     shared.report(Action::SmoothReady { series });
@@ -165,36 +157,23 @@ impl Shared {
         }
     }
 
-    /// Keep a volume in the store, with what makes it ready for the graphics device, and
-    /// say it is ready. The volume is given back, with nothing kept or said, if the request
-    /// has been overtaken.
+    /// Keep a volume in the store, with a halved copy for the graphics device if it cannot
+    /// hold the volume whole, and say it is ready. The volume is given back, with nothing
+    /// kept or said, if the request has been overtaken.
     fn keep(&self, series: &SeriesId, held: HeldVolume, build: &Build) -> Option<HeldVolume> {
         let corners = held.corners();
-        // Made ready for the graphics device here, on a worker, so that the window has only
-        // to hand it over.
-        let side = self.volume_side.load(Ordering::SeqCst);
-        let Some(volume) = held.to_volume(0..held.dims()[2]) else {
-            return Some(held);
-        };
-        let mut ready = if self.device_does.blocks.load(Ordering::SeqCst) {
-            Prepared::without_blocks(&volume, side, MAX_VOLUME_BYTES)
-        } else {
-            Prepared::of(&volume, side, MAX_VOLUME_BYTES)
-        };
-        drop(volume);
-        // Handed to the device from here too. With no room there it stays as it is, and
-        // the window deals with that as it always has.
-        let device = lock(&self.device_does.device).clone();
-        if let Some((device, queue)) = device {
-            ready.hand_over(&device, &queue);
-        }
+        // Made here, on a worker, so that the window has only to hand it over.
+        let room = *lock(&self.card_room);
+        let for_card = for_the_card(&held, &room);
         // Checked with the store locked, so a newer volume is never overwritten.
         let mut store = lock(&self.volumes);
         if !self.ended(build) {
             return Some(held);
         }
         let before = store.put(series.clone(), Arc::new(held));
-        store.put_prepared(series, ready);
+        if let Some(copy) = for_card {
+            store.put_for_card(series, copy);
+        }
         // The volume is where the series' slices are read from now: no second copy is kept.
         lock(&self.cache).forget(series);
         drop(store);
@@ -270,4 +249,18 @@ impl Shared {
             .and_then(|bytes| ImageFile::open(&bytes))
             .map_err(|why| why.to_string())
     }
+}
+
+/// A copy of a volume halved as often as the device needs it to be to hold it, and how
+/// often; `None` when it holds the volume whole, or the volume cannot be halved.
+fn for_the_card(held: &HeldVolume, room: &CardRoom) -> Option<(Arc<HeldVolume>, u32)> {
+    let halvings = room.halvings(held.dims());
+    if halvings == 0 {
+        return None;
+    }
+    let mut copy = halved_held(held)?;
+    for _ in 1..halvings {
+        copy = halved_held(&copy)?;
+    }
+    Some((Arc::new(copy), halvings))
 }

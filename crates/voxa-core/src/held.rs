@@ -293,6 +293,23 @@ impl HeldVolume {
         Some(read(values.as_ref()?.raw()))
     }
 
+    /// Read one slice's numbers as held, if its slab has been made.
+    pub fn with_slice<T>(&self, slice: u32, read: impl FnOnce(SlabRaw<'_>) -> T) -> Option<T> {
+        if slice >= self.dims[2] {
+            return None;
+        }
+        let first = (slice % self.per_slab) as usize * self.in_slice();
+        let range = first..first + self.in_slice();
+        let cell = self.slabs.get((slice / self.per_slab) as usize)?;
+        let values = cell.read().unwrap_or_else(PoisonError::into_inner);
+        let raw = match values.as_ref()? {
+            Values::Unsigned(numbers) => SlabRaw::Unsigned(numbers.get(range)?),
+            Values::Signed(numbers) => SlabRaw::Signed(numbers.get(range)?),
+            Values::Float(numbers) => SlabRaw::Float(numbers.get(range)?),
+        };
+        Some(read(raw))
+    }
+
     /// The values of a range of slices that have been put, as a volume of 32-bit numbers
     /// placed where they lie: its first slice is the range's first. `None` for an empty
     /// range, one past the last slice, or one holding a slice not put.

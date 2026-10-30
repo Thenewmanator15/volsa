@@ -9,7 +9,7 @@ mod blocks;
 mod curve;
 mod filled;
 
-pub(crate) use blocks::{BlocksMaker, largest_in_blocks};
+pub(crate) use blocks::{BlockMaxima, BlocksMaker, largest_in_blocks};
 pub(crate) use curve::CurveMaker;
 pub(crate) use filled::FilledMaker;
 

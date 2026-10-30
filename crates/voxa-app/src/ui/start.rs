@@ -71,10 +71,11 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
         .with_icon(icon::icon())
         .with_inner_size(opening_size(capturing))
         .with_min_inner_size(SMALLEST_WINDOW);
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport,
         ..Default::default()
     };
+    crate::device::ask_for_what_volumes_need(&mut options.wgpu_options);
     let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
         Ok(Box::new(VoxaApp::new(creation, initial, labels)))
     };

@@ -116,6 +116,8 @@ impl Gpu {
         let wanted = wgpu::DeviceDescriptor {
             label: Some("voxa headless"),
             required_limits: adapter.limits(),
+            // Volumes of 16-bit whole numbers are held exactly as stored where it can.
+            required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
             ..Default::default()
         };
         let (device, queue) = pollster::block_on(adapter.request_device(&wanted))

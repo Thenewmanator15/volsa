@@ -8,7 +8,7 @@ use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
 use voxa_core::{HeldVolume, Patient, Point};
 use voxa_labels::LabelSet;
-use voxa_render::{LabelsOnDevice, Prepared, RenderError, SceneParams, VolumePipeline, pick};
+use voxa_render::{CardRoom, LabelsOnDevice, RenderError, SceneParams, VolumePipeline, pick};
 
 use super::pen::{self, Pen};
 use super::{overlay, theme, viewport};
@@ -49,8 +49,11 @@ pub struct SceneView {
     part_notch: f32,
     /// What has been dragged on a handle short of a whole step.
     carried: handles::Carried,
-    /// The scene's volume as a worker made it ready for the device, until it is handed over.
-    ready: Option<Prepared>,
+    /// What the device is to hold of the scene's volume, and how often it was halved to
+    /// fit, until the handing over begins.
+    card: Option<(Arc<HeldVolume>, u32)>,
+    /// What the device can hold of a volume, and how.
+    room: CardRoom,
     /// The first end of a ruler being clicked in the scene, once it has been placed.
     ruler_from: Option<Point<Patient>>,
 }
@@ -64,7 +67,8 @@ impl SceneView {
             changed: Instant::now(),
             part_notch: 0.0,
             carried: handles::Carried::default(),
-            ready: None,
+            card: None,
+            room: render.map(crate::card::room_on).unwrap_or_default(),
             ruler_from: None,
         }
     }
@@ -74,11 +78,17 @@ impl SceneView {
         self.gpu.as_ref().is_some_and(|gpu| !gpu.holds(volume))
     }
 
-    /// Give the viewport its volume as a worker made it ready, to hand over when it draws.
-    pub fn offer(&mut self, ready: Option<Prepared>) {
-        if ready.is_some() {
-            self.ready = ready;
+    /// Give the viewport what the device is to hold of its volume, to hand over, a slab a
+    /// frame, when it draws.
+    pub fn offer(&mut self, card: Option<(Arc<HeldVolume>, u32)>) {
+        if card.is_some() {
+            self.card = card;
         }
+    }
+
+    /// What the window's graphics device can hold of a volume, and how.
+    pub fn card_room(&self) -> CardRoom {
+        self.room
     }
 
     /// Whether a picture of a volume has been drawn, so there is something to see.
@@ -141,7 +151,8 @@ impl SceneView {
             }
             return None;
         };
-        if let Some(halved) = gpu.hold(render, volume, self.ready.take()) {
+        let card = (self.card.take(), self.room);
+        if let Some(halved) = gpu.hold(render, volume, card, ui.ctx()) {
             actions.push(Action::SceneUploaded { halved });
         }
         if !gpu.has_volume() {

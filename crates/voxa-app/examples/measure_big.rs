@@ -17,8 +17,8 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use voxa_app::{Action, NoticeKind, SceneStatus, Session};
-use voxa_core::{SeriesId, WindowLevel};
-use voxa_render::{HeadlessScene, Look, SceneParams};
+use voxa_core::{Grid, SeriesId, WindowLevel};
+use voxa_render::{CardRoom, HeadlessScene, Look, SceneParams};
 
 /// How long the workers may take over one step before the measurement gives up.
 const PATIENCE: Duration = Duration::from_secs(600);
@@ -90,24 +90,20 @@ fn measure(path: &Path, draw: bool, started: Instant) -> Result<(), String> {
     );
     let (sender, reports) = channel();
     let mut session = Session::new(sender, reports, CACHE_BYTES, None);
-    // As the window does: volumes made ready to fit this device, and handed to it.
+    // As the window does: told what the device can hold; never given the device itself.
     let workers = session.workers();
-    workers.set_volume_side(side);
-    workers.leave_to_the_device(gpu.makes_blocks(), gpu.makes_curves());
-    workers.give_device(device, queue);
+    workers.set_card_room(CardRoom::of(&device, None));
+    workers.leave_to_the_device(gpu.makes_curves());
+    drop(queue);
     let id = open(&mut session, path, started)?;
-    let ready = session
-        .take_prepared(&id)
-        .ok_or("Nothing was made ready.")?;
-    let (dims, halved) = (ready.dims(), ready.halved());
-    let handed = ready.is_handed_over();
+    let (card, halved) = session.for_card(&id).ok_or("Nothing is kept.")?;
+    let dims = card.dims();
     let placing = Instant::now();
-    gpu.upload_prepared(&ready).map_err(|why| why.to_string())?;
+    gpu.upload_held(&card).map_err(|why| why.to_string())?;
     gpu.settle();
-    drop(ready);
+    drop(card);
     let said = format!(
-        "{dims:?} on the device, halved {halved} times, handed over by the worker: {handed}; \
-         {:.0} ms to take up",
+        "{dims:?} on the device, halved {halved} times; {:.0} ms to hand over",
         ms(placing)
     );
     step(started, "on device", &said);

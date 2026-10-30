@@ -3,13 +3,14 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use voxa_core::SeriesId;
 use voxa_dicom::{Index, IndexedSeries, SeriesSource, index, open_source};
 use voxa_labels::LabelSet;
+use voxa_render::CardRoom;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
@@ -29,10 +30,6 @@ mod views;
 mod volume;
 
 pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
-
-/// The longest side of a volume taken to fit a graphics device until the window says what
-/// its own allows: what every device made for the desktop can hold.
-const DEFAULT_VOLUME_SIDE: u32 = 2048;
 
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
 /// with further [`Action`]s. What they write to the log never holds what a file contains.
@@ -59,8 +56,9 @@ struct Shared {
     volumes: Arc<Mutex<VolumeStore>>,
     /// How many volumes have been asked for. One being built for an earlier request stops.
     builds: AtomicU64,
-    /// The longest side, in voxels, of a volume the window's graphics device can hold.
-    volume_side: AtomicU32,
+    /// What the window's graphics device can hold of a volume, and how. Until the window
+    /// says, what every device made for the desktop can.
+    card_room: Mutex<CardRoom>,
     /// What the window's graphics device does itself, and so is not done here first.
     device_does: volume::DeviceDoes,
     /// The series whose volume is being built. Its slices are decoded for the volume.
@@ -120,7 +118,7 @@ impl Workers {
             requests: AtomicU64::new(0),
             volumes,
             builds: AtomicU64::new(0),
-            volume_side: AtomicU32::new(DEFAULT_VOLUME_SIDE),
+            card_room: Mutex::new(CardRoom::default()),
             device_does: volume::DeviceDoes::default(),
             wanted_volume: Mutex::new(None),
             settings,

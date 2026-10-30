@@ -8,7 +8,7 @@ use std::time::Duration;
 use voxa_core::{Grid, HeldVolume, SeriesId};
 use voxa_dicom::Frame;
 use voxa_labels::LabelSet;
-use voxa_render::{Prepared, Smoothed};
+use voxa_render::Smoothed;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
@@ -113,13 +113,14 @@ impl Session {
             .get(series)
     }
 
-    /// Take what a worker made ready for the graphics device of a series' volume, if it is
-    /// there to take. It is handed over once.
-    pub fn take_prepared(&self, series: &SeriesId) -> Option<Prepared> {
-        self.volumes
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .take_prepared(series)
+    /// What the graphics device is to hold of a series' volume, and how many times it was
+    /// halved to fit: the volume itself, or a copy halved by a worker when the device cannot
+    /// hold it whole. `None` when the series' volume is not the one kept.
+    pub fn for_card(&self, series: &SeriesId) -> Option<(Arc<HeldVolume>, u32)> {
+        let store = self.volumes.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .for_card(series)
+            .or_else(|| store.get(series).map(|volume| (volume, 0)))
     }
 
     /// Take the curve a worker made through a series' volume, for planes drawn smooth, if

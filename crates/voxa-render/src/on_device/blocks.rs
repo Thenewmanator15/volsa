@@ -67,37 +67,71 @@ impl BlocksMaker {
 /// values run from 0 to 1 as 16-bit floating point, whose bits rise as the values do, so
 /// the largest is found without unpacking any of them.
 pub(crate) fn largest_in_blocks(halves: &[u16], dims: [u32; 3]) -> Vec<u16> {
-    let [cols, rows, _] = dims.map(|count| count as usize);
-    let block = crate::prepared::BLOCK as usize;
-    let [across, down, deep] = dims.map(|count| (count as usize).div_ceil(block));
-    let mut own = vec![0_u16; across * down * deep];
-    if cols * rows == 0 {
-        return own;
+    let mut largest = BlockMaxima::new(dims);
+    largest.add(0, halves);
+    largest.finish()
+}
+
+/// The largest texel in each block of a volume, gathered a run of whole slices at a time as
+/// the volume is handed to a device that cannot work it out itself. Texels are compared as
+/// whole numbers: right for 16-bit normalised texels, and for 16-bit floats from 0 to 1.
+pub(crate) struct BlockMaxima {
+    dims: [u32; 3],
+    own: Vec<u16>,
+}
+
+impl BlockMaxima {
+    /// Nothing gathered yet, for a volume of `dims`.
+    pub(crate) fn new(dims: [u32; 3]) -> Self {
+        let block = crate::prepared::BLOCK as usize;
+        let [across, down, deep] = dims.map(|count| (count as usize).div_ceil(block));
+        Self {
+            dims,
+            own: vec![0; across * down * deep],
+        }
     }
-    for (slice, slab) in halves.chunks(cols * rows).enumerate() {
-        for (row, line) in slab.chunks(cols).enumerate() {
-            let first = (slice / block * down + row / block) * across;
-            for (col, value) in line.iter().enumerate() {
-                if let Some(largest) = own.get_mut(first + col / block) {
-                    *largest = (*largest).max(*value);
+
+    /// Take in the texels of whole slices, the first of them slice `first`.
+    pub(crate) fn add(&mut self, first: u32, texels: &[u16]) {
+        let [cols, rows, _] = self.dims.map(|count| count as usize);
+        let block = crate::prepared::BLOCK as usize;
+        let [across, down, _] = self.dims.map(|count| (count as usize).div_ceil(block));
+        if cols * rows == 0 {
+            return;
+        }
+        for (within, slice) in texels.chunks(cols * rows).enumerate() {
+            let slice_at = first as usize + within;
+            for (row, line) in slice.chunks(cols).enumerate() {
+                let start = (slice_at / block * down + row / block) * across;
+                for (col, texel) in line.iter().enumerate() {
+                    if let Some(largest) = self.own.get_mut(start + col / block) {
+                        *largest = (*largest).max(*texel);
+                    }
                 }
             }
         }
     }
-    let about = |at: usize, count: usize| at.saturating_sub(1)..(at + 2).min(count);
-    let mut spread = Vec::with_capacity(own.len());
-    for slice in 0..deep {
-        for row in 0..down {
-            for col in 0..across {
-                let near = about(slice, deep)
-                    .flat_map(|slice| {
-                        about(row, down).map(move |row| (slice * down + row) * across)
-                    })
-                    .flat_map(|first| about(col, across).map(move |col| first + col));
-                let largest = near.filter_map(|at| own.get(at)).max();
-                spread.push(largest.copied().unwrap_or(0));
+
+    /// The largest texel of each block and of the blocks touching it.
+    pub(crate) fn finish(self) -> Vec<u16> {
+        let block = crate::prepared::BLOCK as usize;
+        let [across, down, deep] = self.dims.map(|count| (count as usize).div_ceil(block));
+        let own = self.own;
+        let about = |at: usize, count: usize| at.saturating_sub(1)..(at + 2).min(count);
+        let mut spread = Vec::with_capacity(own.len());
+        for slice in 0..deep {
+            for row in 0..down {
+                for col in 0..across {
+                    let near = about(slice, deep)
+                        .flat_map(|slice| {
+                            about(row, down).map(move |row| (slice * down + row) * across)
+                        })
+                        .flat_map(|first| about(col, across).map(move |col| first + col));
+                    let largest = near.filter_map(|at| own.get(at)).max();
+                    spread.push(largest.copied().unwrap_or(0));
+                }
             }
         }
+        spread
     }
-    spread
 }

@@ -37,5 +37,5 @@ pub use plane::{
     position_on_slice, reslice, rises_along, scrolled,
 };
 pub use ray::{Ray, enter_and_leave, first_hit};
-pub use reduce::{block_maxima, halved, halvings_needed};
+pub use reduce::{block_maxima, halved, halved_held, halvings_needed};
 pub use sample::sample;

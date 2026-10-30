@@ -4,14 +4,15 @@
 use std::sync::Arc;
 
 use voxa_core::{HeldVolume, SeriesId};
-use voxa_render::{Prepared, Smoothed};
+use voxa_render::Smoothed;
 
 /// The one volume in use. A volume is large, so only the newest is kept.
 #[derive(Debug, Default)]
 pub struct VolumeStore {
     held: Option<(SeriesId, Arc<HeldVolume>)>,
-    /// The volume kept, made ready for the graphics device, until the window takes it.
-    ready: Option<Prepared>,
+    /// A copy of the volume kept, halved as often as it says to fit the graphics device,
+    /// when the device cannot hold the volume itself.
+    for_card: Option<(Arc<HeldVolume>, u32)>,
     /// The curve through the volume kept, for planes drawn smooth, until the window takes it.
     curve: Option<Smoothed>,
     /// Whether such a curve is wanted: one that arrives when it is not is not kept.
@@ -37,27 +38,24 @@ impl VolumeStore {
         series: SeriesId,
         volume: Arc<HeldVolume>,
     ) -> Option<(SeriesId, Arc<HeldVolume>)> {
-        self.ready = None;
+        self.for_card = None;
         self.curve = None;
         self.held.replace((series, volume))
     }
 
-    /// Keep the volume of a series as it was made ready for the graphics device, if that
-    /// series' volume is the one kept.
-    pub fn put_prepared(&mut self, series: &SeriesId, ready: Prepared) {
+    /// Keep a copy of a series' volume halved to fit the graphics device, with how many
+    /// times it was halved, if that series' volume is the one kept.
+    pub fn put_for_card(&mut self, series: &SeriesId, copy: (Arc<HeldVolume>, u32)) {
         if self.holds(series) {
-            self.ready = Some(ready);
+            self.for_card = Some(copy);
         }
     }
 
-    /// Take what was made ready for the graphics device of a series' volume. It is handed
-    /// over once: the device then holds it, and it is large.
-    pub fn take_prepared(&mut self, series: &SeriesId) -> Option<Prepared> {
-        if self.holds(series) {
-            self.ready.take()
-        } else {
-            None
-        }
+    /// The copy of a series' volume halved to fit the graphics device, and how many times it
+    /// was halved; `None` when the device holds the volume itself, or another is kept.
+    pub fn for_card(&self, series: &SeriesId) -> Option<(Arc<HeldVolume>, u32)> {
+        let (copy, halved) = self.for_card.as_ref().filter(|_| self.holds(series))?;
+        Some((Arc::clone(copy), *halved))
     }
 
     /// Say whether the curve through the volume kept is wanted. When it is not, the one
@@ -98,7 +96,7 @@ impl VolumeStore {
     /// Keep nothing.
     pub fn clear(&mut self) {
         self.held = None;
-        self.ready = None;
+        self.for_card = None;
         self.curve = None;
     }
 }
@@ -139,29 +137,27 @@ mod tests {
     }
 
     #[test]
-    fn what_was_made_ready_for_the_device_is_kept_with_its_volume_and_taken_once() {
+    fn a_copy_for_the_card_is_kept_with_its_volume_and_goes_with_it() {
         let mut store = VolumeStore::default();
-        let ready = || Prepared::of(&plain(1.0), 2048, MAX_VOLUME_BYTES);
-        store.put_prepared(&id(THICK_SCAN), ready());
+        let copy = || (volume(1.0), 1);
+        store.put_for_card(&id(THICK_SCAN), copy());
         assert!(
-            store.take_prepared(&id(THICK_SCAN)).is_none(),
+            store.for_card(&id(THICK_SCAN)).is_none(),
             "with no volume, nothing"
         );
         store.put(id(THICK_SCAN), volume(1.0));
-        store.put_prepared(&id(FINE_SCAN), ready());
+        store.put_for_card(&id(FINE_SCAN), copy());
         assert!(
-            store.take_prepared(&id(FINE_SCAN)).is_none(),
+            store.for_card(&id(FINE_SCAN)).is_none(),
             "nor for another series"
         );
-        store.put_prepared(&id(THICK_SCAN), ready());
-        assert!(store.take_prepared(&id(FINE_SCAN)).is_none());
-        let taken = store.take_prepared(&id(THICK_SCAN)).expect("kept");
-        assert_eq!(taken.dims(), [1, 1, 2]);
-        assert!(store.take_prepared(&id(THICK_SCAN)).is_none(), "taken once");
-        store.put_prepared(&id(THICK_SCAN), ready());
+        store.put_for_card(&id(THICK_SCAN), copy());
+        let (kept, halved) = store.for_card(&id(THICK_SCAN)).expect("kept");
+        assert_eq!((kept.dims(), halved), ([1, 1, 2], 1));
+        assert!(store.for_card(&id(THICK_SCAN)).is_some(), "and still kept");
         store.put(id(FINE_SCAN), volume(2.0));
         assert!(
-            store.take_prepared(&id(THICK_SCAN)).is_none(),
+            store.for_card(&id(FINE_SCAN)).is_none(),
             "it goes with its volume"
         );
     }

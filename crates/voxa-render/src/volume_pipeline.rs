@@ -13,6 +13,7 @@ use crate::prepared::{MAX_VOLUME_BYTES, Prepared};
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
 use crate::smoothed::SmoothedTexture;
+use crate::upload::Upload;
 use crate::volume_params::{Params, shader_params};
 use crate::volume_texture::{Placed, placed_by_halving};
 
@@ -21,7 +22,7 @@ use crate::volume_texture::{Placed, placed_by_halving};
 pub const PICTURE_FORMAT: wgpu::TextureFormat = crate::gpu::TARGET;
 
 /// The volume now on the graphics device.
-struct Uploaded {
+pub(crate) struct Uploaded {
     placed: Placed,
     bind_group: wgpu::BindGroup,
 }
@@ -34,7 +35,9 @@ pub struct VolumePipeline {
     layout: wgpu::BindGroupLayout,
     params: wgpu::Buffer,
     blended: wgpu::Sampler,
-    uploaded: Option<Uploaded>,
+    pub(crate) uploaded: Option<Uploaded>,
+    /// A held volume being handed over a little each frame, if one is.
+    pub(crate) upload: Option<Upload>,
     /// What works out, on the device, the largest value in each block of a volume, and
     /// the curve through its values: each made when first wanted, and `None` on a device
     /// that cannot.
@@ -96,6 +99,7 @@ impl VolumePipeline {
             params,
             blended,
             uploaded: None,
+            upload: None,
             blocks: OnceLock::new(),
             curves: OnceLock::new(),
             uploads: 0,
@@ -138,6 +142,7 @@ impl VolumePipeline {
         let halvings = halvings_needed(volume.dims(), max_side, max_bytes);
         // The volume there now goes first, so that the device has its room for this one.
         self.uploaded = None;
+        self.upload = None;
         let place = |shown: &Volume| Placed::new(device, queue, shown);
         let (placed, halvings) =
             placed_by_halving(volume, halvings, place).ok_or(RenderError::NoRoom)?;
@@ -165,6 +170,7 @@ impl VolumePipeline {
         }
         // The volume there now goes first, so that the device has its room for this one.
         self.uploaded = None;
+        self.upload = None;
         let blocks = self.blocks_maker(device);
         let placed =
             Placed::from_prepared(device, queue, ready, blocks).ok_or(RenderError::NoRoom)?;
@@ -200,7 +206,7 @@ impl VolumePipeline {
         self.uploads += 1;
     }
 
-    fn blocks_maker(&self, device: &wgpu::Device) -> Option<&BlocksMaker> {
+    pub(crate) fn blocks_maker(&self, device: &wgpu::Device) -> Option<&BlocksMaker> {
         self.blocks
             .get_or_init(|| BlocksMaker::new(device))
             .as_ref()

@@ -174,3 +174,14 @@ fn a_volume_with_no_voxels_or_a_flat_placement_is_refused() {
     assert!(make([0, 2, 2], placed()).is_none());
     assert!(make([2, 2, 2], flat).is_none());
 }
+
+#[test]
+fn one_slice_can_be_read_as_held() {
+    let held = counted();
+    let second = held.with_slice(1, |raw| match raw {
+        SlabRaw::Unsigned(numbers) => numbers.to_vec(),
+        _ => Vec::new(),
+    });
+    assert_eq!(second, Some(vec![1026, 1027, 1028, 1029]));
+    assert_eq!(held.with_slice(3, |_| ()), None, "no such slice");
+}

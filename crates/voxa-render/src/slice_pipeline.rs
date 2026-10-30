@@ -7,7 +7,7 @@ use voxa_core::WindowLevel;
 use crate::view::ViewTransform;
 
 /// Why a slice could not be drawn.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RenderError {
     /// The machine has no graphics adapter, not even one emulated in software.
     #[error("No graphics adapter is available, not even a software one.")]

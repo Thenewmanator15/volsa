@@ -32,6 +32,7 @@ mod smoothed;
 #[cfg(test)]
 mod testing;
 mod timing;
+mod upload;
 mod vector;
 mod view;
 mod volume_params;
@@ -56,5 +57,6 @@ pub use section::{box_section, position_cross};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use smoothed::{Smoothed, SmoothedTexture};
 pub use timing::timed_submit;
+pub use upload::{CardRoom, UPLOAD_BYTES_A_FRAME, UploadState, card_mapping};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
 pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

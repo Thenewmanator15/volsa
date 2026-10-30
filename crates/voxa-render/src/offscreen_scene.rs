@@ -1,7 +1,9 @@
 //! Drawing a volume without a window, for tests and exported pictures.
 
+use std::sync::Arc;
+
 use egui_wgpu::wgpu;
-use voxa_core::Volume;
+use voxa_core::{HeldVolume, Volume};
 use voxa_labels::LabelSet;
 
 use voxa_core::WindowLevel;
@@ -15,6 +17,7 @@ use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
 use crate::smoothed::{Smoothed, SmoothedTexture};
+use crate::upload::{CardRoom, UploadState};
 use crate::volume_pipeline::VolumePipeline;
 
 /// A graphics device with no window, holding one [`VolumePipeline`].
@@ -102,6 +105,31 @@ impl HeadlessScene {
         }
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
         self.pipeline.upload_prepared(device, queue, ready)
+    }
+
+    /// Hand a held volume to the device whole, as the window does a little each frame, as
+    /// stored where the device can hold it so. Gives how many times it was halved: none,
+    /// since a volume too large for the device is halved before it is held for it.
+    ///
+    /// # Errors
+    ///
+    /// [`RenderError::NoRoom`] when the device has no room for it, and
+    /// [`RenderError::DeviceLost`] when the device has stopped answering.
+    pub fn upload_held(&mut self, held: &Arc<HeldVolume>) -> Result<u32, RenderError> {
+        self.curve = None;
+        self.plane.smooth(None);
+        self.label(None);
+        if self.gpu.is_lost() {
+            return Err(RenderError::DeviceLost);
+        }
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        let room = CardRoom::of(device, None);
+        self.pipeline.start_upload(device, Arc::clone(held), room)?;
+        match self.pipeline.continue_upload(device, queue, u64::MAX) {
+            UploadState::Done => Ok(0),
+            UploadState::Failed(why) => Err(why),
+            UploadState::Idle | UploadState::Going { .. } => Err(RenderError::NoRoom),
+        }
     }
 
     /// Draw the uploaded volume into a picture `size` (width, height) pixels large and return
@@ -271,6 +299,8 @@ mod cut_tests;
 mod device_tests;
 #[cfg(test)]
 mod haze_tests;
+#[cfg(test)]
+mod held_tests;
 #[cfg(test)]
 mod label_tests;
 #[cfg(test)]

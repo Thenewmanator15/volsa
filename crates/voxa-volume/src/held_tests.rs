@@ -54,3 +54,32 @@ fn a_region_of_a_held_volume_measures_as_the_volume_does() {
         ellipse_stats(&volume, &plane, [0.0, 0.0], [4.0, 3.0])
     );
 }
+
+#[test]
+fn a_held_volume_halved_holds_the_rounded_means_where_the_volume_halved_lies() {
+    use voxa_core::{Affine, Grid, HeldVolume, Rescale, SliceIn, Stored};
+
+    use crate::reduce::{halved, halved_held};
+
+    let ct = Rescale {
+        slope: 1.0,
+        intercept: -1024.0,
+    };
+    let placed = Affine::from_columns([0.5, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 2.0], [-3.0; 3]);
+    let held = HeldVolume::new([5, 2, 3], placed, Stored::Unsigned16, ct, 1 << 20).expect("ok");
+    for slice in 0..3_u16 {
+        let numbers: Vec<u16> = (0..10).map(|i| 1000 + 7 * i + 31 * slice).collect();
+        held.put_slice(u32::from(slice), SliceIn::Unsigned(&numbers))
+            .expect("fits");
+    }
+    let half = halved_held(&held).expect("halved");
+    assert_eq!(half.dims(), [3, 1, 2]);
+    assert_eq!((half.stored(), half.rescale()), (Stored::Unsigned16, ct));
+    let plain = halved(&held.to_volume(0..3).expect("whole"));
+    assert_eq!(half.corners(), plain.corners());
+    for (col, slice) in [(0, 0), (1, 0), (2, 0), (0, 1), (2, 1)] {
+        let (got, want) = (half.value(col, 0, slice), plain.get(col, 0, slice));
+        let off = (got.expect("a value") - want.expect("a value")).abs();
+        assert!(off <= 0.5, "({col}, {slice}): {got:?} against {want:?}");
+    }
+}
