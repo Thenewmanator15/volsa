@@ -1,0 +1,30 @@
+# Risk register
+
+What could lead someone to be misled or harmed by using Voxa, what keeps that from
+happening, and how that is checked. Kept in the spirit of ISO 14971. Voxa is not a medical
+device and is not for diagnostic use; the register exists because people will still look
+at their own scans with it and draw conclusions.
+
+How bad (severity): **minor** (confusion, wasted time), **serious** (a person believes
+something false about their own or someone's body, and may worry, delay or act on it),
+**critical** (care is changed because of Voxa). How likely, before the control:
+**rare**, **possible**, **likely**. Each entry is reviewed whenever the part of Voxa it names
+changes.
+
+Entries from earlier work (labels on the wrong grid, left and right, a failed model check
+hidden) are brought in when that work is next changed.
+
+## UI: the window (design: 2026-10-30-voxa-ui-redesign-design.md)
+
+| No. | Hazard and how harm could follow | Severity / likelihood before | Control | Checked by | After |
+|---|---|---|---|---|---|
+| R-UI-01 | A plain name calls a scan what it is not (a T2 called T1, a spine called brain); the person compares or measures the wrong scan and believes a difference that is not there. | serious / possible | Names use only the scanner's own words and the file's facts, never timings (UI-11); the original description is always under the name (UI-10); unknown words give a facts-only name. | Tests of the naming on made-up descriptions, including ones meant to mislead. | serious / rare |
+| R-UI-02 | A value is shown in HU when the file's values are not HU (a derived or secondary CT), or a CT window is applied to values in other units; the person reads a density that is false. | serious / possible | HU only for CT whose rescale says HU or nothing (UI-19); other values say "no unit"; the profile is from Modality only (UI-17). | Tests with made-up CT files with and without rescale types. | serious / rare |
+| R-UI-03 | A length is given in millimetres when the file's scale is absent (the index fills in 1 mm today, harmless only while measuring needs a full volume) or is a detector's (an X-ray's magnification), so a size is wrong. | serious / possible | The index records whether the spacing was given; no mm without Pixel Spacing; Imager Pixel Spacing alone is not used (UI-24); measurements from pixel spacing alone say so (UI-23). | Tests on made-up files with each kind of spacing. | serious / rare |
+| R-UI-04 | Measurement labels overlap and a number is read against the wrong line. | minor / likely | Labels move aside with a leader line (UI-25). | Test of label placement with crowded measurements; a capture check. | minor / rare |
+| R-UI-05 | With patient details hidden, scans of two people in one export are taken to be one person's, and compared. | serious / rare | The rail says when an export holds more than one person and groups by person (UI-14). | Test with a made-up export of two people. | serious / rare |
+| R-UI-06 | Moving warnings out of the scans list hides that a series is only a plain stack (uneven spacing, mixed planes), so its 3D view or a measurement is taken as true. | serious / possible | A mark stays on the card; the full sentence is in the hover text and is posted on opening (UI-12); measurements on a plain stack say so. | Tests of the card mark and the notice. | serious / rare |
+| R-UI-07 | A search result runs an action the person did not mean, and measurements or labels are lost. | minor / possible | Actions that throw work away ask first or can be undone (UI-07). | Tests of each such action through search. | minor / rare |
+| R-UI-08 | Wording, or the order of what is shown, makes model labels or a measurement read as a finding. | serious / possible | Who made labels and the model's check come first (UI-26); no diagnostic wording (UI-38). | A wording test over the list of actions and help topics; review of new text. | serious / rare |
+| R-UI-09 | A light theme lowers the contrast of letters (L, R) or outlines over the pictures, and left and right are misread. | serious / rare | The pictures and what is drawn on them keep the dark look in both themes (UI-29). | Captures in both themes; contrast test. | serious / rare |
+| R-UI-10 | A report shown as text loses or reorders part of it, and the person misreads what it says. | serious / possible | The text keeps the report's order; it is headed as not the reference (UI-34); nesting and length limits say when something was left out. | Tests on made-up reports, including deep and long ones. | serious / rare |
