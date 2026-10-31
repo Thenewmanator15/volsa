@@ -73,6 +73,12 @@ impl Tab {
         Self::ALL.into_iter().find(|tab| tab.name() == name)
     }
 
+    /// Whether the tab draws a scroll area of its own, to keep some of what it holds in place
+    /// while the rest scrolls, in place of the panel's, which scrolls the whole of a tab.
+    pub const fn scrolls_itself(self) -> bool {
+        matches!(self, Self::Labels)
+    }
+
     /// The action of the list of actions that shows this tab.
     pub const fn command(self) -> &'static str {
         match self {
@@ -196,7 +202,7 @@ fn choose(panel: &mut PanelState, does: Option<Does>) {
 }
 
 /// The open panel: the row of tabs, a line, and the tab chosen in a part that scrolls when
-/// the window is too short for all it holds.
+/// the window is too short for all it holds, unless the tab scrolls itself.
 fn open(
     ui: &mut Ui,
     panel: &mut PanelState,
@@ -219,6 +225,9 @@ fn open(
     // The tab is the one chosen just now, if one was.
     let tab = panel.tab;
     scrolled::solid_bars(ui);
+    if tab.scrolls_itself() {
+        return contents(ui, tab);
+    }
     let scroll = egui::ScrollArea::vertical().auto_shrink([false, false]);
     scroll.show(ui, |ui| contents(ui, tab)).inner
 }

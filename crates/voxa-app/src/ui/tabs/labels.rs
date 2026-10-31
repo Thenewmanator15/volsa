@@ -3,7 +3,7 @@
 //! an overview by group; then the list of parts, to search, show, hide, fade and select.
 //! Without labels the tab says what they are and the two ways to get some.
 
-use egui::{Align, RichText, Ui, style::ScrollAnimation};
+use egui::{Align, RichText, ScrollArea, Ui, style::ScrollAnimation};
 use voxa_render::Overlay;
 
 use super::{offer, row, section};
@@ -36,8 +36,16 @@ fn quiet(text: &str) -> RichText {
     RichText::new(text).small().color(theme::QUIET_TEXT)
 }
 
-/// Draw the Labels tab. Changes of state go onto `actions`; what its buttons ask of the
-/// window, such as choosing a file of labels to open, is given back.
+/// A part of the tab that scrolls, and takes the height that is left.
+fn scrolling<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let area = ScrollArea::vertical().auto_shrink([false, false]);
+    area.show(ui, add).inner
+}
+
+/// Draw the Labels tab, in the panel's own room: it scrolls itself, so that with labels open
+/// what stays in place is in sight while the list scrolls. Changes of state go onto
+/// `actions`; what its buttons ask of the window, such as choosing a file of labels to open,
+/// is given back.
 pub fn show(
     ui: &mut Ui,
     state: &AppState,
@@ -46,26 +54,44 @@ pub fn show(
 ) -> Vec<Request> {
     let mut asked = Vec::new();
     match &state.labels.status {
+        LabelsStatus::Ready if on_this_series(state) => {
+            list(ui, &state.labels, view, actions, &mut asked);
+        }
+        status => scrolling(ui, |ui| {
+            without_labels(ui, state, status, actions, &mut asked);
+        }),
+    }
+    asked
+}
+
+/// What the tab says while there are no labels to list: what they are, that they are being
+/// read, why they could not be, or that those open belong to another study.
+fn without_labels(
+    ui: &mut Ui,
+    state: &AppState,
+    status: &LabelsStatus,
+    actions: &mut Vec<Action>,
+    asked: &mut Vec<Request>,
+) {
+    match status {
         LabelsStatus::None => {
             ui.label(quiet(WHAT_LABELS_ARE));
-            ways_to_get_some(ui, state, actions, &mut asked);
+            ways_to_get_some(ui, state, actions, asked);
         }
         LabelsStatus::Reading => {
             ui.label("Reading the labels…");
         }
         LabelsStatus::Failed(why) => {
             ui.label(RichText::new(why).color(theme::WARNING));
-            ways_to_get_some(ui, state, actions, &mut asked);
+            ways_to_get_some(ui, state, actions, asked);
         }
-        LabelsStatus::Ready if !on_this_series(state) => {
+        LabelsStatus::Ready => {
             ui.label(quiet(OTHER_STUDY));
             if ui.button("Close").clicked() {
                 actions.push(Action::CloseLabels);
             }
         }
-        LabelsStatus::Ready => list(ui, &state.labels, view, actions, &mut asked),
     }
-    asked
 }
 
 /// The two ways to get labels: open a file of them, or label the scan in the Tools tab.
@@ -82,9 +108,9 @@ fn ways_to_get_some(
     });
 }
 
-/// The labels open on the series: what they are and who made them, then the switches that act
-/// on all of them, the overview by group, the search box and the part selected, and every
-/// group with its rows.
+/// The labels open on the series. In place at the top: what they are and who made them, the
+/// switches that act on all of them, the search box and the part selected. Scrolling beneath
+/// them: the overview by group, and every group with its rows.
 fn list(
     ui: &mut Ui,
     labels: &Labels,
@@ -94,25 +120,27 @@ fn list(
 ) {
     asked.extend(about(ui, labels));
     asked.extend(switches(ui, labels, actions));
-    section(ui, "Groups");
-    if let Some(group) = overview::show(ui, labels, actions) {
-        // A group the search leaves out cannot be scrolled to: the search is let go.
-        if !parts::rows(labels, &view.search)
-            .iter()
-            .any(|one| one.name == group)
-        {
-            view.search.clear();
-        }
-        view.scroll_to = Some(group);
-    }
-    ui.separator();
     let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
     ui.add(search.desired_width(f32::INFINITY));
     if let Some(part) = labels.selected {
         parts::chosen(ui, labels, part, actions);
     }
     ui.separator();
-    groups(ui, labels, view, actions);
+    scrolling(ui, |ui| {
+        section(ui, "Groups");
+        if let Some(group) = overview::show(ui, labels, actions) {
+            // A group the search leaves out cannot be scrolled to: the search is let go.
+            if !parts::rows(labels, &view.search)
+                .iter()
+                .any(|one| one.name == group)
+            {
+                view.search.clear();
+            }
+            view.scroll_to = Some(group);
+        }
+        ui.separator();
+        groups(ui, labels, view, actions);
+    });
 }
 
 /// Every group of the list with its rows, those with the letters typed in the search box.

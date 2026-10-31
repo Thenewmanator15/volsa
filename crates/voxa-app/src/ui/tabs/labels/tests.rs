@@ -4,14 +4,15 @@
 use std::cell::Cell;
 use std::path::PathBuf;
 
-use egui::{Rect, ScrollArea, Ui};
+use egui::{Rect, Ui};
 use voxa_labels::{Made, Side, Trust, Verdict, verdict_in_words};
 
 use super::*;
 use crate::reducer::reduce;
 use crate::testing::{labelled_head, thick_scan_ready};
 use crate::ui::hand::{Hand, Seen};
-use crate::ui::panel::Tab;
+use crate::ui::panel::{self, PanelState, Tab};
+use crate::ui::tabs::Kept;
 use crate::ui::tabs::made_up::{
     WIDE, labelled_by, labelled_with, labels_tab, labels_written, named, part, parts, screen,
     sweep_labels,
@@ -131,34 +132,85 @@ fn hiding_a_group_from_the_overview_sends_group_show() {
     assert_eq!(click(&state, "Show Deep brain"), [show]);
 }
 
+/// The last group of a long list, which is far down it.
+const LAST: &str = "Outside the head's brain";
+
+/// Labels of a long list: forty parts in a group of their own, and then the made-up parts, so
+/// that the last group, which holds the eyeball, is far down.
+fn a_long_list() -> AppState {
+    let long = (0..40).map(|n| {
+        let name = format!("long {n}");
+        part(&name, "A long group", Side::Midline, Trust::Model)
+    });
+    let everything = [long.collect(), parts()].concat();
+    labelled_with(everything, None, NamesFrom::Table, None)
+}
+
 #[test]
 fn clicking_a_group_in_the_overview_scrolls_the_list_to_it() {
-    let far = (0..40).map(|n| {
-        part(
-            &format!("far {n}"),
-            "A far group",
-            Side::Midline,
-            Trust::Model,
-        )
-    });
-    let everything = [parts(), far.collect()].concat();
-    let state = labelled_with(everything, None, NamesFrom::Table, None);
-    let (hand, mut view, offset) = (Hand::new(WIDE, 400.0), PartsView::default(), Cell::new(0.0));
+    let state = a_long_list();
+    let (hand, mut view) = (Hand::new(WIDE, 400.0), PartsView::default());
     let mut draw = |ui: &mut Ui| {
-        let area = ScrollArea::vertical().auto_shrink([false, false]);
-        let shown = area.show(ui, |ui| show(ui, &state, &mut view, &mut Vec::new()));
-        offset.set(shown.state.offset.y);
+        let _ = show(ui, &state, &mut view, &mut Vec::new());
     };
+    let header = |seen: &Seen| seen.bounds_of(LAST).expect("the group's header");
     let before = hand.settle(&mut draw);
-    let header = |seen: &Seen| seen.bounds_of("A far group").expect("the group's header");
     assert!(header(&before).top() > 400.0, "out of sight");
-    assert!(hand.click_named("Go to A far group", &mut draw));
+    let search = bounds_of(&before, "Search parts");
+    assert!(hand.click_named(&format!("Go to {LAST}"), &mut draw));
     let after = hand.settle(&mut draw);
     let header = header(&after);
-    assert!(offset.get() > 0.0, "the tab scrolled");
     assert!(
-        header.top() >= 0.0 && header.bottom() <= 400.0,
-        "in sight: {header:?}"
+        header.top() >= search.bottom() && header.bottom() <= 400.0,
+        "in sight, below the search box: {header:?}"
+    );
+}
+
+#[test]
+fn the_search_and_the_part_chosen_stay_in_view_while_the_list_scrolls() {
+    let mut state = a_long_list();
+    // The eyeball, in the last group, far down the list.
+    reduce(&mut state, Action::PartSelect(Some(40 + 3)));
+    let hand = Hand::new(900.0, 600.0);
+    let (mut panel, mut kept) = (
+        PanelState::remembered(None, false, "Labels"),
+        Kept::default(),
+    );
+    let rect = Cell::new(Rect::NOTHING);
+    let mut draw = |ui: &mut Ui| {
+        let contents =
+            |ui: &mut Ui, tab| crate::ui::tabs::show(ui, tab, &state, &mut kept, &mut Vec::new());
+        rect.set(panel::show(ui, &mut panel, &state, contents).rect);
+    };
+    let fixed = ["Search parts", "How solid it is drawn", "Show only this"];
+    let place = |seen: &Seen| fixed.map(|name| bounds_of(seen, name));
+    let before = hand.settle(&mut draw);
+    let (panel_rect, was) = (rect.get(), place(&before));
+    assert!(
+        was.iter().all(|at| panel_rect.contains_rect(*at)),
+        "{was:?} in {panel_rect:?}"
+    );
+    let overview = bounds_of(&before, "Go to Deep brain");
+    let far = before.bounds_of(LAST).expect("the group's header");
+    assert!(far.top() > panel_rect.bottom(), "out of sight: {far:?}");
+    // Take the list down to the group the part is in.
+    assert!(hand.click_named(&format!("Go to {LAST}"), &mut draw));
+    let after = hand.settle(&mut draw);
+    let far = after.bounds_of(LAST).expect("the group's header");
+    assert!(
+        panel_rect.contains_rect(far),
+        "the list scrolled: {far:?} in {panel_rect:?}"
+    );
+    let moved = bounds_of(&after, "Go to Deep brain");
+    assert!(moved.top() < overview.top(), "the overview went up with it");
+    let now = place(&after);
+    assert_eq!(
+        now, was,
+        "the search box and the part's controls did not move"
+    );
+    assert!(
+        now.iter().all(|at| panel_rect.contains_rect(*at)),
+        "{now:?} in {panel_rect:?}"
     );
 }
 
