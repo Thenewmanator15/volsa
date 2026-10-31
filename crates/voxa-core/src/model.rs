@@ -75,6 +75,10 @@ impl SeriesProblem {
 
 /// One series of images.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "independent facts the files state or do not, each kept by its own name"
+)]
 pub struct SeriesInfo {
     /// The series identifier.
     pub id: SeriesId,
@@ -92,6 +96,10 @@ pub struct SeriesInfo {
     pub slices: usize,
     /// Distance between voxel centres along columns, rows and slices, in millimetres.
     pub spacing_mm: [f64; 3],
+    /// True only when the files gave the distance between slices: from where the slices lie, or
+    /// failing that a Slice Thickness above zero. When false, the last entry of `spacing_mm` is
+    /// a 1 mm stand-in, and not a distance to say.
+    pub slice_step_given: bool,
     /// True only when the first image's files gave a Pixel Spacing. When false, the first two
     /// entries of `spacing_mm` are a 1 mm stand-in so the picture can be drawn, and are not a
     /// length to measure with. A detector's Imager Pixel Spacing does not count.
@@ -143,6 +151,7 @@ impl Default for SeriesInfo {
             cols: 0,
             slices: 1,
             spacing_mm: [1.0; 3],
+            slice_step_given: false,
             spacing_given: false,
             voxel_to_patient: None,
             problems: Vec::new(),

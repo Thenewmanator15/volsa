@@ -80,6 +80,7 @@ pub(super) fn series(number: i32, modality: &str, description: &str, slices: usi
         cols: 4,
         slices,
         spacing_mm: [1.0, 1.0, 5.0],
+        slice_step_given: true,
         ..SeriesInfo::default()
     }
 }

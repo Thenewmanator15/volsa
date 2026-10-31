@@ -12,6 +12,7 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod dates;
 mod error;
 mod kind;
 mod model;
@@ -20,6 +21,7 @@ mod space;
 mod volume;
 mod window;
 
+pub use dates::date_in_words;
 pub use error::VoxaError;
 pub use kind::{MOST_LOCATING, SeriesKind};
 pub use model::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VolumeSet};

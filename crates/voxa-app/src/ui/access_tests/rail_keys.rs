@@ -128,7 +128,7 @@ fn a_card_out_of_sight_is_scrolled_to_as_the_arrows_reach_it() {
             .iter()
             .all(|node| !node.name.starts_with("Axial scan, 40 slices"))
     );
-    let _ = window.focus(&state, card(&told, "Axial scan, 1 slice "));
+    let _ = window.focus(&state, card(&told, "Axial scan, 1 slice"));
     let mut last = String::new();
     for _ in 0..39 {
         let (told, _) = window.press(&state, Key::ArrowDown);

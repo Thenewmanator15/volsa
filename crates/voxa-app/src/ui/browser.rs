@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use egui::{Color32, ColorImage};
+pub(super) use voxa_core::date_in_words;
 use voxa_core::{SeriesId, SeriesInfo, StudyInfo, WindowLevel};
 use voxa_dicom::Frame;
 
@@ -12,20 +13,6 @@ use crate::naming::is_page;
 
 /// Side of a series' thumbnail, in points.
 pub const THUMBNAIL: f32 = 64.0;
-const MONTHS: [&str; 12] = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-];
 
 /// The small picture of each series, once its middle slice has been decoded.
 pub type Thumbnails = HashMap<SeriesId, egui::TextureHandle>;
@@ -156,12 +143,17 @@ pub fn caption(info: &SeriesInfo) -> String {
     } else {
         format!("{} slices", info.slices)
     };
-    // To a hundredth of a millimetre, without trailing zeros.
+    // To a hundredth of a millimetre, without trailing zeros. Said only when the files gave it:
+    // one slice is no distance from another, and a stack of which they said nothing has only
+    // a stand-in of 1 mm, which is not a distance to say.
     let apart = (info.slice_thickness_mm() * 100.0).round() / 100.0;
-    match &info.set {
-        Some(set) => format!("{} volumes · {slices} · {apart} mm", set.count),
-        None => format!("{slices} · {apart} mm"),
-    }
+    let apart = (info.slices > 1 && info.slice_step_given).then(|| format!("{apart} mm"));
+    let volumes = info
+        .set
+        .as_ref()
+        .map(|set| format!("{} volumes", set.count));
+    let facts: Vec<String> = volumes.into_iter().chain([slices]).chain(apart).collect();
+    facts.join(" · ")
 }
 
 /// What is wrong with a series, one sentence a line; `None` when nothing is.
@@ -198,22 +190,6 @@ pub fn study_title(study: &StudyInfo) -> String {
     } else {
         format!("{date} · {}", study.description)
     }
-}
-
-/// `20190412` as `12 April 2019`; `None` when the text is not a date written that way.
-pub(super) fn date_in_words(yyyymmdd: &str) -> Option<String> {
-    if yyyymmdd.len() != 8 || !yyyymmdd.is_ascii() {
-        return None;
-    }
-    let (year, rest) = yyyymmdd.split_at(4);
-    let (month, day) = rest.split_at(2);
-    let month = MONTHS.get(month.parse::<usize>().ok()?.checked_sub(1)?)?;
-    let day = day
-        .parse::<u8>()
-        .ok()
-        .filter(|day| (1..=31).contains(day))?;
-    year.parse::<u16>().ok()?;
-    Some(format!("{day} {month} {year}"))
 }
 
 #[cfg(test)]

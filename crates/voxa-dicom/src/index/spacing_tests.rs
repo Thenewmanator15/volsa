@@ -93,3 +93,36 @@ fn the_rescale_type_is_read_and_trimmed() {
     assert_eq!(named.rescale_type.as_deref(), Some("HU"));
     assert_eq!(series_of(&SliceOptions::default()).rescale_type, None);
 }
+
+/// The one series of `count` slices with no position in space, each `thickness` thick if any.
+fn unplaced(count: i32, thickness: Option<f64>) -> SeriesInfo {
+    let files = (0..count).map(|at| {
+        let opts = SliceOptions {
+            instance_number: at + 1,
+            position: None,
+            orientation: None,
+            slice_thickness: thickness,
+            ..SliceOptions::default()
+        };
+        (format!("IMAGES/I{at:04}"), classic_slice(&opts))
+    });
+    indexed(files.collect()).series[0].info.clone()
+}
+
+#[test]
+fn a_series_says_whether_the_files_gave_the_distance_between_its_slices() {
+    // Placed in space: the positions say.
+    assert!(series_of(&SliceOptions::default()).slice_step_given);
+    // Not placed, but each slice says how thick it is.
+    let thick = unplaced(3, Some(4.0));
+    assert!(thick.slice_step_given);
+    assert_eq!(thick.slice_thickness_mm(), 4.0);
+    // Not placed and no thickness either: the 1 mm is a stand-in, and the series says so.
+    let nothing = unplaced(3, None);
+    assert!(!nothing.slice_step_given);
+    assert_eq!(nothing.slice_thickness_mm(), 1.0);
+    // A thickness of nothing is none.
+    assert!(!unplaced(3, Some(0.0)).slice_step_given);
+    // One slice has no distance to another, placed or not.
+    assert!(!unplaced(1, None).slice_step_given);
+}

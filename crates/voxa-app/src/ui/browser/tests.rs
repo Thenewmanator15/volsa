@@ -76,7 +76,18 @@ fn a_card_says_how_many_slices_and_how_far_apart() {
     assert_eq!(caption(&index.series[0].info), "30 slices · 5 mm");
     let mut one = index.series[0].info.clone();
     (one.slices, one.spacing_mm) = (1, [0.7, 0.7, 7.5]);
-    assert_eq!(caption(&one), "1 slice · 7.5 mm");
+    assert_eq!(
+        caption(&one),
+        "1 slice",
+        "one slice is no distance from another"
+    );
+    // Said only when the files gave it, however many slices: a stack with no positions and no
+    // thickness has a stand-in of 1 mm, and a thickness is a distance the files did give.
+    let mut stack = index.series[0].info.clone();
+    (stack.slice_step_given, stack.spacing_mm[2]) = (false, 1.0);
+    assert_eq!(caption(&stack), "30 slices");
+    (stack.slice_step_given, stack.spacing_mm[2]) = (true, 4.0);
+    assert_eq!(caption(&stack), "30 slices · 4 mm");
     let mut pictures = one.clone();
     (pictures.slices, pictures.colour) = (2, true);
     assert_eq!(
@@ -108,6 +119,7 @@ fn resting_on_a_card_gives_the_whole_description_and_every_reason() {
         description: long.to_owned(),
         slices: 30,
         spacing_mm: [1.0, 1.0, 5.0],
+        slice_step_given: true,
         problems: vec![SeriesProblem::UnevenSpacing, SeriesProblem::MixedSizes],
         ..SeriesInfo::default()
     };
@@ -120,7 +132,11 @@ fn resting_on_a_card_gives_the_whole_description_and_every_reason() {
         number: 7,
         ..SeriesInfo::default()
     };
-    assert_eq!(hover(&unnamed), "Series 7\n1 slice · 1 mm");
+    assert_eq!(
+        hover(&unnamed),
+        "Series 7\n1 slice",
+        "the 1 mm of a series the files said nothing of is not a distance"
+    );
 }
 
 #[test]
@@ -145,6 +161,7 @@ fn volume_of(whole: &str, at: usize, count: usize) -> SeriesInfo {
         id: SeriesId(format!("{whole}@{}", at + 1)),
         slices: 3,
         spacing_mm: [1.0, 1.0, 5.0],
+        slice_step_given: true,
         set: Some(voxa_core::VolumeSet {
             of: SeriesId(whole.to_owned()),
             at,

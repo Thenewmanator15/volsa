@@ -296,9 +296,8 @@ fn assembled(
         .find_map(|image| unreadable(&image.header.transfer_syntax));
     problems.extend(unreadable.map(SeriesProblem::UnsupportedTransferSyntax));
     let [between_rows, between_cols] = first.pixel_spacing.unwrap_or([1.0, 1.0]);
-    let between_slices = step
-        .or(first.slice_thickness.filter(|mm| *mm > 0.0))
-        .unwrap_or(1.0);
+    let slice_step = step.or(first.slice_thickness.filter(|mm| *mm > 0.0));
+    let between_slices = slice_step.unwrap_or(1.0);
     let scan = facts(first, &problems);
     IndexedSeries {
         info: SeriesInfo {
@@ -310,6 +309,7 @@ fn assembled(
             cols: first.cols,
             slices: slices.len(),
             spacing_mm: [between_cols, between_rows, between_slices],
+            slice_step_given: slice_step.is_some(),
             spacing_given: first.pixel_spacing.is_some(),
             voxel_to_patient,
             problems,

@@ -4,7 +4,7 @@ use std::ops::ControlFlow;
 
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
-use voxa_core::VoxaError;
+use voxa_core::{VoxaError, date_in_words};
 
 use super::{is_report_class, sop_class_of};
 use crate::decode::{guarded, open};
@@ -194,11 +194,16 @@ enum Value {
 
 fn value_of(item: &InMemDicomObject, value_type: &str) -> Value {
     let plain = |tag| Value::Said(text(item, tag).unwrap_or_default());
+    // A date said in words, where it is written as one; a value that is not stays as written.
+    let in_words = |tag, said: fn(&str) -> Option<String>| {
+        let raw = text(item, tag).unwrap_or_default();
+        Value::Said(said(&raw).unwrap_or(raw))
+    };
     match value_type {
         "TEXT" => plain(tags::TEXT_VALUE),
-        "DATE" => plain(tags::DATE),
+        "DATE" => in_words(tags::DATE, date_in_words),
         "TIME" => plain(tags::TIME),
-        "DATETIME" => plain(tags::DATE_TIME),
+        "DATETIME" => in_words(tags::DATE_TIME, date_time_in_words),
         "PNAME" => plain(tags::PERSON_NAME),
         "UIDREF" => plain(tags::UID),
         "CODE" => {
@@ -213,6 +218,32 @@ fn value_of(item: &InMemDicomObject, value_type: &str) -> Value {
         "TCOORD" => Value::Unshown("a marked time range"),
         _ => Value::Unshown("an item of a kind Voxa does not read"),
     }
+}
+
+/// A date and time (`YYYYMMDDHHMMSS.FFFFFF`) as the date in words, then the hour and minute when
+/// it gives them: `20200102143015` as `2 January 2020, 14:30`. `None` when it is anything else,
+/// so that it is shown as written: cut off in the middle of the time, out of range, or with an
+/// offset from universal time, which the words would leave out.
+fn date_time_in_words(raw: &str) -> Option<String> {
+    let date = date_in_words(raw.get(..8)?)?;
+    let rest = raw.get(8..)?;
+    let (clock, fraction) = rest.split_once('.').unwrap_or((rest, ""));
+    let digits = |text: &str| text.bytes().all(|letter| letter.is_ascii_digit());
+    // Hours and minutes, with seconds, or no time at all; a fraction only of a second.
+    let shaped = matches!(clock.len(), 0 | 4 | 6) && (clock.len() == 6 || fraction.is_empty());
+    if !shaped || !digits(clock) || !digits(fraction) {
+        return None;
+    }
+    let part = |from: usize, most: u8| {
+        let two = clock.get(from..from + 2)?;
+        (two.parse::<u8>().ok()? <= most).then_some(two)
+    };
+    if clock.is_empty() {
+        return Some(date);
+    }
+    let (hour, minute) = (part(0, 23)?, part(2, 59)?);
+    // A leap second is the one second of 60.
+    (clock.len() < 6 || part(4, 60).is_some()).then(|| format!("{date}, {hour}:{minute}"))
 }
 
 /// A number and its unit, as the report gives them: the number, then the meaning of the

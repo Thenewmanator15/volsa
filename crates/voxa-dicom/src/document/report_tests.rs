@@ -76,15 +76,51 @@ fn every_kind_of_value_becomes_a_line_of_concept_and_value() {
         texts,
         [
             "Colour: Red",
-            "Made on: 20200102",
+            "Made on: 2 January 2020",
             "At: 143015",
-            "Stamped: 20200102143015",
+            "Stamped: 2 January 2020, 14:30",
             "Seen by: Nobody^Madeup",
             "Refers to: 1.2.3.4",
         ]
     );
     assert!(report.lines.iter().all(|line| line.heading.is_none()));
     assert!(!report.cut_short);
+}
+
+#[test]
+fn a_date_is_said_in_words_and_one_that_is_not_such_a_date_is_as_written() {
+    let dated = |kind: &str, value: &str| {
+        let report = read(&[ReportItem::plain(kind, "Written on", value)]);
+        report.lines[0].text.clone()
+    };
+    assert_eq!(dated("DATE", "20200102"), "Written on: 2 January 2020");
+    for odd in ["2020-01-02", "202001", "20201302"] {
+        let said = dated("DATE", odd);
+        let wanted = format!("Written on: {}", odd.trim());
+        assert_eq!(said, wanted, "{odd:?}");
+    }
+    // A date and time: the date in words, then the hour and minute when it gives them.
+    let stamped = |value: &str| dated("DATETIME", value);
+    assert_eq!(stamped("20200102"), "Written on: 2 January 2020");
+    assert_eq!(
+        stamped("20200102143015"),
+        "Written on: 2 January 2020, 14:30"
+    );
+    assert_eq!(
+        stamped("20200102143015.250000"),
+        "Written on: 2 January 2020, 14:30"
+    );
+    assert_eq!(stamped("202001021430"), "Written on: 2 January 2020, 14:30");
+    // What is cut off, out of range or carries an offset from universal time is as written.
+    for odd in [
+        "20200102+0100",
+        "2020010214",
+        "20200102143015+0100",
+        "20200102256100",
+        "x",
+    ] {
+        assert_eq!(stamped(odd), format!("Written on: {odd}"), "{odd:?}");
+    }
 }
 
 #[test]
