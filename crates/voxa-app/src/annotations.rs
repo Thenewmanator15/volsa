@@ -8,6 +8,9 @@ use voxa_volume::{RegionStats, angle_degrees, distance_mm, pitch_along};
 use crate::measuring::Scale;
 
 pub use kept::{ANNOTATIONS_VERSION, load_annotations, save_annotations};
+pub use left::Left;
+#[cfg(test)]
+pub use left::MOST as MOST_LEFT;
 
 /// The most annotations one series may have.
 pub const MAX_ANNOTATIONS: usize = 200;
@@ -373,6 +376,7 @@ fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
 }
 
 mod kept;
+mod left;
 
 #[cfg(test)]
 mod tests;

@@ -7,7 +7,7 @@ use voxa_dicom::{Index, IndexedSeries, Report};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
-use crate::annotations::{Annotations, Tool};
+use crate::annotations::{Annotations, Left, Tool};
 use crate::labelling::Labelling;
 use crate::labels::Labels;
 use crate::pictures::Pictures;
@@ -185,6 +185,8 @@ pub struct AppState {
     pub planes: Planes,
     /// The measurements and markers made on the scene's series.
     pub annotations: Annotations,
+    /// The measurements of the series the scene has left in this run, with their history.
+    pub annotations_left: Left,
     /// What the main button does in the plane views and the 3D scene.
     pub tool: Tool,
     /// The labelled parts open on a study, and what is shown of them.
@@ -214,6 +216,7 @@ impl Default for AppState {
             views: Vec::new(),
             planes: Planes::default(),
             annotations: Annotations::default(),
+            annotations_left: Left::default(),
             tool: Tool::default(),
             labels: Labels::default(),
             labelling: Labelling::default(),

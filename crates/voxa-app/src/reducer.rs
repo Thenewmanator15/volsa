@@ -321,6 +321,8 @@ fn settle_window(
 }
 
 #[cfg(test)]
+mod annotations_left_tests;
+#[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
 mod colour_tests;

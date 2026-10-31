@@ -11,24 +11,24 @@ use crate::scene::SceneStatus;
 use crate::state::NoticeKind;
 use crate::testing::{FINE_SCAN, THICK_SCAN, id, showing_a_picture, shown};
 
-fn ruler(length: f64) -> Shape {
+pub(super) fn ruler(length: f64) -> Shape {
     Shape::Ruler {
         a: [0.0; 3],
         b: [length, 0.0, 0.0],
     }
 }
 
-fn marker() -> Shape {
+pub(super) fn marker() -> Shape {
     Shape::Marker {
         at: [1.0, 2.0, 3.0],
     }
 }
 
-fn add(state: &mut AppState, shape: Shape) {
+pub(super) fn add(state: &mut AppState, shape: Shape) {
     reduce(state, Action::AnnotationAdd(shape));
 }
 
-fn labels(state: &AppState) -> Vec<&str> {
+pub(super) fn labels(state: &AppState) -> Vec<&str> {
     let items = &state.annotations.items;
     items.iter().map(|item| item.label.as_str()).collect()
 }

@@ -87,11 +87,20 @@ fn read(state: &mut AppState, series: &SeriesId, mut items: Vec<Annotation>) {
 }
 
 /// Keep the annotations with their series: when the scene has moved to another series than
-/// `was`, the list and its history start afresh, and the tool is put down. And put it down
+/// `was`, the list and its history are put away, to be taken back if the scene comes back to
+/// that series in this run, and the series it has come to has the list it was left with or a
+/// fresh one; the tool is put down And put it down
 /// whenever there is nothing to use it on: no volume ready, and no slice shown with a scale.
 pub(super) fn settle(state: &mut AppState, was: Option<&SeriesId>) {
     if state.scene.series.as_ref() != was {
-        state.annotations = Annotations::default();
+        // What was done to the list of the series left can be undone when the series is back.
+        let left = std::mem::take(&mut state.annotations);
+        if let Some(was) = was {
+            state.annotations_left.put_away(was.clone(), left);
+        }
+        let arrived = state.scene.series.clone();
+        let back = arrived.and_then(|series| state.annotations_left.take_back(&series));
+        state.annotations = back.unwrap_or_default();
         state.tool = Tool::Navigate;
     }
     if why_not_measurable(state).is_some() {
