@@ -1,43 +1,25 @@
 //! The pictures of the arrangement shown: with no 3D view among them, the scene's volume still
 //! reaches the graphics card, and no second copy of it waits in memory.
 
-use std::future::Future;
-use std::task::{Context, Poll, Waker};
-
 use egui::{Pos2, Rect, vec2};
-use egui_wgpu::{RendererOptions, WgpuConfiguration, wgpu};
 use voxa_core::Affine;
-use voxa_render::{MAX_VOLUME_BYTES, Prepared};
+use voxa_render::{MAX_VOLUME_BYTES, Prepared, RenderError};
 
 use super::*;
 use crate::pictures::Pictures;
 use crate::testing::thick_scan_ready;
 
-/// Wait for `future`, which a graphics device on this computer answers at once or nearly.
-fn wait_for<F: Future>(future: F) -> F::Output {
-    let mut future = std::pin::pin!(future);
-    let mut context = Context::from_waker(Waker::noop());
-    loop {
-        if let Poll::Ready(done) = future.as_mut().poll(&mut context) {
-            return done;
-        }
-        std::thread::yield_now();
-    }
-}
-
-/// The graphics device as the window has it, made as eframe makes it but with no window; `None`
-/// with a printed notice on a computer with no graphics adapter.
+/// The graphics device as the window has it, made on the one adapter every device with no window
+/// shares (this test makes no graphics instance of its own); `None` with a printed notice on a
+/// computer with no graphics adapter, not even a software one.
 fn a_render_state() -> Option<RenderState> {
-    let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-    let instance = wgpu::Instance::new(from_outside);
-    let config = WgpuConfiguration::default();
-    let made = RenderState::create(&config, &instance, None, RendererOptions::default());
-    match wait_for(made) {
+    match voxa_render::render_state_without_a_window() {
         Ok(render) => Some(render),
-        Err(why) => {
-            eprintln!("skipped: no graphics device here: {why}");
+        Err(RenderError::NoAdapter) => {
+            eprintln!("skipped: no graphics adapter here, not even a software one");
             None
         }
+        Err(other) => panic!("{other}"),
     }
 }
 

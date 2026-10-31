@@ -94,6 +94,12 @@ device and is not for diagnostic use.
 - `docs/quality/` starts three documents kept from now on: the requirements, each traced to the
   test or check that shows it is met; a risk register; and a usability file.
 
+### Fixed
+
+- The tests and the checking tools no longer try OpenGL on Windows. With it, a run of the
+  tests could stop for good on a computer with some NVIDIA drivers. The window is not
+  changed.
+
 ## [0.6.0] - 2026-10-22
 
 The sixth release, made for a first public release: a download for Windows, the notices and

@@ -2,7 +2,7 @@
 
 use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 
-use egui_wgpu::wgpu;
+use egui_wgpu::{RenderState, RendererOptions, WgpuConfiguration, WgpuSetupExisting, wgpu};
 
 use crate::lost::{self, DeviceWatch};
 use crate::slice_pipeline::RenderError;
@@ -17,16 +17,42 @@ const BYTES_PER_PIXEL: u32 = 4;
 /// adapter of its own and starting a device on it, stopped for good on one machine's
 /// driver. One adapter was enough to cure it there; taking turns as well costs little,
 /// since starting a device on an adapter already found is quick.
+///
+/// On Windows such a device does not try OpenGL either, see [`backends_without_a_window`]:
+/// with it, a run of the tests stopped for good now and then on a machine with an NVIDIA
+/// card, since the driver's OpenGL side can stop every thread of the program from starting
+/// or ending once a thread that used it has ended. For the same reason no test makes a
+/// graphics instance of its own: [`render_state_without_a_window`] hands out this one.
 static STARTING: Mutex<()> = Mutex::new(());
 
 /// The adapter those devices come from, looked for once: the search is most of the time a
 /// start would otherwise take.
-static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static ADAPTER: OnceLock<Option<Found>> = OnceLock::new();
 
 /// The adapter emulated in software, looked for once, for the tests that draw on it even on
 /// a machine with a graphics card of its own.
 #[cfg(test)]
-static SOFTWARE: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static SOFTWARE: OnceLock<Option<Found>> = OnceLock::new();
+
+/// An adapter, with the graphics instance it was found with, which a window would be given
+/// along with a device made on the adapter.
+struct Found {
+    instance: wgpu::Instance,
+    adapter: wgpu::Adapter,
+}
+
+impl Found {
+    /// Start a device on the adapter. The caller holds its turn, see [`STARTING`].
+    fn start_device(&self) -> Result<(wgpu::Device, wgpu::Queue), RenderError> {
+        let wanted = wgpu::DeviceDescriptor {
+            label: Some("voxa headless"),
+            required_limits: self.adapter.limits(),
+            ..Default::default()
+        };
+        pollster::block_on(self.adapter.request_device(&wanted))
+            .map_err(|error| RenderError::Device(error.to_string()))
+    }
+}
 
 /// A graphics device with no window.
 pub(crate) struct Gpu {
@@ -105,21 +131,11 @@ impl Gpu {
     /// of those asked for in turn, looked for the first time a device is started on it.
     /// `false` asks for the machine's own adapter, `true` for one emulated in software.
     fn start_on(
-        found: &OnceLock<Option<wgpu::Adapter>>,
+        found: &OnceLock<Option<Found>>,
         in_software: &[bool],
     ) -> Result<Self, RenderError> {
         let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
-        let adapter = found
-            .get_or_init(|| find_adapter(in_software))
-            .as_ref()
-            .ok_or(RenderError::NoAdapter)?;
-        let wanted = wgpu::DeviceDescriptor {
-            label: Some("voxa headless"),
-            required_limits: adapter.limits(),
-            ..Default::default()
-        };
-        let (device, queue) = pollster::block_on(adapter.request_device(&wanted))
-            .map_err(|error| RenderError::Device(error.to_string()))?;
+        let (device, queue) = found_in(found, in_software)?.start_device()?;
         let watch = Some(DeviceWatch::on(&device, || {}));
         Ok(Self {
             device,
@@ -264,12 +280,76 @@ impl Gpu {
     }
 }
 
-/// The first adapter found of those asked for in turn: `false` asks for the machine's own,
-/// `true` for one emulated in software. Which backend and which adapter can be chosen from
-/// outside, to try more than one graphics device on a machine: `WGPU_BACKEND` and
-/// `WGPU_POWER_PREF`.
-fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
-    let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+/// What a window has to draw with, made without a window: a device started on the adapter
+/// the other devices with no window come from, and the instance that adapter was found with,
+/// set up for egui-wgpu to draw the interface on. For the tests of the interface, which need
+/// the kind of device a window has but no window; nothing else in Voxa uses it. It is
+/// started in turn with every other device, and makes no graphics instance of its own.
+///
+/// # Errors
+///
+/// [`RenderError::NoAdapter`] when the machine has no graphics adapter, not even one
+/// emulated in software, and [`RenderError::Device`] when the adapter found will not start
+/// or egui-wgpu cannot be set up on it.
+pub fn render_state_without_a_window() -> Result<RenderState, RenderError> {
+    let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
+    let found = found_in(&ADAPTER, &[false, true])?;
+    let (device, queue) = found.start_device()?;
+    let existing = WgpuSetupExisting {
+        instance: found.instance.clone(),
+        adapter: found.adapter.clone(),
+        device,
+        queue,
+    };
+    let config = WgpuConfiguration {
+        wgpu_setup: existing.into(),
+        ..Default::default()
+    };
+    let made = RenderState::create(&config, &found.instance, None, RendererOptions::default());
+    pollster::block_on(made).map_err(|error| RenderError::Device(error.to_string()))
+}
+
+/// What `found` holds, looked for the first time it is asked for among the adapters asked
+/// for in turn. The caller holds its turn, see [`STARTING`].
+fn found_in<'a>(
+    found: &'a OnceLock<Option<Found>>,
+    in_software: &[bool],
+) -> Result<&'a Found, RenderError> {
+    found
+        .get_or_init(|| find_adapter(in_software, wgpu::Backends::from_env()))
+        .as_ref()
+        .ok_or(RenderError::NoAdapter)
+}
+
+/// The backends a graphics instance with no window is given, from `asked`: what
+/// `WGPU_BACKEND` named, or `None` if it was not set.
+///
+/// Asked for, those backends are used as they are, to try another device on a machine.
+/// Otherwise OpenGL is left out on Windows, where a driver's OpenGL side can stop every
+/// thread of the program from starting or ending once a thread that used it has ended, which
+/// stopped a run of the tests for good now and then. Vulkan and DirectX 12 remain, and with
+/// DirectX 12 WARP, the device emulated in software that machines with no graphics card
+/// draw with. Elsewhere nothing is left out, as wgpu does by default.
+fn backends_without_a_window(asked: Option<wgpu::Backends>) -> wgpu::Backends {
+    let without_opengl = wgpu::Backends::VULKAN | wgpu::Backends::DX12;
+    asked.unwrap_or(if cfg!(windows) {
+        without_opengl
+    } else {
+        wgpu::Backends::default()
+    })
+}
+
+/// The first adapter found of those asked for in turn, with the instance it was found with:
+/// `false` asks for the machine's own, `true` for one emulated in software. Which backend
+/// and which adapter can be chosen from outside, to try more than one graphics device on a
+/// machine: `WGPU_BACKEND`, which is `asked_backends` here, and `WGPU_POWER_PREF`. This is
+/// the one place in Voxa's code that makes a graphics instance for a device with no window,
+/// and it leaves OpenGL out on Windows, see [`backends_without_a_window`].
+fn find_adapter(in_software: &[bool], asked_backends: Option<wgpu::Backends>) -> Option<Found> {
+    let from_outside = wgpu::InstanceDescriptor {
+        backends: backends_without_a_window(asked_backends),
+        ..wgpu::InstanceDescriptor::new_without_display_handle_from_env()
+    };
     let instance = wgpu::Instance::new(from_outside);
     let adapter = |force_fallback_adapter| {
         let wanted = wgpu::RequestAdapterOptions {
@@ -279,7 +359,8 @@ fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
         };
         pollster::block_on(instance.request_adapter(&wanted)).ok()
     };
-    in_software.iter().find_map(|&software| adapter(software))
+    let adapter = in_software.iter().find_map(|&software| adapter(software))?;
+    Some(Found { instance, adapter })
 }
 
 /// One render pass that clears the picture to black and lets `draw` draw over it.
@@ -307,3 +388,6 @@ fn draw_into(
     });
     draw(&mut pass);
 }
+
+#[cfg(test)]
+mod tests;
