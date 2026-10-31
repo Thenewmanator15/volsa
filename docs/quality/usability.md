@@ -110,6 +110,113 @@ list of series cost, and says it stays within that with a made-up study of 500 s
   in it. A computer with a slower processor will show larger numbers for both; only the two
   beside each other mean anything.
 
+### Dry run by the builder, not a participant (2026-10-31)
+
+**What this is, and is not.** It is the builder walking the success test (S-01, S-02, and S-07 by
+keyboard) as a first-time user would, to find what would trip someone before the formative
+sessions. The builder is a program that cannot use a mouse on the real window and knows what every
+control does. So this is **not** a test with a person: it gives no time for the task as if a person
+had done it, and it **does not claim that the success test is passed**. That waits for the
+formative sessions with people (section 5) and the summative one.
+
+**How.** Two ways, step by step. Pictures of the real window were taken with Voxa's capture words
+(`VOXA_CAPTURE`, `VOXA_CAPTURE_SHOW`: what is shown is chosen by the words, not by a click) at
+1400×900, and Voxa's own headless interface tests, which press the same buttons and keys the
+window offers, were run for what lies between the pictures. On two made-up studies, neither
+anyone's scan:
+
+- the phantom written by `write_phantom`: three scans of a ball ("ball, coarse", "ball, fine",
+  "ball, two echoes") and two other files. It has **no brain scan**, so step 3 of the test script
+  ("Find the scan of the brain") cannot be run on it as written, although the script allows a
+  made-up study from `write_phantom` to be handed to a participant (D-08);
+- a made-up export with brain-like descriptions, written for this dry run by a throwaway program
+  that is not kept in the repository: "t1_mprage_sag_iso" and "AX T2 FLAIR" (each with the body
+  part BRAIN), "sag t2 tse" (CSPINE) and one report, in one study.
+
+**S-01. Open an export and find the brain scan.**
+
+| Step | What is on the screen, and what a person does | Shown by |
+|---|---|---|
+| 1 | The window with nothing open: **Open** at the top left; at the right of the top bar the search box, **?**, the theme and **⋯**; the rail headed **Scans** saying, in small grey type, "Open a scan export to begin: a folder, a zip file or a DICOMDIR."; the middle black and saying "No series is shown here"; the panel at the right on **View**, with the brightness boxes W 1.0 and L 0.0 and the other View controls. | capture of the empty window; `ui::rail::tests::with_nothing_open_the_rail_asks_for_an_export` |
+| 2 | Click **Open**, then **Folder…** (or **Zip file or DICOMDIR…**), then choose in the system's dialog: three actions. Dropping the export on the window also opens it. | `ui::top::tests::the_open_menu_offers_a_folder_and_a_zip_file_or_dicomdir`. **Not run:** the system's dialog, and dropping a file; the pictures were opened from the command line. |
+| 3 | The window opens on **Slices** with one viewport, on the scan Voxa judges best. On the made-up brain export that is the first card, "Brain, 3D T1, a…", selected and shown at once on slice 13 of 24, with the study's name and date in the top bar; the other scans are the cards under it ("Brain, T2 FLAIR…", "Cspine, T2, axial"), and **Other files**, closed, holds the report. On the phantom it opens on "ball, fine". No further click is needed to see the brain scan here. | captures of both studies at 1400×900; `reducer::pictures_tests::an_export_opens_on_slices_with_the_remembered_viewports`, `ui::rail::tests::scans_come_before_other_files_which_start_closed` |
+| 4 | Were the scan shown not the one wanted: one click on another card shows it in the active viewport. | `ui::rail::tests::clicking_a_card_shows_that_series_in_the_active_viewport`, `ui::rail::card_tests::a_card_shows_the_plain_name_and_the_description_beneath` |
+
+**S-02. Measure a length on it.**
+
+| Step | What is on the screen, and what a person does | Shown by |
+|---|---|---|
+| 1 | Find the tool: the panel's tabs read **View, Measure, 3D, Labels, Tools**. One click on **Measure**, or **M**, or the search box (Ctrl+K, then "ruler", "length", "distance" or "size", then Enter). | `ui::tabs::measure::tests::m_opens_the_measure_tab_and_unfolds_the_panel`, `ui::search::tests::every_command_is_found_by_its_name_and_each_of_its_words`, `ui::commands::tests::ctrl_k_and_a_slash_open_the_search_and_nothing_else_does` |
+| 2 | The Measure tab with nothing measured: **Tools** (Move, Ruler, Angle, Region, Marker), Undo and Redo, "On this series", "Nothing has been measured on this series yet.", and Save as CSV…, Save as JSON… and Clear all greyed. Move is the tool in hand. | capture of the tab on the made-up brain export; `ui::tabs::measure::tests::clicking_down_the_tab_finds_everything_it_offers` |
+| 3 | One click on **Ruler**; its button turns blue. The sentence that says how to draw ("Press at one end and let go at the other") is in its hover text only (D-04). | `ui::tabs::measure::tests::the_tab_draws_its_buttons_from_the_list` |
+| 4 | Press at one end of the length on the slice, drag, let go at the other end. It works on the slice at once, without waiting for a 3D volume. | `ui::viewport::tools_tests::a_ruler_is_drawn_on_a_slice_from_where_it_is_pressed_to_where_it_is_let_go`, `reducer::annotations_tests::a_ruler_can_be_drawn_on_a_slice_before_the_volume_is_ready`. **Not run:** a real mouse. |
+| 5 | The result: "Ruler 1: 38.4 mm" is written beside the line on the picture, and the tab lists "Ruler 1", "38.4 mm" and "Its ends can be placed to about one voxel: ± 0.6 mm along this line." | capture of the phantom's slice with the capture word `measured`, which makes one of each kind of measurement (the ruler there was not drawn by a pointer) |
+
+From an open window the measuring takes two clicks and one drag. Counted from nothing open, with
+the brain scan the one Voxa opens on, the three actions of S-01 step 2 come first.
+
+**S-07. The same by keyboard alone.**
+
+- Tab goes through the top bar, the rail, the pictures and the panel in that order; the arrow keys
+  walk the cards of the rail and Enter opens one
+  (`ui::access_tests::rail_keys::tab_goes_through_the_top_bar_the_rail_the_pictures_and_the_panel_in_that_order`,
+  `ui::access_tests::rail_keys::the_rail_is_walked_with_the_arrow_keys` and
+  `ui::access_tests::rail_keys::enter_opens_the_card_that_has_the_keyboard`). Search opens with
+  Ctrl+K or `/`, the arrows move among the results and Enter runs one
+  (`ui::search::keys_tests::arrows_move_and_enter_runs_what_is_chosen`). **M** shows the Measure
+  tab. So S-01, and choosing the Ruler, can be done from the keyboard.
+- **Placing the ruler cannot.** No key places or moves the end of a measurement: the keys the
+  pictures take step the slices and change brightness, orientation, fit and layout (searched for
+  in the window's code, not tried). So S-02 cannot be done by keyboard alone, and S-07 as written
+  cannot pass for S-02 whatever the participant does (D-07).
+- **Not run:** the system's folder dialog by keyboard, and a screen reader. The names it would read
+  are tested (UI-33), not listened to.
+
+**What would trip a first-time user.** Each is for the formative sessions to confirm or drop.
+
+- D-01. The empty window says its one instruction in small grey type in the rail. The large black
+  middle says only "No series is shown here", and the View tab shows what look like live controls
+  (W 1.0, L 0.0, Auto) for nothing.
+- D-02. At 800×600 and smaller the rail is folded to a strip of one list icon and a **»**. A person
+  looking for "the brain scan" sees the open scan and no cards, and may not take the strip for the
+  list of scans.
+- D-03. In a 1400-wide window a card's plain name is cut with an ellipsis ("Brain, 3D T1, a…",
+  "Brain, T2 FLAIR…"); the whole is in its hover text. What tells two brain scans apart is the cut
+  part. A body part the scanner wrote in one word shows as it was written, with a capital first
+  letter: "Cspine, T2, axial" reads like a typing mistake.
+- D-04. After **Ruler** is chosen nothing on the screen says how to use it, and the pointer does
+  not change (searched for in the window's code: no cursor is set for the tools). A ruler let go
+  within a millimetre of where it was pressed is taken for a click and adds nothing (in the
+  planes' drawing code, which the slices share, read and not tried), so two clicks, a natural way
+  to try, may give no ruler and no word.
+- D-05. The "2 files skipped" notice shows on the first screen of the phantom, which holds its
+  made-up labels in the study's folder. It is information, but "skipped" can read as scans lost.
+  Its list names the files.
+- D-06. With a report or a PDF open, the View tab beside it still offers brightness, orientation,
+  playing through slices and picture controls, none of which acts on a document. A date inside a
+  report shows as the file writes it ("Written on: 20200102"), under a header that says
+  "2 January 2020".
+- D-07. S-07 cannot be completed (above). The script has a keyboard user attempt S-02, which
+  cannot succeed until a key places a measurement, or the scenario is reworded.
+- D-08. The script's step 3 needs a study with a brain scan among other scans, and `write_phantom`
+  writes none. The made-up export used here is not in the repository.
+
+### Known limitation (R45): the smallest window with the interface at 200%
+
+At 640×480 with the interface size at 200% (so that the window is 320 points of the interface
+across), taken with `VOXA_CAPTURE_SIZE=320x240` and `VOXA_CAPTURE_ZOOM=2` on a display at 200%:
+
+- the folded panel's strip of tab icons is cut off at the bottom: the first three icons are
+  whole, the fourth is cut by the bottom line and the fifth is not seen;
+- a thin vertical line, the strip's edge, crosses the bottom line between "diagnostic" and "use.";
+  every word of the disclaimer is still there (and the gate's test of the disclaimer at twice the
+  size passes; the line is in the picture);
+- the search box shows only "F…" and the shortcut, and with measurements on the slice the labels
+  of two of them touch.
+
+This is older than the redesign's last task (Task 20). The final review decides whether to fix it.
+It is also in the acceptance record (`docs/acceptance-ui-redesign.md`).
+
 ### Summative: the redesign
 
 None recorded yet.

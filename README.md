@@ -13,11 +13,12 @@ their volumes. It runs on your own computer and makes no network connections.
 **Voxa is not a medical device and is not for diagnostic use.** What it is for, and what it is
 not for, is in [docs/intended-use.md](docs/intended-use.md).
 
-![Voxa showing a made-up test study in three planes and in 3D, with measurements](docs/images/voxa-phantom-planes.png)
+![Voxa's window showing a made-up test study: the rail of scans at the left, the three planes and a 3D view in the middle, and the Measure tab at the right listing a ruler, an angle, a region and a marker](docs/images/voxa-phantom-planes.png)
 
 The pictures show a made-up study that Voxa's own example writes, not a scan of anyone. Above:
-a ball in its axial, sagittal and coronal planes and in 3D, with a ruler, an angle, a region and
-a marker measured on it, and the slice through its middle beside them. There are more
+at the left, the rail of scans, a card for each; in the middle, **Planes**, a ball in its axial,
+sagittal and coronal planes and in 3D, with a ruler, an angle, a region and a marker measured on
+it; and at the right the **Measure** tab, listing those four with their values. There are more
 [below](#a-closer-look).
 
 ## Download and run
@@ -194,25 +195,38 @@ A security vulnerability is reported privately, never in an issue: see
 
 ## A closer look
 
-![Voxa showing the same study in 3D, cut open, with the slice shown beside it](docs/images/voxa-phantom-3d.png)
+![Voxa as it opens the made-up study: the rail of scans at the left, one slice of the scan it chose in the middle, and the View tab at the right](docs/images/voxa-phantom.png)
 
-The same ball turned and cut open in the 3D scene.
+How Voxa opens an export: on the slices of the scan it takes to be the most useful, here the
+finer of the two stacks of the ball, with the **View** tab at the right holding brightness,
+orientation, playing through the slices, and mirroring, turning and fitting the picture. The
+other scans are in the rail at the left, and the search box at the top finds a button by its
+name.
 
-![Voxa showing the made-up study with made-up labels of its parts, over the planes and as solids](docs/images/voxa-phantom-labels.png)
+![Voxa showing the made-up study's slice beside its 3D view, cut open with the slice drawn in it, and the 3D tab at the right](docs/images/voxa-phantom-3d.png)
+
+The same ball turned and cut open in the 3D view, with **Slices + 3D** chosen so that a slice is
+beside it and the slice drawn inside the 3D view. The **3D** tab at the right holds the looks,
+the sides to see it from, the cuts and the saved views.
+
+![Voxa showing the made-up study with made-up labels of its parts, over the planes and as solids, and the Labels tab at the right](docs/images/voxa-phantom-labels.png)
 
 The same ball with the made-up labels that come with it, tinted over the three planes and drawn
-as solids in 3D, with the list of its parts. The left half of its shell is selected, and the
-list sets it against the right half. The two halves were drawn equal: the 2% between them is
-where the labels' own coarse voxels happen to fall, which is the kind of difference Voxa says
-it cannot tell from noise.
+as solids in 3D. The **Labels** tab at the right says first that another program made them,
+with the check its table carries, which for this made-up table failed on the shell; then come
+the groups and the list of its parts. The left half of its shell is selected, and the tab sets
+it against the right half. The two halves were drawn equal: the 2% between them is where
+the labels' own coarse voxels happen to fall, which is the kind of difference Voxa says it
+cannot tell from noise.
 
-![Voxa listing a series of each kind in the made-up study, showing the second of two volumes of one](docs/images/voxa-phantom-kinds.png)
+![Voxa listing a series of each kind in the made-up study, with Other files open in the rail and the second of two volumes of one shown](docs/images/voxa-phantom-kinds.png)
 
-An export holds more than plain stacks of slices, and the list says what each series is. Here
-the made-up study also holds a series of two volumes of the ball, taken at two echo times,
-listed once and shown on its second volume, as the strip above the pictures and the scan's card
-say; three
-locating images in three planes; and a picture in colour, which is shown in its own colours.
+An export holds more than plain stacks of slices, and the rail says what each is. Here the
+made-up study also holds a series of two volumes of the ball, taken at two echo times, listed
+once and shown on its second volume, as the strip above the pictures and the **View** tab say.
+Under **Other files**, which a click opens, are three locating images in three planes and a
+picture in colour; while patient details are off the card of a picture shows a page and not a
+thumbnail.
 
 ## Labelling a brain scan
 
