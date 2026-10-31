@@ -5,6 +5,7 @@ use voxa_dicom::testkit::{MemorySource, SliceOptions, classic_slice};
 use voxa_dicom::{Index, index};
 
 pub mod documents;
+pub mod patient;
 
 /// Thirty 4 × 4 slices, series number 1.
 pub const THICK_SCAN: &str = "1.2.3.1";

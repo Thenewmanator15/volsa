@@ -75,3 +75,6 @@ impl VoxaApp {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;

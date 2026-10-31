@@ -9,8 +9,10 @@ use super::*;
 use crate::annotations::Shape;
 use crate::measuring::{NO_SCALE, PLAIN_STACK};
 use crate::reducer::reduce;
+use crate::testing::patient::said_of;
 use crate::testing::{
     THICK_SCAN, id, indexed, showing_a_picture, shown, slice_options, three_series,
+    three_series_files,
 };
 use crate::ui::hand::{Hand, Seen};
 
@@ -230,4 +232,34 @@ fn going_to_a_measurement_shows_the_slice_it_was_made_on() {
     );
     let placed = |action: &Action| matches!(action, Action::SetPosition(_));
     assert!(!actions.iter().any(placed), "{actions:?}");
+}
+
+#[test]
+fn saved_measurements_hold_nothing_of_the_patient_even_with_the_details_shown() {
+    let mut state = opened(three_series_files(), THICK_SCAN);
+    state.show_patient = true;
+    let ruler = Shape::Ruler {
+        a: [0.0, 0.0, 0.0],
+        b: [3.0, 0.0, 0.0],
+    };
+    reduce(&mut state, Action::AnnotationAdd(ruler));
+    reduce(
+        &mut state,
+        Action::AnnotationAdd(Shape::Marker {
+            at: [1.0, 1.0, 0.0],
+        }),
+    );
+    // What the made-up export says of its patient, its study and its scans.
+    let said = said_of(state.index.as_ref().expect("an export is open"));
+    for kind in [Save::Csv, Save::Json] {
+        let file = written(kind, &state);
+        assert!(
+            file.contains("Ruler") || file.contains("ruler"),
+            "a measurement: {file}"
+        );
+        for text in &said {
+            let found = file.to_lowercase().contains(&text.to_lowercase());
+            assert!(!found, "{text} is in the saved file: {file}");
+        }
+    }
 }
