@@ -1,6 +1,6 @@
 //! The View tab: brightness, which way round the patient is drawn, playing through the slices
-//! and stepping between volumes, and the switches for smoothing the planes, linking the views
-//! and showing the patient's details.
+//! and stepping between volumes, mirroring, turning and fitting the picture, and the switches
+//! for smoothing the planes, linking the views and showing the patient's details.
 
 use egui::Ui;
 use voxa_core::WindowLevel;
@@ -25,8 +25,17 @@ pub const SMOOTH_SAYS: &str = "Draw the three planes from a curve through the sc
 /// The brightness presets offered, by their actions, in the order of the presets.
 const PRESET_IDS: [&str; 3] = ["window.auto", "window.soft", "window.hard"];
 
-/// Draw the View tab: the brightness, the orientation, the slices, and the switches. Changes
-/// of state go onto `actions`; what its buttons ask of the window is given back.
+/// The actions that mirror the picture across and down, turn it a quarter, and fit it whole.
+const PICTURE_IDS: [&str; 4] = [
+    "view.flip_across",
+    "view.flip_down",
+    "view.turn",
+    "view.fit",
+];
+
+/// Draw the View tab: the brightness, the orientation, the slices, mirroring, turning and
+/// fitting the picture, and the switches. Changes of state go onto `actions`; what its buttons
+/// ask of the window is given back.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
     let mut asked = Vec::new();
     section(ui, "Brightness");
@@ -42,6 +51,8 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     );
     section(ui, "Slices");
     slices(ui, state, actions, &mut asked);
+    section(ui, "Picture");
+    picture(ui, state, actions, &mut asked);
     section(ui, "Display");
     switch(
         ui,
@@ -126,6 +137,15 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
     }
     row(ui, |ui| {
         for id in PRESET_IDS {
+            offer(ui, id, state, None, actions, asked);
+        }
+    });
+}
+
+/// The buttons that mirror the picture of the active viewport, turn it, and fit it whole.
+fn picture(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
+    row(ui, |ui| {
+        for id in PICTURE_IDS {
             offer(ui, id, state, None, actions, asked);
         }
     });

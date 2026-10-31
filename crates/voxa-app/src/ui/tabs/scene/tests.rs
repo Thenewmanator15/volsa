@@ -100,11 +100,13 @@ fn each_cut_has_a_button_that_removes_it_and_three_cuts_leave_no_room_for_more()
 }
 
 #[test]
-fn the_buttons_carry_the_names_and_letters_radiology_uses() {
+fn the_buttons_carry_the_names_and_letters_radiology_uses_and_a_word_for_each_side() {
     assert_eq!(LOOKS.map(|(_, label, _)| label), ["Surface", "VR", "MIP"]);
     assert_eq!(
-        VIEWS.map(|(_, letter, _)| letter),
-        ["A", "P", "L", "R", "S", "I"]
+        VIEWS.map(|(_, label, _)| label),
+        [
+            "A front", "P back", "L left", "R right", "S top", "I bottom"
+        ]
     );
     assert!(
         LOOKS.iter().all(|(_, _, hint)| hint.len() > 20),

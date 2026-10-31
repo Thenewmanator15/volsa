@@ -37,15 +37,23 @@ pub const LOOKS: [(Look, &str, &str); 3] = [
 pub const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
 pub const PARTS_NEED_LABELS: &str = "Open labels in the Parts tab to see them as solids here.";
 
-/// The sides the patient can be seen from, with the letter on each button and what it means,
-/// from which the list of actions takes its entries for them.
+/// The sides the patient can be seen from, with what each button says, its letter and a word, and
+/// what it means, from which the list of actions takes its entries for them.
 pub const VIEWS: [(NamedView, &str, &str); 6] = [
-    (NamedView::Anterior, "A", "From the front (anterior)"),
-    (NamedView::Posterior, "P", "From behind (posterior)"),
-    (NamedView::Left, "L", "From the patient's left"),
-    (NamedView::Right, "R", "From the patient's right"),
-    (NamedView::Superior, "S", "From above the head (superior)"),
-    (NamedView::Inferior, "I", "From below the feet (inferior)"),
+    (NamedView::Anterior, "A front", "From the front (anterior)"),
+    (NamedView::Posterior, "P back", "From behind (posterior)"),
+    (NamedView::Left, "L left", "From the patient's left"),
+    (NamedView::Right, "R right", "From the patient's right"),
+    (
+        NamedView::Superior,
+        "S top",
+        "From above the head (superior)",
+    ),
+    (
+        NamedView::Inferior,
+        "I bottom",
+        "From below the feet (inferior)",
+    ),
 ];
 
 /// The looks to choose between, each by the action that chooses it: the three of the scan,

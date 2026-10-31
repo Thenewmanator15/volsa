@@ -45,6 +45,16 @@ fn the_tab_offers_each_thing_once_from_top_to_bottom() {
             fps: Cine::DEFAULT_FPS,
             looping: false,
         },
+        Action::Flip {
+            viewport: 0,
+            horizontal: true,
+        },
+        Action::Flip {
+            viewport: 0,
+            horizontal: false,
+        },
+        Action::Rotate { viewport: 0 },
+        Action::Fit { viewport: 0 },
         Action::SetSmooth(true),
         Action::SetLinked(false),
         Action::TogglePatient,
@@ -100,7 +110,7 @@ fn the_smooth_switch_says_that_it_adds_no_detail() {
 }
 
 #[test]
-fn the_brightness_and_the_slices_are_those_of_the_active_viewport() {
+fn the_brightness_the_slices_and_the_picture_are_those_of_the_active_viewport() {
     let state = AppState {
         layout: Layout::TwoByTwo,
         active: 2,
@@ -117,6 +127,18 @@ fn the_brightness_and_the_slices_are_those_of_the_active_viewport() {
         );
     }
     assert!(actions.contains(&Action::CineToggle { viewport: 2 }));
+    let flip = |horizontal| Action::Flip {
+        viewport: 2,
+        horizontal,
+    };
+    for picture in [
+        flip(true),
+        flip(false),
+        Action::Rotate { viewport: 2 },
+        Action::Fit { viewport: 2 },
+    ] {
+        assert!(actions.contains(&picture), "{actions:?}");
+    }
     assert!(
         !actions
             .iter()
