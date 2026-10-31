@@ -6,25 +6,27 @@ use voxa_segment::Stage;
 
 use super::topics::Topic;
 use super::{MOUSE, TOPICS};
-use crate::profile::CT_WINDOWS;
 use crate::state::AppState;
 use crate::testing::{labelled_head, showing_a_scan_of, thick_scan_ready};
 use crate::ui::theme::DISCLAIMER;
 use crate::ui::{about, commands, document, parts, tabs};
 use crate::{labels, measuring};
-use voxa_volume::PRESETS;
 
 /// The words no text may hold, whole and whatever their case: a verdict, a measure of one, or
 /// a name for what one finds.
-const BANNED: [&str; 9] = [
+const BANNED: [&str; 13] = [
     "normal",
     "abnormal",
     "lesion",
+    "lesions",
     "tumour",
+    "tumours",
     "tumor",
+    "tumors",
     "finding",
     "findings",
     "score",
+    "scores",
     "diagnosis",
 ];
 
@@ -178,33 +180,96 @@ fn topic(id: &str) -> &'static Topic {
     TOPICS.iter().find(|topic| topic.id == id).expect("listed")
 }
 
+/// The sentences of `text`: each ends at a full stop or a question mark, except that the full
+/// stop in a quotation, just before its closing mark, ends the quotation's sentence and no more.
+fn sentences(text: &str) -> Vec<String> {
+    let mut found = Vec::new();
+    let mut current = String::new();
+    let mut letters = text.chars().peekable();
+    while let Some(letter) = letters.next() {
+        current.push(letter);
+        if matches!(letter, '.' | '?') && letters.peek() != Some(&'"') {
+            found.push(current.trim().to_owned());
+            current.clear();
+        }
+    }
+    if !current.trim().is_empty() {
+        found.push(current.trim().to_owned());
+    }
+    found
+}
+
+#[test]
+fn sentences_end_at_full_stops_and_question_marks_but_not_inside_a_quotation() {
+    let said = "One. Two? It says \"Not here.\" and goes on. Three";
+    assert_eq!(
+        sentences(said),
+        [
+            "One.",
+            "Two?",
+            "It says \"Not here.\" and goes on.",
+            "Three"
+        ]
+    );
+}
+
 #[test]
 fn the_measure_topic_says_where_millimetres_come_from() {
     let body = topic("measure").body;
-    // Where the files say where the slices lie: the patient's own millimetres.
-    assert!(body.contains("where each slice lies"), "{body}");
-    assert!(body.contains("patient's millimetres"), "{body}");
-    // Where they give a pixel spacing alone: within the picture, and the measurement says so,
-    // in the words it says it in.
+    // Where the files give the pixel spacing and say where the slices lie: the patient's own.
+    for sense in [
+        "the pixel spacing",
+        "where each slice lies in the patient",
+        "patient's millimetres",
+    ] {
+        assert!(body.contains(sense), "{sense:?} is not in {body}");
+    }
+    // Where they give the pixel spacing alone: within the picture, and the measurement says so,
+    // in the words it says it in, and nothing of the distance between slices.
     let said = measuring::Scale::PixelSpacing.said_after();
     let said = said.trim().trim_matches(['(', ')']);
     assert_eq!(said, "from the file's pixel spacing");
     assert!(body.contains(said), "{body}");
-    // Where they give none: no millimetres, and the tools say why, in their own words.
-    assert!(body.contains(measuring::NO_SCALE), "{body}");
-    assert!(body.contains("not measured in millimetres"), "{body}");
+    assert!(
+        body.contains("nothing about the distance between slices"),
+        "{body}"
+    );
+    // Where they give none, or the slices differ in size or in the way they face, which the
+    // tools say in the words of `NO_SCALE` and `NO_ONE_SCALE`: no millimetres, in one sentence.
+    assert!(measuring::NO_SCALE.contains("scale in its files"));
+    assert!(measuring::NO_ONE_SCALE.contains("one size and plane"));
+    let none = sentences(body)
+        .into_iter()
+        .find(|sentence| sentence.contains("no pixel spacing"))
+        .expect("a sentence says what happens with no pixel spacing");
+    for sense in [
+        "not all the same size or do not all face the same way",
+        "not measured in millimetres",
+        "the tools say why",
+    ] {
+        assert!(none.contains(sense), "{sense:?} is not in {none}");
+    }
+    // A scan shown as a stack is rough between its slices, and is measured only where measuring
+    // is allowed at all, so that slices that differ are not said to be measurable.
+    let stack = sentences(body)
+        .into_iter()
+        .find(|sentence| sentence.contains("stack of slices"))
+        .expect("a sentence says what a stack is worth");
+    assert!(stack.contains("where it can be measured at all"), "{stack}");
+    assert!(stack.contains("only rough"), "{stack}");
     // What a measurement is worth.
     assert!(body.contains("not a clinical result"), "{body}");
 }
 
 #[test]
-fn the_not_for_topic_carries_the_disclaimer_and_sends_worries_to_a_clinician() {
+fn the_not_for_topic_carries_the_disclaimer_and_sends_worries_to_a_doctor() {
     let body = topic("not-for").body;
     assert!(body.contains(DISCLAIMER), "{body}");
     for sense in [
         "does not diagnose, screen for or rule out anything",
         "not clinical results",
-        "ask a clinician",
+        "is meant to be written by a qualified person",
+        "ask your doctor or another clinician",
         "Do not wait for, or rely on, anything Voxa shows",
     ] {
         assert!(body.contains(sense), "{sense:?} is not in {body}");
@@ -215,53 +280,47 @@ fn the_not_for_topic_carries_the_disclaimer_and_sends_worries_to_a_clinician() {
 fn the_labels_topic_says_who_makes_labels_and_that_a_passed_check_proves_nothing() {
     let body = topic("labels").body;
     for sense in [
-        "a guess that looks certain",
+        "A label is a guess that looks certain.",
+        "the model's opinion of its own work",
         "does not make the labels right",
         "Made by another program",
-        tabs::LABEL_TOOL,
+        "press Label this scan in the Tools tab",
     ] {
         assert!(body.contains(sense), "{sense:?} is not in {body}");
+    }
+    // The screen says "opinion of its own work" of a passed check: the topic uses its words.
+    let check = voxa_labels::Verdict {
+        passed: true,
+        fail_below: 0.5,
+        low: Vec::new(),
+    };
+    let screen = voxa_labels::verdict_in_words(&check);
+    assert!(
+        screen.contains("the model's opinion of its own work"),
+        "{screen}"
+    );
+}
+
+#[test]
+fn the_sides_topic_names_the_buttons_of_the_3d_tab_as_they_say_it() {
+    let body = topic("sides").body;
+    for (_, label, _) in tabs::VIEWS {
+        let quoted = format!("\"{label}\"");
+        assert!(body.contains(&quoted), "{label:?} is not in {body}");
     }
 }
 
 #[test]
-fn the_topics_name_the_controls_as_the_window_does() {
-    let name = |id: &str| commands::find(id).expect("listed").label;
-    let says = |id: &str, words: &[&str]| {
-        let body = topic(id).body;
-        for word in words {
-            assert!(body.contains(word), "{id} does not say {word:?}: {body}");
-        }
-    };
-    says("open", &[name("open.folder"), name("open.file"), "Open"]);
-    says(
-        "find",
-        &[
-            name("rail.other"),
-            "Person 1",
-            "plain name",
-            document::HEADING,
-        ],
-    );
-    let ct = CT_WINDOWS.map(|window| window.name);
-    let mr = PRESETS.map(|preset| preset.name);
-    says("brightness", &ct);
-    says("brightness", &mr);
-    says("brightness", &["Window width", "Window level", "View tab"]);
-    let tools = [
-        "measure.ruler",
-        "measure.angle",
-        "measure.region",
-        "measure.marker",
-    ];
-    says("measure", &tools.map(name));
-    let side = commands::find("view.radiological").expect("listed").name;
-    says("sides", &[side, "R and L", "A for the front"]);
-    says("labels", &[name("labels.open"), "Labels tab", "Tools tab"]);
+fn the_mouse_and_the_topics_call_the_second_number_of_the_window_its_level() {
+    let right_drag = MOUSE.iter().find(|(input, _)| *input == "Right drag");
+    let (_, does) = right_drag.expect("listed");
+    assert!(does.contains("down for level"), "{does}");
+    assert!(!does.contains("centre"), "{does}");
+    assert!(topic("brightness").body.contains("down changes the level"));
 }
 
 #[test]
-fn every_topic_has_a_title_some_words_and_a_few_sentences() {
+fn every_topic_has_a_title_some_words_and_at_most_six_short_sentences() {
     for topic in &TOPICS {
         assert!(
             !topic.title.is_empty() && topic.title.len() <= 28,
@@ -269,9 +328,57 @@ fn every_topic_has_a_title_some_words_and_a_few_sentences() {
             topic.id
         );
         assert!(topic.words.len() >= 4, "{} has too few words", topic.id);
-        let sentences = topic.body.matches(['.', '?']).count();
-        assert!((3..=12).contains(&sentences), "{}: {sentences}", topic.id);
+        let sentences = sentences(topic.body);
+        assert!(
+            (3..=6).contains(&sentences.len()),
+            "{}: {sentences:?}",
+            topic.id
+        );
+        for sentence in &sentences {
+            let words = sentence.split_whitespace().count();
+            assert!(words <= 40, "{} has {words} words in: {sentence}", topic.id);
+        }
         assert!(topic.body.len() <= 1_500, "{} runs on", topic.id);
         assert!(!topic.body.contains("  "), "{}", topic.id);
+    }
+}
+
+/// A word of the trade a topic uses, and the plain words that explain it, which must be in the
+/// sentence that first uses it.
+const EXPLAINED: [(&str, &str, &str); 6] = [
+    ("open", "DICOMDIR", "a file that lists the scans"),
+    ("measure", "pixel spacing", "the size of each dot"),
+    ("measure", "stack of slices", "not a regular 3D volume"),
+    ("brightness", "Hounsfield", "a standard scale of density"),
+    ("labels", "model", "a computer program"),
+    ("not-for", "clinician", "such as a nurse"),
+];
+
+/// Words of the trade that no topic uses, since a reader would have to look them up.
+const LEFT_OUT: [&str; 6] = [
+    "locating image",
+    "X-ray",
+    "detector",
+    "plain stack",
+    "radiological",
+    "neurological",
+];
+
+#[test]
+fn every_word_of_the_trade_is_explained_in_its_sentence_or_left_out() {
+    for (id, term, gloss) in EXPLAINED {
+        let found = sentences(topic(id).body)
+            .into_iter()
+            .find(|sentence| sentence.contains(term));
+        let first = found.unwrap_or_else(|| panic!("{id} does not use {term:?}"));
+        assert!(
+            first.contains(gloss),
+            "{term:?} is not explained in: {first}"
+        );
+    }
+    for term in LEFT_OUT {
+        for topic in &TOPICS {
+            assert!(!topic.body.contains(term), "{} uses {term:?}", topic.id);
+        }
     }
 }

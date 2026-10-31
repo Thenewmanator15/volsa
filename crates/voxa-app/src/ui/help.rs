@@ -7,6 +7,8 @@ use egui::scroll_area::ScrollAreaOutput;
 use super::{commands, floating, scrolled, theme};
 
 #[cfg(test)]
+mod drawn_tests;
+#[cfg(test)]
 mod open_tests;
 mod topics;
 #[cfg(test)]
@@ -51,7 +53,7 @@ pub const MOUSE: [(&str, &str); 15] = [
     ("Middle drag", "Move the picture"),
     (
         "Right drag",
-        "Change the window: across for width, down for centre",
+        "Change the window: across for width, down for level",
     ),
     ("Double-click", "Fit the whole picture in the viewport"),
     (
