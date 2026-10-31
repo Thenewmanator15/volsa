@@ -16,11 +16,18 @@ use crate::ui::top::Pick;
 /// The words each size of the interface is found by.
 const SIZE: &[&str] = &["interface size", "scale", "text size"];
 
-/// Why the other files cannot be shown: the export open holds none, or none is open.
+/// Why the other files cannot be shown: the export open holds none, or none is open. Its
+/// documents are other files too.
 fn no_other_files(state: &AppState) -> Option<Why> {
-    let mut series = state.index.iter().flat_map(|index| &index.series);
-    let none = !series.any(|listed| group_of(&listed.info) == Group::Other);
-    none.then_some(Why::Borrowed("There are no other files to show."))
+    let none = Why::Borrowed("There are no other files to show.");
+    let Some(index) = &state.index else {
+        return Some(none);
+    };
+    let other_series = index
+        .series
+        .iter()
+        .any(|listed| group_of(&listed.info) == Group::Other);
+    (!other_series && index.documents.is_empty()).then_some(none)
 }
 
 /// A size the interface can be drawn at, as the menu offers it.

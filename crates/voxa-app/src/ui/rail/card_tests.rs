@@ -259,7 +259,7 @@ fn a_cards_menu_shows_it_or_its_tags() {
 }
 
 /// The two passes' events of pressing and letting go of the other button at `at`.
-fn right_click(at: egui::Pos2) -> [Vec<Event>; 2] {
+pub(super) fn right_click(at: egui::Pos2) -> [Vec<Event>; 2] {
     let button = |pressed| Event::PointerButton {
         pos: at,
         button: PointerButton::Secondary,

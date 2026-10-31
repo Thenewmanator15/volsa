@@ -3,7 +3,7 @@
 use std::path::PathBuf;
 
 use voxa_core::{Patient, Point, SeriesId, WindowLevel};
-use voxa_dicom::Index;
+use voxa_dicom::{Index, Report};
 use voxa_labels::{Made, Part, Verdict};
 use voxa_render::{Look, NamedView, Overlay};
 use voxa_volume::PlaneKind;
@@ -380,4 +380,18 @@ pub enum Action {
     },
     /// Something about labelling the scan with Voxa's own networks.
     Labelling(LabellingAction),
+    /// Open a document of the export, by the name of its entry, in the middle of the window.
+    OpenDocument(String),
+    /// Close the document that is open.
+    CloseDocument,
+    /// A worker has read a structured report as text, or could not.
+    DocumentRead {
+        /// The entry the report was read from.
+        entry: String,
+        /// The report, or the sentence that says why it could not be read.
+        report: Result<Report, String>,
+    },
+    /// Save the PDF stored in the document with this entry name (the first) to the place the
+    /// person chose (the second).
+    SaveDocumentPdf(String, PathBuf),
 }

@@ -71,6 +71,8 @@ fn select(state: &mut AppState, at: usize, series: SeriesId) -> Vec<Effect> {
     if at < state.layout.count() {
         state.active = at;
     }
+    // A scan shown takes the place of a document that was open in the middle of the window.
+    state.document = None;
     say_what_is_wrong(state, &series);
     vec![Effect::RequestFrames {
         series,

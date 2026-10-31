@@ -14,6 +14,7 @@ use crate::scene::Scene;
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod documents;
 mod frame;
 mod labelling;
 mod labels;
@@ -115,6 +116,9 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             annotations::reduce(state, about_annotations)
         }
         Action::Labelling(about_labelling) => labelling::reduce(state, about_labelling),
+        about_a_document if documents::concerns(&about_a_document) => {
+            documents::reduce(state, about_a_document)
+        }
         about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
@@ -250,7 +254,14 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
                 series,
             },
         ),
-        _ => Vec::new(),
+        // With no series at all, the first document is what there is to show.
+        None => {
+            let index = state.index.as_ref().filter(|index| index.series.is_empty());
+            let first = index.and_then(crate::documents::first);
+            let opened = first.map(|document| Action::OpenDocument(document.entry.clone()));
+            opened.map_or_else(Vec::new, |open| documents::reduce(state, open))
+        }
+        Some(_) => Vec::new(),
     }
 }
 
@@ -311,6 +322,8 @@ fn settle_window(
 mod annotations_tests;
 #[cfg(test)]
 mod colour_tests;
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod frame_tests;
 #[cfg(test)]

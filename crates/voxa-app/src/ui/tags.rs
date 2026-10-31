@@ -1,17 +1,16 @@
-//! The tag browser: every element of one file, the one behind the slice being shown or the
-//! first of a series whose card asked for it.
-
-use std::sync::mpsc::{Receiver, Sender, channel};
+//! The tag browser: every element of one file, the one behind the slice being shown, the
+//! first of a series whose card asked for it, or a document's file.
 
 use egui::RichText;
-use voxa_core::SeriesId;
 use voxa_dicom::{TagRow, is_patient_identifying};
 
-use super::commands::TagsOf;
 use super::{floating, theme};
 use crate::action::Action;
 use crate::state::AppState;
-use crate::worker::Workers;
+
+mod panel;
+
+pub use panel::Panel;
 
 /// What stands in for the value of an element that could identify the patient.
 pub const HIDDEN: &str = "hidden";
@@ -76,82 +75,6 @@ pub fn hidden_note(rows: &[TagRow]) -> String {
         0 => format!("The patient's details are hidden. {SHOWS_THEM}"),
         1 => format!("1 value is hidden {HIDDEN_KINDS} {SHOWS_THEM}"),
         many => format!("{many} values are hidden {HIDDEN_KINDS} {SHOWS_THEM}"),
-    }
-}
-
-/// The tag browser's window and the listing it shows. The rows hold the patient's details,
-/// so they are kept here and never put into the application state or an action.
-pub struct Panel {
-    /// Whether the window is open.
-    pub open: bool,
-    /// Whose tags it shows.
-    of: TagsOf,
-    /// The slice whose file was last asked for.
-    asked: Option<(SeriesId, usize)>,
-    listing: Listing,
-    send: Sender<((SeriesId, usize), Listing)>,
-    replies: Receiver<((SeriesId, usize), Listing)>,
-}
-
-impl Default for Panel {
-    fn default() -> Self {
-        let (send, replies) = channel();
-        Self {
-            open: false,
-            of: TagsOf::Shown,
-            asked: None,
-            listing: Ok(Vec::new()),
-            send,
-            replies,
-        }
-    }
-}
-
-impl Panel {
-    /// Open the window on the tags `of` a file.
-    pub fn open_on(&mut self, of: TagsOf) {
-        self.of = of;
-        self.open = true;
-    }
-
-    /// While the window is open, ask a worker for the tags of the file it shows whenever that
-    /// file changes, and take in any answer: the first file of a series, or the file behind
-    /// the slice the active viewport shows.
-    pub fn refresh(&mut self, state: &AppState, workers: &Workers, ctx: &egui::Context) {
-        if !self.open {
-            self.asked = None;
-            return;
-        }
-        let wanted = match &self.of {
-            TagsOf::Series(series) => Some((series.clone(), 0)),
-            TagsOf::Shown => {
-                let viewport = state.viewports.get(state.active);
-                viewport.and_then(|v| v.series.clone().map(|series| (series, v.slice)))
-            }
-        };
-        if wanted != self.asked {
-            self.asked.clone_from(&wanted);
-            self.listing = Ok(Vec::new());
-            let listed = wanted.as_ref().and_then(|(series, _)| state.series(series));
-            if let (Some(listed), Some(key)) = (listed, wanted) {
-                let (send, ctx, slice) = (self.send.clone(), ctx.clone(), key.1);
-                workers.list_tags(listed, slice, move |rows| {
-                    // If the window has gone there is no one left to tell.
-                    let _ = send.send((key, rows));
-                    ctx.request_repaint();
-                });
-            }
-        }
-        while let Ok((key, rows)) = self.replies.try_recv() {
-            if self.asked.as_ref() == Some(&key) {
-                self.listing = rows;
-            }
-        }
-    }
-
-    /// Draw the window if it is open.
-    pub fn show(&mut self, ctx: &egui::Context, state: &AppState, actions: &mut Vec<Action>) {
-        show(ctx, &mut self.open, state, &self.listing, actions);
     }
 }
 

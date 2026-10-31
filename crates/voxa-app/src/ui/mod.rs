@@ -18,6 +18,7 @@ mod cine;
 mod commands;
 #[cfg(test)]
 mod described_tests;
+mod document;
 mod floating;
 #[cfg(test)]
 mod hand;

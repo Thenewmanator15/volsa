@@ -3,7 +3,7 @@
 //! save.
 
 use super::commands::{Request, Tab};
-use super::{VoxaApp, about, parts, screen, tabs, top};
+use super::{VoxaApp, about, document, parts, screen, tabs, top};
 use crate::action::Action;
 
 /// The tab of the panel that a request also shows, besides doing what it asks: labelling the
@@ -62,6 +62,12 @@ impl VoxaApp {
             Request::Search => self.search.open(),
             // Chosen here; drawn in once the window can be drawn in more than one theme.
             Request::Theme(choice) => self.bars.theme = choice,
+            Request::SaveDocumentPdf(entry) => {
+                // Written only where the person chooses, and nothing is written if they do not.
+                if let Some(to) = document::choose_pdf() {
+                    self.dispatch(Action::SaveDocumentPdf(entry, to));
+                }
+            }
             Request::ShowOtherFiles => {
                 self.rail.other_open = true;
                 if !self.screen.list_shown {

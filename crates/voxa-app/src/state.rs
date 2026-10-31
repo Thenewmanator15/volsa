@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use voxa_core::{SeriesId, SeriesInfo, WindowLevel};
-use voxa_dicom::{Index, IndexedSeries};
+use voxa_dicom::{Index, IndexedSeries, Report};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
@@ -137,6 +137,17 @@ pub struct Notice {
     pub key: Option<&'static str>,
 }
 
+/// A document of the export shown in the middle of the window in place of the pictures.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenDocument {
+    /// The name of the entry in the source that holds the document's file.
+    pub entry: String,
+    /// What a worker made of the file, once it has: a structured report as text, or the
+    /// sentence that says why it could not be read. `None` while it is being read, and for a
+    /// document that is not read as text.
+    pub report: Option<Result<Report, String>>,
+}
+
 /// Everything the application remembers. It changes only through
 /// [`reduce`](crate::reduce).
 #[derive(Debug, Clone, PartialEq)]
@@ -180,6 +191,8 @@ pub struct AppState {
     pub labels: Labels,
     /// Labelling a scan with Voxa's own networks: what can be done, what is chosen, what runs.
     pub labelling: Labelling,
+    /// The document of the export that is open in the middle of the window, if one is.
+    pub document: Option<OpenDocument>,
 }
 
 impl Default for AppState {
@@ -204,6 +217,7 @@ impl Default for AppState {
             tool: Tool::default(),
             labels: Labels::default(),
             labelling: Labelling::default(),
+            document: None,
         }
     }
 }

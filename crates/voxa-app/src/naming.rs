@@ -22,22 +22,35 @@ const CONTRASTS: [&str; 3] = ["T1", "T2", "PD"];
 /// The modalities whose files are pages or screenshots, not pictures of the body.
 const PAGES: [&str; 3] = ["SC", "OT", "DOC"];
 
+/// The modalities of objects that carry pixels but are no picture of the body to look at: a
+/// segmentation, a radiotherapy dose or image, a presentation state and a key-image note. Each
+/// is called by its kind in words.
+const NOT_PICTURES: [(&str, &str); 5] = [
+    ("SEG", "Segmentation"),
+    ("RTDOSE", "RT dose"),
+    ("RTIMAGE", "RT image"),
+    ("PR", "Presentation state"),
+    ("KO", "Key-image note"),
+];
+
 /// Which of the two lists a file is shown in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Group {
     /// Pictures of the body: volumes, plain stacks, single images, many-frame series, in
     /// grey or in colour, and series Voxa cannot read yet.
     Scans,
-    /// Locating images, and files whose modality says they are pages, screenshots or other
-    /// documents.
+    /// Locating images, files whose modality says they are pages, screenshots or other
+    /// documents, and objects that carry pixels but are no picture of the body to look at.
     Other,
 }
 
-/// The list a series is shown in: [`Group::Other`] for locating images and for a modality of
-/// `SC`, `OT` or `DOC`, and [`Group::Scans`] for everything else, a series that cannot be
-/// read and a series in colour among them.
+/// The list a series is shown in: [`Group::Other`] for locating images, for a modality of
+/// `SC`, `OT` or `DOC`, and for a segmentation, a radiotherapy dose or image, a presentation
+/// state or a key-image note (`SEG`, `RTDOSE`, `RTIMAGE`, `PR`, `KO`); [`Group::Scans`] for
+/// everything else, a series that cannot be read and a series in colour among them.
 pub fn group_of(info: &SeriesInfo) -> Group {
-    if is_page(info) || matches!(info.kind(), SeriesKind::Locating) {
+    let shown_elsewhere = is_page(info) || not_a_picture(info).is_some();
+    if shown_elsewhere || matches!(info.kind(), SeriesKind::Locating) {
         Group::Other
     } else {
         Group::Scans
@@ -50,6 +63,12 @@ pub fn is_page(info: &SeriesInfo) -> bool {
     PAGES.contains(&modality_of(info).as_str())
 }
 
+/// What an object that carries pixels but is no picture of the body is: `None` for anything
+/// else.
+fn not_a_picture(info: &SeriesInfo) -> Option<&'static str> {
+    lookup(&NOT_PICTURES, &modality_of(info))
+}
+
 /// What a file of the other files is called in place of a plain name, by what it is: `None`
 /// for a scan.
 fn other_file_name(info: &SeriesInfo) -> Option<&'static str> {
@@ -57,7 +76,8 @@ fn other_file_name(info: &SeriesInfo) -> Option<&'static str> {
         "SC" => Some("Scanned page or screenshot"),
         "DOC" => Some("Document"),
         "OT" => Some("Other picture"),
-        _ => matches!(info.kind(), SeriesKind::Locating).then_some("Locating images"),
+        _ => not_a_picture(info)
+            .or_else(|| matches!(info.kind(), SeriesKind::Locating).then_some("Locating images")),
     }
 }
 
@@ -68,8 +88,9 @@ fn other_file_name(info: &SeriesInfo) -> Option<&'static str> {
 /// With no weighting, or with a description that names two different ones of T1, T2 and PD,
 /// it is named by the facts alone: "Axial scan, 3D", or "Scan 7" with none known. Any other
 /// modality is named by what it is and the part of the body: "Chest X-ray". A file of the other
-/// files is called by what it is: "Locating images", "Scanned page or screenshot", "Document"
-/// or "Other picture". A name holds no control or format character, whatever the file held.
+/// files is called by what it is: "Locating images", "Scanned page or screenshot", "Document",
+/// "Other picture", "Segmentation", "RT dose", "RT image", "Presentation state" or "Key-image
+/// note". A name holds no control or format character, whatever the file held.
 pub fn plain_name(info: &SeriesInfo) -> String {
     if let Some(name) = other_file_name(info) {
         return name.to_owned();

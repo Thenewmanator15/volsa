@@ -12,7 +12,8 @@ use voxa_dicom::{Frame, ImageFile, IndexedSeries};
 use voxa_render::{MAX_VOLUME_BYTES, Prepared, Smoothed};
 use voxa_volume::{PRESETS, assemble};
 
-use super::{Batch, Shared, Workers, batches, lock, shielded};
+use super::opened::batches;
+use super::{Batch, Shared, Workers, lock, shielded};
 use crate::action::Action;
 
 /// Progress is reported each time this many more slices have been decoded.

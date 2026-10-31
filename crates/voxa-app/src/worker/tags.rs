@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use voxa_dicom::{IndexedSeries, TagRow};
+use voxa_dicom::{IndexedSeries, SliceRef, TagRow};
 
 use super::{Workers, lock};
 
@@ -20,6 +20,15 @@ impl Workers {
             reply(Err("There is no such slice.".to_owned()));
             return;
         };
+        self.list_tags_in(at, reply);
+    }
+
+    /// List the elements of the file `at` names, on a worker, and hand them to `reply`.
+    pub(super) fn list_tags_in(
+        &self,
+        at: SliceRef,
+        reply: impl FnOnce(Result<Vec<TagRow>, String>) + Send + 'static,
+    ) {
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             let rows = match lock(&shared.source).as_mut() {

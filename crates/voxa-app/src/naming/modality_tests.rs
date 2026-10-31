@@ -181,3 +181,37 @@ fn a_name_holds_no_character_that_turns_or_hides_text() {
         );
     }
 }
+
+#[test]
+fn objects_that_carry_pixels_but_are_no_picture_of_the_body_are_other_files() {
+    let kinds = [
+        ("SEG", "Segmentation"),
+        ("RTDOSE", "RT dose"),
+        ("RTIMAGE", "RT image"),
+        ("PR", "Presentation state"),
+        ("KO", "Key-image note"),
+    ];
+    for (code, words) in kinds {
+        // Whatever else the files say, the object is called by what it is.
+        let info = with(code, "made-up object", Some(Axial), "HEAD");
+        assert_eq!(group_of(&info), Group::Other, "{code}");
+        assert_eq!(plain_name(&info), words, "{code}");
+        assert!(!is_page(&info), "{code} is not a page or a screenshot");
+        let padded = with(&format!(" {} ", code.to_lowercase()), "", None, "");
+        assert_eq!(
+            group_of(&padded),
+            Group::Other,
+            "{code}, padded and in case"
+        );
+        assert_eq!(plain_name(&padded), words, "{code}, padded and in case");
+    }
+}
+
+#[test]
+fn a_modality_that_only_looks_like_one_of_them_stays_a_scan() {
+    // Scans that merely begin or end like one of the codes, and the plans and structure sets
+    // of radiotherapy, which are not these objects.
+    for code in ["SEGMENT", "RTDOSES", "PRX", "K", "RT", "RTPLAN", "RTSTRUCT"] {
+        assert_eq!(group_of(&with(code, "", None, "")), Group::Scans, "{code}");
+    }
+}

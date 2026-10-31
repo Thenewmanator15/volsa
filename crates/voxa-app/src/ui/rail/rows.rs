@@ -1,13 +1,15 @@
 //! What the rail holds, from top to bottom, as rows of fixed heights, so that the rows in sight
 //! can be found without laying out the others: the scans, each person's and each study's
 //! under a heading where there are several, then the heading of the other files and, while
-//! they are open, the other files in the same order. A row names what it shows by its place in
-//! the index, so that the rows can be kept from one frame to the next.
+//! they are open, the other files in the same order: each study's series that are not scans,
+//! then its documents. A row names what it shows by its place in the index, so that the rows can
+//! be kept from one frame to the next.
 
 use voxa_core::{SeriesId, StudyInfo};
 use voxa_dicom::Index;
 
 use super::card;
+use crate::documents;
 use crate::naming::{Group, group_of};
 use crate::people::Person;
 use crate::ui::browser::one_for_each;
@@ -35,6 +37,10 @@ pub enum Row {
         /// Its place among that study's series.
         series: usize,
     },
+    /// The card of a document, by its place among the index's documents.
+    Document(usize),
+    /// The heading over the documents of studies that hold no scans.
+    Unplaced,
     /// The heading of the other files: how many cards it holds.
     Other(usize),
 }
@@ -44,8 +50,8 @@ impl Row {
     pub fn height(self) -> f32 {
         match self {
             Self::Person(_) => PERSON,
-            Self::Study(_) => STUDY,
-            Self::Card { .. } => card::HEIGHT + GAP,
+            Self::Study(_) | Self::Unplaced => STUDY,
+            Self::Card { .. } | Self::Document(_) => card::HEIGHT + GAP,
             Self::Other(_) => OTHER,
         }
     }
@@ -71,10 +77,8 @@ pub struct Asked<'a> {
 pub fn rows(asked: &Asked<'_>) -> Vec<Row> {
     let mut rows = group(asked, Group::Scans);
     let others = group(asked, Group::Other);
-    let count = others
-        .iter()
-        .filter(|row| matches!(row, Row::Card { .. }))
-        .count();
+    let cards = |row: &&Row| matches!(row, Row::Card { .. } | Row::Document(_));
+    let count = others.iter().filter(cards).count();
     if count > 0 {
         rows.push(Row::Other(count));
         if asked.other_open {
@@ -96,7 +100,14 @@ fn group(asked: &Asked<'_>, which: Group) -> Vec<Row> {
             let Some(study) = asked.index.studies.get(at) else {
                 continue;
             };
-            let cards = cards_of(at, study, asked.shown, which);
+            let mut cards = cards_of(at, study, asked.shown, which);
+            if which == Group::Other {
+                cards.extend(
+                    documents::of_study(asked.index, at)
+                        .into_iter()
+                        .map(Row::Document),
+                );
+            }
             if cards.is_empty() {
                 continue;
             }
@@ -113,7 +124,21 @@ fn group(asked: &Asked<'_>, which: Group) -> Vec<Row> {
         }
         rows.extend(theirs);
     }
+    if which == Group::Other {
+        rows.extend(unplaced(asked.index));
+    }
     rows
+}
+
+/// The rows of the documents of studies that hold no scans, under a heading that says so
+/// whenever the export holds studies, so that they are not taken for those of the study above.
+fn unplaced(index: &Index) -> Vec<Row> {
+    let alone = documents::unplaced(index);
+    let heading = (!alone.is_empty() && !index.studies.is_empty()).then_some(Row::Unplaced);
+    heading
+        .into_iter()
+        .chain(alone.into_iter().map(Row::Document))
+        .collect()
 }
 
 /// The cards of the series in `which` of the study at `at`, one for each series of several

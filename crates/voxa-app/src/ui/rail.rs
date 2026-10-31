@@ -26,10 +26,12 @@ use crate::people::Person;
 use crate::state::AppState;
 
 mod card;
+mod document_card;
 mod kept;
 mod rows;
 mod strip;
 
+pub use document_card::{date_of, title_of};
 pub use kept::RailState;
 use kept::shown_in;
 use rows::Row;
@@ -42,6 +44,8 @@ const NOTHING_OPEN: &str = "Open a scan export to begin: a folder, a zip file or
 const OTHER_FILES: &str = "rail.other";
 /// The room above the heading of the other files, in its row.
 const ABOVE_OTHER: f32 = 8.0;
+/// What heads the documents of studies that hold no scans.
+const UNPLACED: &str = "Documents of studies without scans";
 
 /// What the rail says at its top when an export holds the studies of `count` people.
 pub fn people_said(count: usize) -> String {
@@ -176,26 +180,43 @@ fn draw(
                 heading(ui, placed, &study_title(study), &TextStyle::Small);
             }
         }
-        Row::Card { study, series } => {
-            let all = from
-                .index
-                .studies
-                .get(study)
-                .map(|study| study.series.as_slice());
-            let Some((all, info)) = all.and_then(|all| Some((all, all.get(series)?))) else {
-                return false;
-            };
-            let card = card::Card {
-                info,
-                texture: from.thumbnails.get(&face_of(all, info).id),
-                selected: shown_in(asks.state) == Some(&info.id),
-            };
+        Row::Card { study, series } => scan_card(ui, rect, (study, series), from, asks),
+        Row::Document(place) => {
             let at = Rect::from_min_size(rect.min, vec2(rect.width(), card::HEIGHT));
-            card::show(ui, at, &card, asks);
+            if let Some(document) = from.index.documents.get(place) {
+                let open = asks.state.document.as_ref();
+                let selected = open.is_some_and(|open| open.entry == document.entry);
+                document_card::show(ui, at, document, selected, asks);
+            }
         }
+        Row::Unplaced => heading(ui, placed, UNPLACED, &TextStyle::Small),
         Row::Other(count) => return other_heading(ui, rect, count, from.open),
     }
     false
+}
+
+/// Draw the card of the series at `(study, series)` of the index in `rect`, selected while the
+/// active viewport shows it and no document is open in its place.
+fn scan_card(
+    ui: &mut Ui,
+    rect: Rect,
+    (study, series): (usize, usize),
+    from: &Sources<'_>,
+    asks: &mut card::Asks<'_>,
+) {
+    let all = from.index.studies.get(study);
+    let all = all.map(|study| study.series.as_slice());
+    let Some((all, info)) = all.and_then(|all| Some((all, all.get(series)?))) else {
+        return;
+    };
+    let shown = shown_in(asks.state) == Some(&info.id);
+    let card = card::Card {
+        info,
+        texture: from.thumbnails.get(&face_of(all, info).id),
+        selected: shown && asks.state.document.is_none(),
+    };
+    let at = Rect::from_min_size(rect.min, vec2(rect.width(), card::HEIGHT));
+    card::show(ui, at, &card, asks);
 }
 
 /// A heading of the rail along the foot of the room it is `placed` in, cut short to fit, and
@@ -279,6 +300,8 @@ fn other_heading(ui: &mut Ui, rect: Rect, count: usize, open: bool) -> bool {
 
 #[cfg(test)]
 mod card_tests;
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod open_tests;
 #[cfg(test)]

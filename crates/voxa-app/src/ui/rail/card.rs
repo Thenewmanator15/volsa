@@ -24,9 +24,9 @@ use crate::ui::theme;
 /// How tall a card is.
 pub const HEIGHT: f32 = THUMBNAIL + 2.0 * PADDING;
 /// The room around a card's picture and words.
-const PADDING: f32 = 8.0;
+pub(super) const PADDING: f32 = 8.0;
 /// The side of the button that opens a card's menu.
-const DOTS: f32 = 22.0;
+pub(super) const DOTS: f32 = 22.0;
 /// The side of the mark of a series that cannot be shown in full.
 const MARK: f32 = 16.0;
 /// What a screen reader calls the mark of a series that cannot be shown in full.
@@ -104,14 +104,9 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) {
             show_patient,
         );
         let at = picture.right_top() + vec2(PADDING, 0.0);
-        words(
-            ui,
-            &painter,
-            info,
-            &name,
-            at,
-            [dots.left() - 2.0, rect.right() - PADDING],
-        );
+        let lines = [name.clone(), printable(&title(info)), facts(info)];
+        let ends = [dots.left() - 2.0, rect.right() - PADDING];
+        words(ui, &painter, lines, at, ends);
     }
     mark(ui, picture, info, id);
     let dots = dots_button(ui, dots, id, &name);
@@ -141,13 +136,7 @@ fn face(
     lit: bool,
     show_patient: bool,
 ) {
-    let rounded = CornerRadius::same(theme::ROUNDING);
-    let fill = if lit { theme::RAISED } else { theme::PANEL };
-    painter.rect_filled(rect, rounded, fill);
-    if card.selected {
-        let outline = Stroke::new(1.5, theme::ACCENT);
-        painter.rect_stroke(rect, rounded, outline, StrokeKind::Inside);
-    }
+    ground(painter, rect, lit, card.selected);
     painter.rect_filled(picture, CornerRadius::same(4), Color32::BLACK);
     if !may_have_thumbnail(card.info, show_patient) {
         page(painter, picture);
@@ -160,8 +149,19 @@ fn face(
     }
 }
 
+/// A card's ground: raised while the pointer is on it, and outlined when it is the one shown.
+pub(super) fn ground(painter: &Painter, rect: Rect, lit: bool, selected: bool) {
+    let rounded = CornerRadius::same(theme::ROUNDING);
+    let fill = if lit { theme::RAISED } else { theme::PANEL };
+    painter.rect_filled(rect, rounded, fill);
+    if selected {
+        let outline = Stroke::new(1.5, theme::ACCENT);
+        painter.rect_stroke(rect, rounded, outline, StrokeKind::Inside);
+    }
+}
+
 /// A page with its corner turned down and three lines of writing, in the middle of `square`.
-fn page(painter: &Painter, square: Rect) {
+pub(super) fn page(painter: &Painter, square: Rect) {
     let stroke = Stroke::new(1.5, theme::QUIET_TEXT);
     let sheet = Rect::from_center_size(square.center(), vec2(26.0, 34.0));
     let fold = 8.0;
@@ -186,9 +186,15 @@ fn page(painter: &Painter, square: Rect) {
     }
 }
 
-/// The words of a card, from `at` along: the plain name, ending at `ends[0]` to leave room for
-/// the button of the menu, then the description beneath and the facts, ending at `ends[1]`.
-fn words(ui: &Ui, painter: &Painter, info: &SeriesInfo, name: &str, at: Pos2, ends: [f32; 2]) {
+/// The words of a card, from `at` along: the name, ending at `ends[0]` to leave room for the
+/// button of the menu, then the description beneath and the facts, ending at `ends[1]`.
+pub(super) fn words(
+    ui: &Ui,
+    painter: &Painter,
+    [name, described, facts]: [String; 3],
+    at: Pos2,
+    ends: [f32; 2],
+) {
     let body = TextStyle::Body.resolve(ui.style());
     let small = TextStyle::Small.resolve(ui.style());
     let line = |down: f32, text: String, font: FontId, colour: Color32, end: f32| {
@@ -197,8 +203,7 @@ fn words(ui: &Ui, painter: &Painter, info: &SeriesInfo, name: &str, at: Pos2, en
         painter.galley(at + vec2(0.0, down), painter.layout_job(job), colour);
     };
     let strong = ui.visuals().strong_text_color();
-    line(4.0, name.to_owned(), body, strong, ends[0]);
-    let described = printable(&title(info));
+    line(4.0, name, body, strong, ends[0]);
     line(
         27.0,
         described,
@@ -206,7 +211,7 @@ fn words(ui: &Ui, painter: &Painter, info: &SeriesInfo, name: &str, at: Pos2, en
         ui.visuals().text_color(),
         ends[1],
     );
-    line(45.0, facts(info), small, theme::QUIET_TEXT, ends[1]);
+    line(45.0, facts, small, theme::QUIET_TEXT, ends[1]);
 }
 
 /// The mark on the picture of a series that cannot be shown in full: an amber `!`, which a
@@ -235,7 +240,7 @@ fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
 
 /// The button at the card's top right that opens its menu, named for a screen reader by the
 /// card's plain name.
-fn dots_button(ui: &mut Ui, rect: Rect, card: Id, name: &str) -> Response {
+pub(super) fn dots_button(ui: &mut Ui, rect: Rect, card: Id, name: &str) -> Response {
     let response = ui.interact(rect, card.with("menu"), Sense::click());
     let said = dots_name(name);
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &said));

@@ -25,12 +25,13 @@ pub struct RailState {
     pub(super) builds: usize,
 }
 
-/// What the rail last saw: how many times the index had changed, and the series each viewport
-/// of the layout showed.
+/// What the rail last saw: how many times the index had changed, the series each viewport of
+/// the layout showed, and the document that was open.
 #[derive(Debug)]
 struct Looked {
     index: u64,
     shown: Vec<Option<SeriesId>>,
+    document: Option<String>,
 }
 
 /// The rows of the rail, and what they were worked out from.
@@ -62,10 +63,10 @@ pub fn shown_in(state: &AppState) -> Option<&SeriesId> {
 }
 
 impl RailState {
-    /// Open the other files once a viewport of the layout comes to show one of them, and when
-    /// an export that holds no scans has been read while one of its other files is shown, as
-    /// it is when Voxa opens such an export, whichever viewport is active. Their card is then
-    /// in sight.
+    /// Open the other files once a viewport of the layout comes to show one of them or a
+    /// document comes to be open, and when an export that holds no scans has been read while one
+    /// of its other files is shown, as it is when Voxa opens such an export, whichever viewport
+    /// is active. Their card is then in sight.
     pub fn follow(&mut self, state: &AppState) {
         let viewports = state.viewports.iter().take(state.layout.count());
         let shown: Vec<Option<&SeriesId>> = viewports.map(|v| v.series.as_ref()).collect();
@@ -82,12 +83,17 @@ impl RailState {
         let came = places
             .filter_map(|(at, id)| id.filter(|id| before(at) != Some(*id)))
             .any(other);
+        let document = state.document.as_ref().map(|open| open.entry.as_str());
+        let opened =
+            document.is_some() && was.as_ref().map(|was| was.document.as_deref()) != Some(document);
         let no_scans = !same_index && state.index.as_ref().is_some_and(holds_no_scans);
-        let only_other = no_scans && shown.iter().flatten().any(|id| other(id));
-        self.other_open |= came || only_other;
+        let only_other =
+            no_scans && (document.is_some() || shown.iter().flatten().any(|id| other(id)));
+        self.other_open |= came || opened || only_other;
         self.looked = Some(Looked {
             index: state.index_changes,
             shown: shown.into_iter().map(Option::<&SeriesId>::cloned).collect(),
+            document: document.map(str::to_owned),
         });
     }
 

@@ -9,7 +9,7 @@ use voxa_core::Volume;
 use voxa_labels::LabelSet;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, labels, layout, planes, scene, strip, viewport};
+use super::{VoxaApp, document, labels, layout, planes, scene, strip, viewport};
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::session::Session;
@@ -28,6 +28,14 @@ impl VoxaApp {
     ) {
         let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
+        if let Some(open) = &state.document {
+            let asked = document::show(ui, whole, state, open, actions);
+            self.give_up_the_slices(ui, whole, render, actions);
+            for request in asked {
+                self.ask(ui.ctx(), request);
+            }
+            return;
+        }
         let (along, rest) = layout::strip_and_pictures(whole);
         let asked = strip::show(ui, along, state, actions);
         // A scan with no 3D view has its slices alone: they are all there is.
@@ -82,6 +90,20 @@ impl VoxaApp {
         for request in asked {
             self.ask(ui.ctx(), request);
         }
+    }
+
+    /// With a document open in the place of the pictures, the 2D viewports are out of sight:
+    /// what was half drawn on them is given up, and `whole` is taken up.
+    fn give_up_the_slices(
+        &mut self,
+        ui: &mut egui::Ui,
+        whole: egui::Rect,
+        render: Option<&RenderState>,
+        actions: &mut Vec<Action>,
+    ) {
+        let held = (&mut self.gpus[..], &mut self.drafts);
+        slices(ui, None, (&self.session, held), render, actions);
+        ui.allocate_rect(whole, egui::Sense::hover());
     }
 
     /// Have the planes drawn smooth, from the curve through the scene's volume, while that

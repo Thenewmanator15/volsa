@@ -17,6 +17,7 @@ use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+mod documents;
 mod kept;
 pub(crate) mod labelling;
 mod labels;
@@ -170,6 +171,8 @@ impl Workers {
             Effect::LoadAnnotations { series } => self.load_annotations(series),
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
             Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
+            Effect::ReadDocument { entry } => self.read_document(entry),
+            Effect::SaveDocumentPdf { entry, to } => self.save_document_pdf(entry, to),
             Effect::DropLabels => self.drop_labels(),
             labelling @ (Effect::LookForLabelling { .. }
             | Effect::LabelScan { .. }
@@ -241,7 +244,7 @@ impl Workers {
                 .filter(|slice| !cache.contains(&request.series, *slice))
                 .collect()
         };
-        let mut batches = batches(listed, wanted).into_iter();
+        let mut batches = opened::batches(listed, wanted).into_iter();
         let Some(first) = batches.next() else {
             return;
         };
@@ -289,7 +292,7 @@ impl Shared {
             return;
         }
         match outcome {
-            Ok((source, found)) if !found.series.is_empty() => {
+            Ok((source, found)) if !found.series.is_empty() || !found.documents.is_empty() => {
                 *kept = Some(source);
                 self.report(Action::IndexDone);
             }
@@ -361,25 +364,6 @@ impl Shared {
 /// file holds.
 fn shielded(work: impl FnOnce()) -> bool {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).is_ok()
-}
-
-/// Group slices by the file that holds them, keeping the order they were asked for in: a
-/// file is read and parsed once however many of its frames are wanted.
-fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> {
-    let mut batches: Vec<Batch> = Vec::new();
-    for slice in wanted {
-        let Some(at) = listed.slices.get(slice) else {
-            continue;
-        };
-        match batches.iter_mut().find(|batch| batch.entry == at.entry) {
-            Some(batch) => batch.slices.push((slice, at.frame)),
-            None => batches.push(Batch {
-                entry: at.entry.clone(),
-                slices: vec![(slice, at.frame)],
-            }),
-        }
-    }
-    batches
 }
 
 /// Lock a mutex, carrying on with what it holds even if a thread panicked while holding it.

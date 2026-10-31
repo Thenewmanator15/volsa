@@ -162,6 +162,8 @@ pub enum Request {
     WhereTheLogIs,
     /// To show the files that are not scans, under the scans in the rail.
     ShowOtherFiles,
+    /// To choose where to save a copy of the PDF stored in the document with this entry name.
+    SaveDocumentPdf(String),
 }
 
 /// Whose tags the tags window shows.
@@ -171,6 +173,8 @@ pub enum TagsOf {
     Shown,
     /// The first file of this series.
     Series(SeriesId),
+    /// The file stored under this name in the export, such as a document's.
+    Entry(String),
 }
 
 /// Every entry, in the order the help lists their keys.

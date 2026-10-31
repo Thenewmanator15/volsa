@@ -18,6 +18,7 @@ mod args;
 mod cache;
 mod choices;
 mod csv;
+mod documents;
 mod effect;
 mod export;
 mod kept_labels;
