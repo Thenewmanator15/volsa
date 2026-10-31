@@ -18,6 +18,9 @@ pub const MAX_NOTE: usize = 300;
 /// How many hexadecimal digits a SHA-256 sum has.
 const SUM_DIGITS: usize = 64;
 
+#[cfg(test)]
+mod added_tests;
+
 /// Who made a label set, and how. Every part is plain text; a part that is not known is
 /// empty.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -35,7 +38,37 @@ pub struct Made {
     pub when: String,
     /// Sentences for a reader: anything the labels cannot show by themselves.
     pub notes: Vec<String>,
+    /// The plugin that made the labels, when one the person added did: then they are not
+    /// Voxa's own, and every place they are shown says so first.
+    pub added: Option<Added>,
 }
+
+/// A plugin the person added, as a label set it made says it: its own words, cut to the
+/// lengths its description may hold, and the sum of its description.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Added {
+    /// Its identity.
+    pub id: String,
+    /// Its name.
+    pub name: String,
+    /// Its version.
+    pub version: String,
+    /// Who made it.
+    pub made_by: String,
+    /// Where it came from: text, never a link.
+    pub source: String,
+    /// Its licence.
+    pub licence: String,
+    /// Its limits, up to eight sentences.
+    pub limits: Vec<String>,
+    /// The SHA-256 of its description, as 64 lower-case hexadecimal digits; empty when there
+    /// is no such sum.
+    pub sum: String,
+}
+
+/// The longest each part of [`Added`] is kept, in characters, as a plugin's description may
+/// hold it: its identity, name, version, maker, source, licence and each limit.
+const ADDED_LENGTHS: [usize; 7] = [64, 60, 20, 80, 200, 200, 300];
 
 /// The `voxa` object of a table, if its value is one. A value of any other kind says nothing.
 pub(crate) fn read_made(value: &Value) -> Option<Made> {
@@ -59,6 +92,36 @@ pub(crate) fn read_made(value: &Value) -> Option<Made> {
         device: line("device"),
         when: line("when"),
         notes,
+        added: object.get("added_by_you").and_then(read_added),
+    })
+}
+
+/// The plugin that made a label set, if the value is a group of fields that says it. A part
+/// missing or of the wrong kind is empty; a value of any other kind says nothing.
+fn read_added(value: &Value) -> Option<Added> {
+    let object = value.as_object()?;
+    let [id, name, version, made_by, source, licence, limit] = ADDED_LENGTHS;
+    let line = |key: &str, most: usize| text(object, key, most);
+    let limits = object.get("limits").and_then(Value::as_array);
+    let limits = limits.map_or_else(Vec::new, |limits| {
+        let words = limits.iter().filter_map(Value::as_str);
+        words
+            .take(MAX_NOTES)
+            .map(|words| cut(words, limit))
+            .collect()
+    });
+    Some(Added {
+        id: line("id", id),
+        name: line("name", name),
+        version: line("version", version),
+        made_by: line("made_by", made_by),
+        source: line("source", source),
+        licence: line("licence", licence),
+        limits,
+        sum: object
+            .get("sum")
+            .and_then(Value::as_str)
+            .map_or_else(String::new, sum),
     })
 }
 
@@ -78,6 +141,44 @@ pub(crate) struct VoxaObject {
     when: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     notes: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    added_by_you: Option<AddedObject>,
+}
+
+/// The plugin that made a label set, as a table's `voxa` object keeps it: cut to length.
+#[derive(Debug, Serialize)]
+pub(crate) struct AddedObject {
+    id: String,
+    name: String,
+    version: String,
+    made_by: String,
+    source: String,
+    licence: String,
+    limits: Vec<String>,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    sum: String,
+}
+
+impl AddedObject {
+    /// What a table keeps of the plugin that made its labels.
+    fn of(added: &Added) -> Self {
+        let [id, name, version, made_by, source, licence, limit] = ADDED_LENGTHS;
+        Self {
+            id: cut(&added.id, id),
+            name: cut(&added.name, name),
+            version: cut(&added.version, version),
+            made_by: cut(&added.made_by, made_by),
+            source: cut(&added.source, source),
+            licence: cut(&added.licence, licence),
+            limits: added
+                .limits
+                .iter()
+                .take(MAX_NOTES)
+                .map(|words| cut(words, limit))
+                .collect(),
+            sum: sum(&added.sum),
+        }
+    }
 }
 
 impl VoxaObject {
@@ -95,6 +196,7 @@ impl VoxaObject {
                 .take(MAX_NOTES)
                 .map(|note| cut(note, MAX_NOTE))
                 .collect(),
+            added_by_you: made.added.as_ref().map(AddedObject::of),
         }
     }
 }

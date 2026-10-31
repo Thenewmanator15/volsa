@@ -33,6 +33,7 @@ pub(super) fn made() -> Made {
             "The slices of this scan are 6 mm apart.".to_owned(),
             "The scan was cut to the head.".to_owned(),
         ],
+        added: None,
     }
 }
 

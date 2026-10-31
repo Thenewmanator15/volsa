@@ -179,5 +179,6 @@ fn made(model: &str, sum: &str, device: &str, when: &str, notes: &[String]) -> M
         device: line(device),
         when: line(when),
         notes: notes.iter().take(MAX_NOTES).map(note).collect(),
+        added: None,
     }
 }

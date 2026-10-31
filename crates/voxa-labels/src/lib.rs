@@ -31,12 +31,12 @@ mod words;
 mod write;
 
 pub use find::{boxes_meet, first_part};
-pub use made::{MAX_MADE_LINE, MAX_NOTE, MAX_NOTES, Made};
+pub use made::{Added, MAX_MADE_LINE, MAX_NOTE, MAX_NOTES, Made};
 pub use nifti::{LabelGrid, MAX_LABEL_VOXELS, NiftiError, read_labels};
 pub use pairs::{Pair, difference_percent, pairs};
 pub use set::{LabelSet, NOT_NAMED, Part, SetError, label_set};
 pub use table::{Entry, MAX_NAME, Side, Table, TableError, Trust, Verdict, colour_for, read_table};
-pub use words::{trust_in_words, verdict_in_words, volume_in_words};
+pub use words::{added_in_words, trust_in_words, verdict_in_words, volume_in_words};
 pub use write::{WriteError, write_labels, write_table};
 
 #[cfg(test)]

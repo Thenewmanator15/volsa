@@ -48,3 +48,25 @@ pub fn verdict_in_words(verdict: &Verdict) -> String {
          here with caution: labels look as neat on a poor scan as on a good one."
     )
 }
+
+/// What a label set made by a plugin the person added says first, wherever it is shown or
+/// written: that the person added it and it is not part of Voxa, the plugin's own words of
+/// itself, its limits, and that it is not for diagnostic use. A full stop that ends one of the
+/// plugin's words is not doubled.
+pub fn added_in_words(added: &crate::Added) -> String {
+    let bare = |text: &str| text.trim().trim_end_matches('.').to_owned();
+    let mut words = format!(
+        "Added by you, not part of Voxa. {} {}, made by {}. Source: {}. Licence: {}.",
+        added.name.trim(),
+        added.version.trim(),
+        bare(&added.made_by),
+        bare(&added.source),
+        bare(&added.licence),
+    );
+    for limit in &added.limits {
+        words.push(' ');
+        words.push_str(limit.trim());
+    }
+    words.push_str(" Not for diagnostic use.");
+    words
+}

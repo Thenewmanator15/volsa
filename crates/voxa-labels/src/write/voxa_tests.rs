@@ -62,6 +62,7 @@ fn a_voxa_object_is_read_part_by_part() {
         device: "the processor".to_owned(),
         when: "2099-01-02 03:04".to_owned(),
         notes: vec!["One.".to_owned(), "Two.".to_owned()],
+        added: None,
     };
     assert_eq!(read, expected);
     assert_eq!(

@@ -137,6 +137,7 @@ fn made() -> Made {
         device: "the processor".to_owned(),
         when: "2099-01-02 03:04".to_owned(),
         notes: vec!["The slices of this scan are 6 mm apart.".to_owned()],
+        added: None,
     }
 }
 

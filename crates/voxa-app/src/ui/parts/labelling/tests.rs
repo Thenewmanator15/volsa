@@ -57,6 +57,7 @@ pub(super) fn by_voxa() -> Made {
             "A first made-up note.".to_owned(),
             "A second made-up note.".to_owned(),
         ],
+        added: None,
     }
 }
 

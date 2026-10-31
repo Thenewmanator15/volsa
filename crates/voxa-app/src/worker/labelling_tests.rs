@@ -57,6 +57,7 @@ fn a_run_says_its_stages_in_order_then_brings_back_its_parts_and_who_made_them()
         device: "Made-up card A".to_owned(),
         when: WHEN.to_owned(),
         notes: Vec::new(),
+        added: None,
     };
     assert_eq!(made.as_ref(), Some(&expected));
     assert_eq!(*title, expected.model);

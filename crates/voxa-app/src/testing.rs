@@ -241,6 +241,7 @@ pub fn made_up_labels() -> (voxa_labels::LabelGrid, voxa_labels::Table) {
             device: "the processor".to_owned(),
             when: "2099-01-02".to_owned(),
             notes: vec!["A made-up note.".to_owned()],
+            added: None,
         }),
     };
     (grid, table)
