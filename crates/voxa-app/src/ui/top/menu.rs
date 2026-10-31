@@ -1,5 +1,5 @@
-//! The menu at the right of the top bar: the size of the interface, full screen, the scans
-//! shown or hidden, the tags of a file, the keys and mouse, where the log is, and About.
+//! The menu at the right of the top bar: the size of the interface, full screen, the keys and
+//! mouse, where the log is, and About.
 
 use egui::containers::menu::MenuButton;
 use egui::{Atom, Button, Id, Ui, Vec2, vec2};
@@ -9,11 +9,10 @@ use crate::ui::commands::{self, Request};
 use crate::ui::size;
 use crate::ui::symbols::{self, Symbol};
 
-/// The actions the menu lists, in groups. The scans' and the tags' places here are for now:
-/// the scans' cards will have a menu of their own.
-const GROUPS: [&[&str]; 3] = [
-    &["window.full_screen", "rail.fold"],
-    &["tags.show"],
+/// The actions the menu lists, in groups. The scans are folded from their own strip and by
+/// B, and a file's tags are shown from its scan's card.
+const GROUPS: [&[&str]; 2] = [
+    &["window.full_screen"],
     &["help.keys", "log.where", "about"],
 ];
 

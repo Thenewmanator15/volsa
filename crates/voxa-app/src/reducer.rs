@@ -2,10 +2,11 @@
 
 use std::collections::HashMap;
 
-use voxa_core::SeriesId;
-use voxa_dicom::best_series;
+use voxa_core::{SeriesId, SeriesInfo};
+use voxa_dicom::{Index, best_series};
 
 use crate::action::{Action, Effect};
+use crate::naming::{Group, group_of};
 use crate::pictures::Pictures;
 use crate::planes::Planes;
 use crate::scene::Scene;
@@ -227,7 +228,7 @@ fn window(state: &mut AppState, action: Action) {
     }
 }
 
-/// Show the most detailed series in the first viewport, unless that viewport is in use.
+/// Show the series to open first in the first viewport, unless that viewport is in use.
 fn open_best(state: &mut AppState) -> Vec<Effect> {
     let free = state
         .viewports
@@ -236,8 +237,8 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
     let best = state
         .index
         .as_ref()
-        .and_then(best_series)
-        .map(|series| series.info.id.clone());
+        .and_then(first_to_open)
+        .map(|info| info.id.clone());
     match best {
         Some(series) if free => viewport::reduce(
             state,
@@ -248,6 +249,18 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
         ),
         _ => Vec::new(),
     }
+}
+
+/// The series to open first. The scans come first, always: the best of them as the index
+/// chooses it, the most detailed of the volumes; with none, the scan of the most pixels, the
+/// earlier of two as large; and with no scans at all, the first of the other files.
+fn first_to_open(index: &Index) -> Option<&SeriesInfo> {
+    let all = || index.series.iter().map(|series| &series.info);
+    let scans = || all().filter(|info| group_of(info) == Group::Scans);
+    let best = best_series(index).map(|series| &series.info);
+    best.filter(|info| group_of(info) == Group::Scans)
+        .or_else(|| scans().rev().max_by_key(|info| info.voxel_count()))
+        .or_else(|| all().next())
 }
 
 /// Replace the notice with this key, or remove it when there is nothing to say.

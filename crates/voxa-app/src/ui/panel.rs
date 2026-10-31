@@ -199,9 +199,9 @@ pub fn show(
 }
 
 /// Take what the button of a tab or of the fold asked: show that tab, or fold or unfold.
-fn choose(panel: &mut PanelState, does: Option<Does>) {
+fn choose(panel: &mut PanelState, does: Option<&Does>) {
     match does {
-        Some(Does::Ask(Request::ShowTab(tab))) => panel.show_tab(tab),
+        Some(Does::Ask(Request::ShowTab(tab))) => panel.show_tab(*tab),
         Some(Does::Ask(Request::FoldPanel)) => panel.toggle_fold(),
         _ => {}
     }
@@ -222,10 +222,10 @@ fn open(
         ui.spacing_mut().button_padding.x = 4.0;
         for tab in Tab::ALL {
             let does = commands::button(ui, tab.command(), state, Some(panel.tab == tab));
-            choose(panel, does);
+            choose(panel, does.as_ref());
         }
         let fold = commands::button(ui, "panel.fold", state, None);
-        choose(panel, fold);
+        choose(panel, fold.as_ref());
     });
     ui.separator();
     // The tab is the one chosen just now, if one was.
@@ -244,11 +244,11 @@ fn strip(ui: &mut Ui, panel: &mut PanelState, state: &AppState) {
     ui.vertical_centered(|ui| {
         ui.spacing_mut().item_spacing.y = 6.0;
         let unfold = commands::button_labelled(ui, "panel.fold", "«", state, None);
-        choose(panel, unfold);
+        choose(panel, unfold.as_ref());
         ui.add_space(4.0);
         for tab in Tab::ALL {
             let does = icon_button(ui, tab, panel.tab == tab);
-            choose(panel, does);
+            choose(panel, does.as_ref());
         }
     });
 }
@@ -274,7 +274,7 @@ fn icon_button(ui: &mut Ui, tab: Tab, selected: bool) -> Option<Does> {
         icons::paint(painter, rect, tab, look.fg_stroke.color);
     }
     let response = response.on_hover_text(commands::hint(command));
-    response.clicked().then_some(command.does)
+    response.clicked().then(|| command.does.clone())
 }
 
 #[cfg(test)]

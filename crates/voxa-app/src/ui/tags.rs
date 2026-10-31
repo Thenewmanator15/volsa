@@ -1,4 +1,5 @@
-//! The tag browser: every element of the file behind the slice being shown.
+//! The tag browser: every element of one file, the one behind the slice being shown or the
+//! first of a series whose card asked for it.
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 
@@ -6,6 +7,7 @@ use egui::RichText;
 use voxa_core::SeriesId;
 use voxa_dicom::{TagRow, is_patient_identifying};
 
+use super::commands::TagsOf;
 use super::{floating, theme};
 use crate::action::Action;
 use crate::state::AppState;
@@ -18,7 +20,7 @@ const HIDDEN_KINDS: &str = "that could identify the patient: the patient's own, 
                             the place of the scan, the numbers of its order, and makers' \
                             private values.";
 /// Where the patient's details are shown again.
-const SHOWS_THEM: &str = "\"Patient details\" in the toolbar shows them.";
+const SHOWS_THEM: &str = "\"Patient details\" in the View tab shows them.";
 
 /// The title of the tag browser window.
 const TITLE: &str = "DICOM tags";
@@ -82,6 +84,8 @@ pub fn hidden_note(rows: &[TagRow]) -> String {
 pub struct Panel {
     /// Whether the window is open.
     pub open: bool,
+    /// Whose tags it shows.
+    of: TagsOf,
     /// The slice whose file was last asked for.
     asked: Option<(SeriesId, usize)>,
     listing: Listing,
@@ -94,6 +98,7 @@ impl Default for Panel {
         let (send, replies) = channel();
         Self {
             open: false,
+            of: TagsOf::Shown,
             asked: None,
             listing: Ok(Vec::new()),
             send,
@@ -103,15 +108,27 @@ impl Default for Panel {
 }
 
 impl Panel {
-    /// While the window is open, ask a worker for the tags of the file behind the slice the
-    /// active viewport shows whenever that slice changes, and take in any answer.
+    /// Open the window on the tags `of` a file.
+    pub fn open_on(&mut self, of: TagsOf) {
+        self.of = of;
+        self.open = true;
+    }
+
+    /// While the window is open, ask a worker for the tags of the file it shows whenever that
+    /// file changes, and take in any answer: the first file of a series, or the file behind
+    /// the slice the active viewport shows.
     pub fn refresh(&mut self, state: &AppState, workers: &Workers, ctx: &egui::Context) {
         if !self.open {
             self.asked = None;
             return;
         }
-        let viewport = state.viewports.get(state.active);
-        let wanted = viewport.and_then(|v| v.series.clone().map(|series| (series, v.slice)));
+        let wanted = match &self.of {
+            TagsOf::Series(series) => Some((series.clone(), 0)),
+            TagsOf::Shown => {
+                let viewport = state.viewports.get(state.active);
+                viewport.and_then(|v| v.series.clone().map(|series| (series, v.slice)))
+            }
+        };
         if wanted != self.asked {
             self.asked.clone_from(&wanted);
             self.listing = Ok(Vec::new());
@@ -324,7 +341,7 @@ mod tests {
 
     #[test]
     fn the_window_says_how_many_values_are_hidden() {
-        let shows = "\"Patient details\" in the toolbar shows them.";
+        let shows = "\"Patient details\" in the View tab shows them.";
         let kinds = "that could identify the patient: the patient's own, the people and the place \
                      of the scan, the numbers of its order, and makers' private values.";
         assert_eq!(

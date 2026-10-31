@@ -15,7 +15,7 @@ fn an_action_not_offered_for_the_scan_shown_says_so() {
     let fit = commands::find("view.fit").expect("listed");
     let for_ct = Command {
         profiles: &[crate::profile::Profile::Ct],
-        ..*fit
+        ..fit.clone()
     };
     // The made-up scans are MR.
     assert_eq!(

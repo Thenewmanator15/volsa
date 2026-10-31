@@ -24,6 +24,7 @@ impl VoxaApp {
         let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
         let asked = |word: &str| capture::asks_for(&wanted, word);
         self.tags.open = asked("tags");
+        self.rail.other_open = asked("other");
         if let Some(tab) = capture::tab_asked(&wanted) {
             self.screen.show_tab(tab);
         }

@@ -40,7 +40,7 @@ pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// `slice`, `planes` or `quad` for the three planes with the 3D view, `3d` for the 3D view
 /// alone and `slices3d` for the slices beside it (with none of these, the slices alone, as
 /// Voxa opens), `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the rail of scans folded however wide the window is, `other` for the other files open in the rail, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.

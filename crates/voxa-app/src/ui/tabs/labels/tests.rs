@@ -335,7 +335,7 @@ fn with_no_labels_the_tab_says_what_they_are_and_offers_to_open_some_or_to_label
     let tools = Request::ShowTab(Tab::Tools);
     assert_eq!(
         (actions, requests),
-        (vec![], vec![Request::OpenLabels, tools])
+        (vec![], vec![Request::OpenLabels, tools.clone()])
     );
     let said = labels_written(&state);
     assert!(said.contains("by Voxa, when it labels the scan, or by another program"));

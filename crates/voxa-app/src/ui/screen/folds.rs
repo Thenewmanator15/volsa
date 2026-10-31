@@ -7,7 +7,7 @@
 //! pictures keep [`PICTURES_LEAST`]: an open column gives way to them. A fold the window made
 //! on its own is not remembered as the person's.
 
-use super::super::{shares, viewport};
+use super::super::{rail, shares, viewport};
 use super::Screen;
 use crate::ui::panel::Tab;
 
@@ -25,7 +25,7 @@ const PATIENCE: u8 = 10;
 /// How wide each side column is across, in points of the interface.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Widths {
-    /// The series list at the left; nothing while it is folded.
+    /// The rail of scans at the left: its strip while it is folded.
     pub rail: f32,
     /// The tab panel at the right: its strip of icons while it is folded.
     pub panel: f32,
@@ -110,24 +110,25 @@ impl Screen {
     }
 
     /// How wide each side column is in a window `window` points across: as wide as it is set
-    /// to be, unless that leaves the pictures less than [`PICTURES_LEAST`], when what is open
-    /// gives way, each in proportion to its width.
+    /// to be, or its strip while it is folded, unless that leaves the pictures less than
+    /// [`PICTURES_LEAST`], when what is open gives way, each in proportion to its width.
     pub fn widths(&self, window: f32) -> Widths {
         let rail = if self.list_shown {
             shares::list_width(window, self.list_share())
         } else {
-            0.0
+            rail::STRIP
         };
         let panel = self.panel.width(window);
         let room = (window - PICTURES_LEAST - MARGINS).max(0.0);
-        let open = rail + if self.panel.folded { 0.0 } else { panel };
+        let open_rail = if self.list_shown { rail } else { 0.0 };
+        let open = open_rail + if self.panel.folded { 0.0 } else { panel };
         let fixed = rail + panel - open;
         if rail + panel <= room || open <= 0.0 {
             return Widths { rail, panel };
         }
         let scale = ((room - fixed).max(0.0) / open).min(1.0);
         Widths {
-            rail: rail * scale,
+            rail: if self.list_shown { rail * scale } else { rail },
             panel: if self.panel.folded {
                 panel
             } else {

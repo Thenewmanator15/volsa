@@ -255,12 +255,12 @@ fn every_tab_has_an_action_that_shows_it() {
     for tab in Tab::ALL {
         let command = commands::find(tab.command()).expect("listed");
         assert_eq!(command.label, tab.title());
-        let does = command.does.run(&state, &mut Vec::new());
+        let does = command.does.clone().run(&state, &mut Vec::new());
         assert_eq!(does, Some(Request::ShowTab(tab)));
     }
     let fold = commands::find("panel.fold").expect("listed");
     assert_eq!(
-        fold.does.run(&state, &mut Vec::new()),
+        fold.does.clone().run(&state, &mut Vec::new()),
         Some(Request::FoldPanel)
     );
 }

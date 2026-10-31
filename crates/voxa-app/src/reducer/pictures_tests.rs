@@ -69,3 +69,68 @@ fn each_arrangement_is_chosen_and_shown_as_far_as_the_scan_allows() {
         "with no 3D view, the slices"
     );
 }
+
+/// A made-up series numbered `number` of this modality, `side` pixels a side and `slices`
+/// slices.
+fn listed(number: i32, modality: &str, side: u32, slices: usize) -> voxa_dicom::IndexedSeries {
+    let info = voxa_core::SeriesInfo {
+        id: id(&format!("1.2.9.{number}")),
+        number,
+        modality: modality.to_owned(),
+        rows: side,
+        cols: side,
+        slices,
+        ..voxa_core::SeriesInfo::default()
+    };
+    let slices = (0..slices).map(|place| voxa_dicom::SliceRef {
+        entry: format!("{number}/{place}.dcm"),
+        frame: None,
+    });
+    voxa_dicom::IndexedSeries {
+        info,
+        slices: slices.collect(),
+    }
+}
+
+/// A plain stack: a made-up series whose slices are not evenly spaced.
+fn stack(number: i32, side: u32, slices: usize) -> voxa_dicom::IndexedSeries {
+    let mut stack = listed(number, "MR", side, slices);
+    stack.info.problems = vec![voxa_core::SeriesProblem::UnevenSpacing];
+    stack
+}
+
+/// The series an export of these opens on.
+fn opens_on(series: Vec<voxa_dicom::IndexedSeries>) -> Option<voxa_core::SeriesId> {
+    let study = voxa_core::StudyInfo {
+        id: voxa_core::StudyId("1.2.8.1".to_owned()),
+        date: None,
+        description: String::new(),
+        patient_name: None,
+        patient_id: None,
+        series: series.iter().map(|listed| listed.info.clone()).collect(),
+    };
+    let index = voxa_dicom::Index {
+        studies: vec![study],
+        series,
+        skipped: Vec::new(),
+    };
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(index));
+    reduce(&mut state, Action::IndexDone);
+    state.viewports[0].series.clone()
+}
+
+#[test]
+fn with_no_volume_the_scan_of_the_most_pixels_opens_and_the_scans_come_first_always() {
+    // No volume: the scan of the most pixels, the earlier of two as large.
+    let stacks = vec![stack(1, 4, 20), stack(2, 8, 20), stack(3, 8, 20)];
+    assert_eq!(opens_on(stacks), Some(id("1.2.9.2")));
+    let single = listed(4, "DX", 64, 1);
+    assert_eq!(opens_on(vec![stack(1, 8, 20), single]), Some(id("1.2.9.4")));
+    // A page is never opened while there is a scan, however many pixels it has.
+    let pages = listed(5, "SC", 64, 30);
+    assert_eq!(opens_on(vec![pages, stack(1, 4, 20)]), Some(id("1.2.9.1")));
+    // With none, the first of the other files.
+    let only = vec![listed(6, "DOC", 4, 2), listed(5, "SC", 64, 30)];
+    assert_eq!(opens_on(only), Some(id("1.2.9.6")));
+}

@@ -292,11 +292,9 @@ fn the_theme_button_shows_the_theme_and_goes_round_system_light_dark() {
 }
 
 #[test]
-fn the_menu_holds_size_full_screen_the_scans_the_tags_the_keys_the_log_and_about() {
+fn the_menu_holds_size_full_screen_the_keys_the_log_and_about() {
     let wanted = [
         ("window.full_screen", Some(Request::FullScreen)),
-        ("rail.fold", Some(Request::FoldRail)),
-        ("tags.show", Some(Request::Tags)),
         ("help.keys", Some(Request::Help(None))),
         ("about", Some(Request::About)),
         ("log.where", Some(Request::WhereTheLogIs)),
@@ -319,5 +317,13 @@ fn the_menu_holds_size_full_screen_the_scans_the_tags_the_keys_the_log_and_about
             [],
             "{id} asks the window, and changes no state"
         );
+    }
+    // The scans fold from their own strip, and a file's tags are shown from its card.
+    let mut bar = Bar::new(SMALLEST, 1.0, named_study());
+    let laid = bar.settle();
+    let opened = bar.click_named(&laid.seen, MENU);
+    for id in ["rail.fold", "tags.show"] {
+        let found = opened.seen.place_of(named(id));
+        assert_eq!(found, None, "{id} is in the menu: {:?}", opened.seen.names);
     }
 }

@@ -51,7 +51,7 @@ const CTRL_SHIFT: Held = Held {
 /// What pressing `key` with `held` gives in `state`, whether or not it can be used now.
 fn on(key: Key, held: Held, state: &AppState) -> Option<Gives> {
     let command = for_key(key, held, state)?;
-    gives(command.does, state)
+    gives(command.does.clone(), state)
 }
 
 #[test]
@@ -189,7 +189,7 @@ fn the_keys_that_size_the_interface_are_listed_and_left_to_egui() {
         let shortcut = command.key.expect("with its key");
         assert_eq!((shortcut.key, shortcut.command), (key, true), "{id}");
         assert!(
-            matches!(command.does, Does::Ask(asked) if asked == size),
+            matches!(&command.does, Does::Ask(asked) if *asked == size),
             "{id}"
         );
         assert!(for_key(key, CTRL, &state).is_none(), "egui answers {id}");
@@ -323,11 +323,11 @@ fn an_action_for_some_profiles_is_offered_only_for_them() {
     let fit = find("view.fit").expect("listed");
     let for_ct = Command {
         profiles: &[Profile::Ct],
-        ..*fit
+        ..fit.clone()
     };
     let for_mr = Command {
         profiles: &[Profile::Mr],
-        ..*fit
+        ..fit.clone()
     };
     // The made-up scans are MR.
     let shown = thick_scan_ready();

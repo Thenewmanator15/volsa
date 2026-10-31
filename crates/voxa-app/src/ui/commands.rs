@@ -9,6 +9,7 @@ use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use egui::{AtomLayoutResponse, Button, Key, Ui};
+use voxa_core::SeriesId;
 
 use super::keys::Held;
 pub use super::panel::Tab;
@@ -24,7 +25,7 @@ use crate::state::AppState;
 mod table;
 
 /// One action a person can take.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Command {
     /// What the action is known by in the code, which never changes: `slice.after`.
     pub id: &'static str,
@@ -86,18 +87,16 @@ pub enum Place {
     Panel,
     /// A tab of the panel at the right.
     Tab(Tab),
-    /// The card of a scan.
-    #[expect(
-        dead_code,
-        reason = "the tags' action is in the top bar's menu until Task 11 gives the cards one"
-    )]
+    /// The rail of scans at the left: the strip it folds to, and its group of other files.
+    Rail,
+    /// The menu of a scan's card.
     Card,
     /// Nowhere but its key.
     Keys,
 }
 
 /// What an action does.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Does {
     /// A change of state, made from the state as it is; `None` when there is nothing to change.
     Act(fn(&AppState) -> Option<Action>),
@@ -120,7 +119,7 @@ impl Does {
 }
 
 /// What a person asks of the window rather than of the scan.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Request {
     /// To choose a scan to open, of this kind.
     Open(Pick),
@@ -130,8 +129,8 @@ pub enum Request {
     Help(Option<&'static str>),
     /// To see the About window.
     About,
-    /// To open or close the tags of the file shown.
-    Tags,
+    /// To show the tags of a file.
+    Tags(TagsOf),
     /// To go into full screen, or out of it.
     FullScreen,
     /// To show a tab of the panel.
@@ -161,9 +160,17 @@ pub enum Request {
     LabelScan,
     /// To say, in a notice, where the log of this run is.
     WhereTheLogIs,
-    /// To show the files that are not scans.
-    #[expect(dead_code, reason = "Task 11 adds the other files")]
+    /// To show the files that are not scans, under the scans in the rail.
     ShowOtherFiles,
+}
+
+/// Whose tags the tags window shows.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TagsOf {
+    /// The file behind the slice the active viewport shows, following it as it changes.
+    Shown,
+    /// The first file of this series.
+    Series(SeriesId),
 }
 
 /// Every entry, in the order the help lists their keys.
@@ -339,7 +346,7 @@ fn draw(
     if let Some(why) = why_not {
         shown.response = shown.response.on_disabled_hover_text(why);
     }
-    let does = shown.response.clicked().then_some(command.does);
+    let does = shown.response.clicked().then(|| command.does.clone());
     Some((shown, does))
 }
 

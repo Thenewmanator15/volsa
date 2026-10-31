@@ -8,9 +8,11 @@
 //! weighting is ever worked out from a timing. With nothing recognised, the name is the facts
 //! alone. The scanner's own description is always shown beneath a name, unchanged.
 
+pub use printable::printable;
 use voxa_core::{Facing, SeriesInfo, SeriesKind};
 use words::{JOINED, MODALITIES, PLANES, WEIGHTINGS, plane_word};
 
+mod printable;
 mod words;
 
 /// The three contrasts a weighting can be made of. A description that writes two different
@@ -35,11 +37,27 @@ pub enum Group {
 /// `SC`, `OT` or `DOC`, and [`Group::Scans`] for everything else, a series that cannot be
 /// read and a series in colour among them.
 pub fn group_of(info: &SeriesInfo) -> Group {
-    let page = PAGES.contains(&modality_of(info).as_str());
-    if page || matches!(info.kind(), SeriesKind::Locating) {
+    if is_page(info) || matches!(info.kind(), SeriesKind::Locating) {
         Group::Other
     } else {
         Group::Scans
+    }
+}
+
+/// Whether a series' modality says it is pages, screenshots or other documents: `SC`, `OT` or
+/// `DOC`. Such a picture often carries the patient's name in it.
+pub fn is_page(info: &SeriesInfo) -> bool {
+    PAGES.contains(&modality_of(info).as_str())
+}
+
+/// What a file of the other files is called in place of a plain name, by what it is: `None`
+/// for a scan.
+fn other_file_name(info: &SeriesInfo) -> Option<&'static str> {
+    match modality_of(info).as_str() {
+        "SC" => Some("Scanned page or screenshot"),
+        "DOC" => Some("Document"),
+        "OT" => Some("Other picture"),
+        _ => matches!(info.kind(), SeriesKind::Locating).then_some("Locating images"),
     }
 }
 
@@ -49,8 +67,13 @@ pub fn group_of(info: &SeriesInfo) -> Group {
 /// part of the body, whether it was acquired in 3D and its plane: "Head, 3D T1, sagittal".
 /// With no weighting, or with a description that names two different ones of T1, T2 and PD,
 /// it is named by the facts alone: "Axial scan, 3D", or "Scan 7" with none known. Any other
-/// modality is named by what it is and the part of the body: "Chest X-ray".
+/// modality is named by what it is and the part of the body: "Chest X-ray". A file of the other
+/// files is called by what it is: "Locating images", "Scanned page or screenshot", "Document"
+/// or "Other picture". A name holds no control or format character, whatever the file held.
 pub fn plain_name(info: &SeriesInfo) -> String {
+    if let Some(name) = other_file_name(info) {
+        return name.to_owned();
+    }
     match modality_of(info).as_str() {
         "MR" => mr_name(info),
         code => other_name(info, code),
@@ -227,19 +250,10 @@ fn lookup<T: Copy>(table: &[(&str, T)], word: &str) -> Option<T> {
         .map(|(_, value)| *value)
 }
 
-/// Text from a file with underscores and control characters taken for spaces, and runs of
-/// spaces and the ends trimmed.
+/// Text from a file with underscores and control characters taken for spaces, format
+/// characters left out, and runs of spaces and the ends trimmed.
 fn tidy(text: &str) -> String {
-    let spaced: String = text
-        .chars()
-        .map(|letter| {
-            if letter == '_' || letter.is_control() {
-                ' '
-            } else {
-                letter
-            }
-        })
-        .collect();
+    let spaced = printable(&text.replace('_', " "));
     spaced.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 

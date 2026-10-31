@@ -1,8 +1,8 @@
-//! The window: the top bar, the series list, the pictures under the strip that arranges them, the
-//! tab panel and the bottom line.
+//! The window: the top bar, the rail of scans, the pictures under the strip that arranges them,
+//! the tab panel and the bottom line.
 
 use std::path::PathBuf;
-use std::sync::mpsc::channel;
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::time::Instant;
 
 use crate::action::Action;
@@ -34,6 +34,7 @@ mod parts;
 mod pen;
 mod pictures;
 mod planes;
+mod rail;
 mod remembered;
 mod requests;
 mod saving;
@@ -71,6 +72,8 @@ pub struct VoxaApp {
     scene: scene::SceneView,
     planes: planes::PlanesView,
     thumbnails: browser::Thumbnails,
+    /// What the rail of scans keeps between frames: whether the other files are open.
+    rail: rail::RailState,
     about_open: bool,
     help_open: bool,
     tags: tags::Panel,
@@ -146,19 +149,7 @@ impl VoxaApp {
         labels: Option<PathBuf>,
     ) -> Self {
         theme::apply(&creation.egui_ctx);
-        // Workers report on their own channel; a small thread passes each report on and wakes
-        // the window, so the workers need know nothing about the interface.
-        let (from_workers, to_relay) = channel();
-        let (to_window, reports) = channel();
-        let ctx = creation.egui_ctx.clone();
-        std::thread::spawn(move || {
-            for report in to_relay {
-                if to_window.send(report).is_err() {
-                    break;
-                }
-                ctx.request_repaint();
-            }
-        });
+        let (from_workers, reports) = relay(creation.egui_ctx.clone());
         let render = creation.wgpu_render_state.as_ref();
         crate::log::device(render);
         let gpus =
@@ -180,6 +171,7 @@ impl VoxaApp {
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),
             thumbnails: browser::Thumbnails::default(),
+            rail: rail::RailState::default(),
             about_open: false,
             help_open: false,
             tags: tags::Panel::default(),
@@ -216,14 +208,20 @@ impl VoxaApp {
         self.session.dispatch(action);
     }
 
-    /// Make the small picture of each series whose middle slice has arrived.
+    /// Make the small picture of each series whose middle slice has arrived. None is made, or
+    /// kept, of a page while the patient's details are hidden.
     fn make_thumbnails(&mut self, ctx: &egui::Context) {
         let Some(index) = &self.session.state().index else {
             self.thumbnails.clear();
             return;
         };
+        let show_patient = self.session.state().show_patient;
         for series in &index.series {
             let id = &series.info.id;
+            if !browser::may_have_thumbnail(&series.info, show_patient) {
+                self.thumbnails.remove(id);
+                continue;
+            }
             if self.thumbnails.contains_key(id) {
                 continue;
             }
@@ -271,21 +269,21 @@ impl VoxaApp {
 }
 
 impl VoxaApp {
-    /// The series list down the left of the window, when it is shown, taking its share of
-    /// the window's width, or less where the pictures need it: where it is.
-    fn list(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) -> Option<egui::Rect> {
-        if !self.screen.list_shown {
-            return None;
-        }
+    /// The rail of scans down the left of the window, taking its share of the window's width,
+    /// or less where the pictures need it, or folded to its strip: where it is while it is
+    /// open, and what it asked of the window.
+    fn list(
+        &mut self,
+        ui: &mut egui::Ui,
+        actions: &mut Vec<Action>,
+    ) -> (Option<egui::Rect>, Vec<commands::Request>) {
         let window = ui.ctx().content_rect().width();
         let width = self.screen.widths(window).rail;
-        let column = egui::Panel::left("browser")
-            .exact_size(width)
-            .resizable(false);
-        let shown = column.show(ui, |ui| {
-            browser::show(ui, self.session.state(), &self.thumbnails, actions);
-        });
-        Some(shown.response.rect)
+        let open = self.screen.list_shown;
+        let (state, thumbnails) = (self.session.state(), &self.thumbnails);
+        let (rect, asked) =
+            rail::column(ui, width, open, state, thumbnails, &mut self.rail, actions);
+        (open.then_some(rect), asked)
     }
 
     /// Let the right edge of the series list, at `list`, be dragged to give it more or less
@@ -331,7 +329,10 @@ impl eframe::App for VoxaApp {
         if let Some(path) = top::dropped(ui.ctx()) {
             actions.push(self.labels.opening(path));
         }
-        let list = self.list(ui, &mut actions);
+        let (list, asked) = self.list(ui, &mut actions);
+        for request in asked {
+            self.ask(ui.ctx(), request);
+        }
         let panel = self.tab_panel(ui, &mut actions);
         let pictures = egui::CentralPanel::default()
             .frame(middle())
@@ -358,6 +359,23 @@ impl eframe::App for VoxaApp {
             ui.ctx().request_repaint();
         }
     }
+}
+
+/// Where the workers report, and where the window reads their reports. Workers report on their
+/// own channel; a small thread passes each report on and wakes the window, so the workers need
+/// know nothing about the interface.
+fn relay<T: Send + 'static>(ctx: egui::Context) -> (Sender<T>, Receiver<T>) {
+    let (from_workers, to_relay) = channel();
+    let (to_window, reports) = channel();
+    std::thread::spawn(move || {
+        for report in to_relay {
+            if to_window.send(report).is_err() {
+                break;
+            }
+            ctx.request_repaint();
+        }
+    });
+    (from_workers, reports)
 }
 
 /// The middle of the window, where the pictures are: on the background, with the gap between

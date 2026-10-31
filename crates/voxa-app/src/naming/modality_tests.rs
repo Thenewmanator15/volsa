@@ -140,3 +140,44 @@ fn only_files_that_are_not_pictures_of_the_body_are_other_files() {
     assert_eq!(group_of(&stack), Group::Scans);
     assert_eq!(group_of(&with("MR", "", None, "")), Group::Scans);
 }
+
+#[test]
+fn other_files_are_called_by_what_they_are_not_by_a_code() {
+    assert_eq!(
+        plain_name(&with("SC", "made-up page", None, "")),
+        "Scanned page or screenshot"
+    );
+    assert_eq!(plain_name(&with(" doc ", "", None, "")), "Document");
+    assert_eq!(
+        plain_name(&with("OT", "made-up map", Some(Axial), "HEAD")),
+        "Other picture"
+    );
+    let locating = SeriesInfo {
+        slices: 3,
+        problems: vec![SeriesProblem::MixedOrientations],
+        ..with("MR", "t2 localiser", None, "HEAD")
+    };
+    assert_eq!(plain_name(&locating), "Locating images");
+    // Pages are told apart from the other files: only they may have a name in the picture.
+    assert!(is_page(&with("sc", "", None, "")));
+    assert!(!is_page(&locating));
+    assert!(!is_page(&with("MR", "", None, "")));
+}
+
+#[test]
+fn a_name_holds_no_character_that_turns_or_hides_text() {
+    // The part of the body and an unknown modality's code reach a name as the file wrote them.
+    let turned = with("C\u{202E}T", "", None, "HE\u{200B}AD\nNECK");
+    let name = plain_name(&turned);
+    assert_eq!(name, "Head neck CT");
+    let odd = plain_name(&with("X\u{2066}Q", "", None, "\u{202B}KNEE"));
+    assert_eq!(odd, "Knee XQ");
+    for name in [name, odd] {
+        assert!(
+            !name
+                .chars()
+                .any(|c| c.is_control() || printable::is_format(c)),
+            "{name:?}"
+        );
+    }
+}

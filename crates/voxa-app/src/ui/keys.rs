@@ -22,7 +22,9 @@ pub struct Held {
 /// action can be used. A key whose action cannot be used now does nothing.
 pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Does> {
     let command = commands::for_key(key, held, state)?;
-    (command.why_not)(state).is_none().then_some(command.does)
+    (command.why_not)(state)
+        .is_none()
+        .then(|| command.does.clone())
 }
 
 /// The keys pressed this frame that are Voxa's to answer, with what was held with each: none

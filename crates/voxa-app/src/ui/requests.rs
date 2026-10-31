@@ -8,14 +8,14 @@ use crate::action::Action;
 
 /// The tab of the panel that a request also shows, besides doing what it asks: labelling the
 /// scan shows the Tools tab, where its progress and Stop are, however it was asked for.
-fn also_shows(request: Request) -> Option<Tab> {
+fn also_shows(request: &Request) -> Option<Tab> {
     matches!(request, Request::LabelScan).then_some(Tab::Tools)
 }
 
 impl VoxaApp {
     /// Do what was asked of the window.
     pub(super) fn ask(&mut self, ctx: &egui::Context, request: Request) {
-        if let Some(tab) = also_shows(request) {
+        if let Some(tab) = also_shows(&request) {
             self.ask(ctx, Request::ShowTab(tab));
         }
         match request {
@@ -29,7 +29,7 @@ impl VoxaApp {
             // Opened at its topic once there are topics (Task 19).
             Request::Help(Some(_)) => self.help_open = true,
             Request::About => self.about_open = true,
-            Request::Tags => self.tags.open = !self.tags.open,
+            Request::Tags(of) => self.tags.open_on(of),
             Request::FullScreen => screen::toggle_full_screen(ctx),
             Request::ShowTab(tab) => {
                 self.screen.show_tab(tab);
@@ -62,8 +62,13 @@ impl VoxaApp {
             Request::Search => self.search.open(),
             // Chosen here; drawn in once the window can be drawn in more than one theme.
             Request::Theme(choice) => self.bars.theme = choice,
-            // What the window has no place for yet: the other files (Task 11).
-            Request::ShowOtherFiles => {}
+            Request::ShowOtherFiles => {
+                self.rail.other_open = true;
+                if !self.screen.list_shown {
+                    self.screen.toggle_rail();
+                }
+                ctx.request_repaint();
+            }
         }
     }
 }
@@ -88,13 +93,13 @@ mod tests {
         // The Tools tab's button and the search both do what the action in the list does.
         let labelling = commands::find("tools.label").expect("listed");
         assert!(matches!(labelling.does, Does::Ask(Request::LabelScan)));
-        assert_eq!(also_shows(Request::LabelScan), Some(Tab::Tools));
+        assert_eq!(also_shows(&Request::LabelScan), Some(Tab::Tools));
         // And no other request shows a tab of its own accord.
         for command in commands::all() {
-            if let Does::Ask(request) = command.does {
+            if let Does::Ask(request) = &command.does {
                 assert_eq!(
                     also_shows(request) == Some(Tab::Tools),
-                    request == Request::LabelScan,
+                    *request == Request::LabelScan,
                     "{}",
                     command.id
                 );

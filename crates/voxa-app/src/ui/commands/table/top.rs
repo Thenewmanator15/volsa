@@ -1,18 +1,27 @@
-//! The window itself: opening a scan, the scans shown or hidden, full screen, the size of the
-//! interface, the theme, the keys and About, where the log is, the tags of a file, and
-//! opening labels.
+//! The window itself: opening a scan, the scans shown or hidden, the other files shown, full
+//! screen, the size of the interface, the theme, the keys and About, where the log is, the
+//! tags of a file, and opening labels.
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Request, Tab, Why};
+use super::super::{Command, Does, Place, Request, Tab, TagsOf, Why};
 use super::{PLAIN, alone, ctrl};
+use crate::naming::{Group, group_of};
 use crate::planes::grid;
+use crate::state::AppState;
 use crate::ui::parts::NO_VOLUME;
 use crate::ui::theme::ThemeChoice;
 use crate::ui::top::Pick;
 
 /// The words each size of the interface is found by.
 const SIZE: &[&str] = &["interface size", "scale", "text size"];
+
+/// Why the other files cannot be shown: the export open holds none, or none is open.
+fn no_other_files(state: &AppState) -> Option<Why> {
+    let mut series = state.index.iter().flat_map(|index| &index.series);
+    let none = !series.any(|listed| group_of(&listed.info) == Group::Other);
+    none.then_some(Why::Borrowed("There are no other files to show."))
+}
 
 /// A size the interface can be drawn at, as the menu offers it.
 const fn size(id: &'static str, label: &'static str, name: &'static str, at: f32) -> Command {
@@ -74,8 +83,26 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "The column of scans at the left",
         words: &["scans", "series", "list", "sidebar", "hide", "fold"],
         key: Some(alone(Key::B, "B")),
-        place: Place::Menu,
+        place: Place::Rail,
         does: Does::Ask(Request::FoldRail),
+        ..PLAIN
+    },
+    Command {
+        id: "rail.other",
+        name: "Show the other files",
+        label: "Other files",
+        explains: "Locating images, scanned pages, screenshots and documents, under the scans",
+        words: &[
+            "other files",
+            "pages",
+            "documents",
+            "screenshots",
+            "locating",
+            "scout",
+        ],
+        place: Place::Rail,
+        why_not: no_other_files,
+        does: Does::Ask(Request::ShowOtherFiles),
         ..PLAIN
     },
     Command {
@@ -110,14 +137,17 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     size("size.75", "75%", "Draw the interface at 75%", 0.75),
     size("size.90", "90%", "Draw the interface at 90%", 0.9),
+    // Written out, not made by `size`: what a struct update leaves of a call's result would
+    // be dropped at compile time, which a request that can hold a series cannot be.
     Command {
+        id: "size.100",
+        name: "Draw the interface at its usual size",
+        label: "100%",
+        words: SIZE,
         key: Some(ctrl(Key::Num0, "Ctrl+0")),
-        ..size(
-            "size.100",
-            "100%",
-            "Draw the interface at its usual size",
-            1.0,
-        )
+        place: Place::Menu,
+        does: Does::Ask(Request::Size(1.0)),
+        ..PLAIN
     },
     size("size.110", "110%", "Draw the interface at 110%", 1.1),
     size("size.125", "125%", "Draw the interface at 125%", 1.25),
@@ -193,9 +223,9 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Tags",
         explains: "Every element of the file behind the slice shown",
         words: &["tags", "dicom", "header", "elements", "metadata"],
-        // In the menu until the scans' cards have a menu of their own.
-        place: Place::Menu,
-        does: Does::Ask(Request::Tags),
+        // On a card, the tags of the first file of that card's series.
+        place: Place::Card,
+        does: Does::Ask(Request::Tags(TagsOf::Shown)),
         ..PLAIN
     },
     Command {

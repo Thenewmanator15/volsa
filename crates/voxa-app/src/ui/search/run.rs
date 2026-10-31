@@ -41,7 +41,7 @@ pub fn run(target: &Target, state: &AppState, actions: &mut Vec<Action>) -> Opti
                     }));
                     None
                 }
-                None => command.does.run(state, actions),
+                None => command.does.clone().run(state, actions),
             }
         }
         Target::Part(part) => {

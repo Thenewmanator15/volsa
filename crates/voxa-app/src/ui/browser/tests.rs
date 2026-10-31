@@ -1,13 +1,10 @@
-//! The browser drawn with no window behind it, and the small pure pieces it is made of.
+//! The small pure pieces the rail of scans is made of: thumbnails, the words of a card and a
+//! study's heading.
 
-use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, Rect, vec2};
 use voxa_core::SeriesProblem;
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
 
 use super::*;
-use crate::action::Action;
-use crate::state::AppState;
-use crate::testing::{THICK_SCAN, id, indexed, three_series};
+use crate::testing::three_series;
 
 #[test]
 fn a_thumbnail_is_a_small_grey_picture_of_the_frame() {
@@ -101,138 +98,6 @@ fn the_problems_of_a_series_are_listed_in_plain_words() {
         text,
         "The slices are not evenly spaced, so this is shown as a plain stack.\n\
          The slices are not all the same size, so this is shown as a plain stack."
-    );
-}
-
-/// One pass of the browser in a window 800 by 600, with the given input events.
-/// How wide the series list is in these passes.
-const LIST: f32 = 240.0;
-
-fn pass(ctx: &egui::Context, state: &AppState, events: Vec<Event>) -> (Vec<Action>, Vec<Card>) {
-    let mut actions = Vec::new();
-    let mut cards = Vec::new();
-    let screen = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
-    let input = RawInput {
-        screen_rect: Some(screen),
-        events,
-        ..RawInput::default()
-    };
-    let mut output = ctx.run_ui(input, |ui| {
-        let list = egui::Panel::left("series list").exact_size(LIST);
-        list.show(ui, |ui| {
-            cards = show(ui, state, &Thumbnails::default(), &mut actions);
-        });
-    });
-    // No renderer is behind these passes to take the font texture.
-    output.textures_delta.clear();
-    (actions, cards)
-}
-
-fn two_studies() -> AppState {
-    let slice = |study: &str, date: &str, series: &str, place: i32| {
-        let opts = SliceOptions {
-            study_uid: study.to_owned(),
-            study_date: Some(date.to_owned()),
-            series_uid: series.to_owned(),
-            series_description: format!("series of {date}"),
-            instance_number: place + 1,
-            position: Some([0.0, 0.0, f64::from(place) * 5.0]),
-            ..SliceOptions::default()
-        };
-        (format!("{study}/{place}.dcm"), classic_slice(&opts))
-    };
-    let mut files: Vec<(String, Vec<u8>)> = (0..3)
-        .map(|place| slice("1.2.9.2021", "20210830", "1.2.9.2021.1", place))
-        .collect();
-    files.extend((0..3).map(|place| slice("1.2.9.2019", "20190412", "1.2.9.2019.1", place)));
-    AppState {
-        index: Some(indexed(files)),
-        ..AppState::default()
-    }
-}
-
-#[test]
-fn the_browser_lists_studies_by_date_with_a_card_for_each_series() {
-    let state = two_studies();
-    let ctx = egui::Context::default();
-    let (actions, cards) = pass(&ctx, &state, Vec::new());
-    assert_eq!(actions, Vec::new());
-    let listed: Vec<&str> = cards.iter().map(|card| card.series.0.as_str()).collect();
-    assert_eq!(
-        listed,
-        vec!["1.2.9.2019.1", "1.2.9.2021.1"],
-        "the earlier study first"
-    );
-    assert!(
-        cards[0].rect.max.y <= cards[1].rect.min.y,
-        "one below the other"
-    );
-    assert!(
-        cards.iter().all(|card| card.rect.width() <= LIST),
-        "{cards:?}"
-    );
-}
-
-#[test]
-fn clicking_a_card_shows_that_series_in_the_active_viewport() {
-    let mut state = two_studies();
-    state.layout = crate::state::Layout::TwoAcross;
-    state.active = 1;
-    let ctx = egui::Context::default();
-    let (_, cards) = pass(&ctx, &state, Vec::new());
-    let at = cards[0].rect.center();
-    let button = |pressed| Event::PointerButton {
-        pos: at,
-        button: PointerButton::Primary,
-        pressed,
-        modifiers: Modifiers::NONE,
-    };
-    let (pressed, _) = pass(&ctx, &state, vec![Event::PointerMoved(at), button(true)]);
-    assert_eq!(
-        pressed,
-        Vec::new(),
-        "nothing happens until the button comes up"
-    );
-    let (released, _) = pass(&ctx, &state, vec![button(false)]);
-    let expected = Action::SelectSeries {
-        viewport: 1,
-        series: id("1.2.9.2019.1"),
-    };
-    assert_eq!(released, vec![expected]);
-}
-
-#[test]
-fn an_export_with_nothing_open_asks_for_one() {
-    let ctx = egui::Context::default();
-    let (actions, cards) = pass(&ctx, &AppState::default(), Vec::new());
-    assert_eq!((actions.len(), cards.len()), (0, 0));
-    let _ = THICK_SCAN;
-}
-
-#[test]
-fn a_card_notes_what_a_series_is_and_warns_only_of_a_fault() {
-    let of = |slices: usize, problems: Vec<SeriesProblem>| SeriesInfo {
-        slices,
-        problems,
-        ..SeriesInfo::default()
-    };
-    assert_eq!(note(&of(30, Vec::new())), None, "a volume needs no note");
-    assert_eq!(
-        note(&of(3, vec![SeriesProblem::MixedOrientations])),
-        Some(("locating images".to_owned(), false))
-    );
-    assert_eq!(
-        note(&of(1, Vec::new())),
-        Some(("a single image".to_owned(), false))
-    );
-    assert_eq!(
-        note(&of(30, vec![SeriesProblem::UnevenSpacing])),
-        Some(("! uneven spacing".to_owned(), true))
-    );
-    let unread = SeriesProblem::UnsupportedTransferSyntax("some other way".to_owned());
-    assert_eq!(
-        note(&of(30, vec![unread])),
-        Some(("! cannot be read yet".to_owned(), true))
     );
 }
 
@@ -355,37 +220,16 @@ fn the_small_picture_of_a_frame_in_colour_keeps_its_colours() {
 }
 
 #[test]
-fn in_a_narrow_list_the_words_on_a_card_are_cut_short_inside_it() {
-    let state = two_studies();
-    let ctx = egui::Context::default();
-    let narrow = 180.0;
-    let input = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))),
-        ..RawInput::default()
+fn no_small_picture_of_a_page_is_made_while_the_patients_details_are_hidden() {
+    let of = |modality: &str| SeriesInfo {
+        modality: modality.to_owned(),
+        ..SeriesInfo::default()
     };
-    let mut cards = Vec::new();
-    let mut actions = Vec::new();
-    let mut output = ctx.run_ui(input, |ui| {
-        let list = egui::Panel::left("series list").exact_size(narrow);
-        list.show(ui, |ui| {
-            cards = show(ui, &state, &Thumbnails::default(), &mut actions);
-        });
-    });
-    // No renderer is behind this pass to take the font texture.
-    output.textures_delta.clear();
-    let words: Vec<Rect> = output
-        .shapes
-        .iter()
-        .filter_map(|clipped| match &clipped.shape {
-            egui::Shape::Text(text) => Some(text.visual_bounding_rect()),
-            _ => None,
-        })
-        .collect();
-    assert_ne!(words, Vec::new(), "the cards have words on them");
-    for card in &cards {
-        let on_it = words.iter().filter(|rect| card.rect.contains(rect.min));
-        for rect in on_it {
-            assert!(rect.max.x <= card.rect.max.x, "{rect:?} runs past {card:?}");
-        }
+    for page in ["SC", "OT", "DOC", " sc "] {
+        assert!(!may_have_thumbnail(&of(page), false), "{page}");
+        assert!(may_have_thumbnail(&of(page), true), "{page}");
+    }
+    for scan in ["MR", "CT", "US", ""] {
+        assert!(may_have_thumbnail(&of(scan), false), "{scan}");
     }
 }

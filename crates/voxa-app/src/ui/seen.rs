@@ -16,6 +16,10 @@ pub struct Seen {
     pub names: Vec<(String, Rect)>,
     /// The colour of every piece of text, line, fill and outline drawn.
     pub colours: Vec<Color32>,
+    /// Each picture drawn from a texture, by its texture, with where it is.
+    pub images: Vec<(egui::TextureId, Rect)>,
+    /// What was drawn of each piece of text cut short to fit, with the ellipsis that ends it.
+    pub cut: Vec<String>,
 }
 
 impl Seen {
@@ -106,6 +110,11 @@ fn take_in(shape: &Shape, seen: &mut Seen) {
         Shape::Text(text) => {
             seen.words
                 .push((text.galley.text().to_owned(), text.visual_bounding_rect()));
+            if text.galley.elided {
+                let rows = text.galley.rows.iter();
+                seen.cut
+                    .push(rows.map(|placed| placed.row.text()).collect());
+            }
             for section in &text.galley.job.sections {
                 let own = section.format.color;
                 let drawn = if own == Color32::PLACEHOLDER {
@@ -117,6 +126,7 @@ fn take_in(shape: &Shape, seen: &mut Seen) {
             }
         }
         Shape::Vec(shapes) => shapes.iter().for_each(|shape| take_in(shape, seen)),
+        Shape::Mesh(mesh) => seen.images.push((mesh.texture_id, mesh.calc_bounds())),
         Shape::LineSegment { stroke, .. } => seen.colours.push(stroke.color),
         Shape::Path(path) => {
             seen.colours.push(path.fill);

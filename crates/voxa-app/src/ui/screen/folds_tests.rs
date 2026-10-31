@@ -9,17 +9,15 @@ use crate::prefs::{self, Arrangement};
 use crate::state::AppState;
 
 /// Where the pictures are in a window `wide` by `high` points, with the side columns laid
-/// out as the window lays them out: the series list at the left while it is shown, the panel
-/// at the right, and the pictures in what is left, within the middle's margin.
+/// out as the window lays them out: the rail at the left, or its strip while it is folded, the
+/// panel at the right, and the pictures in what is left, within the middle's margin.
 fn pictures_in(screen: &mut Screen, wide: f32, high: f32) -> Rect {
     let state = AppState::default();
     let mut room = Rect::NOTHING;
     let mut draw = |ui: &mut Ui| {
         let widths = screen.widths(ui.ctx().content_rect().width());
-        if screen.list_shown {
-            let rail = egui::Panel::left("browser").exact_size(widths.rail);
-            rail.resizable(false).show(ui, |_| {});
-        }
+        let rail = egui::Panel::left("rail").exact_size(widths.rail);
+        rail.resizable(false).show(ui, |_| {});
         let nothing = |_: &mut Ui, _: Tab| Vec::new();
         let _ = panel::show(ui, &mut screen.panel, &state, widths.panel, nothing);
         let middle = egui::CentralPanel::default().frame(super::super::super::middle());
