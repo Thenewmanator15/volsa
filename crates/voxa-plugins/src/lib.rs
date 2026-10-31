@@ -19,9 +19,11 @@
 
 mod blocks;
 mod describe;
+mod finish;
 mod fit;
 mod folder;
 mod grid;
+mod label_map;
 mod onnx;
 mod scaling;
 #[cfg(any(test, feature = "testkit"))]
@@ -33,8 +35,10 @@ pub use describe::{
     Input, Kind, LabelOutput, Layout, Listed, Moves, Name, NumberOutput, Output, Outside, Over,
     PLUGIN_FORMAT, Scaling, Side, ValueOutput, Voxels, read_description,
 };
+pub use finish::{FinishError, labels_of};
 pub use fit::{Wiring, fit};
 pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};
 pub use grid::{Grid, Region, label_grid, overhang_mm, sample};
+pub use label_map::LabelMap;
 pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};
 pub use scaling::{Scale, ScaleError, Statistics, gather, outside_value, percentile, voxels_of};

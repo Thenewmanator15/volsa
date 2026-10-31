@@ -135,7 +135,7 @@ pub(super) fn plain_image() -> Tensor {
 pub(super) fn floats(tensor: &Tensor) -> &[f32] {
     match &tensor.numbers {
         Numbers::F32(numbers) => numbers,
-        Numbers::U8(_) => panic!("floating point numbers were expected"),
+        _ => panic!("floating point numbers were expected"),
     }
 }
 

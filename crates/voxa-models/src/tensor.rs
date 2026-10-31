@@ -2,13 +2,17 @@
 
 use crate::network::RunError;
 
-/// The numbers of a [`Tensor`], of one of the two kinds the networks take and give.
+/// The numbers of a [`Tensor`], of one of the kinds the networks take and give.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Numbers {
     /// Floating point numbers: an image, the chance of each structure, the scores.
     F32(Vec<f32>),
     /// Bytes: a map of classes or of areas.
     U8(Vec<u8>),
+    /// 32-bit integers: labels a plugin's network gives.
+    I32(Vec<i32>),
+    /// 64-bit integers: labels a plugin's network gives, as `ArgMax` makes them.
+    I64(Vec<i64>),
 }
 
 impl Numbers {
@@ -17,6 +21,8 @@ impl Numbers {
         match self {
             Numbers::F32(numbers) => numbers.len(),
             Numbers::U8(numbers) => numbers.len(),
+            Numbers::I32(numbers) => numbers.len(),
+            Numbers::I64(numbers) => numbers.len(),
         }
     }
 }

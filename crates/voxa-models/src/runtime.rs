@@ -370,6 +370,8 @@ fn feed(tensor: Tensor) -> Result<Feed, RunError> {
     said(match numbers {
         Numbers::F32(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
         Numbers::U8(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
+        Numbers::I32(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
+        Numbers::I64(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
     })
 }
 

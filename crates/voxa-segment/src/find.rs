@@ -280,7 +280,7 @@ fn map(answer: Vec<Tensor>, shape: &[usize]) -> Result<Tensor, RunError> {
     match &map.numbers {
         Numbers::U8(bytes) if map.shape == shape && holds(shape) == Some(bytes.len()) => Ok(map),
         Numbers::U8(_) => Err(failed(WRONG_SHAPE)),
-        Numbers::F32(_) => Err(failed(WRONG_KIND)),
+        Numbers::F32(_) | Numbers::I32(_) | Numbers::I64(_) => Err(failed(WRONG_KIND)),
     }
 }
 

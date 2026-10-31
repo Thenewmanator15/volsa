@@ -57,7 +57,7 @@ fn refused(volume: &Volume) -> PrepareError {
 fn numbers(prepared: &Prepared) -> &[f32] {
     match &prepared.image.numbers {
         Numbers::F32(numbers) => numbers,
-        Numbers::U8(_) => panic!("an image is floating point"),
+        _ => panic!("an image is floating point"),
     }
 }
 
