@@ -74,7 +74,7 @@ but 0 and 24, label 24 being the fluid around the brain, and coverage of at leas
 mask keeps that fluid, as a skull strip's mask does, and scored 0.848 by that definition. The
 test now asks for a Dice score of at least 0.85 with the brain and its fluid (every label but 0)
 and coverage of at least 0.90 of the brain without it, and prints the score with the brain alone
-too; this was reported to the owner rather than decided quietly. The mark is functional, not
+too. The owner was told and, on 31 October 2026, kept this definition. The mark is functional, not
 voxel-for-voxel: it shows the mask covers the made-up brain and leaves out what lies outside it.
 
 On the processor the network itself is slow on this computer: ONNX Runtime alone takes 100 to
