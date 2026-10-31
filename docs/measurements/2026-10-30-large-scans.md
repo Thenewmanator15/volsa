@@ -35,7 +35,8 @@ does not use it. On the Intel card the texture is in the computer's own memory, 
 set grows too. So a series in full detail counts twice in "peak private memory": once as Voxa
 holds it, once as the card does. 0.6.0 had the same charge for its (halved) copy.
 
-The budgets were written for what Voxa itself holds. They are judged here on:
+The budgets were written for what Voxa itself holds, and on 31 October 2026 the owner decided
+that they leave the card's copy out. They are judged on:
 
 - **own**: peak private memory less the card's copy (the size of the values on the card, which
   `measure_big` prints), with the full peak beside it;

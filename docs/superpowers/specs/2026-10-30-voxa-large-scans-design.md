@@ -150,14 +150,19 @@ are measured on the RTX, a card with memory of its own; on the Intel card the sa
 are recorded beside them, with the card's shared memory (which Windows does not count in
 the process's private memory) reported separately *(my call)*.
 
+Windows charges a texture on a card with memory of its own to the process's private memory
+as well, though it uses none of the computer's. The memory budgets leave that copy out: B5,
+B6 and B13's private memory are judged on the peak less the size of the values on the card,
+with the full peak reported beside it (the owner's decision, 31 October 2026).
+
 | No. | What | Head-like 512²×300 | CT 512²×2000 | Whole body 512×384×832 |
 |---|---|---|---|---|
 | B1 | First slice decoded, from opening | ≤ 0.3 s | ≤ 0.5 s | ≤ 0.5 s |
 | B2 | 3D preview ready | (no preview needed) | ≤ 1.0 s | ≤ 0.8 s |
 | B3 | 3D in full detail ready | ≤ 0.6 s | ≤ 2.0 s | ≤ 1.2 s |
 | B4 | Detail on the RTX and the Intel card | full | full: 512²×2000 | full |
-| B5 | Peak private memory, headless | ≤ 550 MiB (1,322) | ≤ 1,500 MiB (4,707) | ≤ 750 MiB (2,225) |
-| B6 | Peak private memory, `voxa.exe` | ≤ 750 MiB (1,463) | ≤ 1,700 MiB (4,859) | ≤ 950 MiB (2,491) |
+| B5 | Peak private memory, headless, less the card's copy | ≤ 550 MiB (1,322) | ≤ 1,500 MiB (4,707) | ≤ 750 MiB (2,225) |
+| B6 | Peak private memory, `voxa.exe`, less the card's copy | ≤ 750 MiB (1,463) | ≤ 1,700 MiB (4,859) | ≤ 950 MiB (2,491) |
 | B7 | Held after opening, above the base | ≤ 1.05 × values at 16 bits + 64 MiB | | |
 | B8 | Still VR picture 1280×800, RTX, drawn and read back | ≤ 8 ms | ≤ 33 ms | ≤ 8 ms |
 | B9 | Reading back a 3840×2160 picture | ≤ 15 ms | | |
