@@ -42,17 +42,68 @@ pub(super) fn nothing_found(path: &Path, found: &Index) -> String {
     let name = name.unwrap_or_else(|| path.display().to_string());
     // A lone file that is not a zip is read as a source of that one file.
     if path.is_file() && found.skipped == [name.clone()] {
-        "That file is not a zip or DICOM export".to_owned()
-    } else {
-        format!("No images were found in {name}")
+        return "That file is not a zip or DICOM export".to_owned();
     }
+    if let [refused] = found.refused.as_slice()
+        && path.is_file()
+        && refused.entry == name
+    {
+        return format!("That file was not read: it is {}", refused.reason);
+    }
+    format!("No images were found in {name}")
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::tests::Bench;
+    use voxa_dicom::Refused;
+    use voxa_dicom::testkit::{Nesting, SliceOptions, classic_slice, nested_slice};
+
+    use super::super::tests::{Bench, folder_of};
     use crate::action::Action;
     use crate::state::{Notice, NoticeKind};
+
+    /// Deeper than any reading thread's stack could hold, were the file not refused.
+    const FAR_TOO_DEEP: usize = 20_000;
+
+    #[test]
+    fn a_folder_with_a_file_nested_too_deeply_lists_it_and_opens_the_rest() {
+        let mut files: Vec<(String, Vec<u8>)> = (0..3)
+            .map(|place| {
+                let slice = classic_slice(&SliceOptions {
+                    instance_number: place + 1,
+                    position: Some([0.0, 0.0, f64::from(place) * 5.0]),
+                    ..SliceOptions::default()
+                });
+                (format!("IMAGES/I{place}"), slice)
+            })
+            .collect();
+        let deep = nested_slice(&Nesting::of(FAR_TOO_DEEP));
+        files.push(("IMAGES/DEEP".to_owned(), deep));
+        let folder = folder_of(&files);
+        let bench = Bench::with_budget(1 << 20);
+        let index = bench
+            .index(folder.path())
+            .expect("the rest of the folder opens");
+        assert_eq!(index.series.len(), 1);
+        assert_eq!(index.series[0].slices.len(), 3);
+        let why = "nested too deeply to read safely".to_owned();
+        let entry = "IMAGES/DEEP".to_owned();
+        assert_eq!(index.refused, vec![Refused { entry, reason: why }]);
+    }
+
+    #[test]
+    fn a_lone_file_nested_too_deeply_says_why_it_was_not_opened() {
+        let deep = nested_slice(&Nesting::of(FAR_TOO_DEEP));
+        let folder = folder_of(&[("deep.dcm".to_owned(), deep)]);
+        let bench = Bench::with_budget(1 << 20);
+        let failed = bench
+            .index(&folder.path().join("deep.dcm"))
+            .expect_err("holds no image that was read");
+        assert_eq!(
+            failed,
+            "That file was not read: it is nested too deeply to read safely"
+        );
+    }
 
     fn notice(text: &str) -> Notice {
         Notice {

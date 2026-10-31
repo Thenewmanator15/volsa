@@ -21,6 +21,7 @@ mod kept;
 pub(crate) mod labelling;
 mod labels;
 mod opened;
+mod pool;
 mod post;
 mod tags;
 mod views;
@@ -107,7 +108,6 @@ impl Workers {
         settings: Option<PathBuf>,
         labeller: Option<Arc<dyn labelling::Labeller>>,
     ) -> Self {
-        let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
         let shared = Shared {
             reports,
             cache,
@@ -132,7 +132,7 @@ impl Workers {
             keeping: kept::Keeping::default(),
         };
         Self {
-            pool: named.build().ok(),
+            pool: pool::reading("voxa-worker"),
             shared: Arc::new(shared),
         }
     }

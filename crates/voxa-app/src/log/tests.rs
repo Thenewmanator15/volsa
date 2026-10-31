@@ -83,6 +83,9 @@ fn the_log_says_what_happened_and_never_who_it_happened_to() {
 fn a_notice_is_written_in_full_only_when_its_words_are_voxas_own() {
     let own = notice(NoticeKind::Info, "skipped", "1 file skipped");
     assert_eq!(line_for(&own), "notice [skipped]: 1 file skipped");
+    // The names of the files not read, and why, are its details, which are never written.
+    let refused = notice(NoticeKind::Warning, "refused", "1 file was not read");
+    assert_eq!(line_for(&refused), "warning [refused]: 1 file was not read");
     let saved = notice(NoticeKind::Info, "saving", "Saved Quillfeather.png");
     assert!(!line_for(&saved).contains("Quillfeather"));
     assert!(line_for(&saved).starts_with("notice [saving]"));

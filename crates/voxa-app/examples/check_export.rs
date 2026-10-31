@@ -12,15 +12,30 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::Instant;
 
-use voxa_dicom::{IndexedSeries, SeriesSource, decode_slice, index, list_tags, open_source};
+use voxa_dicom::{
+    IndexedSeries, READING_STACK_BYTES, SeriesSource, decode_slice, index, list_tags, open_source,
+};
 
 fn main() -> ExitCode {
     let Some(path) = std::env::args_os().nth(1).map(PathBuf::from) else {
         eprintln!("Usage: check_export PATH   (a folder, a zip file or a DICOMDIR)");
         return ExitCode::from(2);
     };
+    // Read as Voxa reads, on a thread with the stack its readers have, not on this one.
+    let reading = std::thread::Builder::new()
+        .stack_size(READING_STACK_BYTES)
+        .spawn(move || check_export(&path));
+    let Ok(Ok(code)) = reading.map(std::thread::JoinHandle::join) else {
+        eprintln!("The export could not be read through.");
+        return ExitCode::FAILURE;
+    };
+    code
+}
+
+/// Index the export at `path`, decode every slice, and say how that went.
+fn check_export(path: &std::path::Path) -> ExitCode {
     let started = Instant::now();
-    let mut source = match open_source(&path) {
+    let mut source = match open_source(path) {
         Ok(source) => source,
         Err(error) => {
             eprintln!("{error}");
@@ -35,11 +50,12 @@ fn main() -> ExitCode {
         }
     };
     println!(
-        "Indexed in {:.2} s: {} studies, {} series, {} files skipped",
+        "Indexed in {:.2} s: {} studies, {} series, {} files skipped, {} refused unread",
         started.elapsed().as_secs_f64(),
         found.studies.len(),
         found.series.len(),
-        found.skipped.len()
+        found.skipped.len(),
+        found.refused.len()
     );
     let mut failures = 0;
     for series in &found.series {

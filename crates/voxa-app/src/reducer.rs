@@ -23,6 +23,8 @@ mod volumes;
 
 /// The key of the notice that counts skipped files.
 const SKIPPED: &str = "skipped";
+/// The key of the notice that lists the files refused unread, with why.
+const REFUSED: &str = "refused";
 /// The key of the notice that says a source could not be opened.
 const OPENING: &str = "opening";
 /// The key of the notice that says saved views could not be written.
@@ -134,6 +136,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
         }
         Action::IndexProgress(index) => {
             post(state, SKIPPED, skipped_notice(&index.skipped));
+            post(state, REFUSED, refused_notice(&index.refused));
             state.index = Some(index);
         }
         Action::IndexFailed(why) => {
@@ -266,6 +269,26 @@ fn skipped_notice(skipped: &[String]) -> Option<Notice> {
         text,
         details: skipped.to_vec(),
         key: Some(SKIPPED),
+    })
+}
+
+/// A warning that names each file refused unread, such as one nested too deeply to read
+/// safely, and says why.
+fn refused_notice(refused: &[voxa_dicom::Refused]) -> Option<Notice> {
+    let text = match refused.len() {
+        0 => return None,
+        1 => "1 file was not read".to_owned(),
+        several => format!("{several} files were not read"),
+    };
+    let details = refused
+        .iter()
+        .map(|file| format!("{}: {}", file.entry, file.reason))
+        .collect();
+    Some(Notice {
+        kind: NoticeKind::Warning,
+        text,
+        details,
+        key: Some(REFUSED),
     })
 }
 

@@ -26,7 +26,7 @@ pub const MOST_BYTES: u64 = 1 << 20;
 /// The keys of the notices whose words are Voxa's own from first to last. A notice under
 /// any other key may quote a file's name or a reason from outside Voxa, and is written by
 /// its kind and key alone.
-const OWN_WORDS: [&str; 10] = [
+const OWN_WORDS: [&str; 11] = [
     "annotations",
     "graphics",
     "label names",
@@ -34,6 +34,7 @@ const OWN_WORDS: [&str; 10] = [
     "measurements",
     "measuring",
     "nothing to label",
+    "refused",
     "skipped",
     "smoothing",
     "views",

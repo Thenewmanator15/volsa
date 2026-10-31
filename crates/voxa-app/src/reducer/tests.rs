@@ -172,6 +172,37 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
 }
 
 #[test]
+fn files_refused_unread_are_one_warning_that_says_why_each_was() {
+    let refused = |entry: &str| voxa_dicom::Refused {
+        entry: entry.to_owned(),
+        reason: "nested too deeply to read safely".to_owned(),
+    };
+    let mut index = three_series();
+    index.refused = vec![refused("IMAGES/DEEP")];
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(index.clone()));
+    assert_eq!(state.notices.len(), 1);
+    let notice = &state.notices[0];
+    assert_eq!(
+        (notice.kind, notice.text.as_str()),
+        (NoticeKind::Warning, "1 file was not read")
+    );
+    assert_eq!(
+        notice.details,
+        vec!["IMAGES/DEEP: nested too deeply to read safely".to_owned()]
+    );
+
+    index.refused.push(refused("IMAGES/DEEPER"));
+    reduce(&mut state, Action::IndexProgress(index.clone()));
+    let texts: Vec<&str> = state.notices.iter().map(|n| n.text.as_str()).collect();
+    assert_eq!(texts, vec!["2 files were not read"]);
+
+    index.refused.clear();
+    reduce(&mut state, Action::IndexProgress(index));
+    assert_eq!(state.notices, Vec::new());
+}
+
+#[test]
 fn a_failed_index_is_an_error_notice_that_can_be_dismissed() {
     let mut state = AppState::default();
     reduce(
