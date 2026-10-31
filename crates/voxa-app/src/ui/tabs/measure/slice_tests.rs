@@ -62,11 +62,12 @@ fn measurements_from_pixel_spacing_say_so_in_the_list_and_the_csv() {
         "{:?}",
         seen.words
     );
-    let placement = scene_placement(&state).map(|at| at.placement);
-    let table = measurements_csv(&rows(&state.annotations.items, placement.as_ref()), NOTICE);
+    let table = written(Save::Csv, &state);
     let line = table.split("\r\n").nth(1).expect("a line");
-    assert!(line.starts_with("Ruler,Ruler 1,5.0 mm,"), "{line}");
-    assert!(line.contains(",pixel spacing,1.000,1.500,0.000,"), "{line}");
+    let starts = "Ruler,Ruler 1,5.0 mm,Its ends can be placed to about one voxel: ± 0.5 mm along \
+                  this line.,1.000,1.500,0.000,6.000,1.500,0.000,";
+    assert!(line.starts_with(starts), "{line}");
+    assert!(line.ends_with(&format!("{NOTICE},pixel spacing")), "{line}");
     // The same ruler on a scan placed in the patient says nothing after its value.
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(three_series()));
@@ -95,9 +96,9 @@ fn a_scan_that_cannot_be_measured_says_why_at_the_top_of_the_tab() {
     assert_eq!(clicked(&picture), tools, "every tool, on the slice");
 }
 
-#[test]
-fn a_plain_stack_says_so_above_its_measurements() {
-    // Slices 5 mm and then 10 mm apart: shown as a plain stack, with no 3D view.
+/// A series of slices 5 mm and then 10 mm apart, shown as a plain stack with no 3D view, its
+/// middle slice shown.
+fn plain_stack() -> AppState {
     let files = [0.0, 5.0, 15.0].iter().zip(0..).map(|(z, place)| {
         let options = SliceOptions {
             position: Some([0.0, 0.0, *z]),
@@ -105,7 +106,71 @@ fn a_plain_stack_says_so_above_its_measurements() {
         };
         (format!("S11/I{place}.dcm"), classic_slice(&options))
     });
-    let state = opened(files.collect(), "1.2.3.11");
+    opened(files.collect(), "1.2.3.11")
+}
+
+/// `state` with a ruler and a marker measured on its slice, and the same on the 30-slice
+/// series, which is no plain stack.
+fn measured_on(mut state: AppState) -> (AppState, AppState) {
+    let mut placed = AppState::default();
+    reduce(&mut placed, Action::IndexProgress(three_series()));
+    let (viewport, series) = (0, id(THICK_SCAN));
+    reduce(&mut placed, Action::SelectSeries { viewport, series });
+    shown(&mut placed);
+    let ruler = Shape::Ruler {
+        a: [0.0, 0.0, 5.0],
+        b: [3.0, 4.0, 5.0],
+    };
+    let marker = Shape::Marker {
+        at: [1.0, 1.0, 5.0],
+    };
+    for shape in [ruler, marker] {
+        reduce(&mut state, Action::AnnotationAdd(shape.clone()));
+        reduce(&mut placed, Action::AnnotationAdd(shape));
+    }
+    assert_eq!(
+        state.annotations.items.len(),
+        2,
+        "measured on the plain stack"
+    );
+    (state, placed)
+}
+
+#[test]
+fn a_plain_stacks_measurements_say_so_in_every_line_of_the_saved_table() {
+    let (stack, placed) = measured_on(plain_stack());
+    let lines = |state: &AppState| -> Vec<String> {
+        let table = written(Save::Csv, state);
+        let lines = table.split("\r\n").skip(1).filter(|line| !line.is_empty());
+        lines.map(str::to_owned).collect()
+    };
+    // The notice holds a comma, so it is written in quotes.
+    let carried = format!("\"{NOTICE} {PLAIN_STACK}\",patient");
+    let on_the_stack = lines(&stack);
+    assert_eq!(on_the_stack.len(), 2);
+    for line in &on_the_stack {
+        assert!(line.ends_with(&carried), "{line}");
+    }
+    for line in lines(&placed) {
+        assert!(line.ends_with(&format!(",{NOTICE},patient")), "{line}");
+    }
+}
+
+#[test]
+fn a_plain_stacks_measurements_say_so_in_the_saved_json() {
+    let (stack, placed) = measured_on(plain_stack());
+    let notice = |state: &AppState| {
+        let read: serde_json::Value =
+            serde_json::from_str(&written(Save::Json, state)).expect("it parses");
+        read["notice"].as_str().map(str::to_owned)
+    };
+    assert_eq!(notice(&stack), Some(format!("{NOTICE} {PLAIN_STACK}")));
+    assert_eq!(notice(&placed).as_deref(), Some(NOTICE));
+}
+
+#[test]
+fn a_plain_stack_says_so_above_its_measurements() {
+    let state = plain_stack();
     let seen = drawn(&state);
     assert!(
         seen.words.iter().any(|word| word == PLAIN_STACK),

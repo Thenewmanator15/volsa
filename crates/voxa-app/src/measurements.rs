@@ -21,10 +21,10 @@ const IN_THE_PATIENT: &str = "DICOM patient coordinates (LPS), millimetres";
 const IN_THE_PICTURE: &str = "the picture's own millimetres, from the file's pixel spacing: \
                               across and down from the middle of its first pixel, and the \
                               slice, counting from 0";
-/// The columns of the table. `scale` says whose millimetres the measurement and its points are
-/// in. An annotation has at most three points; the last column holds the notice that Voxa is
-/// not for diagnostic use.
-const HEADER: &str = "kind,label,value,detail,scale,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice";
+/// The columns of the table, those of 0.6.0 first, in their places. An annotation has at most
+/// three points. `notice` holds the notice that Voxa is not for diagnostic use; `scale`, added
+/// after it, says whose millimetres the measurement and its points are in.
+const HEADER: &str = "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice,scale";
 /// How many coordinates a row of the table has room for.
 const COORDINATES: usize = 9;
 
@@ -66,8 +66,10 @@ pub fn rows(items: &[Annotation], placement: Option<&Affine<Voxel, Patient>>) ->
 /// The rows as a table any spreadsheet opens: one line of column names, then a line for each
 /// measurement, fields separated by commas as RFC 4180 has it, lines ending CR LF. A name
 /// that a spreadsheet would take for a formula is written with an apostrophe before it. The
-/// last column of every line, `notice`, holds `notice`: the sentence that this is not for
-/// diagnostic use, which so goes wherever a line of the table is copied, sorted or filtered.
+/// column `notice` of every line holds `notice`: the sentence that this is not for diagnostic
+/// use, and anything else every measurement must carry, which so goes wherever a line of the
+/// table is copied, sorted or filtered. The columns are those 0.6.0 wrote, in their places,
+/// and then `scale`.
 pub fn measurements_csv(rows: &[Row], notice: &str) -> String {
     let mut table = format!("{HEADER}\r\n");
     let notice = field(&not_a_formula(notice));
@@ -77,12 +79,11 @@ pub fn measurements_csv(rows: &[Row], notice: &str) -> String {
             field(&not_a_formula(&row.label)),
             field(&row.value),
             field(&row.detail),
-            field(row.scale.name()),
         ];
         let numbers = row.points.iter().flatten().map(|part| format!("{part:.3}"));
         let blank = std::iter::repeat(String::new());
         let coordinates = numbers.chain(blank).take(COORDINATES);
-        let last = std::iter::once(notice.clone());
+        let last = [notice.clone(), field(row.scale.name())];
         let line: Vec<String> = words.into_iter().chain(coordinates).chain(last).collect();
         table.push_str(&line.join(","));
         table.push_str("\r\n");
@@ -116,7 +117,8 @@ fn space_of(rows: &[Row]) -> String {
 }
 
 /// The rows as JSON, with what kind of file it is, its version, what the points' numbers
-/// are, and `notice`: the sentence that this is not for diagnostic use.
+/// are, and `notice`: the sentence that this is not for diagnostic use, and anything else
+/// every measurement must carry.
 pub fn measurements_json(rows: &[Row], notice: &str) -> String {
     let written = Written {
         voxa: "measurements",
@@ -179,15 +181,16 @@ mod tests {
         let table = measurements_csv(&two(), NOTICE);
         let lines: Vec<&str> = table.split("\r\n").collect();
         assert_eq!(lines.len(), 4, "three lines, each ended: {table}");
+        // 0.6.0's columns in their places, and the scale after them.
         assert_eq!(
             lines[0],
-            "kind,label,value,detail,scale,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice"
+            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice,scale"
         );
-        let ruler = "Ruler,\"He said \"\"wide\"\", I think\",5.0 mm,,patient,0.000,0.000,10.000,3.000,-4.000,10.000,,,,\
-                     Voxa is not a medical device and is not for diagnostic use.";
+        let ruler = "Ruler,\"He said \"\"wide\"\", I think\",5.0 mm,,0.000,0.000,10.000,3.000,-4.000,10.000,,,,\
+                     Voxa is not a medical device and is not for diagnostic use.,patient";
         assert_eq!(lines[1], ruler);
-        let marker = "Marker,Marker 2,\"R 12.0, P 4.5, S 30.2 mm\",,patient,-12.000,4.500,30.250,,,,,,,\
-                      Voxa is not a medical device and is not for diagnostic use.";
+        let marker = "Marker,Marker 2,\"R 12.0, P 4.5, S 30.2 mm\",,-12.000,4.500,30.250,,,,,,,\
+                      Voxa is not a medical device and is not for diagnostic use.,patient";
         assert_eq!(lines[2], marker, "three coordinates and six empty fields");
         assert_eq!(lines[3], "", "the last line is ended too");
         assert!(
@@ -196,7 +199,7 @@ mod tests {
         );
         assert_eq!(
             measurements_csv(&[], NOTICE),
-            "kind,label,value,detail,scale,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice\r\n"
+            "kind,label,value,detail,x1,y1,z1,x2,y2,z2,x3,y3,z3,notice,scale\r\n"
         );
     }
 
@@ -248,8 +251,9 @@ mod tests {
         );
         let table = measurements_csv(&picture, NOTICE);
         let line = table.split("\r\n").nth(1).expect("a line");
-        let starts = "Ruler,Ruler 1,5.0 mm,,pixel spacing,1.000,1.500,0.000,4.000,5.500,0.000,";
+        let starts = "Ruler,Ruler 1,5.0 mm,,1.000,1.500,0.000,4.000,5.500,0.000,";
         assert!(line.starts_with(starts), "{line}");
+        assert!(line.ends_with(&format!("{NOTICE},pixel spacing")), "{line}");
         let text = measurements_json(&picture, NOTICE);
         let read: serde_json::Value = serde_json::from_str(&text).expect("it parses");
         assert_eq!(read["items"][0]["scale"], "pixel spacing");

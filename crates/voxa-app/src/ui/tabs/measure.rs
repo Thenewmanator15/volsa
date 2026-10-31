@@ -215,13 +215,29 @@ pub fn save(kind: Save, state: &AppState) -> Option<Notice> {
         .set_file_name(format!("{MEASUREMENTS_NAME}.{ending}"))
         .add_filter(what, &[ending])
         .save_file()?;
+    let text = written(kind, state);
+    Some(said(&path, write(&path, text.as_bytes())))
+}
+
+/// The measurements of the series in the scene, as the kind of file asked for, every one of
+/// them carrying [`notice`].
+fn written(kind: Save, state: &AppState) -> String {
     let placement = scene_placement(state).map(|at| at.placement);
     let rows = rows(&state.annotations.items, placement.as_ref());
-    let text = match kind {
-        Save::Csv => measurements_csv(&rows, theme::DISCLAIMER),
-        Save::Json => measurements_json(&rows, theme::DISCLAIMER),
-    };
-    Some(said(&path, write(&path, text.as_bytes())))
+    let notice = notice(state);
+    match kind {
+        Save::Csv => measurements_csv(&rows, &notice),
+        Save::Json => measurements_json(&rows, &notice),
+    }
+}
+
+/// What every saved measurement of the series in the scene carries: that Voxa is not for
+/// diagnostic use, and, for a plain stack, that where its slices lie is only roughly known.
+fn notice(state: &AppState) -> String {
+    match plain_stack_note(state) {
+        Some(note) => format!("{} {note}", theme::DISCLAIMER),
+        None => theme::DISCLAIMER.to_owned(),
+    }
 }
 
 #[cfg(test)]
