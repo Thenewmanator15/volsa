@@ -305,9 +305,13 @@ fn series(count: i32) -> Vec<(String, Vec<u8>)> {
         .collect()
 }
 
-/// Files of an export: five slices of a series, a deeply nested file and a note.
+/// Slices in the made-up export: enough that an index which shares a large export out among
+/// several threads would share out this one too.
+const SLICES: i32 = 100;
+
+/// Files of an export: the slices of a series, a deeply nested file and a note.
 fn export() -> Vec<(String, Vec<u8>)> {
-    let mut files = series(5);
+    let mut files = series(SLICES);
     files.push((
         "IMAGES/DEEP".to_owned(),
         nested_slice(&Nesting::of(FAR_TOO_DEEP)),
@@ -327,7 +331,8 @@ fn assert_refused_and_the_rest_read(index: &Index) {
     );
     assert_eq!(index.skipped, vec!["notes.txt".to_owned()]);
     assert_eq!(index.series.len(), 1);
-    assert_eq!(index.series[0].slices.len(), 5);
+    let slices = usize::try_from(SLICES).expect("a count");
+    assert_eq!(index.series[0].slices.len(), slices);
 }
 
 fn indexed(source: &mut dyn SeriesSource) -> Index {
