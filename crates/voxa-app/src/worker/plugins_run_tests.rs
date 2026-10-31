@@ -265,3 +265,32 @@ fn a_run_falls_to_the_processor_when_the_card_has_no_room() {
         .expect("who made it");
     assert_eq!(made.device, "the processor");
 }
+
+#[test]
+fn a_card_the_system_lists_twice_is_measured_once() {
+    let twice = StandIn::of(
+        vec![super::stand_ins::card_a(), super::stand_ins::card_a()],
+        vec![Some(8 * GIB), Some(8 * GIB)],
+        32 * GIB,
+    );
+    let lab = Lab::keeping(twice);
+    let starter = InProcessStarter {
+        peak: PEAK,
+        ..InProcessStarter::default()
+    };
+    lab.workers.set_plugin_starter(Arc::new(starter));
+    let (source, runtime) = (source(), runtime());
+    let PluginAction::Added(Ok(entry)) = add(&lab, source.path(), runtime.path()) else {
+        panic!("added");
+    };
+    assert_eq!(entry.runs_on, "the processor and Made-up card A");
+    let plugins = lab.settings().join("plugins");
+    let copy = fs::read_dir(&plugins)
+        .expect("the plugins folder")
+        .next()
+        .expect("one copy")
+        .expect("an entry")
+        .path();
+    let measured = voxa_plugins::read_measured(&copy).expect("measured.json");
+    assert_eq!(measured.cards.len(), 1, "{measured:?}");
+}

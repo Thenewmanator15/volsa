@@ -78,7 +78,7 @@ impl Shared {
     }
 
     /// Measure a plugin on the processor, which must work, and on each discrete card, where
-    /// it may not.
+    /// it may not. A card the system lists twice is measured once.
     fn measure_everywhere(&self, plugin: &Installed, runtime: &Path) -> Result<Measured, String> {
         let starter = self.plugins.starter();
         let labeller = self.labelling.labeller();
@@ -92,11 +92,16 @@ impl Shared {
         let (processor, _) = measure(starter.as_ref(), &job(Device::Processor)?, cap)
             .map_err(|why| why.to_string())?;
         let mut cards = Vec::new();
+        let mut seen = Vec::new();
         for card in room
             .cards
             .iter()
             .filter(|card| card.kind == CardKind::Discrete)
         {
+            if seen.contains(&card.id) {
+                continue;
+            }
+            seen.push(card.id);
             let busy = format!("Measuring what the plugin needs on {}.", card.name);
             self.tell_plugins(PluginAction::Busy(busy));
             if let Ok((ordinary_bytes, card_bytes)) =
