@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use tempfile::TempDir;
 
+pub mod helper;
 pub mod onnx;
 
 /// The SHA-256 of some bytes, in lower-case hex.

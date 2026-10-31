@@ -214,6 +214,19 @@ fn bin_of(value: f64, lowest: f32, highest: f32) -> usize {
 }
 
 impl Statistics {
+    /// Statistics of no values, for a run whose scaling and surroundings need none.
+    pub(crate) fn none() -> Self {
+        Self {
+            lowest: 0.0,
+            highest: 0.0,
+            count: 0,
+            mean: 0.0,
+            sd: 0.0,
+            largest_slab: 0,
+            bins: Vec::new(),
+        }
+    }
+
     /// The `index`-th smallest value counted, as near as the histogram tells it: within its
     /// bin's lowest and highest, spread evenly between them.
     fn nth(&self, index: u64) -> f64 {

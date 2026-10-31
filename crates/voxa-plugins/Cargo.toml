@@ -20,7 +20,7 @@ tempfile = { workspace = true, optional = true }
 
 [features]
 # Builders of made-up plugin folders, for this crate's tests and for the crates above it.
-testkit = ["dep:tempfile"]
+testkit = ["dep:tempfile", "voxa-models/testkit"]
 
 [dev-dependencies]
 proptest.workspace = true

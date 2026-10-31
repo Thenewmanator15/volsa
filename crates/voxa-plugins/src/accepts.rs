@@ -105,7 +105,7 @@ pub fn spacing_note(spacing_mm: [f64; 3], thickest_mm: Option<f64>) -> Option<St
 }
 
 /// A distance in millimetres as it is written: to one decimal place, none when it is nought.
-fn in_mm(mm: f64) -> String {
+pub(crate) fn in_mm(mm: f64) -> String {
     let written = format!("{mm:.1}");
     match written.strip_suffix(".0") {
         Some(whole) => whole.to_owned(),

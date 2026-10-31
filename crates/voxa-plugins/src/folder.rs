@@ -82,6 +82,9 @@ pub enum PluginError {
     /// The network file breaks a rule.
     #[error(transparent)]
     Network(#[from] NetworkError),
+    /// An added plugin's files are not those it was added with.
+    #[error("This plugin's files have changed since it was added. Remove it and add it again.")]
+    Changed,
     /// The network's inputs or outputs are not what the description says.
     #[error("{0}")]
     Fit(&'static str),
