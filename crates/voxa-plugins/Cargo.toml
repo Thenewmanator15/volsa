@@ -39,5 +39,10 @@ doc = false
 name = "with_runtime"
 required-features = ["testkit"]
 
+# Two budgets of the design measured without a model; ignored unless asked for.
+[[test]]
+name = "budgets"
+required-features = ["testkit"]
+
 [lints]
 workspace = true
