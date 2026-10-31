@@ -38,3 +38,14 @@ Measured figures are in `docs/measurements/2026-10-30-large-scans.md`.
 | LS-18 | Labelling's input is made from the held volume for the run only, and can be a range of slices. | 6.7 | | The labelling tests in `crates/voxa-app/src/worker/labelling_tests.rs` (whole series); a narrower range is untested until a model asks for one |
 | LS-19 | The smooth planes' curve is not worked out on the processor for a series past the budget, and the person is told why. | 6.7 | R-LS-06 | `crates/voxa-app/src/worker/held/memory_tests.rs::the_processors_curve_is_refused_past_the_budget`; `crates/voxa-app/src/worker/volume_tests.rs::no_curve_is_worked_out_for_a_volume_the_card_holds_in_slabs`; `crates/voxa-render/src/offscreen_scene/slab_tests.rs::a_volume_in_slabs_has_no_curve_made_on_the_device` |
 | LS-20 | The budgets of section 4 are measured with `measure_big` and `voxa.exe` on the made-up studies, and the results recorded. | 4 | | `docs/measurements/2026-10-30-large-scans.md`; `tools/measure/` |
+
+Decided by the owner on 31 October 2026:
+
+- The memory budgets B5, B6 and B13 count Voxa's own memory, not the card's copy that
+  Windows charges to it; both figures are reported.
+- A series the card holds in more than one texture gets no smooth planes (LS-19), as the
+  design decided; the planes say why.
+- Follow-up, not fixed: if a graphics card refuses a volume it was offered, the window halves
+  it from a 32-bit copy of the whole series on its own thread. That copy goes against LS-01
+  for as long as it lasts and can freeze the window for seconds (R-LS-09). No card measured
+  refuses a volume.
