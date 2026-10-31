@@ -1,5 +1,6 @@
-//! The window itself: opening a scan, the series list, full screen, the size of the
-//! interface, the keys and About, the tags of a file, and opening labels.
+//! The window itself: opening a scan, the scans shown or hidden, full screen, the size of the
+//! interface, the theme, the keys and About, where the log is, the tags of a file, and
+//! opening labels.
 
 use egui::Key;
 
@@ -7,7 +8,8 @@ use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::{PLAIN, alone, ctrl};
 use crate::planes::grid;
 use crate::ui::parts::NO_VOLUME;
-use crate::ui::toolbar::Pick;
+use crate::ui::theme::ThemeChoice;
+use crate::ui::top::Pick;
 
 /// The words each size of the interface is found by.
 const SIZE: &[&str] = &["interface size", "scale", "text size"];
@@ -21,6 +23,25 @@ const fn size(id: &'static str, label: &'static str, name: &'static str, at: f32
         words: SIZE,
         place: Place::Menu,
         does: Does::Ask(Request::Size(at)),
+        ..PLAIN
+    }
+}
+
+/// The action that draws the window in `choice`, as the top bar's theme button offers it.
+const fn theme(
+    id: &'static str,
+    label: &'static str,
+    name: &'static str,
+    words: &'static [&'static str],
+    choice: ThemeChoice,
+) -> Command {
+    Command {
+        id,
+        name,
+        label,
+        words,
+        place: Place::TopBar,
+        does: Does::Ask(Request::Theme(choice)),
         ..PLAIN
     }
 }
@@ -40,7 +61,7 @@ pub(super) const COMMANDS: &[Command] = &[
     Command {
         id: "open.file",
         name: "Open a zip file or a DICOMDIR",
-        label: "File…",
+        label: "Zip file or DICOMDIR…",
         words: &["open", "zip", "dicomdir", "file", "load"],
         place: Place::TopBar,
         does: Does::Ask(Request::Open(Pick::File)),
@@ -48,11 +69,12 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "rail.fold",
-        name: "Show or hide the series list",
-        label: "Series",
-        words: &["series", "list", "sidebar", "hide", "fold"],
+        name: "Show or hide the scans",
+        label: "Scans",
+        explains: "The column of scans at the left",
+        words: &["scans", "series", "list", "sidebar", "hide", "fold"],
         key: Some(alone(Key::B, "B")),
-        place: Place::TopBar,
+        place: Place::Menu,
         does: Does::Ask(Request::FoldRail),
         ..PLAIN
     },
@@ -125,6 +147,27 @@ pub(super) const COMMANDS: &[Command] = &[
         does: Does::Ask(Request::Help(None)),
         ..PLAIN
     },
+    theme(
+        "theme.system",
+        "System",
+        "Follow the system's light or dark setting",
+        &["theme", "appearance", "automatic", "system"],
+        ThemeChoice::System,
+    ),
+    theme(
+        "theme.light",
+        "Light",
+        "Use the light theme",
+        &["theme", "appearance", "light mode", "bright"],
+        ThemeChoice::Light,
+    ),
+    theme(
+        "theme.dark",
+        "Dark",
+        "Use the dark theme",
+        &["theme", "appearance", "dark mode", "night"],
+        ThemeChoice::Dark,
+    ),
     Command {
         id: "about",
         name: "About Voxa",
@@ -135,12 +178,23 @@ pub(super) const COMMANDS: &[Command] = &[
         ..PLAIN
     },
     Command {
+        id: "log.where",
+        name: "Show where the log is",
+        label: "Where the log is",
+        explains: "The log holds nothing about a patient and none of your files' names",
+        words: &["log", "diagnostics", "support", "crash"],
+        place: Place::Menu,
+        does: Does::Ask(Request::WhereTheLogIs),
+        ..PLAIN
+    },
+    Command {
         id: "tags.show",
         name: "Show the file's tags",
         label: "Tags",
         explains: "Every element of the file behind the slice shown",
         words: &["tags", "dicom", "header", "elements", "metadata"],
-        place: Place::Card,
+        // In the menu until the scans' cards have a menu of their own.
+        place: Place::Menu,
         does: Does::Ask(Request::Tags),
         ..PLAIN
     },

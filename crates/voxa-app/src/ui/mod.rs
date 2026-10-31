@@ -1,5 +1,5 @@
-//! The window: toolbar, series list, the pictures under the strip that arranges them, the tab
-//! panel and status line.
+//! The window: the top bar, the series list, the pictures under the strip that arranges them, the
+//! tab panel and the bottom line.
 
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
@@ -18,6 +18,7 @@ mod cine;
 mod commands;
 #[cfg(test)]
 mod described_tests;
+mod floating;
 #[cfg(test)]
 mod hand;
 mod help;
@@ -26,6 +27,7 @@ mod keys;
 mod labels;
 mod layout;
 pub(crate) mod lost;
+mod notices;
 mod overlay;
 mod panel;
 mod parts;
@@ -39,15 +41,17 @@ mod scene;
 mod screen;
 mod scrolled;
 mod search;
+#[cfg(test)]
+mod seen;
 mod shares;
 mod size;
 mod start;
-mod status;
 mod strip;
+mod symbols;
 mod tabs;
 mod tags;
 mod theme;
-mod toolbar;
+mod top;
 mod viewport;
 mod volumes;
 
@@ -70,6 +74,8 @@ pub struct VoxaApp {
     about_open: bool,
     help_open: bool,
     tags: tags::Panel,
+    /// What the bars keep between frames: the theme, and whether the list of notices is open.
+    bars: bars::Kept,
     /// The search box, which finds actions, parts, scans and help topics.
     search: search::Search,
     /// What the tabs keep between frames: the name being typed in the Measure tab, and the
@@ -177,6 +183,7 @@ impl VoxaApp {
             about_open: false,
             help_open: false,
             tags: tags::Panel::default(),
+            bars: bars::Kept::default(),
             search: search::Search::default(),
             tabs: tabs::Kept::default(),
             labels: labels::Opening::waiting_for(labels),
@@ -315,27 +322,25 @@ impl eframe::App for VoxaApp {
         // A narrow window folds a side column before any is drawn.
         let window = ui.ctx().content_rect().width();
         self.screen.settle(window);
-        let list_shown = self.screen.list_shown;
-        let shown = bars::show(ui, self.session.state(), list_shown, &mut actions);
-        let (asked, _disclaimer) = shown;
-        for request in asked.requests() {
+        let state = self.session.state();
+        let search = &mut self.search;
+        let (asked, _disclaimer) = bars::show(ui, state, search, &mut self.bars, &mut actions);
+        for request in asked {
             self.ask(ui.ctx(), request);
         }
-        if let Some(path) = toolbar::dropped(ui.ctx()) {
+        if let Some(path) = top::dropped(ui.ctx()) {
             actions.push(self.labels.opening(path));
         }
         let list = self.list(ui, &mut actions);
         let panel = self.tab_panel(ui, &mut actions);
-        egui::CentralPanel::default()
+        let pictures = egui::CentralPanel::default()
             .frame(middle())
             .show(ui, |ui| {
                 self.pictures(ui, frame.wgpu_render_state(), &mut actions);
             });
         self.drag_the_list(ui, list);
         self.drag_the_panel(ui, panel);
-        about::show(ui.ctx(), &mut self.about_open);
-        help::show(ui.ctx(), &mut self.help_open);
-        self.tags.show(ui.ctx(), self.session.state(), &mut actions);
+        self.windows(ui.ctx(), pictures.response.rect, &mut actions);
         self.keys(ui.ctx(), &mut actions);
         self.show_search(ui.ctx(), &mut actions);
         let saving = self.scene_asked.take();

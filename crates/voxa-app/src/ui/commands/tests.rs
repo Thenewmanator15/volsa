@@ -262,7 +262,7 @@ fn down(key: Key) -> Event {
     }
 }
 
-/// What the window's key path takes from a frame in which H, 1, / and M are pressed, after
+/// What the window's key path takes from a frame in which H, 1, M and / are pressed, after
 /// a frame in which a text field was drawn, and given the keyboard if `typing`.
 fn typed(typing: bool) -> (Vec<Action>, Vec<Request>) {
     let state = thick_scan_ready();
@@ -270,7 +270,7 @@ fn typed(typing: bool) -> (Vec<Action>, Vec<Request>) {
     let mut text = String::new();
     let field = egui::Id::new("a field");
     let mut taken = (Vec::new(), Vec::new());
-    let pressed = [Key::H, Key::Num1, Key::Slash, Key::M].map(down);
+    let pressed = [Key::H, Key::Num1, Key::M, Key::Slash].map(down);
     for events in [Vec::new(), pressed.to_vec()] {
         let input = RawInput {
             events,
@@ -301,7 +301,7 @@ fn keys_do_nothing_while_a_text_field_has_focus() {
     assert_eq!(actions, [flip, Action::SetLayout(Layout::One)]);
     assert_eq!(
         requests,
-        [Request::Search, Request::ShowTab(Tab::Measure)],
+        [Request::ShowTab(Tab::Measure), Request::Search],
         "with the field let go"
     );
 }

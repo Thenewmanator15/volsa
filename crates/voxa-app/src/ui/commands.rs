@@ -8,7 +8,7 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-use egui::{Button, Key, Ui};
+use egui::{AtomLayoutResponse, Button, Key, Ui};
 
 use super::keys::Held;
 pub use super::panel::Tab;
@@ -16,7 +16,7 @@ use super::parts::Asked;
 use super::scene::export;
 use super::tabs::Save;
 use super::theme::ThemeChoice;
-use super::toolbar::Pick;
+use super::top::Pick;
 use crate::action::Action;
 use crate::profile::Profile;
 use crate::state::AppState;
@@ -87,6 +87,10 @@ pub enum Place {
     /// A tab of the panel at the right.
     Tab(Tab),
     /// The card of a scan.
+    #[expect(
+        dead_code,
+        reason = "the tags' action is in the top bar's menu until Task 11 gives the cards one"
+    )]
     Card,
     /// Nowhere but its key.
     Keys,
@@ -137,7 +141,6 @@ pub enum Request {
     /// To fold the panel of tabs, or unfold it.
     FoldPanel,
     /// To draw the window in this theme.
-    #[expect(dead_code, reason = "Task 10 adds the theme button")]
     Theme(ThemeChoice),
     /// To draw the interface at this size, 1 being its usual size.
     Size(f32),
@@ -156,6 +159,8 @@ pub enum Request {
     /// To label the scan in the scene with Voxa's own networks, told how much of the graphics
     /// card the window holds itself, which only the window can say.
     LabelScan,
+    /// To say, in a notice, where the log of this run is.
+    WhereTheLogIs,
     /// To show the files that are not scans.
     #[expect(dead_code, reason = "Task 11 adds the other files")]
     ShowOtherFiles,
@@ -267,7 +272,7 @@ pub fn hint(command: &Command) -> String {
 /// for, nothing is drawn.
 pub fn button(ui: &mut Ui, id: &str, state: &AppState, selected: Option<bool>) -> Option<Does> {
     let command = find(id)?;
-    drawn(ui, command, command.label, state, selected)
+    labelled(ui, command, command.label, state, selected)
 }
 
 /// As [`button`], with a label that follows the state, such as Play that becomes Pause.
@@ -278,35 +283,64 @@ pub fn button_labelled(
     state: &AppState,
     selected: Option<bool>,
 ) -> Option<Does> {
-    drawn(ui, find(id)?, label, state, selected)
+    labelled(ui, find(id)?, label, state, selected)
 }
 
-/// Draw an action's button with this label: its hint, why not while it cannot be used, and
-/// its name for a screen reader, whatever the label.
-fn drawn(
+/// As [`button`], with the button itself made by `make` from the action, for a button that is
+/// more than a label: one with its key beside its name, or an icon drawn on it. Gives where
+/// the button was drawn, with the places of its custom atoms, and what it does if it was
+/// clicked; `None` when the action is not offered for the scan shown.
+pub fn button_made<'a>(
+    ui: &mut Ui,
+    id: &str,
+    state: &AppState,
+    make: impl FnOnce(&Command) -> Button<'a>,
+) -> Option<(AtomLayoutResponse, Option<Does>)> {
+    let command = find(id)?;
+    draw(ui, command, make(command), state)
+}
+
+/// Draw an action's button with this label.
+fn labelled(
     ui: &mut Ui,
     command: &Command,
     label: &str,
     state: &AppState,
     selected: Option<bool>,
 ) -> Option<Does> {
-    if !offered(command, state) {
-        return None;
-    }
-    let why_not = (command.why_not)(state);
     let button = match selected {
         Some(on) => Button::selectable(on, label),
         None => Button::new(label),
     };
-    let response = ui.add_enabled(why_not.is_none(), button);
+    draw(ui, command, button, state)?.1
+}
+
+/// Draw an action's button: its hint, why not while it cannot be used, and its name for a
+/// screen reader, whatever the button says.
+fn draw(
+    ui: &mut Ui,
+    command: &Command,
+    button: Button<'_>,
+    state: &AppState,
+) -> Option<(AtomLayoutResponse, Option<Does>)> {
+    if !offered(command, state) {
+        return None;
+    }
+    let why_not = (command.why_not)(state);
+    let mut shown = if why_not.is_none() {
+        button.atom_ui(ui)
+    } else {
+        ui.add_enabled_ui(false, |ui| button.atom_ui(ui)).inner
+    };
     // A screen reader says the name, which a short label such as `◀` does not.
     ui.ctx()
-        .accesskit_node_builder(response.id, |node| node.set_label(command.name));
-    let mut response = response.on_hover_text(hint(command));
+        .accesskit_node_builder(shown.response.id, |node| node.set_label(command.name));
+    shown.response = shown.response.on_hover_text(hint(command));
     if let Some(why) = why_not {
-        response = response.on_disabled_hover_text(why);
+        shown.response = shown.response.on_disabled_hover_text(why);
     }
-    response.clicked().then_some(command.does)
+    let does = shown.response.clicked().then_some(command.does);
+    Some((shown, does))
 }
 
 #[cfg(test)]

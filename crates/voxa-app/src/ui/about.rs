@@ -7,8 +7,8 @@ use std::sync::LazyLock;
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
-use super::scrolled;
-use super::theme;
+use super::{floating, scrolled, theme};
+use crate::state::{Notice, NoticeKind};
 
 /// What is said about licences and credits, a line each.
 pub const LICENCES: [&str; 7] = [
@@ -43,8 +43,32 @@ pub const LOG_SAYS: &str = concat!(
     "library, where it happened."
 );
 
+/// The key of the notice that says where the log is: asking again takes the old one's place.
+const LOG_NOTICE_KEY: &str = "log";
+/// The title of the window that shows the notices of everything Voxa is built from.
+const NOTICES_TITLE: &str = "Licences and notices";
+
 /// Voxa's version, as written in its package.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The notice that says where the log of this run is, or that there is none.
+pub fn where_the_log_is() -> Notice {
+    log_notice(crate::log::path())
+}
+
+/// The notice that says the log is at `path`, if it is anywhere.
+fn log_notice(path: Option<&std::path::Path>) -> Notice {
+    let text = match path {
+        Some(path) => format!("The log of this run is at {}.", path.display()),
+        None => "Voxa is not keeping a log in this run.".to_owned(),
+    };
+    Notice {
+        kind: NoticeKind::Info,
+        text,
+        details: Vec::new(),
+        key: Some(LOG_NOTICE_KEY),
+    }
+}
 
 /// Voxa's own notice, with the credit to `SynthSeg`: the `NOTICE` file that comes with it.
 pub const NOTICE: &str = include_str!("../../../../NOTICE");
@@ -68,8 +92,24 @@ fn notices_open() -> egui::Id {
 }
 
 /// Open the notices window: what the button in the About window does.
-fn open_notices(ctx: &egui::Context) {
+pub(super) fn open_notices(ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(notices_open(), true));
+}
+
+/// Close the notices window, which Esc does when it was opened last.
+pub(super) fn close_notices(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(notices_open(), false));
+}
+
+/// Whether the notices window is open.
+pub(super) fn notices_are_open(ctx: &egui::Context) -> bool {
+    ctx.data(|data| data.get_temp::<bool>(notices_open()))
+        .unwrap_or(false)
+}
+
+/// The notices window's own name, which it keeps its place under.
+fn notices_id() -> egui::Id {
+    egui::Id::new("voxa: licences and notices")
 }
 
 /// What a window's frame and title take of the height of the window it is shown in.
@@ -78,7 +118,7 @@ const AROUND: f32 = 64.0;
 const BUTTON_ROOM: f32 = 28.0;
 
 /// The interface's own name for the About window, which it keeps its place under.
-fn named() -> egui::Id {
+pub(super) fn id() -> egui::Id {
     egui::Id::new("voxa: about")
 }
 
@@ -87,13 +127,14 @@ fn named() -> egui::Id {
 /// the notices stays below it. The notices window is shown here too, for as long as it is
 /// open. Gives what egui said of the text, while the window is shown.
 pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
-    let room = ctx.content_rect().height();
-    let about = egui::Window::new("About Voxa")
-        .id(named())
+    let room = floating::area(ctx).height();
+    let window = egui::Window::new("About Voxa");
+    let about = floating::over(window, ctx)
+        .id(id())
         .open(open)
         .collapsible(false)
         .resizable(false)
-        .default_height(ctx.content_rect().height())
+        .default_height(room)
         .show(ctx, |ui| {
             scrolled::solid_bars(ui);
             let most = (room - 2.0 * AROUND - BUTTON_ROOM).max(AROUND);
@@ -147,7 +188,9 @@ fn contents(ui: &mut egui::Ui) {
 /// Only the lines in view are laid out, so the window stays quick however long the notices.
 fn notices(ctx: &egui::Context, open: &mut bool) {
     // Wide enough for the 78 columns most of the texts are written to.
-    egui::Window::new("Licences and notices")
+    let window = egui::Window::new(NOTICES_TITLE);
+    floating::over(window, ctx)
+        .id(notices_id())
         .open(open)
         .collapsible(false)
         .default_size([700.0, 440.0])
@@ -212,7 +255,7 @@ mod tests {
             let named = nodes.iter().find(|(_, node)| node.label() == Some(BUTTON));
             button = named.and_then(|(_, node)| node.bounds());
         }
-        let window = ctx.memory(|memory| memory.area_rect(named()));
+        let window = ctx.memory(|memory| memory.area_rect(id()));
         let window = window.expect("the window is shown");
         let button = button.expect("the button is there");
         let corner = |x: f64, y: f64| egui::pos2(narrowed(x), narrowed(y));
@@ -263,9 +306,25 @@ mod tests {
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         }
-        let shown = ctx.memory(|memory| memory.area_rect(named()));
+        let shown = ctx.memory(|memory| memory.area_rect(id()));
         let shown = shown.expect("the window is shown");
         assert!(screen.contains_rect(shown), "{shown:?}");
+    }
+
+    #[test]
+    fn the_place_of_the_log_is_said_in_an_information_notice() {
+        let path = std::path::Path::new("logs").join("voxa.log");
+        let said = log_notice(Some(&path));
+        assert_eq!(said.kind, NoticeKind::Info);
+        assert!(
+            said.text.contains(&path.display().to_string()),
+            "{}",
+            said.text
+        );
+        assert_eq!(said.key, Some("log"));
+        let none = log_notice(None);
+        assert_eq!(none.kind, NoticeKind::Info);
+        assert!(none.text.contains("not keeping a log"), "{}", none.text);
     }
 
     #[test]

@@ -2,9 +2,10 @@
 
 use egui::{Id, Pos2, RawInput, Rect, WidgetRect, WidgetRects, vec2};
 
-use super::show;
+use super::{Kept, show};
 use crate::prefs::SMALLEST_WINDOW;
 use crate::state::{AppState, Notice, NoticeKind};
+use crate::ui::search::Search;
 use crate::ui::theme;
 
 /// What was laid out: where the disclaimer is and its id, where the pictures go, and every
@@ -16,7 +17,7 @@ struct Laid {
     widgets: WidgetRects,
 }
 
-/// Lay the frame out in `screen` at interface size `zoom`, with a long notice on the status
+/// Lay the frame out in `screen` at interface size `zoom`, with a long notice on the bottom
 /// line, and the pictures in what is left, as the window does: a few passes, for the panels
 /// to take their sizes.
 fn laid_out(screen: Rect, zoom: f32) -> Laid {
@@ -35,6 +36,7 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
         key: None,
     });
     let mut laid = (Rect::NOTHING, Id::NULL, Rect::NOTHING);
+    let (mut search, mut kept) = (Search::default(), Kept::default());
     for _ in 0..4 {
         let input = RawInput {
             screen_rect: Some(screen),
@@ -42,7 +44,7 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
         };
         let mut output = ctx.run_ui(input, |ui| {
             let mut actions = Vec::new();
-            let (_, disclaimer) = show(ui, &state, true, &mut actions);
+            let (_, disclaimer) = show(ui, &state, &mut search, &mut kept, &mut actions);
             let pictures = egui::CentralPanel::default().show(ui, |ui| {
                 ui.allocate_space(ui.available_size());
             });

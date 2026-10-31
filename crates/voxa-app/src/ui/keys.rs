@@ -52,13 +52,19 @@ pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
 }
 
 /// What the keys pressed this frame ask for in `state`: the changes of state, and what is
-/// asked of the window. Nothing while the person is typing in a field.
+/// asked of the window. Nothing while the person is typing in a field. Once a key asks for the
+/// search, the keys after it in the frame are not taken: they are meant for the search box
+/// that opens, which has not yet the keyboard in this frame.
 pub fn answered(ctx: &egui::Context, state: &AppState) -> (Vec<Action>, Vec<Request>) {
     let mut actions = Vec::new();
     let mut requests = Vec::new();
     for (key, held) in pressed_keys(ctx) {
         let asked = pressed(key, held, state).and_then(|does| does.run(state, &mut actions));
+        let opens_search = asked == Some(Request::Search);
         requests.extend(asked);
+        if opens_search {
+            break;
+        }
     }
     (actions, requests)
 }
@@ -134,6 +140,44 @@ mod tests {
             (Key::Space, none),
         ];
         assert_eq!(taken(events, false), expected, "H and Space act once");
+    }
+
+    #[test]
+    fn once_a_key_asks_for_the_search_the_keys_after_it_in_the_frame_are_not_taken() {
+        let state = crate::testing::thick_scan_ready();
+        let answered_to = |keys: &[Key]| {
+            // A context of its own each time: a key pressed again before it is let go is taken
+            // for the system repeating it.
+            let ctx = egui::Context::default();
+            let events = keys.iter().map(|key| down(*key, false)).collect();
+            let input = egui::RawInput {
+                events,
+                ..egui::RawInput::default()
+            };
+            let mut answer = None;
+            let mut output = ctx.run_ui(input, |ui| answer = Some(answered(ui.ctx(), &state)));
+            // No renderer is behind this pass to take the font texture.
+            output.textures_delta.clear();
+            answer.expect("the keys are answered")
+        };
+        // A slash opens the search, and the letters typed after it in the same frame go to the
+        // box, not to the actions they are the keys of.
+        let keys = [Key::H, Key::R, Key::Num2];
+        let (acted, asked) = answered_to(&keys);
+        assert!(acted.len() >= 2, "with no slash they act: {acted:?}");
+        assert_eq!(asked, []);
+        for opening in [vec![Key::Slash], vec![Key::H, Key::Slash]] {
+            let before = opening.iter().position(|key| *key == Key::Slash);
+            let all: Vec<Key> = opening.iter().copied().chain(keys).collect();
+            let (acted, asked) = answered_to(&all);
+            assert_eq!(asked, [Request::Search], "after {opening:?}");
+            // Only what came before the slash acts.
+            assert_eq!(
+                acted.len(),
+                before.unwrap_or(0),
+                "after {opening:?}: {acted:?}"
+            );
+        }
     }
 
     #[test]

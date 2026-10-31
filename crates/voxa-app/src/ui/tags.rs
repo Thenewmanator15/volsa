@@ -6,7 +6,7 @@ use egui::RichText;
 use voxa_core::SeriesId;
 use voxa_dicom::{TagRow, is_patient_identifying};
 
-use super::theme;
+use super::{floating, theme};
 use crate::action::Action;
 use crate::state::AppState;
 use crate::worker::Workers;
@@ -19,6 +19,9 @@ const HIDDEN_KINDS: &str = "that could identify the patient: the patient's own, 
                             private values.";
 /// Where the patient's details are shown again.
 const SHOWS_THEM: &str = "\"Patient details\" in the toolbar shows them.";
+
+/// The title of the tag browser window.
+const TITLE: &str = "DICOM tags";
 
 /// The rows of a file, or why they could not be listed.
 pub type Listing = Result<Vec<TagRow>, String>;
@@ -135,6 +138,11 @@ impl Panel {
     }
 }
 
+/// The interface's own name for the tag browser window, which it keeps its place under.
+pub(super) fn id() -> egui::Id {
+    egui::Id::new("voxa: tags")
+}
+
 /// The tag browser window: a search field, then the rows that match it.
 pub fn show(
     ctx: &egui::Context,
@@ -143,7 +151,8 @@ pub fn show(
     listing: &Listing,
     actions: &mut Vec<Action>,
 ) {
-    egui::Window::new("DICOM tags")
+    floating::over(egui::Window::new(TITLE), ctx)
+        .id(id())
         .open(open)
         .default_size([620.0, 440.0])
         .show(ctx, |ui| {

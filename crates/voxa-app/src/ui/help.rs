@@ -3,7 +3,7 @@
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
-use super::{commands, scrolled, theme};
+use super::{commands, floating, scrolled, theme};
 
 /// What the mouse does over a viewport, for the same window.
 pub const MOUSE: [(&str, &str); 14] = [
@@ -49,7 +49,7 @@ const WIDEST: f32 = 860.0;
 const BESIDE: f32 = 760.0;
 
 /// The interface's own name for the window, which it keeps its place under.
-fn named() -> egui::Id {
+pub(super) fn id() -> egui::Id {
     egui::Id::new("voxa: keys and mouse")
 }
 
@@ -57,10 +57,11 @@ fn named() -> egui::Id {
 /// small to hold it all, it scrolls, with its bar in sight; in a narrow one, what each key
 /// does follows it. Gives what egui said of its list, while it is shown.
 pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
-    let room = ctx.content_rect().size();
+    let room = floating::area(ctx).size();
     let wide = (room.x - AROUND).clamp(AROUND, WIDEST);
-    let shown = egui::Window::new("Keys and mouse")
-        .id(named())
+    let window = egui::Window::new("Keys and mouse");
+    let shown = floating::over(window, ctx)
+        .id(id())
         .open(open)
         .collapsible(false)
         .auto_sized()
@@ -246,7 +247,7 @@ mod tests {
             let shown = scrolled.map_or(egui::Rect::NOTHING, |scrolled| scrolled.shown);
             bar = bar_drawn(&output.shapes, shown);
         }
-        let shown = ctx.memory(|memory| memory.area_rect(named()));
+        let shown = ctx.memory(|memory| memory.area_rect(id()));
         let shown = shown.expect("the reference is shown");
         (scrolled.expect("its list is laid out"), bar, shown)
     }

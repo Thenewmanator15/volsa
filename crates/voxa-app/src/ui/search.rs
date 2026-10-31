@@ -9,8 +9,8 @@
 //! field empty.
 
 use egui::{
-    Align2, Area, Context, Event, EventFilter, Frame, Id, Key, Modifiers, Order, RichText,
-    ScrollArea, TextEdit, Ui, style::ScrollAnimation, vec2,
+    Align2, Area, Context, Event, EventFilter, Frame, Id, Key, Modifiers, Order, Pos2, Rect,
+    RichText, ScrollArea, TextEdit, Ui, style::ScrollAnimation, vec2,
 };
 
 use super::VoxaApp;
@@ -30,6 +30,8 @@ mod box_tests;
 #[cfg(test)]
 mod keys_tests;
 #[cfg(test)]
+mod modal_tests;
+#[cfg(test)]
 mod run_tests;
 #[cfg(test)]
 mod tests;
@@ -40,6 +42,10 @@ mod view_tests;
 const BOX: &str = "voxa: search";
 /// The field's own name.
 const FIELD: &str = "voxa: search field";
+/// The name of what covers the window, under the box, for as long as it is open.
+const BLOCKER: &str = "voxa: search covers the window";
+/// How far under the top bar's box the results hang, in points.
+const UNDER_THE_BOX: f32 = 2.0;
 /// Where the window is told, for as long as the box is open, that it has the keyboard.
 const HOLDS_KEYBOARD: &str = "voxa: search holds the keyboard";
 /// How far below the top of the window the box hangs, in points.
@@ -67,6 +73,9 @@ pub struct Search {
     /// Whether it was opened in the pass now being drawn, whose key presses and clicks are
     /// the ones that opened it.
     fresh: bool,
+    /// Where the top bar's box is, which the results hang under; `None` before the bar has
+    /// said, when they hang from the top of the window.
+    under: Option<Rect>,
     /// What is typed.
     query: String,
     /// Which result is chosen, by its place among those listed.
@@ -123,6 +132,11 @@ impl Pressed {
 }
 
 impl Search {
+    /// Say where the top bar's box is: the results hang under it while the search is open.
+    pub fn hang_from(&mut self, bar_box: Rect) {
+        self.under = Some(bar_box);
+    }
+
     /// Open the box with nothing typed.
     pub fn open(&mut self) {
         self.open = true;
@@ -216,19 +230,22 @@ impl Search {
         let width = (room.width() - 2.0 * SIDE_ROOM).clamp(NARROWEST, WIDEST);
         let tallest = (room.height() - FROM_TOP - 96.0).clamp(80.0, TALLEST_LIST);
         let mut chosen = None;
-        let shown = Area::new(Id::new(BOX))
-            .order(Order::Foreground)
-            .anchor(Align2::CENTER_TOP, vec2(0.0, FROM_TOP))
-            .show(ctx, |ui| {
-                Frame::popup(ui.style()).show(ui, |ui| {
-                    ui.set_width(width);
-                    self.field(ui);
-                    self.find_again_if_changed();
-                    let moved = self.move_choice(pressed.down);
-                    chosen = self.list(ui, state, tallest, moved);
-                    self.to_top = false;
-                });
+        cover_the_window(ctx);
+        let area = Area::new(Id::new(BOX)).order(Order::Foreground);
+        let area = match self.under {
+            Some(bar_box) => area.fixed_pos(under(bar_box, room, width)),
+            None => area.anchor(Align2::CENTER_TOP, vec2(0.0, FROM_TOP)),
+        };
+        let shown = area.show(ctx, |ui| {
+            Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_width(width);
+                self.field(ui);
+                self.find_again_if_changed();
+                let moved = self.move_choice(pressed.down);
+                chosen = self.list(ui, state, tallest, moved);
+                self.to_top = false;
             });
+        });
         (chosen, shown.response.rect)
     }
 
@@ -304,6 +321,28 @@ impl Search {
         });
         clicked
     }
+}
+
+/// Cover the whole window, under the box, with something that takes the pointer but does
+/// nothing with it. The box is open until the press that closes it is over, and that press
+/// is the box's: it must not reach what is under it, such as a picture with a ruler in hand.
+fn cover_the_window(ctx: &Context) {
+    let room = ctx.content_rect();
+    Area::new(Id::new(BLOCKER))
+        .order(Order::Foreground)
+        .fixed_pos(room.min)
+        .constrain(false)
+        .show(ctx, |ui| {
+            ui.allocate_space(room.size());
+        });
+}
+
+/// Where the corner of the box goes to hang under the top bar's box `bar_box`, with the box
+/// `width` across, inside `room`.
+fn under(bar_box: Rect, room: Rect, width: f32) -> Pos2 {
+    let furthest = room.right() - SIDE_ROOM - width;
+    let left = bar_box.left().min(furthest).max(room.left());
+    Pos2::new(left, bar_box.bottom() + UNDER_THE_BOX)
 }
 
 /// Tell the window whether the box has the keyboard.

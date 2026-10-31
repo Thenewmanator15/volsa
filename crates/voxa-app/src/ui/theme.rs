@@ -72,12 +72,9 @@ pub fn apply(ctx: &egui::Context) {
 }
 
 /// Which theme the window is drawn in: the system's, or light or dark whatever the system
-/// says. Only dark is drawn so far; the choice is offered and applied by later work.
+/// says. Only dark is drawn so far: the top bar's button chooses, and a later change applies
+/// the choice.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-#[expect(
-    dead_code,
-    reason = "light and dark are offered by Task 10's theme button and drawn by Task 17"
-)]
 pub enum ThemeChoice {
     /// As the system is set.
     #[default]
@@ -86,6 +83,18 @@ pub enum ThemeChoice {
     Light,
     /// Dark.
     Dark,
+}
+
+impl ThemeChoice {
+    /// The choice the theme button moves to from this one: the system's, then light, then
+    /// dark, and round again.
+    pub const fn next(self) -> Self {
+        match self {
+            Self::System => Self::Light,
+            Self::Light => Self::Dark,
+            Self::Dark => Self::System,
+        }
+    }
 }
 
 /// Set the lines of a bar closer together in a window shorter than [`SHORT`]: the buttons
@@ -135,6 +144,27 @@ mod tests {
         };
         assert_eq!(padding(900.0), vec2(10.0, 5.0));
         assert_eq!(padding(680.0), vec2(8.0, 2.0));
+    }
+
+    #[test]
+    fn the_theme_button_goes_from_system_to_light_to_dark_and_round_again() {
+        let mut choice = ThemeChoice::default();
+        assert_eq!(choice, ThemeChoice::System);
+        let seen: Vec<ThemeChoice> = (0..4)
+            .map(|_| {
+                choice = choice.next();
+                choice
+            })
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ThemeChoice::Light,
+                ThemeChoice::Dark,
+                ThemeChoice::System,
+                ThemeChoice::Light
+            ]
+        );
     }
 
     #[test]

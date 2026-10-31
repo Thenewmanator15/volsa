@@ -1,5 +1,6 @@
-//! The size the interface is drawn at: the Size menu in the bar, beside the keys that egui
-//! itself answers to (Ctrl+= and Ctrl+- for larger and smaller, Ctrl+0 for the usual size).
+//! The size the interface is drawn at: the interface size menu in the top bar's menu, beside the
+//! keys that egui itself answers to (Ctrl+= and Ctrl+- for larger and smaller, Ctrl+0 for the
+//! usual size).
 
 use egui::{RichText, Ui};
 
@@ -7,10 +8,10 @@ use super::commands::{self, Does, Request};
 use super::theme;
 use crate::state::AppState;
 
-/// The sizes the Size menu offers: 1 is the interface's usual size.
+/// The sizes the interface size menu offers: 1 is the interface's usual size.
 pub const SIZES: [f32; 8] = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
 
-/// What the Size menu says when pointed at.
+/// What the interface size menu says when pointed at.
 pub const SIZE_SAYS: &str = "How large the interface is drawn: its words, buttons and lists. \
                              Ctrl+= and Ctrl+- make it larger and smaller, and Ctrl+0 puts it \
                              back to its usual size.";
@@ -27,12 +28,12 @@ fn action_for(size: f32) -> Option<&'static commands::Command> {
     })
 }
 
-/// The Size menu: the interface size now, and the sizes to choose between, each an action of
-/// the list of actions. Gives the size chosen, if one was.
+/// The interface size menu: the interface size now, and the sizes to choose between, each an
+/// action of the list of actions. Gives the size chosen, if one was.
 pub fn menu(ui: &mut Ui, state: &AppState) -> Option<f32> {
     let now = ui.ctx().zoom_factor();
     let mut chosen = None;
-    let menu = ui.menu_button(format!("Size {}", percent(now)), |ui| {
+    let menu = ui.menu_button(format!("Interface size {}", percent(now)), |ui| {
         for command in SIZES.into_iter().filter_map(action_for) {
             let this = command.label == percent(now);
             let pressed = commands::button(ui, command.id, state, Some(this));
