@@ -11,7 +11,7 @@ use crate::worker::volume_tests::{build, counted, stored, until_the_volume_ends}
 /// Build a series of 30 slices of 4 x 4 counted values, each slice's options changed by
 /// `change`, and give the files and the reports.
 /// The files of a series, each a name and its bytes.
-type Files = Vec<(String, Vec<u8>)>;
+pub(super) type Files = Vec<(String, Vec<u8>)>;
 
 fn built(
     change: impl Fn(u16, &mut voxa_dicom::testkit::SliceOptions),
@@ -26,7 +26,7 @@ fn built(
 }
 
 /// Every value of the held volume equals, to the bit, what decoding its file gives.
-fn reads_as_decoded(bench: &Bench, files: &[(String, Vec<u8>)]) {
+pub(super) fn reads_as_decoded(bench: &Bench, files: &[(String, Vec<u8>)]) {
     let held = stored(bench, THICK_SCAN).expect("kept");
     for (slice, (_, bytes)) in files.iter().enumerate() {
         let decoded = ImageFile::open(bytes)

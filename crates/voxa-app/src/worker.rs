@@ -3,9 +3,9 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use voxa_core::SeriesId;
 use voxa_dicom::{Index, IndexedSeries, SeriesSource, index, open_source};
@@ -50,6 +50,15 @@ struct Shared {
     cache: Arc<Mutex<FrameCache>>,
     /// The memory budget for decoded values: what the frame cache was given at the start.
     budget: usize,
+    /// The most bytes in one slab of a volume built.
+    slab_bytes: AtomicUsize,
+    /// Whether it has been said that the volume being built could not be put on disk.
+    told_no_room: AtomicBool,
+    /// Held while a slab is being put on disk: one at a time, each copy of a slab made to be
+    /// written being memory too.
+    putting_away: Mutex<()>,
+    /// These very workers, for what is done later on another thread.
+    me: Weak<Shared>,
     /// The source that is open, once it has been indexed.
     source: Mutex<Option<Box<dyn SeriesSource>>>,
     /// How many sources have been opened. Work begun for an earlier one stops.
@@ -116,10 +125,18 @@ impl Workers {
     ) -> Self {
         let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
         let budget = lock(&cache).budget();
-        let shared = Shared {
+        if let Some(local) = &settings {
+            // Slabs a Voxa that stopped left on disk.
+            crate::spill::clear_leftovers(local);
+        }
+        let shared = Arc::new_cyclic(|me| Shared {
             reports,
             cache,
             budget,
+            slab_bytes: AtomicUsize::new(held::SLAB_BYTES),
+            told_no_room: AtomicBool::new(false),
+            putting_away: Mutex::new(()),
+            me: me.clone(),
             source: Mutex::new(None),
             opened: AtomicU64::new(0),
             kept: opened::Opened::default(),
@@ -139,12 +156,12 @@ impl Workers {
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),
             keeping: kept::Keeping::default(),
-        };
+        });
         let building = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-build-{n}"));
         Self {
             pool: named.build().ok(),
             builds: building.build().ok(),
-            shared: Arc::new(shared),
+            shared,
         }
     }
 

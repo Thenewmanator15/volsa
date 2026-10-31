@@ -186,6 +186,11 @@ impl Shared {
         lock(&self.cache).forget(series);
         drop(store);
         self.share_the_budget();
+        // Taken out first: the store is locked again to count what is held.
+        let kept = lock(&self.volumes).kept();
+        if let Some(kept) = kept {
+            self.keep_within(&kept, false);
+        }
         let series = series.clone();
         self.report(Action::VolumeReady {
             series: series.clone(),

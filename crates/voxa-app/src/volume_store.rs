@@ -29,6 +29,11 @@ impl VolumeStore {
         (of == series).then(|| Arc::clone(volume))
     }
 
+    /// The volume kept, whichever series it is of.
+    pub fn kept(&self) -> Option<Arc<HeldVolume>> {
+        self.held.as_ref().map(|(_, volume)| Arc::clone(volume))
+    }
+
     /// Whether the volume of a series is the one kept.
     pub fn holds(&self, series: &SeriesId) -> bool {
         self.held.as_ref().is_some_and(|(of, _)| of == series)

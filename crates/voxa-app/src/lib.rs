@@ -37,6 +37,7 @@ mod said;
 mod scene;
 mod session;
 mod settings;
+mod spill;
 mod state;
 #[cfg(test)]
 mod testing;

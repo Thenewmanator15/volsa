@@ -22,8 +22,8 @@ use voxa_render::{CardRoom, HeadlessScene, Look, SceneParams};
 
 /// How long the workers may take over one step before the measurement gives up.
 const PATIENCE: Duration = Duration::from_secs(600);
-/// The frame cache the window keeps, as large as the window's.
-const CACHE_BYTES: usize = 1 << 30;
+/// The memory budget, as the window's is by default; `VOXA_BUDGET_MIB` sets another.
+const BUDGET_BYTES: usize = 2 << 30;
 /// How many pictures are timed in each look and size, after one that is not.
 const TIMES: usize = 5;
 const SIZES: [[u32; 2]; 2] = [[1280, 800], [3840, 2160]];
@@ -89,7 +89,13 @@ fn measure(path: &Path, draw: bool, started: Instant) -> Result<(), String> {
         &format!("{} (3D side {side})", gpu.device_name()),
     );
     let (sender, reports) = channel();
-    let mut session = Session::new(sender, reports, CACHE_BYTES, None);
+    let asked = std::env::var("VOXA_BUDGET_MIB").ok();
+    let budget = asked
+        .and_then(|mib| mib.trim().parse::<usize>().ok())
+        .map_or(BUDGET_BYTES, |mib| mib << 20);
+    // A folder of its own, as the window has, for slabs past the budget.
+    let local = std::env::temp_dir().join("voxa-measure-big");
+    let mut session = Session::new(sender, reports, budget, Some(local));
     // As the window does: told what the device can hold; never given the device itself.
     let workers = session.workers();
     workers.set_card_room(CardRoom::of(&device, None));
@@ -112,6 +118,10 @@ fn measure(path: &Path, draw: bool, started: Instant) -> Result<(), String> {
         ms(placing)
     );
     step(started, "on device", &said);
+    let held = session.volume(&id).map_or(0, |volume| volume.bytes_held()) >> 20;
+    let over = session.workers().over_budget() >> 20;
+    let budgeted = format!("{held} MiB of the volume in memory; {over} MiB past the budget");
+    step(started, "budget", &budgeted);
     if draw {
         draw_all(&session, &mut gpu, started)?;
     }

@@ -8,6 +8,15 @@ pub const CACHE_FLOOR: usize = 64 << 20;
 /// The most the budget is unless the person sets it.
 const MOST_BY_DEFAULT: usize = 2 << 30;
 
+/// The variable that sets the budget, in mebibytes, for measuring Voxa: it comes before
+/// what the preferences say.
+pub const VARIABLE: &str = "VOXA_BUDGET_MIB";
+
+/// The budget asked for in [`VARIABLE`], in mebibytes, if it is a number.
+pub fn asked() -> Option<u32> {
+    std::env::var(VARIABLE).ok()?.trim().parse().ok()
+}
+
 /// The budget for a computer of `physical_bytes` of memory, where that is known: 2 GiB, or a
 /// quarter of its memory if that is less.
 pub fn default_for(physical_bytes: Option<u64>) -> usize {

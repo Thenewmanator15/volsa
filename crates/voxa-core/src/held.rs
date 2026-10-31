@@ -4,13 +4,20 @@
 //! bit. Slices are put in from many threads at once, each straight into its place.
 
 use std::ops::Range;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{PoisonError, RwLock};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::{Arc, OnceLock, PoisonError, RwLock};
 
 use crate::grid::Grid;
 use crate::rescale::Rescale;
 use crate::space::{Affine, Patient, Point, Voxel};
 use crate::volume::Volume;
+
+mod away;
+mod values;
+
+use away::Slab;
+pub use away::SlabStore;
+use values::Values;
 
 /// How a held volume keeps its values.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -69,66 +76,6 @@ pub enum HeldError {
     NoSuchSlice,
 }
 
-/// One slab's numbers.
-enum Values {
-    Unsigned(Box<[u16]>),
-    Signed(Box<[i16]>),
-    Float(Box<[f32]>),
-}
-
-impl Values {
-    /// `len` numbers of the kind `stored`, all 0.
-    fn zeroed(stored: Stored, len: usize) -> Self {
-        match stored {
-            Stored::Unsigned16 => Self::Unsigned(vec![0; len].into_boxed_slice()),
-            Stored::Signed16 => Self::Signed(vec![0; len].into_boxed_slice()),
-            Stored::Float32 => Self::Float(vec![0.0; len].into_boxed_slice()),
-        }
-    }
-
-    fn raw(&self) -> SlabRaw<'_> {
-        match self {
-            Self::Unsigned(values) => SlabRaw::Unsigned(values),
-            Self::Signed(values) => SlabRaw::Signed(values),
-            Self::Float(values) => SlabRaw::Float(values),
-        }
-    }
-
-    fn bytes(&self) -> usize {
-        match self {
-            Self::Unsigned(values) => size_of_val(&**values),
-            Self::Signed(values) => size_of_val(&**values),
-            Self::Float(values) => size_of_val(&**values),
-        }
-    }
-
-    /// Copy a slice's numbers in from `at`.
-    fn put(&mut self, at: usize, slice: SliceIn<'_>) -> Result<(), HeldError> {
-        fn copy<T: Copy>(into: &mut [T], at: usize, from: &[T]) -> Result<(), HeldError> {
-            let place = into
-                .get_mut(at..at + from.len())
-                .ok_or(HeldError::WrongSize)?;
-            place.copy_from_slice(from);
-            Ok(())
-        }
-        match (self, slice) {
-            (Self::Unsigned(into), SliceIn::Unsigned(from)) => copy(into, at, from),
-            (Self::Signed(into), SliceIn::Signed(from)) => copy(into, at, from),
-            (Self::Float(into), SliceIn::Float(from)) => copy(into, at, from),
-            _ => Err(HeldError::WrongKind),
-        }
-    }
-
-    /// The value of the number at `at`.
-    fn value(&self, at: usize, rescale: Rescale) -> Option<f32> {
-        match self {
-            Self::Unsigned(values) => Some(rescale.value(i32::from(*values.get(at)?))),
-            Self::Signed(values) => Some(rescale.value(i32::from(*values.get(at)?))),
-            Self::Float(values) => values.get(at).copied(),
-        }
-    }
-}
-
 /// A series' values as stored, in slabs of whole slices, with the transform that places each
 /// voxel in the patient. Slices are put in through a shared reference, so that many threads
 /// can put theirs at once; a slab is made when its first slice is put.
@@ -140,10 +87,15 @@ pub struct HeldVolume {
     rescale: Rescale,
     /// Slices in a slab; the last slab may have fewer.
     per_slab: u32,
-    slabs: Vec<RwLock<Option<Values>>>,
+    slabs: Vec<RwLock<Slab>>,
     /// Which slices have been put.
     put: Vec<AtomicBool>,
     count: AtomicU32,
+    /// When each slab was last read, by `clock`, so that the least used is put away first.
+    read_at: Vec<AtomicU64>,
+    clock: AtomicU64,
+    /// Where slabs are put away past the budget, once there is somewhere.
+    away: OnceLock<Arc<dyn SlabStore>>,
 }
 
 impl HeldVolume {
@@ -174,9 +126,12 @@ impl HeldVolume {
             stored,
             rescale,
             per_slab,
-            slabs: (0..slab_count).map(|_| RwLock::new(None)).collect(),
+            slabs: (0..slab_count).map(|_| RwLock::new(Slab::Empty)).collect(),
             put: (0..slices).map(|_| AtomicBool::new(false)).collect(),
             count: AtomicU32::new(0),
+            read_at: (0..slab_count).map(|_| AtomicU64::new(0)).collect(),
+            clock: AtomicU64::new(0),
+            away: OnceLock::new(),
         })
     }
 
@@ -223,13 +178,17 @@ impl HeldVolume {
         }
         let slab = (slice / self.per_slab) as usize;
         let cell = self.slabs.get(slab).ok_or(HeldError::NoSuchSlice)?;
-        let mut values = cell.write().unwrap_or_else(PoisonError::into_inner);
-        let made = values.get_or_insert_with(|| {
+        let mut held = cell.write().unwrap_or_else(PoisonError::into_inner);
+        if matches!(*held, Slab::Empty) {
             let slices = self.slab_slices(slab).len();
-            Values::zeroed(self.stored, slices * self.in_slice())
-        });
+            *held = Slab::Here(Values::zeroed(self.stored, slices * self.in_slice()));
+        }
+        // Only a whole slab is put away, and nothing more is put in a whole one.
+        let Slab::Here(made) = &mut *held else {
+            return Err(HeldError::NoSuchSlice);
+        };
         made.put((slice % self.per_slab) as usize * self.in_slice(), numbers)?;
-        drop(values);
+        drop(held);
         if !flag.swap(true, Ordering::SeqCst) {
             self.count.fetch_add(1, Ordering::SeqCst);
         }
@@ -265,32 +224,27 @@ impl HeldVolume {
             return None;
         }
         let first = (slice % self.per_slab) as usize * self.in_slice();
-        let cell = self.slabs.get((slice / self.per_slab) as usize)?;
-        let values = cell.read().unwrap_or_else(PoisonError::into_inner);
         let range = first..first + self.in_slice();
         let rescale = self.rescale;
-        match values.as_ref()? {
-            Values::Unsigned(numbers) => {
-                let numbers = numbers.get(range)?;
-                into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
+        self.read_slab((slice / self.per_slab) as usize, |values| {
+            match values {
+                Values::Unsigned(numbers) => {
+                    let numbers = numbers.get(range)?;
+                    into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
+                }
+                Values::Signed(numbers) => {
+                    let numbers = numbers.get(range)?;
+                    into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
+                }
+                Values::Float(numbers) => into.extend_from_slice(numbers.get(range)?),
             }
-            Values::Signed(numbers) => {
-                let numbers = numbers.get(range)?;
-                into.extend(numbers.iter().map(|n| rescale.value(i32::from(*n))));
-            }
-            Values::Float(numbers) => into.extend_from_slice(numbers.get(range)?),
-        }
-        Some(())
+            Some(())
+        })?
     }
 
     /// Read a slab's numbers as held, if it has been made.
     pub fn with_slab<T>(&self, slab: usize, read: impl FnOnce(SlabRaw<'_>) -> T) -> Option<T> {
-        let values = self
-            .slabs
-            .get(slab)?
-            .read()
-            .unwrap_or_else(PoisonError::into_inner);
-        Some(read(values.as_ref()?.raw()))
+        self.read_slab(slab, |values| read(values.raw()))
     }
 
     /// Read one slice's numbers as held, if its slab has been made.
@@ -300,14 +254,14 @@ impl HeldVolume {
         }
         let first = (slice % self.per_slab) as usize * self.in_slice();
         let range = first..first + self.in_slice();
-        let cell = self.slabs.get((slice / self.per_slab) as usize)?;
-        let values = cell.read().unwrap_or_else(PoisonError::into_inner);
-        let raw = match values.as_ref()? {
-            Values::Unsigned(numbers) => SlabRaw::Unsigned(numbers.get(range)?),
-            Values::Signed(numbers) => SlabRaw::Signed(numbers.get(range)?),
-            Values::Float(numbers) => SlabRaw::Float(numbers.get(range)?),
-        };
-        Some(read(raw))
+        self.read_slab((slice / self.per_slab) as usize, |values| {
+            let raw = match values {
+                Values::Unsigned(numbers) => SlabRaw::Unsigned(numbers.get(range)?),
+                Values::Signed(numbers) => SlabRaw::Signed(numbers.get(range)?),
+                Values::Float(numbers) => SlabRaw::Float(numbers.get(range)?),
+            };
+            Some(read(raw))
+        })?
     }
 
     /// The values of a range of slices that have been put, as a volume of 32-bit numbers
@@ -333,11 +287,12 @@ impl HeldVolume {
         Volume::new(dims, values, placed)
     }
 
-    /// The bytes of the slabs made so far.
+    /// The bytes of the slabs made so far that are in memory, and not put away.
     pub fn bytes_held(&self) -> usize {
-        let held = |cell: &RwLock<Option<Values>>| {
-            let values = cell.read().unwrap_or_else(PoisonError::into_inner);
-            values.as_ref().map_or(0, Values::bytes)
+        let held = |cell: &RwLock<Slab>| match &*cell.read().unwrap_or_else(PoisonError::into_inner)
+        {
+            Slab::Here(values) => values.bytes(),
+            Slab::Empty | Slab::Away => 0,
         };
         self.slabs.iter().map(held).sum()
     }
@@ -363,9 +318,8 @@ impl Grid for HeldVolume {
         }
         let within = (slice % self.per_slab) as usize * self.in_slice();
         let at = within + row as usize * cols as usize + col as usize;
-        let cell = self.slabs.get((slice / self.per_slab) as usize)?;
-        let values = cell.read().unwrap_or_else(PoisonError::into_inner);
-        values.as_ref()?.value(at, self.rescale)
+        let slab = (slice / self.per_slab) as usize;
+        self.read_slab(slab, |values| values.value(at, self.rescale))?
     }
 }
 
@@ -381,5 +335,7 @@ impl std::fmt::Debug for HeldVolume {
     }
 }
 
+#[cfg(test)]
+mod away_tests;
 #[cfg(test)]
 mod tests;

@@ -25,7 +25,7 @@ mod window;
 
 pub use error::VoxaError;
 pub use grid::Grid;
-pub use held::{HeldError, HeldVolume, SlabRaw, SliceIn, Stored};
+pub use held::{HeldError, HeldVolume, SlabRaw, SlabStore, SliceIn, Stored};
 pub use kind::{MOST_LOCATING, SeriesKind};
 pub use model::{SeriesId, SeriesInfo, SeriesProblem, StudyId, StudyInfo, VolumeSet};
 pub use rescale::Rescale;

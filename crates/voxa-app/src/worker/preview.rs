@@ -1,10 +1,16 @@
-//! A preview of a long series' volume, made from every eighth slice as soon as those are in
-//! it, so that the 3D view shows something while the rest are decoded.
+//! A preview of a long series' volume, made from every eighth slice before the volume is
+//! filled, so that the 3D view shows something while the rest are decoded. Each of those
+//! slices is reduced as it is decoded, so the preview never holds them in full; they are
+//! decoded again for the volume, which is filled slab by slab.
 
+use std::sync::Mutex;
+
+use rayon::prelude::*;
 use voxa_core::{Grid, HeldVolume, SeriesId};
+use voxa_dicom::IndexedSeries;
 
 use super::volume::Build;
-use super::{Shared, lock};
+use super::{Shared, batches, lock};
 use crate::action::Action;
 
 /// A series of more slices than this is shown as a preview while it is built.
@@ -14,46 +20,74 @@ pub const PREVIEW_STRIDE: u32 = 8;
 /// Each voxel of the preview is this many of the series' across and down.
 pub const PREVIEW_ACROSS: u32 = 4;
 
-/// The slices of a series of `of` decoded first, for its preview, and those decoded after:
-/// none first for a series too short to need a preview.
-pub(super) fn passes(of: usize) -> (Vec<usize>, Vec<usize>) {
+/// The slices of a series of `of` decoded first, for its preview: none for a series too
+/// short to need one.
+pub(super) fn preview_slices(of: usize) -> Vec<usize> {
     if of <= PREVIEW_SLICES {
-        return (Vec::new(), (0..of).collect());
+        return Vec::new();
     }
-    let stride = PREVIEW_STRIDE as usize;
-    let first = (0..of).step_by(stride).collect();
-    let after = (0..of).filter(|slice| slice % stride != 0).collect();
-    (first, after)
+    (0..of).step_by(PREVIEW_STRIDE as usize).collect()
 }
 
 impl Shared {
-    /// Make the preview of a series from its slices `of` already in `held`, keep it in the
-    /// store and say so, while the build is still the newest. Nothing when one of those
-    /// slices is not there.
+    /// Make the preview of a series of `held`'s size and place from its slices `of`, keep it
+    /// in the store and say so, while the build is still the newest. Nothing when one of
+    /// those slices cannot be read.
     pub(super) fn preview_of(
         &self,
-        (held, of): (&HeldVolume, &[usize]),
-        series: &SeriesId,
+        (listed, held): (&IndexedSeries, &HeldVolume),
+        of: Vec<usize>,
         build: &Build,
     ) {
-        let slices: Option<Vec<(u32, Vec<f32>)>> = of
-            .iter()
-            .map(|&slice| {
-                let at = u32::try_from(slice).ok()?;
-                Some((at, held.slice_values(at)?))
-            })
-            .collect();
-        let made = slices.and_then(|slices| {
-            voxa_volume::preview(
-                held.voxel_to_patient(),
-                held.dims(),
-                &slices,
-                PREVIEW_ACROSS,
-            )
+        let [cols, rows, _] = held.dims();
+        let reduced = Mutex::new(Vec::with_capacity(of.len()));
+        batches(listed, of).par_iter().for_each(|file| {
+            if !self.building(build) {
+                return;
+            }
+            let image = self.open(&file.entry);
+            for (slice, frame) in &file.slices {
+                let cached = lock(&self.cache).get(&listed.info.id, *slice);
+                let values = cached.map(|frame| frame.values.clone()).or_else(|| {
+                    let image = image.as_ref().ok()?;
+                    Some(image.decode(*frame).ok()?.values)
+                });
+                let small = values
+                    .map(|values| voxa_volume::reduced(&values, [cols, rows], PREVIEW_ACROSS));
+                lock(&reduced).push((u32::try_from(*slice).ok(), small));
+            }
         });
+        let reduced = reduced
+            .into_inner()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let slices: Option<Vec<(u32, Vec<f32>)>> = reduced
+            .into_iter()
+            .map(|(at, values)| Some((at?, values?)))
+            .collect();
+        let Some(mut slices) = slices else {
+            return;
+        };
+        slices.sort_by_key(|(at, _)| *at);
+        let made = voxa_volume::preview_of_reduced(
+            held.voxel_to_patient(),
+            held.dims(),
+            &slices,
+            PREVIEW_ACROSS,
+        );
         let Some(preview) = made else {
             return;
         };
+        self.offer_preview(&listed.info.id, preview, held, build);
+    }
+
+    /// Keep a preview in the store and say so, while the build is still the newest.
+    fn offer_preview(
+        &self,
+        series: &SeriesId,
+        preview: voxa_core::Volume,
+        held: &HeldVolume,
+        build: &Build,
+    ) {
         // Checked with the store locked, so a newer build's preview is never overwritten.
         let mut store = lock(&self.volumes);
         if !self.building(build) {
@@ -75,11 +109,9 @@ mod tests {
 
     #[test]
     fn a_long_series_has_every_eighth_slice_decoded_first() {
-        let (first, after) = passes(300);
+        let first = preview_slices(300);
         assert_eq!(first.len(), 38);
         assert_eq!(&first[..3], [0, 8, 16]);
-        assert_eq!(first.len() + after.len(), 300);
-        assert!(after.iter().all(|slice| slice % 8 != 0));
-        assert_eq!(passes(256), (Vec::new(), (0..256).collect()));
+        assert_eq!(preview_slices(256), Vec::<usize>::new());
     }
 }

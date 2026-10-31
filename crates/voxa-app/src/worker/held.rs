@@ -11,7 +11,7 @@ use voxa_core::{HeldError, HeldVolume, Rescale, SeriesId, SliceIn, Stored};
 use voxa_dicom::{ImageFile, IndexedSeries, StoredSamples};
 use voxa_volume::{VolumeError, can_be_volume};
 
-use super::preview::passes;
+use super::preview::preview_slices;
 use super::volume::Build;
 use super::{Batch, Shared, batches, lock};
 use crate::action::Action;
@@ -48,6 +48,8 @@ impl Shared {
         if let Err(why) = can_be_volume(&listed.info) {
             return Built::Failed(None, why.to_string());
         }
+        self.told_no_room
+            .store(false, std::sync::atomic::Ordering::SeqCst);
         let (stored, rescale) = self.first_kind(listed);
         if let Some(built) = self.fill(listed, build, stored, rescale) {
             return built;
@@ -92,7 +94,7 @@ impl Shared {
         let of = listed.slices.len();
         let made = info.voxel_to_patient.and_then(|placed| {
             let dims = [info.cols, info.rows, u32::try_from(of).ok()?];
-            HeldVolume::new(dims, placed, stored, rescale, SLAB_BYTES)
+            HeldVolume::new(dims, placed, stored, rescale, self.slab_bytes())
         });
         let Some(held) = made else {
             return Some(Built::Failed(None, VolumeError::NoGeometry.to_string()));
@@ -105,14 +107,20 @@ impl Shared {
             progress: Progress::new(&info.id, of),
         };
         // A long series' every eighth slice first, for a preview while the rest are decoded.
-        let (first, after) = passes(of);
+        let first = preview_slices(of);
         if !first.is_empty() {
-            self.fill_slices(listed, first.clone(), &filling);
-            if filling.going(self) && lock(&filling.failed).is_empty() {
-                self.preview_of((&held, &first), &info.id, build);
-            }
+            self.preview_of((listed, &held), first, build);
         }
-        self.fill_slices(listed, after, &filling);
+        // Then slab by slab, so that each is finished, and past the budget put on disk,
+        // before the next is begun.
+        for slab in 0..held.slab_count() {
+            if !filling.going(self) {
+                break;
+            }
+            let slices = held.slab_slices(slab).map(|slice| slice as usize).collect();
+            self.fill_slices(listed, slices, &filling);
+            self.keep_within(&held, true);
+        }
         let Filling { other, failed, .. } = filling;
         if other.load(Ordering::SeqCst) {
             return None;
@@ -298,5 +306,7 @@ impl<'a> Progress<'a> {
     }
 }
 
+#[cfg(test)]
+mod spill_tests;
 #[cfg(test)]
 mod tests;

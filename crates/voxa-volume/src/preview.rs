@@ -17,6 +17,30 @@ pub fn preview(
     across: u32,
 ) -> Option<Volume> {
     let [cols, rows, _] = dims;
+    if across == 0
+        || slices
+            .iter()
+            .any(|(_, slice)| slice.len() != cols as usize * rows as usize)
+    {
+        return None;
+    }
+    let reduced: Vec<(u32, Vec<f32>)> = slices
+        .iter()
+        .map(|(at, slice)| (*at, reduced(slice, [cols, rows], across)))
+        .collect();
+    preview_of_reduced(voxel_to_patient, dims, &reduced, across)
+}
+
+/// As [`preview`], from slices each already reduced by [`reduced`]: so that a preview of a
+/// long series is made without holding its slices in full. `None` with no slices, `across`
+/// of 0, or a slice that is not the size a reduced one is.
+pub fn preview_of_reduced(
+    voxel_to_patient: Affine<Voxel, Patient>,
+    dims: [u32; 3],
+    slices: &[(u32, Vec<f32>)],
+    across: u32,
+) -> Option<Volume> {
+    let [cols, rows, _] = dims;
     let (first, _) = slices.first()?;
     let (last, _) = slices.last()?;
     if across == 0 {
@@ -26,10 +50,10 @@ pub fn preview(
     let count = u32::try_from(slices.len()).ok()?;
     let mut values = Vec::with_capacity(small[0] as usize * small[1] as usize * slices.len());
     for (_, slice) in slices {
-        if slice.len() != cols as usize * rows as usize {
+        if slice.len() != small[0] as usize * small[1] as usize {
             return None;
         }
-        values.extend(reduced(slice, [cols, rows], across));
+        values.extend_from_slice(slice);
     }
     let apart = if count > 1 {
         f64::from(last - first) / f64::from(count - 1)
@@ -48,8 +72,9 @@ pub fn preview(
     Volume::new([small[0], small[1], count], values, to_patient)
 }
 
-/// One slice of `cols` by `rows` reduced to the means of its blocks of `across` a side.
-fn reduced(slice: &[f32], [cols, rows]: [u32; 2], across: u32) -> Vec<f32> {
+/// One slice of `cols` by `rows` reduced to the means of its blocks of `across` a side: the
+/// slice as a preview holds it.
+pub fn reduced(slice: &[f32], [cols, rows]: [u32; 2], across: u32) -> Vec<f32> {
     let [cols, rows, across] = [cols, rows, across].map(|count| count as usize);
     let (wide, high) = (cols.div_ceil(across), rows.div_ceil(across));
     let mut sums = vec![(0.0_f64, 0_u32); wide * high];
