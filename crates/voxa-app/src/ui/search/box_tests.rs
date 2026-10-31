@@ -19,16 +19,18 @@ pub(super) struct Pass {
     pub(super) chosen: Option<Target>,
     pub(super) words: Vec<String>,
     pub(super) places: Vec<(String, Rect)>,
+    /// The part of the window each piece of text could be seen in, in the same order.
+    pub(super) clips: Vec<Rect>,
 }
 
 /// The words written by a shape and the shapes within it, and where each is.
-fn words_of(shape: &egui::Shape, into: &mut Vec<(String, Rect)>) {
+fn words_of(shape: &egui::Shape, clip: Rect, into: &mut Vec<(String, Rect, Rect)>) {
     match shape {
         egui::Shape::Text(text) => {
             let place = text.visual_bounding_rect();
-            into.push((text.galley.text().to_owned(), place));
+            into.push((text.galley.text().to_owned(), place, clip));
         }
-        egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| words_of(shape, into)),
+        egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| words_of(shape, clip, into)),
         _ => {}
     }
 }
@@ -40,16 +42,18 @@ pub(super) fn window() -> Context {
     ctx
 }
 
-/// Draw one pass in which `events` happen, with `first` run before search is drawn in the
-/// same pass, as the window runs its keys before it draws search.
-pub(super) fn pass_with(
+/// Draw one pass in a window 900 points wide and `height` high in which `events` happen, with
+/// `first` run before search is drawn in the same pass, as the window runs its keys before it
+/// draws search.
+pub(super) fn pass_sized(
     ctx: &Context,
     search: &mut Search,
     state: &AppState,
     events: Vec<Event>,
+    height: f32,
     first: impl FnOnce(&Context),
 ) -> Pass {
-    let screen = Rect::from_min_size(Pos2::ZERO, vec2(900.0, 600.0));
+    let screen = Rect::from_min_size(Pos2::ZERO, vec2(900.0, height));
     let input = RawInput {
         screen_rect: Some(screen),
         events,
@@ -64,16 +68,31 @@ pub(super) fn pass_with(
     });
     // No renderer is behind this pass to take the font texture.
     output.textures_delta.clear();
-    let mut places = Vec::new();
+    let mut drawn = Vec::new();
     for clipped in &output.shapes {
-        words_of(&clipped.shape, &mut places);
+        words_of(&clipped.shape, clipped.clip_rect, &mut drawn);
     }
-    let words = places.iter().map(|(word, _)| word.clone()).collect();
     Pass {
         chosen,
-        words,
-        places,
+        words: drawn.iter().map(|(word, _, _)| word.clone()).collect(),
+        places: drawn
+            .iter()
+            .map(|(word, place, _)| (word.clone(), *place))
+            .collect(),
+        clips: drawn.iter().map(|(_, _, clip)| *clip).collect(),
     }
+}
+
+/// Draw one pass in a window 900 by 600 points in which `events` happen, with `first` run
+/// before search is drawn in the same pass.
+pub(super) fn pass_with(
+    ctx: &Context,
+    search: &mut Search,
+    state: &AppState,
+    events: Vec<Event>,
+    first: impl FnOnce(&Context),
+) -> Pass {
+    pass_sized(ctx, search, state, events, 600.0, first)
 }
 
 /// Draw one pass in which `events` happen.

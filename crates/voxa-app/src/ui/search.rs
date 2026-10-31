@@ -10,7 +10,7 @@
 
 use egui::{
     Align2, Area, Context, Event, EventFilter, Frame, Id, Key, Modifiers, Order, RichText,
-    ScrollArea, TextEdit, Ui, vec2,
+    ScrollArea, TextEdit, Ui, style::ScrollAnimation, vec2,
 };
 
 use super::VoxaApp;
@@ -33,6 +33,8 @@ mod keys_tests;
 mod run_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod view_tests;
 
 /// The box's own name, which it keeps its place under.
 const BOX: &str = "voxa: search";
@@ -77,6 +79,9 @@ pub struct Search {
     results: Vec<usize>,
     /// The query `results` is for; `None` when `entries` has been made again since.
     results_for: Option<String>,
+    /// Whether the results were found again since they were last drawn. The list keeps how far
+    /// it was scrolled, whatever it holds, so it is drawn from its first result.
+    to_top: bool,
 }
 
 /// The keys the box answers to, taken from the pass before the field can take them for its own.
@@ -186,6 +191,9 @@ impl Search {
         if self.results_for.as_deref() != Some(self.query.as_str()) {
             self.results = ranked(&self.query, &self.entries);
             self.results_for = Some(self.query.clone());
+            // A list found again is another list: its first result is chosen, and in view.
+            self.chosen = 0;
+            self.to_top = true;
         }
         self.chosen = self.chosen.min(self.results.len().saturating_sub(1));
     }
@@ -218,6 +226,7 @@ impl Search {
                     self.find_again_if_changed();
                     let moved = self.move_choice(pressed.down);
                     chosen = self.list(ui, state, tallest, moved);
+                    self.to_top = false;
                 });
             });
         (chosen, shown.response.rect)
@@ -242,9 +251,6 @@ impl Search {
         let response = ui.add(field);
         ui.ctx()
             .accesskit_node_builder(response.id, |node| node.set_label("Search"));
-        if response.changed() {
-            self.chosen = 0;
-        }
     }
 
     /// Move the choice down by `places`, round the ends; whether it moved.
@@ -271,28 +277,31 @@ impl Search {
         }
         let mut clicked = None;
         let mut under = None;
-        ScrollArea::vertical()
+        let mut area = ScrollArea::vertical()
             .max_height(tallest)
-            .auto_shrink([false, true])
-            .show(ui, |ui| {
-                for (position, place) in self.results.iter().enumerate() {
-                    let Some(entry) = self.entries.get(*place) else {
-                        continue;
-                    };
-                    if under != Some(entry.heading) {
-                        under = Some(entry.heading);
-                        rows::heading(ui, entry.heading);
-                    }
-                    let chosen = position == self.chosen;
-                    let response = rows::row(ui, entry, state, chosen);
-                    if chosen && follow {
-                        response.scroll_to_me(None);
-                    }
-                    if response.clicked() {
-                        clicked = Some(entry.target.clone());
-                    }
+            .auto_shrink([false, true]);
+        if self.to_top {
+            area = area.vertical_scroll_offset(0.0);
+        }
+        area.show(ui, |ui| {
+            for (position, place) in self.results.iter().enumerate() {
+                let Some(entry) = self.entries.get(*place) else {
+                    continue;
+                };
+                if under != Some(entry.heading) {
+                    under = Some(entry.heading);
+                    rows::heading(ui, entry.heading);
                 }
-            });
+                let chosen = position == self.chosen;
+                let response = rows::row(ui, entry, state, chosen);
+                if chosen && follow {
+                    response.scroll_to_me_animation(None, ScrollAnimation::none());
+                }
+                if response.clicked() {
+                    clicked = Some(entry.target.clone());
+                }
+            }
+        });
         clicked
     }
 }
