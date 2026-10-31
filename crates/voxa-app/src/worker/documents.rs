@@ -9,10 +9,11 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use voxa_core::VoxaError;
-use voxa_dicom::{Report, SliceRef, TagRow, pdf_bytes, read_report};
+use voxa_dicom::{Report, ReportLine, SliceRef, TagRow, pdf_bytes, read_report};
 
 use super::{Shared, Workers};
 use crate::action::Action;
+use crate::naming::printable;
 use crate::state::{Notice, NoticeKind};
 
 /// What is said of a report that is there but cannot be read as one.
@@ -67,7 +68,9 @@ impl Shared {
             Some(Err(error)) => return Err(logged(&error, NOT_FOUND)),
             None => return Err(NOT_FOUND.to_owned()),
         };
-        read_report(&bytes).map_err(|error| logged(&error, NOT_READ))
+        read_report(&bytes)
+            .map(printable_lines)
+            .map_err(|error| logged(&error, NOT_READ))
     }
 
     /// Write the PDF in `entry` to `to`, and say how it went.
@@ -91,6 +94,21 @@ impl Shared {
 fn logged(error: &VoxaError, sentence: &str) -> String {
     tracing::warn!("a document could not be read: {}", error.kind());
     sentence.to_owned()
+}
+
+/// The report with every line cleared once, here, of the characters that would turn, hide or
+/// break the words around them, so that the window draws the lines as they are and does no
+/// such work for each line each time it draws.
+fn printable_lines(report: Report) -> Report {
+    let lines = report.lines.into_iter().map(|line| ReportLine {
+        heading: line.heading.map(|heading| printable(&heading)),
+        text: printable(&line.text),
+        ..line
+    });
+    Report {
+        lines: lines.collect(),
+        cut_short: report.cut_short,
+    }
 }
 
 /// A notice about saving a PDF.

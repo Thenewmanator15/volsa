@@ -8,6 +8,10 @@ use voxa_dicom::{DocumentKind, Index, IndexedDocument};
 use crate::naming::printable;
 use crate::people::people_of;
 
+pub mod mask;
+
+pub use mask::Mask;
+
 /// The places in [`Index::documents`] of the documents of the study at `study` of
 /// [`Index::studies`], in the order the index lists them.
 pub fn of_study(index: &Index, study: usize) -> Vec<usize> {

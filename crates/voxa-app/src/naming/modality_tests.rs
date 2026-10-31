@@ -196,7 +196,11 @@ fn objects_that_carry_pixels_but_are_no_picture_of_the_body_are_other_files() {
         let info = with(code, "made-up object", Some(Axial), "HEAD");
         assert_eq!(group_of(&info), Group::Other, "{code}");
         assert_eq!(plain_name(&info), words, "{code}");
-        assert!(!is_page(&info), "{code} is not a page or a screenshot");
+        // Radiotherapy images and doses can have the patient's name written into the picture,
+        // as a page can; the rest are not drawn small only because they are not pictures of the
+        // body.
+        let writes_on_the_picture = ["RTDOSE", "RTIMAGE"].contains(&code);
+        assert_eq!(is_page(&info), writes_on_the_picture, "{code}");
         let padded = with(&format!(" {} ", code.to_lowercase()), "", None, "");
         assert_eq!(
             group_of(&padded),

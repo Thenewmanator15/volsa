@@ -19,30 +19,45 @@ use crate::testing::three_series_files;
 use crate::ui::seen::{self, Seen, click_at};
 
 /// The window these passes are drawn in.
-const WINDOW: [f32; 2] = [900.0, 600.0];
+pub(super) const WINDOW: [f32; 2] = [900.0, 600.0];
 
 /// What one pass of the document gave and drew.
-struct Drawn {
-    actions: Vec<Action>,
-    asked: Vec<Request>,
-    seen: Seen,
+pub(super) struct Drawn {
+    pub actions: Vec<Action>,
+    pub asked: Vec<Request>,
+    pub seen: Seen,
 }
 
 /// A state that has read the made-up export, with this document open.
-fn opened(entry: &str, report: Option<Result<Report, String>>) -> AppState {
+pub(super) fn opened(entry: &str, report: Option<Result<Report, String>>) -> AppState {
+    opened_with(scans_and_documents(), entry, report)
+}
+
+/// A state that has read this export, with this document open.
+pub(super) fn opened_with(
+    index: voxa_dicom::Index,
+    entry: &str,
+    report: Option<Result<Report, String>>,
+) -> AppState {
     let mut state = AppState::default();
-    reduce(&mut state, Action::IndexProgress(scans_and_documents()));
+    reduce(&mut state, Action::IndexProgress(index));
     let entry = entry.to_owned();
     state.document = Some(OpenDocument { entry, report });
     state
 }
 
-fn pass(ctx: &Context, state: &AppState, events: Vec<Event>) -> Drawn {
+/// One pass of the window with what is kept of the report from before.
+pub(super) fn pass_with(
+    ctx: &Context,
+    state: &AppState,
+    kept: &mut Kept,
+    events: Vec<Event>,
+) -> Drawn {
     let open = state.document.as_ref().expect("a document is open");
     let mut actions = Vec::new();
     let draw = |ui: &mut Ui| {
         let area = Rect::from_min_size(Pos2::ZERO, vec2(WINDOW[0], WINDOW[1]));
-        show(ui, area, state, open, &mut actions)
+        show(ui, area, state, open, kept, &mut actions)
     };
     let (asked, seen) = seen::pass(ctx, WINDOW, events, draw);
     Drawn {
@@ -50,6 +65,11 @@ fn pass(ctx: &Context, state: &AppState, events: Vec<Event>) -> Drawn {
         asked,
         seen,
     }
+}
+
+/// One pass of the window with nothing kept from before.
+pub(super) fn pass(ctx: &Context, state: &AppState, events: Vec<Event>) -> Drawn {
+    pass_with(ctx, state, &mut Kept::default(), events)
 }
 
 fn click(ctx: &Context, state: &AppState, name: &str) -> Drawn {
@@ -60,11 +80,12 @@ fn click(ctx: &Context, state: &AppState, name: &str) -> Drawn {
     pass(ctx, state, release)
 }
 
-fn line(depth: u8, heading: Option<&str>, text: &str) -> ReportLine {
+pub(super) fn line(depth: u8, heading: Option<&str>, text: &str) -> ReportLine {
     ReportLine {
         depth,
         heading: heading.map(str::to_owned),
         text: text.to_owned(),
+        is_name: false,
     }
 }
 
@@ -81,11 +102,11 @@ fn a_report(cut_short: bool) -> Report {
     }
 }
 
-fn words_of(seen: &Seen) -> Vec<&str> {
+pub(super) fn words_of(seen: &Seen) -> Vec<&str> {
     seen.words.iter().map(|(word, _)| word.as_str()).collect()
 }
 
-fn where_is(seen: &Seen, word: &str) -> Rect {
+pub(super) fn where_is(seen: &Seen, word: &str) -> Rect {
     let found = seen.words.iter().find(|(drawn, _)| drawn == word);
     found.map_or_else(|| panic!("{word}: {:?}", words_of(seen)), |(_, at)| *at)
 }

@@ -8,7 +8,8 @@ use std::time::Duration;
 
 use tempfile::TempDir;
 use voxa_core::VoxaError;
-use voxa_dicom::{Entry, Index, Report, SeriesSource};
+use voxa_dicom::testkit::{DocumentOptions, ReportItem, structured_report};
+use voxa_dicom::{Entry, Index, Report, ReportLine, SeriesSource};
 
 use super::super::lock;
 use super::super::tests::{Bench, folder_of};
@@ -220,4 +221,42 @@ fn the_tags_of_a_named_entry_are_listed_on_a_worker() {
         .recv_timeout(Duration::from_secs(60))
         .expect("answered");
     assert!(missing.is_err());
+}
+
+#[test]
+fn a_report_is_cleared_of_characters_that_turn_or_hide_text_once_where_it_is_read() {
+    // Read from a file, a line break and a tab become spaces.
+    let bench = Bench::with_budget(1 << 20);
+    let content = [ReportItem::text("Note", "one\ttwo\nthree")];
+    let opts = DocumentOptions::default();
+    let files = vec![("DOCS/A0001".to_owned(), structured_report(&opts, &content))];
+    let folder = folder_of(&files);
+    let index = bench.index(folder.path()).expect("indexes");
+    let report = read(&bench, &index, "DOCS/A0001").expect("a report is read");
+    assert_eq!(report.lines[0].text, "Note: one two three");
+    // And the marks that turn or hide letters are left out, wherever a line has them.
+    let line = |heading: Option<&str>, text: &str, is_name: bool| ReportLine {
+        depth: 1,
+        heading: heading.map(str::to_owned),
+        text: text.to_owned(),
+        is_name,
+    };
+    let turned = Report {
+        lines: vec![
+            line(Some("Se\u{202E}ction"), "", false),
+            line(None, "No\u{200B}te: one\u{202E}two\u{2066}three", false),
+            line(None, "Seen by: Nobody\u{200F}^Madeup", true),
+        ],
+        cut_short: true,
+    };
+    let cleared = super::printable_lines(turned);
+    assert!(cleared.cut_short);
+    assert_eq!(
+        cleared.lines,
+        [
+            line(Some("Section"), "", false),
+            line(None, "Note: onetwothree", false),
+            line(None, "Seen by: Nobody^Madeup", true),
+        ]
+    );
 }

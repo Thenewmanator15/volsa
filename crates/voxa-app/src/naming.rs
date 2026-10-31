@@ -19,8 +19,9 @@ mod words;
 /// ones of them contradicts itself, so no weighting is named.
 const CONTRASTS: [&str; 3] = ["T1", "T2", "PD"];
 
-/// The modalities whose files are pages or screenshots, not pictures of the body.
-const PAGES: [&str; 3] = ["SC", "OT", "DOC"];
+/// The modalities whose files are pages or screenshots, or radiotherapy images and doses: not
+/// pictures of the body to look at, and ones that often have text written into the picture.
+const PAGES: [&str; 5] = ["SC", "OT", "DOC", "RTIMAGE", "RTDOSE"];
 
 /// The modalities of objects that carry pixels but are no picture of the body to look at: a
 /// segmentation, a radiotherapy dose or image, a presentation state and a key-image note. Each
@@ -57,8 +58,10 @@ pub fn group_of(info: &SeriesInfo) -> Group {
     }
 }
 
-/// Whether a series' modality says it is pages, screenshots or other documents: `SC`, `OT` or
-/// `DOC`. Such a picture often carries the patient's name in it.
+/// Whether a series' modality says it is pages, screenshots or other documents (`SC`, `OT`,
+/// `DOC`), or a radiotherapy image or dose (`RTIMAGE`, `RTDOSE`). Such a picture often carries
+/// the patient's name written into it, so it is not drawn small while the patient's details
+/// are hidden.
 pub fn is_page(info: &SeriesInfo) -> bool {
     PAGES.contains(&modality_of(info).as_str())
 }

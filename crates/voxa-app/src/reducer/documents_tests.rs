@@ -27,6 +27,7 @@ fn a_report() -> Report {
             depth: 0,
             heading: None,
             text: "Comment: A made-up remark.".to_owned(),
+            is_name: false,
         }],
         cut_short: false,
     }

@@ -12,17 +12,21 @@
 
 use std::path::PathBuf;
 
-use egui::{Align, Button, Frame, Label, Layout, Margin, Rect, RichText, ScrollArea, Ui};
+use egui::{Align, Button, Frame, Label, Layout, Margin, Rect, RichText, Ui};
 use egui::{UiBuilder, vec2};
-use voxa_dicom::{DocumentKind, IndexedDocument, Report};
+use voxa_dicom::{DocumentKind, IndexedDocument};
 
 use super::commands::{self, Request, TagsOf};
 use super::rail::{date_of, title_of};
 use super::theme;
 use crate::action::Action;
-use crate::documents::kind_words;
-use crate::naming::printable;
+use crate::documents::{Mask, kind_words};
 use crate::state::{AppState, OpenDocument};
+
+mod lines;
+
+pub use lines::Kept;
+use lines::Shown;
 
 /// The line above a report, which says what is shown is not the report itself.
 pub const HEADING: &str = "Shown as text. The original report is the reference.";
@@ -55,13 +59,15 @@ pub fn choose_pdf() -> Option<PathBuf> {
         .save_file()
 }
 
-/// Draw the document `open` in `area`. A change of state goes onto `actions`; what is asked of
-/// the window (the tags of the file, a place to save a copy of a PDF) is given back.
+/// Draw the document `open` in `area`; `kept` is what is kept of the lines of a report from one
+/// frame to the next. A change of state goes onto `actions`; what is asked of the window (the
+/// tags of the file, a place to save a copy of a PDF) is given back.
 pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
     open: &OpenDocument,
+    kept: &mut Kept,
     actions: &mut Vec<Action>,
 ) -> Vec<Request> {
     let mut asked = Vec::new();
@@ -80,7 +86,7 @@ pub fn show(
             header(ui, document, state, actions, &mut asked);
             ui.separator();
             match &document.kind {
-                DocumentKind::Report => report(ui, open),
+                DocumentKind::Report => report(ui, open, (document, state), kept),
                 DocumentKind::Pdf => pdf(ui, &open.entry, &mut asked),
                 DocumentKind::Other(_) => {
                     ui.label(CANNOT_SHOW);
@@ -103,7 +109,8 @@ fn header(
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
             ui.label(RichText::new(kind_words(&document.kind)).heading().strong());
-            let words = format!("{} · {}", title_of(document), date_of(document));
+            let mask = Mask::for_document(state, document);
+            let words = format!("{} · {}", title_of(document, &mask), date_of(document));
             let quiet = RichText::new(words).small().color(theme::QUIET_TEXT);
             ui.add(Label::new(quiet).truncate());
         });
@@ -121,7 +128,7 @@ fn header(
 }
 
 /// A structured report: while it is being read, why it could not be, or the lines of it.
-fn report(ui: &mut Ui, open: &OpenDocument) {
+fn report(ui: &mut Ui, open: &OpenDocument, of: (&IndexedDocument, &AppState), kept: &mut Kept) {
     match &open.report {
         None => {
             ui.label(RichText::new(READING).color(theme::QUIET_TEXT));
@@ -135,31 +142,15 @@ fn report(ui: &mut Ui, open: &OpenDocument) {
                 ui.label(RichText::new(CUT_SHORT).color(theme::WARNING));
             }
             ui.add_space(6.0);
-            lines(ui, report);
+            let (document, state) = of;
+            let shown = Shown {
+                report,
+                document,
+                state,
+            };
+            lines::show(ui, &shown, kept);
         }
     }
-}
-
-/// The lines of a report, in its order, each moved to the right by how many sections it lies
-/// in. The text can be selected and copied.
-fn lines(ui: &mut Ui, report: &Report) {
-    ScrollArea::vertical()
-        .id_salt("voxa: the lines of a report")
-        .auto_shrink(false)
-        .show(ui, |ui| {
-            for line in &report.lines {
-                ui.horizontal(|ui| {
-                    ui.add_space(INDENT * f32::from(line.depth));
-                    if let Some(heading) = &line.heading {
-                        let words = RichText::new(printable(heading)).strong();
-                        ui.add(Label::new(words).wrap());
-                    }
-                    if !line.text.is_empty() {
-                        ui.add(Label::new(printable(&line.text)).wrap());
-                    }
-                });
-            }
-        });
 }
 
 /// A PDF: it is said to be one, and a copy of it can be saved.
@@ -170,5 +161,7 @@ fn pdf(ui: &mut Ui, entry: &str, asked: &mut Vec<Request>) {
     }
 }
 
+#[cfg(test)]
+mod private_tests;
 #[cfg(test)]
 mod tests;

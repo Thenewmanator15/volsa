@@ -13,7 +13,7 @@ use voxa_dicom::IndexedDocument;
 
 use super::card::{self, Asks, DOTS, PADDING};
 use crate::action::Action;
-use crate::documents::kind_words;
+use crate::documents::{Mask, kind_words};
 use crate::naming::printable;
 use crate::ui::browser::{THUMBNAIL, date_in_words};
 use crate::ui::commands::{self, Request, TagsOf};
@@ -26,9 +26,11 @@ pub const NO_DATE: &str = "No date";
 pub const OPEN: &str = "Open";
 
 /// A document's title as a card says it: as the file wrote it but for the characters that would
-/// turn or hide text, or [`NO_TITLE`].
-pub fn title_of(document: &IndexedDocument) -> String {
+/// turn or hide text and, while the patient's details are hidden, the patient's name and
+/// identifier (see [`Mask`]), or [`NO_TITLE`].
+pub fn title_of(document: &IndexedDocument, mask: &Mask) -> String {
     let title = printable(&document.title);
+    let title = mask.apply(&title);
     let title = title.trim();
     if title.is_empty() {
         NO_TITLE.to_owned()
@@ -44,15 +46,19 @@ pub fn date_of(document: &IndexedDocument) -> String {
 }
 
 /// What a screen reader calls the card of a document: what kind it is, then its title.
-pub fn card_name(document: &IndexedDocument) -> String {
-    format!("{}, {}", kind_words(&document.kind), title_of(document))
+pub fn card_name(document: &IndexedDocument, mask: &Mask) -> String {
+    format!(
+        "{}, {}",
+        kind_words(&document.kind),
+        title_of(document, mask)
+    )
 }
 
 /// What resting the pointer on a card shows: everything the card may have had no room for.
-pub fn hover_of(document: &IndexedDocument) -> String {
+pub fn hover_of(document: &IndexedDocument, mask: &Mask) -> String {
     let lines = [
         kind_words(&document.kind),
-        title_of(document),
+        title_of(document, mask),
         date_of(document),
     ];
     lines.join("\n")
@@ -67,7 +73,8 @@ pub fn show(
     selected: bool,
     asks: &mut Asks<'_>,
 ) {
-    let name = card_name(document);
+    let mask = Mask::for_document(asks.state, document);
+    let name = card_name(document, &mask);
     let id = Id::new(("voxa: the card of the document", &document.entry));
     let response = ui.interact(rect, id, Sense::click());
     response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, &name));
@@ -86,7 +93,7 @@ pub fn show(
         card::page(&painter, picture);
         let lines = [
             kind_words(&document.kind),
-            title_of(document),
+            title_of(document, &mask),
             date_of(document),
         ];
         let at = picture.right_top() + vec2(PADDING, 0.0);
@@ -94,7 +101,7 @@ pub fn show(
         card::words(ui, &painter, lines, at, ends);
     }
     let dots = card::dots_button(ui, dots, id, &name);
-    let response = response.on_hover_text(hover_of(document));
+    let response = response.on_hover_text(hover_of(document, &mask));
     if response.clicked() {
         asks.actions
             .push(Action::OpenDocument(document.entry.clone()));

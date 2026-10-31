@@ -13,6 +13,7 @@ fn line(depth: u8, heading: Option<&str>, text: &str) -> ReportLine {
         depth,
         heading: heading.map(str::to_owned),
         text: text.to_owned(),
+        is_name: false,
     }
 }
 
@@ -84,6 +85,37 @@ fn every_kind_of_value_becomes_a_line_of_concept_and_value() {
     );
     assert!(report.lines.iter().all(|line| line.heading.is_none()));
     assert!(!report.cut_short);
+}
+
+#[test]
+fn an_item_that_holds_a_persons_name_is_marked_as_one() {
+    let report = read(&[
+        ReportItem::plain("PNAME", "Seen by", "Nobody^Madeup"),
+        // No name of its own: it is given one, so that its value can be told from it.
+        ReportItem::plain("PNAME", "", "Nobody^Madeup"),
+        ReportItem::text("Note", "Nobody Madeup was here"),
+        ReportItem::plain("UIDREF", "Refers to", "1.2.3.4"),
+        ReportItem::container(
+            "Part A",
+            vec![ReportItem::plain("PNAME", "Also", "Else^One")],
+        ),
+    ]);
+    let marked: Vec<(&str, bool)> = report
+        .lines
+        .iter()
+        .map(|line| (line.text.as_str(), line.is_name))
+        .collect();
+    assert_eq!(
+        marked,
+        [
+            ("Seen by: Nobody^Madeup", true),
+            ("Name: Nobody^Madeup", true),
+            ("Note: Nobody Madeup was here", false),
+            ("Refers to: 1.2.3.4", false),
+            ("", false),
+            ("Also: Else^One", true),
+        ]
+    );
 }
 
 #[test]

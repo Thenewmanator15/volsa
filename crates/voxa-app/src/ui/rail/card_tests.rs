@@ -154,6 +154,47 @@ fn pages_show_an_icon_not_a_thumbnail_while_details_are_off() {
 }
 
 #[test]
+fn radiotherapy_images_and_doses_show_an_icon_too_while_details_are_off() {
+    let image = series(1, "RTIMAGE", "made-up portal image", 1);
+    let dose = series(2, "RTDOSE", "made-up dose", 1);
+    let segmentation = series(3, "SEG", "made-up segmentation", 1);
+    let mut state = export(vec![(
+        "MADE-UP-1",
+        "Made^Up",
+        vec![image.clone(), dose.clone(), segmentation.clone()],
+    )]);
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    rail.other_open = true;
+    let mut thumbnails = Thumbnails::default();
+    for info in [&image, &dose, &segmentation] {
+        let grey = ColorImage::filled([2, 2], Color32::GRAY);
+        let texture = ctx.load_texture(&info.description, grey, TextureOptions::default());
+        thumbnails.insert(info.id.clone(), texture);
+    }
+    let pictures = |drawn: &Drawn, info: &SeriesInfo| {
+        let card = card_at(&drawn.seen, info);
+        let images = drawn.seen.images.iter();
+        images.filter(|(_, at)| card.contains_rect(*at)).count()
+    };
+    let drawn = pass_wide(&ctx, &state, &mut rail, &thumbnails, WIDE, Vec::new());
+    assert_eq!(
+        pictures(&drawn, &image),
+        0,
+        "a portal image may carry a name"
+    );
+    assert_eq!(pictures(&drawn, &dose), 0, "so may a dose");
+    assert_eq!(
+        pictures(&drawn, &segmentation),
+        1,
+        "a segmentation has none to carry"
+    );
+    state.show_patient = true;
+    let drawn = pass_wide(&ctx, &state, &mut rail, &thumbnails, WIDE, Vec::new());
+    assert_eq!(pictures(&drawn, &image), 1, "shown with the details");
+    assert_eq!(pictures(&drawn, &dose), 1);
+}
+
+#[test]
 fn a_long_name_is_cut_and_never_widens_the_rail() {
     let long: String = "made-up words of a scanner that go on ".repeat(8);
     let long = long[..300].to_owned();

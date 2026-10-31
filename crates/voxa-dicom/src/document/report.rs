@@ -28,6 +28,10 @@ pub struct ReportLine {
     pub heading: Option<String>,
     /// What the line says: `name: value` for an item, and empty for a section's opening line.
     pub text: String,
+    /// True for an item that holds a person's name. Its `text` is then always `name: value`,
+    /// the item's own name and what the report says the person is called, with the name `Name`
+    /// for an item that has none, so that a window can leave the value out.
+    pub is_name: bool,
 }
 
 /// A report as text.
@@ -158,20 +162,25 @@ fn line_of(item: &InMemDicomObject, depth: usize) -> ReportLine {
             depth,
             heading: Some(concept.unwrap_or_default()),
             text: String::new(),
+            is_name: false,
         };
     }
     let value = match value_of(item, &value_type) {
         Value::Said(value) => value,
         Value::Unshown(what) => format!("{what}, not shown"),
     };
+    let is_name = value_type == "PNAME";
     let text = match concept {
         Some(name) => format!("{name}: {value}").trim_end().to_owned(),
+        // A name is always told apart from what is said of it.
+        None if is_name => format!("Name: {value}").trim_end().to_owned(),
         None => value,
     };
     ReportLine {
         depth,
         heading: None,
         text,
+        is_name,
     }
 }
 

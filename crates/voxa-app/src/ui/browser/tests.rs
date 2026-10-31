@@ -225,11 +225,11 @@ fn no_small_picture_of_a_page_is_made_while_the_patients_details_are_hidden() {
         modality: modality.to_owned(),
         ..SeriesInfo::default()
     };
-    for page in ["SC", "OT", "DOC", " sc "] {
+    for page in ["SC", "OT", "DOC", " sc ", "RTIMAGE", "RTDOSE", "rtimage"] {
         assert!(!may_have_thumbnail(&of(page), false), "{page}");
         assert!(may_have_thumbnail(&of(page), true), "{page}");
     }
-    for scan in ["MR", "CT", "US", ""] {
+    for scan in ["MR", "CT", "US", "", "SEG", "PR", "KO"] {
         assert!(may_have_thumbnail(&of(scan), false), "{scan}");
     }
 }

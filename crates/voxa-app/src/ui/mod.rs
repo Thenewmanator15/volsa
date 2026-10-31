@@ -83,6 +83,8 @@ pub struct VoxaApp {
     tags: tags::Panel,
     /// What the bars keep between frames: the theme, and whether the list of notices is open.
     bars: bars::Kept,
+    /// What is kept of the lines of the report shown between frames.
+    document_view: document::Kept,
     /// The search box, which finds actions, parts, scans and help topics.
     search: search::Search,
     /// What the tabs keep between frames: the name being typed in the Measure tab, and the
@@ -181,6 +183,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             bars: bars::Kept::default(),
+            document_view: document::Kept::default(),
             search: search::Search::default(),
             tabs: tabs::Kept::default(),
             labels: labels::Opening::waiting_for(labels),

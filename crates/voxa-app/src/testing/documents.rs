@@ -12,6 +12,10 @@ pub const REPORT: &str = "DOCS/A0001";
 pub const PDF: &str = "DOCS/B0001";
 /// The entry of the made-up key-image note, which Voxa lists but cannot show.
 pub const NOTE: &str = "DOCS/C0001";
+/// The entry of a made-up report that names the made-up patient in several ways.
+pub const NAMED: &str = "DOCS/D0001";
+/// The title of that report, which holds the patient's name as the file writes it.
+pub const NAMED_TITLE: &str = "Report on Phantom^Test";
 /// The title of the made-up report.
 pub const REPORT_TITLE: &str = "Made-up report";
 /// The title of the made-up PDF.
@@ -40,6 +44,29 @@ pub fn report_content() -> Vec<ReportItem> {
         ),
         ReportItem::text("Closing", "That is all."),
     ]
+}
+
+/// The content of the report that names the made-up patient, whose name is `Phantom^Test` and
+/// whose identifier is `PHANTOM-001`: an item that holds a name, a sentence that writes the name
+/// the other way round with the identifier, one that writes it in small letters, and a number.
+pub fn named_report_content() -> Vec<ReportItem> {
+    vec![
+        ReportItem::plain("PNAME", "Seen by", "Phantom^Test"),
+        ReportItem::text("Note", "Reviewed for Test Phantom (PHANTOM-001) today."),
+        ReportItem::text("Again", "phantom test, once more"),
+        ReportItem::number("Width", "12", "mm"),
+    ]
+}
+
+/// The file of the report that names the made-up patient.
+pub fn named_report_file() -> (String, Vec<u8>) {
+    let bytes = structured_report(&options(NAMED_TITLE, 4), &named_report_content());
+    (NAMED.to_owned(), bytes)
+}
+
+/// The three made-up scans and the report that names their patient.
+pub fn scans_and_a_named_report() -> Index {
+    indexed([three_series_files(), vec![named_report_file()]].concat())
 }
 
 /// The bytes of the PDF the made-up PDF holds: a short page with every kind of byte in it, of

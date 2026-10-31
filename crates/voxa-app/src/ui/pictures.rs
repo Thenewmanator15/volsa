@@ -29,7 +29,7 @@ impl VoxaApp {
         let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
         if let Some(open) = &state.document {
-            let asked = document::show(ui, whole, state, open, actions);
+            let asked = document::show(ui, whole, state, open, &mut self.document_view, actions);
             self.give_up_the_slices(ui, whole, render, actions);
             for request in asked {
                 self.ask(ui.ctx(), request);
