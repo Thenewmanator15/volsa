@@ -173,11 +173,22 @@ fn a_plugin_named_by_voxa_test_plugin_masks_the_made_up_head() {
     let added_to = tempfile::tempdir().expect("a folder for plugins");
     let plugin = added(&plugin_folder, added_to.path());
     let (volume, brain) = head(&models);
-    let discrete = cards()
-        .into_iter()
-        .filter(|card| card.kind == CardKind::Discrete);
-    let places = std::iter::once((Device::Processor, "the processor".to_owned()))
-        .chain(discrete.map(|card| (Device::Card(card.id), card.name)));
+    // The system can list one card twice; each is run on once.
+    let mut discrete: Vec<_> = Vec::new();
+    for card in cards() {
+        if card.kind == CardKind::Discrete
+            && !discrete
+                .iter()
+                .any(|seen: &voxa_models::Card| seen.id == card.id)
+        {
+            discrete.push(card);
+        }
+    }
+    let places = std::iter::once((Device::Processor, "the processor".to_owned())).chain(
+        discrete
+            .into_iter()
+            .map(|card| (Device::Card(card.id), card.name)),
+    );
     for (device, name) in places {
         let (seconds, peak, grid) = run_on(&plugin, device, &volume, &runtime);
         let mask = marked(&volume, &grid);
