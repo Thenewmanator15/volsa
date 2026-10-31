@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use voxa_core::{SeriesId, WindowLevel};
+use voxa_core::{SeriesId, SeriesInfo, WindowLevel};
 use voxa_dicom::{Index, IndexedSeries};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
@@ -216,6 +216,12 @@ impl AppState {
             .series
             .iter()
             .find(|series| series.info.id == *id)
+    }
+
+    /// What is known of the series a viewport shows; `None` when it shows nothing.
+    pub fn shown_info(&self, viewport: usize) -> Option<&SeriesInfo> {
+        let shown = self.viewports.get(viewport)?.series.as_ref()?;
+        Some(&self.series(shown)?.info)
     }
 
     /// How many slices the series shown in a viewport has; 0 when it shows nothing.

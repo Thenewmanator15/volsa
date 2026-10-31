@@ -5,6 +5,9 @@
 //! of their unit. Anything else is shown with the unit its files name, or with none. A derived
 //! or secondary CT can hold values that are not Hounsfield units, and a density read from them
 //! would be false.
+//!
+//! The value under the pointer is worked out as the pointer moves, so nothing here allocates
+//! to find a profile or a unit.
 
 use voxa_core::{SeriesInfo, WindowLevel};
 
@@ -24,10 +27,13 @@ impl Profile {
     /// The profile of a scan, from its modality alone, ignoring case and padding: `CT` is CT,
     /// `MR` is MR, and every other modality, or none, is basic.
     pub fn of(info: &SeriesInfo) -> Self {
-        match info.modality.trim().to_ascii_uppercase().as_str() {
-            "CT" => Self::Ct,
-            "MR" => Self::Mr,
-            _ => Self::Basic,
+        let modality = info.modality.trim();
+        if modality.eq_ignore_ascii_case("CT") {
+            Self::Ct
+        } else if modality.eq_ignore_ascii_case("MR") {
+            Self::Mr
+        } else {
+            Self::Basic
         }
     }
 }
@@ -43,7 +49,7 @@ pub struct NamedWindow {
 
 /// A named window from its level and width, in the order `WindowLevel::new` takes them. That
 /// function is not `const`, so the fields are set directly; the values given are within the
-/// limits it would enforce.
+/// limits it would enforce, which a test holds each of them to.
 const fn window(name: &'static str, center: f32, width: f32) -> NamedWindow {
     NamedWindow {
         name,
@@ -60,15 +66,16 @@ pub const CT_WINDOWS: [NamedWindow; 4] = [
     window("Bone", 400.0, 1800.0),
 ];
 
-/// What a scan's values are measured in, as far as its files say.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Unit {
+/// What a scan's values are measured in, as far as its files say. It borrows the unit's code
+/// from the scan's facts, so finding it costs nothing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Unit<'a> {
     /// Hounsfield units: a CT scan whose files say so or say nothing.
     Hu,
     /// No unit: the files do not name one, or say it is unspecified.
     None,
     /// A unit the files name, by its DICOM code, such as `MGML`.
-    Named(String),
+    Named(&'a str),
 }
 
 /// The unit of a scan's values.
@@ -77,7 +84,7 @@ pub enum Unit {
 /// Rescale Type, or `US` (DICOM's "unspecified"), is in [`Unit::None`]. Any other Rescale Type
 /// is named. So a CT scan that says it is not in Hounsfield units is not shown as if it were,
 /// and nor is a scan of another kind that merely says `HU`.
-pub fn unit_of(info: &SeriesInfo) -> Unit {
+pub fn unit_of(info: &SeriesInfo) -> Unit<'_> {
     let code = info
         .rescale_type
         .as_deref()
@@ -86,21 +93,41 @@ pub fn unit_of(info: &SeriesInfo) -> Unit {
     match (Profile::of(info), code) {
         (Profile::Ct, None | Some("HU")) => Unit::Hu,
         (_, None | Some("US")) => Unit::None,
-        (_, Some(code)) => Unit::Named(code.to_owned()),
+        (_, Some(code)) => Unit::Named(code),
     }
 }
 
+/// The least a value may be, in size, to be written out in full rather than with an exponent.
+/// A whole number beyond it would run to many digits, and a float cannot hold them anyway.
+const LARGEST_WRITTEN_OUT: f32 = 1.0e9;
+/// The most places after the decimal point a value is written with.
+const MOST_PLACES: usize = 8;
+
 /// A value as the readout under the pointer says it, such as `-12 HU`, `312 (no unit)` or
-/// `0.4 OD`.
+/// `0.4 OD`. `None` for a value that is not a number: there is nothing to read out.
 ///
 /// Hounsfield units are shown as whole numbers. Any other value is shown to three significant
 /// figures when it has a fraction and without trailing zeros, but never loses a digit left of
-/// the decimal point: 0.04567 is `0.0457`, and 1234.5 is `1235`.
-pub fn readout(value: f32, unit: &Unit) -> String {
-    match unit {
-        Unit::Hu => format!("{} HU", whole(value)),
+/// the decimal point: 0.04567 is `0.0457`, and 1234.5 is `1235`. A value that would need more
+/// than eight places, or a billion or more, is written with an exponent, such as `1.18e-38`,
+/// so that a readout is never a long string.
+pub fn readout(value: f32, unit: &Unit<'_>) -> Option<String> {
+    if value.is_nan() {
+        return None;
+    }
+    Some(match unit {
+        Unit::Hu => format!("{} HU", hounsfield(value)),
         Unit::None => format!("{} (no unit)", plain(value)),
         Unit::Named(code) => format!("{} {code}", plain(value)),
+    })
+}
+
+/// A value of Hounsfield units: a whole number.
+fn hounsfield(value: f32) -> String {
+    if value.abs() >= LARGEST_WRITTEN_OUT {
+        exponent(value)
+    } else {
+        whole(value)
     }
 }
 
@@ -115,11 +142,14 @@ fn whole(value: f32) -> String {
 }
 
 /// A value to three significant figures, but to a whole number from 100 up, without trailing
-/// zeros. A value that is not a number is shown as Rust writes it.
+/// zeros.
 fn plain(value: f32) -> String {
     let magnitude = value.abs();
     if magnitude == 0.0 {
         return "0".to_owned();
+    }
+    if magnitude >= LARGEST_WRITTEN_OUT {
+        return exponent(value);
     }
     let decimals = decimals_for(magnitude);
     if decimals == 0 {
@@ -127,8 +157,24 @@ fn plain(value: f32) -> String {
         // number, and 1234.5 is 1235.
         return whole(value);
     }
+    if decimals > MOST_PLACES {
+        return exponent(value);
+    }
     let text = format!("{value:.decimals$}");
     text.trim_end_matches('0').trim_end_matches('.').to_owned()
+}
+
+/// A value to three significant figures with an exponent, without trailing zeros: `1.18e-38`,
+/// `-4.57e-7`, `1e9`. An infinite value is shown as it is written, `inf`.
+fn exponent(value: f32) -> String {
+    let text = format!("{value:.2e}");
+    match text.split_once('e') {
+        Some((figures, power)) => {
+            let figures = figures.trim_end_matches('0').trim_end_matches('.');
+            format!("{figures}e{power}")
+        }
+        None => text,
+    }
 }
 
 /// How many places after the decimal point give a value of this size three significant

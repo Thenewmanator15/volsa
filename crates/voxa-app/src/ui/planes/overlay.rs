@@ -1,12 +1,14 @@
 //! What is written and drawn over a plane view: pure functions.
 
 use egui::Color32;
-use voxa_core::{Patient, Point};
+use voxa_core::{Patient, Point, Volume};
 use voxa_render::PlaneView;
-use voxa_volume::{Plane, PlaneKind};
+use voxa_volume::{Plane, PlaneKind, sample};
 
-use super::super::overlay::{EdgeLabels, letter};
+use super::super::overlay::{EdgeLabels, letter, value_line};
 use super::super::theme;
+use crate::profile::unit_of;
+use crate::state::AppState;
 
 /// How much room is left clear round the position where the lines of the cross would meet,
 /// in points, so that what is at the position can be seen.
@@ -55,6 +57,20 @@ pub fn plane_letters(plane: &Plane) -> EdgeLabels {
         top: away_from(plane.down),
         bottom: towards(plane.down),
     }
+}
+
+/// What a panel says of the value under the pointer: `Value -12 HU`, or in the unit the scan's
+/// files give, or with none. It is worked out from the scene's volume `scan` at `at`, a point
+/// of the patient. `None` when there is no pointer over the panel, no volume yet, the point is
+/// outside the volume, or the scene shows no scan.
+pub fn value_under(
+    state: &AppState,
+    scan: Option<&Volume>,
+    at: Option<Point<Patient>>,
+) -> Option<String> {
+    let (scan, at) = scan.zip(at)?;
+    let info = &state.series(state.scene.series.as_ref()?)?.info;
+    value_line(sample(scan, at)?, &unit_of(info))
 }
 
 /// The lines of the cross through the position in a panel, each from one point of the panel

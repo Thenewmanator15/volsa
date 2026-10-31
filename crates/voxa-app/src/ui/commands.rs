@@ -250,12 +250,7 @@ fn left_to_egui(key: Key, held: Held) -> bool {
 /// Whether an action is offered for the scan shown in the active viewport: an action for
 /// some profiles only is not offered while no scan is shown.
 pub fn offered(command: &Command, state: &AppState) -> bool {
-    let shown = state
-        .viewports
-        .get(state.active)
-        .and_then(|viewport| viewport.series.as_ref())
-        .and_then(|series| state.series(series))
-        .map(|listed| Profile::of(&listed.info));
+    let shown = state.shown_info(state.active).map(Profile::of);
     command.profiles.is_empty() || shown.is_some_and(|profile| command.profiles.contains(&profile))
 }
 

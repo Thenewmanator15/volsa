@@ -16,6 +16,7 @@ use crate::state::{AppState, Layout};
 mod annotate;
 mod colour;
 mod mouse;
+mod value;
 
 pub(super) use mouse::turned as wheel_turned;
 
@@ -191,7 +192,8 @@ pub fn show(
             _ => false,
         };
         if drawn {
-            annotate::overlays(ui, &pane);
+            let value = value::under_pointer(&pane, frames, response.hover_pos());
+            annotate::overlays(ui, &pane, value);
         }
         if let Some(text) = message(state, at, drawn) {
             let font = egui::TextStyle::Body.resolve(ui.style());

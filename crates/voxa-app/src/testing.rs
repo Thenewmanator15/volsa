@@ -277,3 +277,24 @@ pub fn lose(device: &egui_wgpu::wgpu::Device) {
     device.destroy();
     let _ = device.poll(egui_wgpu::wgpu::PollType::wait_indefinitely());
 }
+
+/// A made-up single slice, series number 8, that says what kind of scan it is.
+pub const KIND_SCAN: &str = "1.2.3.8";
+
+/// A state showing a made-up single 4 x 4 slice of this modality in the first viewport, whose
+/// file gives this Rescale Type, if any.
+pub fn showing_a_scan_of(modality: &str, rescale_type: Option<&str>) -> crate::state::AppState {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let options = SliceOptions {
+        modality: modality.to_owned(),
+        rescale_type: rescale_type.map(str::to_owned),
+        ..slice_options(KIND_SCAN, 8, 0, 4)
+    };
+    let files = vec![("S8/I0000.dcm".to_owned(), classic_slice(&options))];
+    let mut state = crate::state::AppState::default();
+    reduce(&mut state, Action::IndexProgress(indexed(files)));
+    let (viewport, series) = (0, id(KIND_SCAN));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    state
+}

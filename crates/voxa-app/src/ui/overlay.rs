@@ -6,6 +6,7 @@ use voxa_render::ViewTransform;
 
 use super::browser::date_in_words;
 use crate::action::Action;
+use crate::profile::{Unit, readout};
 
 /// How much one wheel notch with Ctrl held magnifies.
 pub(super) const ZOOM_PER_NOTCH: f32 = 1.1;
@@ -178,6 +179,12 @@ pub fn corner_text(
         vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)]
     };
     [who_and_when, what, which, window]
+}
+
+/// What a corner of a picture says of the value under the pointer: `Value -12 HU`, or with the
+/// unit the scan's files give it, or with none. `None` for a value that is not a number.
+pub fn value_line(value: f32, unit: &Unit<'_>) -> Option<String> {
+    readout(value, unit).map(|said| format!("Value {said}"))
 }
 
 /// What the mouse did over one viewport since the last frame.

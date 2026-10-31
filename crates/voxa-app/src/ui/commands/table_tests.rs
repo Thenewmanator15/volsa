@@ -150,3 +150,72 @@ fn every_reason_an_action_cannot_be_used_ends_with_a_full_stop() {
         .find(|why| why.starts_with("This scan has no 3D view: "));
     assert!(no_view.is_some(), "{said:?}");
 }
+
+#[test]
+fn each_ct_window_is_an_entry_that_says_its_numbers_in_hu() {
+    use crate::profile::CT_WINDOWS;
+    let ids = [
+        "window.brain",
+        "window.soft_tissue",
+        "window.lung",
+        "window.bone",
+    ];
+    let state = crate::testing::showing_a_scan_of("CT", None);
+    for (window, id) in CT_WINDOWS.iter().zip(ids) {
+        let command = find(id).expect("listed");
+        assert_eq!(command.label, window.name);
+        let (width, level) = (window.wl.width, window.wl.center);
+        assert_eq!(command.explains, format!("Width {width}, level {level} HU"));
+        assert_eq!(command.profiles, [Profile::Ct], "{id}");
+        assert!(offered(command, &state));
+        assert_eq!((command.why_not)(&state), None, "{id}");
+        let Does::Act(act) = command.does else {
+            panic!("{id} changes the state");
+        };
+        let applied = Action::SetWindow {
+            viewport: 0,
+            wl: window.wl,
+        };
+        assert_eq!(act(&state), Some(applied));
+    }
+}
+
+#[test]
+fn the_ct_windows_are_for_ct_and_the_percentile_presets_for_mr() {
+    let ct_only = [
+        "window.brain",
+        "window.soft_tissue",
+        "window.lung",
+        "window.bone",
+    ];
+    let ct = crate::testing::showing_a_scan_of("CT", None);
+    let mr = crate::testing::showing_a_scan_of("MR", None);
+    let basic = crate::testing::showing_a_scan_of("US", None);
+    for id in ct_only {
+        let command = find(id).expect("listed");
+        assert!(offered(command, &ct) && !offered(command, &mr), "{id}");
+        assert!(!offered(command, &basic) && !offered(command, &AppState::default()));
+    }
+    for id in ["window.soft", "window.hard"] {
+        let command = find(id).expect("listed");
+        assert!(offered(command, &mr), "{id}");
+        assert!(!offered(command, &ct) && !offered(command, &basic), "{id}");
+    }
+    let auto = find("window.auto").expect("listed");
+    for state in [&ct, &mr, &basic, &AppState::default()] {
+        assert!(offered(auto, state));
+    }
+}
+
+#[test]
+fn a_ct_window_is_greyed_with_a_reason_for_a_ct_whose_values_are_not_in_hu() {
+    let in_hu = crate::testing::showing_a_scan_of("CT", Some("HU"));
+    let unspecified = crate::testing::showing_a_scan_of("CT", Some("US"));
+    let named = crate::testing::showing_a_scan_of("CT", Some("MGML"));
+    let brain = find("window.brain").expect("listed");
+    assert_eq!((brain.why_not)(&in_hu), None);
+    for state in [&unspecified, &named] {
+        let why = (brain.why_not)(state).expect("greyed");
+        assert!(why.contains("not in Hounsfield units"), "{why}");
+    }
+}

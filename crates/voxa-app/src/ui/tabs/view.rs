@@ -9,6 +9,7 @@ use super::super::commands::{self, Request};
 use super::super::volumes;
 use super::{offer, row, section};
 use crate::action::Action;
+use crate::profile::{Unit, unit_of};
 use crate::state::{AppState, Cine};
 
 /// What the Link switch says when pointed at.
@@ -22,8 +23,21 @@ pub const SMOOTH_SAYS: &str = "Draw the three planes from a curve through the sc
                                which shows as a faint rim that is not in the scan. Smoothed: a curve \
                                through the measured values, not more detail.";
 
-/// The brightness presets offered, by their actions, in the order of the presets.
-const PRESET_IDS: [&str; 3] = ["window.auto", "window.soft", "window.hard"];
+/// The brightness settings, by their actions, in the order they are shown. Which of them are
+/// offered depends on the scan: the four CT windows and Auto for CT, Auto, Soft and Hard for
+/// MR, and Auto alone for any other.
+const WINDOW_IDS: [&str; 7] = [
+    "window.brain",
+    "window.soft_tissue",
+    "window.lung",
+    "window.bone",
+    "window.auto",
+    "window.soft",
+    "window.hard",
+];
+
+/// What is said in place of the brightness settings for a picture stored in colour.
+const IN_COLOUR: &str = "In its own colours: no brightness to set.";
 
 /// The actions that mirror the picture across and down, turn it a quarter, and fit it whole.
 const PICTURE_IDS: [&str; 4] = [
@@ -99,25 +113,34 @@ fn switch(
     }
 }
 
-/// The window and level of the active viewport, as numbers that can be typed or dragged, and
-/// the presets.
+/// The window and level of the active viewport, as numbers that can be typed or dragged, in
+/// Hounsfield units where the scan is in them, and the settings its profile offers.
 fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     let viewport = state.active;
     let Some(shown) = state.viewports.get(viewport) else {
         return;
     };
-    let series = shown.series.as_ref().and_then(|id| state.series(id));
-    if series.is_some_and(|listed| listed.info.colour) {
-        ui.weak("none: in its own colours");
+    let info = state.shown_info(viewport);
+    if info.is_some_and(|info| info.colour) {
+        ui.weak(IN_COLOUR);
         return;
     }
+    let unit = if info.is_some_and(|info| unit_of(info) == Unit::Hu) {
+        " HU"
+    } else {
+        ""
+    };
     let (mut width, mut level) = (shown.wl.width, shown.wl.center);
     let step = f64::from((shown.wl.width / 100.0).max(0.1));
     let width_field = egui::DragValue::new(&mut width)
         .speed(step)
         .prefix("W ")
+        .suffix(unit)
         .range(1.0..=f32::MAX);
-    let level_field = egui::DragValue::new(&mut level).speed(step).prefix("L ");
+    let level_field = egui::DragValue::new(&mut level)
+        .speed(step)
+        .prefix("L ")
+        .suffix(unit);
     let (width_changed, level_changed) = row(ui, |ui| {
         let width_changed = ui
             .add(width_field)
@@ -136,7 +159,7 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
         });
     }
     row(ui, |ui| {
-        for id in PRESET_IDS {
+        for id in WINDOW_IDS {
             offer(ui, id, state, None, actions, asked);
         }
     });

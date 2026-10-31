@@ -1,20 +1,21 @@
 //! What is written over a slice: corner text, a letter at each edge, and a scale bar.
 
 use egui::{Align2, Rect, Stroke, Ui, vec2};
-use voxa_core::{Point, SeriesInfo};
+use voxa_core::{Point, SeriesInfo, StudyInfo};
 
 use super::super::pen::{self, Pen};
 use super::super::{overlay, theme};
 use super::{Pane, narrowed, pixel_aspect};
 use crate::planes::position_in_viewport;
+use crate::profile::unit_of;
 
 /// How far from the position the lines that mark it begin, and how long they are, in points.
 const CLEAR: f32 = 4.0;
 const ARM: f32 = 8.0;
 
-/// Write over a slice: what it is in the corners, and, when the files say where the slice
-/// lies, a letter at each edge and a scale bar.
-pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>) {
+/// Write over a slice: what it is in the corners, with the `value` under the pointer if there
+/// is one, and, when the files say where the slice lies, a letter at each edge and a scale bar.
+pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>, value: Option<f32>) {
     let Some((info, study)) = pane.series() else {
         return;
     };
@@ -24,16 +25,7 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>) {
     let pen = Pen::over(ui, pane.cell);
     let inside = pane.cell.shrink(pen::INSET);
     let placement = info.voxel_to_patient.as_ref();
-    let position = placement.map(|placement| overlay::slice_position(placement, viewport.slice));
-    let show_patient = pane.state.show_patient;
-    let corners = overlay::corner_text(
-        study,
-        info,
-        viewport.slice,
-        position,
-        viewport.wl,
-        show_patient,
-    );
+    let corners = corners(pane, info, study, value);
     let anchors = [
         (inside.left_top(), Align2::LEFT_TOP),
         (inside.right_top(), Align2::RIGHT_TOP),
@@ -52,6 +44,27 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>) {
         scale_bar(&pen, pane, info, inside);
     }
     mark_position(&pen, pane, info);
+}
+
+/// The lines written in the four corners of a viewport. The last line of the bottom left corner
+/// is the `value` under the pointer, in the unit the scan's files give it, when there is one.
+pub(super) fn corners(
+    pane: &Pane<'_>,
+    info: &SeriesInfo,
+    study: &StudyInfo,
+    value: Option<f32>,
+) -> [Vec<String>; 4] {
+    let Some(viewport) = pane.state.viewports.get(pane.at) else {
+        return Default::default();
+    };
+    let placement = info.voxel_to_patient.as_ref();
+    let position = placement.map(|placement| overlay::slice_position(placement, viewport.slice));
+    let show_patient = pane.state.show_patient;
+    let wl = viewport.wl;
+    let mut corners = overlay::corner_text(study, info, viewport.slice, position, wl, show_patient);
+    let said = value.and_then(|value| overlay::value_line(value, &unit_of(info)));
+    corners[2].extend(said.filter(|_| !info.colour));
+    corners
 }
 
 /// The four short lines that mark the planes' position about a point of a viewport, each

@@ -131,6 +131,7 @@ pub fn show(
             let input = mouse::gather(ui, &response, cell, &shown, part_notch);
             let drawn = handled(state, kind, &input, (&shown.plane, scan), &mut view.drawing);
             actions.extend(drawn);
+            write_value(ui, cell, overlay::value_under(state, scan, input.hover_at));
             // The press that moves the position also selects the part pressed on.
             actions.extend(parts::selected_by(state, labels, &input));
             if let Some(name) = parts::named_under(state, labels, &input) {
@@ -138,6 +139,18 @@ pub fn show(
             }
         }
     }
+}
+
+/// Write the value under the pointer in the top right corner of a panel, which nothing else
+/// of the panel's writing takes.
+fn write_value(ui: &Ui, cell: Rect, line: Option<String>) {
+    let Some(line) = line else {
+        return;
+    };
+    let pen = Pen::over(ui, cell);
+    let inside = cell.shrink(pen::INSET);
+    let room = inside.width() / 2.0 - pen::LETTER_ROOM;
+    pen.write_lines(inside.right_top(), Align2::RIGHT_TOP, &[line], room);
 }
 
 /// What a panel is drawn with on the graphics device: its own pipeline, and the scene's
