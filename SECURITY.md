@@ -48,10 +48,13 @@ Security note S-UI-01. An export can hold structured reports (DICOM SR) and PDFs
 DICOM, and both come from anywhere. Voxa shows a report as plain text and saves a PDF as the
 bytes it holds, and does nothing else with either.
 
-- **Limits.** A report is read no deeper than 16 sections, into no more than 5,000 lines and
-  1,000,000 characters, whichever comes first. Where it goes past one, Voxa stops reading, keeps
-  what it has, and says the report was cut short, so the lines shown are always the start of
-  the report, whole and in order. The original report is the reference.
+- **Limits.** What Voxa turns into text is limited: a report is read no deeper than 16
+  sections, into no more than 5,000 lines and 1,000,000 characters, whichever comes first.
+  Where it goes past one, Voxa stops reading, keeps what it has, and says the report was cut
+  short, so the lines shown are always the start of the report, in order. A line cut at the
+  character limit ends in an ellipsis. The original report is the reference. These limits
+  apply to Voxa's own reading of the report, after the DICOM library has read the file; see
+  the last point.
 - **Text only.** What a report says is turned into text. A link, a reference to an image or
   another object, or a waveform is never followed or fetched. Voxa writes a line that says
   what the item was and that it is not shown, so that nothing is left out without a word.
@@ -60,12 +63,18 @@ bytes it holds, and does nothing else with either.
 - **Nothing is executed.** A report or a PDF is read as data. No script, macro or embedded
   file in either is run, and none is written anywhere except the copy of the PDF the person
   asks for.
-- **A damaged file is an error for that file.** A report or PDF that cannot be read, or that
-  makes the DICOM library fail, is refused with an error, and Voxa goes on.
+- **A damaged file is an error for that file.** A report or PDF that cannot be read is
+  refused with an error, and so is one that makes the DICOM library panic, and Voxa goes on.
+  A fault that stops the whole program, such as the one in the last point, is not caught.
 - **What the limits do not cover.** The DICOM library reads the whole file before Voxa walks
   the report, as it does for every file Voxa opens, so a file Voxa is given is still read
-  into memory up to the size limit for one file (4 GiB). A report that tries to make that
-  library run out of memory or time is a fault to report here.
+  into memory up to the size limit for one file (4 GiB). How deeply a file nests its
+  sequences is limited only by the DICOM library, which has no limit: it builds each nested
+  sequence by calling itself, one level for every level in the file, so a crafted or damaged
+  file that nests very deeply can overflow the stack of the thread reading it and stop Voxa,
+  and that cannot be caught. This was so for every file Voxa reads before reports were
+  listed, and it is not guarded yet. A file that stops Voxa this way, or that makes the
+  library run out of memory or time, is a fault to report here.
 
 ## Never include a real scan
 

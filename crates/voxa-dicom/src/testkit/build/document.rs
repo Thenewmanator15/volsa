@@ -39,6 +39,14 @@ pub fn encapsulated_pdf(opts: &DocumentOptions, pdf: &[u8]) -> Vec<u8> {
     }
     let mime = tags::MIME_TYPE_OF_ENCAPSULATED_DOCUMENT;
     obj.put(element(mime, VR::LO, "application/pdf"));
+    // The length of the document without the pad, as the standard has a file give it.
+    let length = u32::try_from(pdf.len()).expect("a made-up page is short");
+    let length = PrimitiveValue::from(length);
+    obj.put(DataElement::new(
+        tags::ENCAPSULATED_DOCUMENT_LENGTH,
+        VR::UL,
+        length,
+    ));
     let mut padded = pdf.to_vec();
     if padded.len() % 2 == 1 {
         padded.push(0);

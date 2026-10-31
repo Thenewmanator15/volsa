@@ -6,6 +6,8 @@ use super::tests::a_report;
 use super::*;
 use crate::testkit::{DocumentOptions, ReportItem, SliceOptions, classic_slice, structured_report};
 
+const KEY_IMAGE_NOTE: &str = "1.2.840.10008.5.1.4.1.1.88.59";
+
 fn line(depth: u8, heading: Option<&str>, text: &str) -> ReportLine {
     ReportLine {
         depth,
@@ -211,6 +213,49 @@ fn a_report_of_too_many_characters_is_cut_short_at_the_limit() {
         "First: ".len() + long.len(),
         "kept whole"
     );
+    let second = report.lines.last().expect("a second line");
+    assert!(second.text.ends_with('…'), "the cut line says it was cut");
+}
+
+#[test]
+fn a_line_cut_at_the_character_limit_ends_in_an_ellipsis() {
+    // Room is left for ten characters after the first line.
+    let first = "a".repeat(MAX_REPORT_CHARS - 10 - "First: ".len());
+    let report = read(&[
+        ReportItem::text("First", &first),
+        ReportItem::number("Width", "152", "mm"),
+        ReportItem::text("Later", "never read"),
+    ]);
+    assert!(report.cut_short);
+    assert_eq!(report.lines.len(), 2);
+    let cut = report.lines.last().map(|line| line.text.as_str());
+    assert_eq!(cut, Some("Width: 15…"), "not a number that looks whole");
+    assert_eq!(characters(&report), MAX_REPORT_CHARS);
+}
+
+#[test]
+fn a_heading_cut_at_the_character_limit_ends_in_an_ellipsis() {
+    let first = "a".repeat(MAX_REPORT_CHARS - 5 - "First: ".len());
+    let report = read(&[
+        ReportItem::text("First", &first),
+        ReportItem::container("Long heading", vec![ReportItem::text("Inside", "x")]),
+    ]);
+    assert!(report.cut_short);
+    assert_eq!(report.lines.len(), 2);
+    assert_eq!(report.lines.last(), Some(&line(0, Some("Long…"), "")));
+    assert_eq!(characters(&report), MAX_REPORT_CHARS);
+}
+
+#[test]
+fn nothing_is_added_when_no_room_is_left() {
+    let value = "a".repeat(MAX_REPORT_CHARS - "Only: ".len());
+    let report = read(&[
+        ReportItem::text("Only", &value),
+        ReportItem::text("Next", "x"),
+    ]);
+    assert!(report.cut_short);
+    assert_eq!(report.lines.len(), 1);
+    assert_eq!(characters(&report), MAX_REPORT_CHARS);
 }
 
 #[test]
@@ -249,6 +294,14 @@ fn what_is_not_a_report_is_an_error() {
     assert!(
         read_report(&a_report(&other)).is_err(),
         "a presentation state is not a report"
+    );
+    let note = DocumentOptions {
+        sop_class: Some(KEY_IMAGE_NOTE.to_owned()),
+        ..DocumentOptions::default()
+    };
+    assert!(
+        read_report(&a_report(&note)).is_err(),
+        "a key-image note is not a report to read as text"
     );
 }
 

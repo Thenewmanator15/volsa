@@ -1,5 +1,9 @@
 //! Which files of an export are documents, in what order, and the PDF inside one.
 
+use std::io::Cursor;
+
+use dicom_core::{DataElement, PrimitiveValue, VR};
+
 use super::*;
 use crate::index::{Index, index};
 use crate::testkit::{
@@ -8,6 +12,7 @@ use crate::testkit::{
 };
 
 const PRESENTATION_STATE: &str = "1.2.840.10008.5.1.4.1.1.11.1";
+const KEY_IMAGE_NOTE: &str = "1.2.840.10008.5.1.4.1.1.88.59";
 
 /// A report of a few lines, made up.
 pub(super) fn a_report(opts: &DocumentOptions) -> Vec<u8> {
@@ -130,6 +135,8 @@ fn other_documents_are_named_in_words_where_the_class_is_known() {
             "b",
             structured_report(&class("1.2.826.0.1.3680043.9.9999.5"), &[]),
         ),
+        // Built as a report, but it only points at images: not one to read as text.
+        named("c", structured_report(&class(KEY_IMAGE_NOTE), &[])),
     ];
     let kinds: Vec<DocumentKind> = indexed(files)
         .documents
@@ -141,6 +148,7 @@ fn other_documents_are_named_in_words_where_the_class_is_known() {
         vec![
             DocumentKind::Other("Grayscale Softcopy Presentation State".to_owned()),
             DocumentKind::Other("1.2.826.0.1.3680043.9.9999.5".to_owned()),
+            DocumentKind::Other("Key-image note".to_owned()),
         ]
     );
 }
@@ -270,6 +278,55 @@ fn the_pdf_inside_is_given_back_whole() {
         let file = encapsulated_pdf(&DocumentOptions::default(), &original);
         assert_eq!(pdf_bytes(&file).expect("has a pdf"), original);
     }
+}
+
+/// `file`, a DICOM file of a PDF, with the length it gives for the PDF set to `length`, or the
+/// element left out for `None`.
+fn with_length(file: &[u8], length: Option<u32>) -> Vec<u8> {
+    let mut object = dicom_object::from_reader(Cursor::new(file)).expect("parses");
+    match length {
+        Some(length) => {
+            let value = PrimitiveValue::from(length);
+            let element = DataElement::new(tags::ENCAPSULATED_DOCUMENT_LENGTH, VR::UL, value);
+            object.put(element);
+        }
+        None => {
+            object.remove_element(tags::ENCAPSULATED_DOCUMENT_LENGTH);
+        }
+    }
+    let mut out = Vec::new();
+    object.write_all(&mut out).expect("writes to memory");
+    out
+}
+
+#[test]
+fn a_pdf_ending_in_a_zero_byte_keeps_it_because_the_file_gives_the_length() {
+    let mut page = a_page();
+    page.push(0);
+    assert_eq!(
+        page.len() % 2,
+        0,
+        "no pad is needed, and the last byte is real"
+    );
+    let file = encapsulated_pdf(&DocumentOptions::default(), &page);
+    assert_eq!(pdf_bytes(&file).expect("has a pdf"), page);
+}
+
+#[test]
+fn a_pdf_with_no_usable_length_loses_one_trailing_zero_as_the_pad() {
+    let page = a_page();
+    let file = encapsulated_pdf(&DocumentOptions::default(), &page);
+    let stored = page.len() + 1;
+    let unusable = [None, Some(u32::try_from(stored + 10).expect("small"))];
+    for length in unusable {
+        let altered = with_length(&file, length);
+        assert_eq!(pdf_bytes(&altered).expect("has a pdf"), page, "{length:?}");
+    }
+    // The cost of not knowing: an even page that really ends in zero loses that byte.
+    let mut even = page.clone();
+    even.push(0);
+    let altered = with_length(&encapsulated_pdf(&DocumentOptions::default(), &even), None);
+    assert_eq!(pdf_bytes(&altered).expect("has a pdf"), page);
 }
 
 #[test]

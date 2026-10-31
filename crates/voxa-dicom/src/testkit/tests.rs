@@ -173,6 +173,14 @@ fn a_pdf_is_written_padded_to_an_even_length_and_a_class_can_be_overridden() {
     assert_eq!(held.len(), odd.len() + 1);
     assert_eq!(held.get(..odd.len()), Some(odd.as_slice()));
     assert_eq!(held.last(), Some(&0));
+    let length = obj
+        .element(tags::ENCAPSULATED_DOCUMENT_LENGTH)
+        .expect("length");
+    assert_eq!(
+        length.to_int::<usize>().expect("int"),
+        odd.len(),
+        "without the pad"
+    );
 
     let other = DocumentOptions {
         sop_class: Some("1.2.840.10008.5.1.4.1.1.11.1".to_owned()),

@@ -6,7 +6,7 @@ use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
 use voxa_core::VoxaError;
 
-use super::{REPORT_CLASSES, sop_class_of};
+use super::{is_report_class, sop_class_of};
 use crate::decode::{guarded, open};
 use crate::header::{first_item, items, text};
 
@@ -36,7 +36,8 @@ pub struct Report {
     /// The lines, in the order of the report.
     pub lines: Vec<ReportLine>,
     /// True when the report went on past a limit and was read no further: the lines are the
-    /// start of it, and the rest is only in the original.
+    /// start of it, and the rest is only in the original. The last line may itself be cut, and
+    /// then ends in an ellipsis.
     pub cut_short: bool,
 }
 
@@ -47,7 +48,8 @@ pub struct Report {
 /// `name: value`. An item of any other kind, such as an image, becomes a line that says what
 /// it was and that it is not shown, so that nothing is left out unsaid. The report is read
 /// no further than [`MAX_REPORT_DEPTH`] sections deep, [`MAX_REPORT_LINES`] lines or
-/// [`MAX_REPORT_CHARS`] characters; it is then [`Report::cut_short`].
+/// [`MAX_REPORT_CHARS`] characters; it is then [`Report::cut_short`]. A line that was cut at the
+/// character limit ends in an ellipsis (`…`), so that it is not taken for a whole one.
 ///
 /// # Errors
 ///
@@ -56,7 +58,7 @@ pub struct Report {
 pub fn read_report(bytes: &[u8]) -> Result<Report, VoxaError> {
     guarded(|| {
         let file = open(bytes)?;
-        if !sop_class_of(&file).is_some_and(|class| class.starts_with(REPORT_CLASSES)) {
+        if !sop_class_of(&file).is_some_and(|class| is_report_class(&class)) {
             return Err(VoxaError::Decode(
                 "this is not a structured report".to_owned(),
             ));
@@ -98,29 +100,26 @@ impl Reading {
         ControlFlow::Continue(())
     }
 
-    /// Add a line, or as much of it as the limits leave room for.
+    /// Add a line, or as much of it as the limits leave room for, ending in an ellipsis to say
+    /// it was cut. Breaks when it could not be added whole.
     fn push(&mut self, mut line: ReportLine) -> ControlFlow<()> {
         if self.lines.len() >= MAX_REPORT_LINES {
             self.cut_short = true;
             return ControlFlow::Break(());
         }
         let room = MAX_REPORT_CHARS.saturating_sub(self.chars);
-        let mut size = characters(&line);
-        let fits = size <= room;
-        if !fits {
-            self.cut_short = true;
-            clip(&mut line, room);
-            size = characters(&line);
+        if characters(&line) <= room {
+            self.chars += characters(&line);
+            self.lines.push(line);
+            return ControlFlow::Continue(());
         }
-        if fits || size > 0 {
-            self.chars += size;
+        self.cut_short = true;
+        if room > 0 {
+            clip(&mut line, room);
+            self.chars += characters(&line);
             self.lines.push(line);
         }
-        if fits {
-            ControlFlow::Continue(())
-        } else {
-            ControlFlow::Break(())
-        }
+        ControlFlow::Break(())
     }
 }
 
@@ -130,14 +129,23 @@ fn characters(line: &ReportLine) -> usize {
     heading + line.text.chars().count()
 }
 
-/// Cut a line down to its first `room` characters.
+/// Cut a line down to `room` characters, the last of them an ellipsis that says it was cut, so
+/// that a number cut in the middle cannot be taken for a whole one. `room` is at least 1.
 fn clip(line: &mut ReportLine, room: usize) {
-    let first = |text: &str, count: usize| text.chars().take(count).collect::<String>();
-    if let Some(heading) = &mut line.heading {
-        *heading = first(heading, room);
+    let head = line.heading.as_deref().map_or(0, |h| h.chars().count());
+    match &mut line.heading {
+        Some(heading) if head >= room => {
+            *heading = cut(heading, room);
+            line.text.clear();
+        }
+        _ => line.text = cut(&line.text, room.saturating_sub(head)),
     }
-    let left = room.saturating_sub(line.heading.as_deref().map_or(0, |h| h.chars().count()));
-    line.text = first(&line.text, left);
+}
+
+/// The first characters of `text` that leave room for an ellipsis within `room` characters.
+fn cut(text: &str, room: usize) -> String {
+    let kept = text.chars().take(room.saturating_sub(1));
+    kept.chain(['…']).collect()
 }
 
 /// The line one item of the report is.

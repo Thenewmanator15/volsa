@@ -95,12 +95,23 @@ fn sop_class_of(file: &DefaultDicomObject) -> Option<String> {
     })
 }
 
+/// Whether a SOP class is one of a report that is read as text: a structured report, but not
+/// a key-image note, which is built as one yet only points at images.
+fn is_report_class(sop_class: &str) -> bool {
+    sop_class.starts_with(REPORT_CLASSES)
+        && sop_class != uids::KEY_OBJECT_SELECTION_DOCUMENT_STORAGE
+}
+
 fn kind_of(sop_class: &str) -> DocumentKind {
-    if sop_class.starts_with(REPORT_CLASSES) {
+    if is_report_class(sop_class) {
         return DocumentKind::Report;
     }
     if sop_class == uids::ENCAPSULATED_PDF_STORAGE {
         return DocumentKind::Pdf;
+    }
+    if sop_class == uids::KEY_OBJECT_SELECTION_DOCUMENT_STORAGE {
+        // The standard calls it a "Key Object Selection Document", which says little.
+        return DocumentKind::Other("Key-image note".to_owned());
     }
     let known = StandardSopClassDictionary.by_uid(sop_class);
     let words = known.map(|entry| entry.name.strip_suffix(" Storage").unwrap_or(entry.name));
@@ -144,9 +155,13 @@ fn study_place<'a>(document: &'a IndexedDocument, studies: &[StudyInfo]) -> (usi
     }
 }
 
-/// The PDF file held in a DICOM file of encapsulated PDF, whole: its pad byte is removed and
-/// nothing else is changed. Voxa draws no PDF and starts no program to show it; the bytes are
-/// for the person to save.
+/// The PDF file held in a DICOM file of encapsulated PDF, as long as the file says it is: the
+/// stored bytes are cut to the Encapsulated Document Length when the file gives one that is no
+/// longer than what is stored, so a PDF whose last byte is really zero keeps it. When the file
+/// gives none, or one that does not fit, one trailing zero byte is taken to be the pad the
+/// standard adds to a document of odd length and is removed, which would also remove a last
+/// byte of the PDF that is zero. Nothing else is changed. Voxa draws no PDF and starts no
+/// program to show it; the bytes are for the person to save.
 ///
 /// # Errors
 ///
@@ -165,12 +180,21 @@ pub fn pdf_bytes(bytes: &[u8]) -> Result<Vec<u8>, VoxaError> {
             .and_then(|element| element.to_bytes().ok())
             .ok_or_else(|| VoxaError::Decode("the file holds no document".to_owned()))?;
         let mut pdf = held.into_owned();
-        // The standard pads a document of odd length with one zero byte.
-        if pdf.last() == Some(&0) {
-            pdf.pop();
+        match stated_length(&file).filter(|length| *length <= pdf.len()) {
+            Some(length) => pdf.truncate(length),
+            None if pdf.last() == Some(&0) => {
+                pdf.pop();
+            }
+            None => {}
         }
         Ok(pdf)
     })
+}
+
+/// The length of the document that the file gives, without the pad.
+fn stated_length(file: &DefaultDicomObject) -> Option<usize> {
+    let length = file.get(tags::ENCAPSULATED_DOCUMENT_LENGTH)?;
+    usize::try_from(length.to_int::<u64>().ok()?).ok()
 }
 
 #[cfg(test)]
