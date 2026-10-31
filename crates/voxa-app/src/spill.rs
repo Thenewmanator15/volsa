@@ -98,17 +98,17 @@ impl SlabStore for SpillFile {
             file.read_exact(into)
         });
         drop(file);
-        match &read {
-            Ok(()) => {
-                // Said once a slab, as it begins to come back.
-                if let (0, Some(call)) = (at, &self.brought_back) {
-                    call();
-                }
-            }
+        if let Err(why) = &read {
             // Said by kind alone: the file's name and what it holds are nobody's business.
-            Err(why) => tracing::warn!("a slab could not be read back from disk: {}", why.kind()),
+            tracing::warn!("a slab could not be read back from disk: {}", why.kind());
         }
         read
+    }
+
+    fn brought_back(&self) {
+        if let Some(call) = &self.brought_back {
+            call();
+        }
     }
 }
 

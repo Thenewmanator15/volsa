@@ -85,8 +85,7 @@ impl SceneView {
         self.gpu.as_ref().is_some_and(|gpu| !gpu.holds(volume))
     }
 
-    /// Give the viewport what the device is to hold of its volume, to hand over, a slab a
-    /// frame, when it draws.
+    /// Give the viewport what the device is to hold of its volume, handed over a slab a frame.
     pub fn offer(&mut self, card: Option<(Arc<HeldVolume>, u32)>) {
         if card.is_some() {
             self.card = card;
@@ -160,14 +159,16 @@ impl SceneView {
         actions: &mut Vec<Action>,
     ) -> Option<egui::TextureId> {
         let shown = state.scene.series.as_ref();
-        if let Some(gpu) = self
-            .gpu
-            .as_mut()
-            .filter(|_| self.preview_of.as_ref() != shown)
-        {
-            // A preview is drawn for its own series only.
-            gpu.drop_preview();
-            self.preview_of = None;
+        if let Some(gpu) = self.gpu.as_mut() {
+            // A preview, and a volume on its way, are of their own series only.
+            if self.preview_of.as_ref() != shown {
+                gpu.drop_preview();
+                self.preview_of = None;
+            }
+            if volume.is_none() {
+                gpu.give_up_upload();
+                self.card = None;
+            }
         }
         let ready = scene_params(state, 1.0).zip(self.gpu.as_mut()).zip(render);
         let Some(((params, gpu), render)) =

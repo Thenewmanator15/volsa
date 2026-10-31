@@ -179,3 +179,23 @@ fn an_upload_to_a_lost_device_fails_without_stopping() {
     gpu.gpu.lose();
     assert_eq!(gpu.upload_held(&held), Err(RenderError::DeviceLost));
 }
+
+#[test]
+fn a_hand_over_given_up_lets_its_volume_go() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let held = held_ball(Stored::Unsigned16, 48 * 48 * 2 * 8);
+    let (device, queue) = (&gpu.gpu.device, &gpu.gpu.queue);
+    let room = CardRoom::of(device, None);
+    gpu.pipeline
+        .start_upload(device, Arc::clone(&held), room)
+        .expect("room");
+    let one_slab = 48 * 48 * 2 * 8;
+    gpu.pipeline.continue_upload(device, queue, one_slab);
+    assert_eq!(Arc::strong_count(&held), 2, "held by the hand-over");
+    gpu.pipeline.give_up_upload();
+    assert_eq!(Arc::strong_count(&held), 1, "let go");
+    assert!(!gpu.pipeline.is_uploading());
+    assert!(!gpu.pipeline.has_volume());
+}

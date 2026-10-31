@@ -26,8 +26,14 @@ fn a_slab_put_away_comes_back_the_same() {
     assert_eq!(part, [5, 6, 7, 8]);
     assert_eq!(
         back.load(Ordering::SeqCst),
+        0,
+        "reading a part says nothing"
+    );
+    spill.brought_back();
+    assert_eq!(
+        back.load(Ordering::SeqCst),
         1,
-        "said as a slab begins to come back"
+        "a slab back in memory is said"
     );
 }
 

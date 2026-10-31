@@ -129,3 +129,77 @@ fn a_store_that_cannot_take_a_slab_leaves_it_in_memory() {
     assert_eq!(held.bytes_held(), 48);
     assert_eq!(held.value(1, 1, 5), Some(-47.0));
 }
+
+/// A store that keeps a slab only once it is let go: so that a test can look at the volume
+/// while a slab is on its way to the disk.
+struct Slow {
+    kept: Kept,
+    going: std::sync::mpsc::SyncSender<()>,
+    let_go: Mutex<std::sync::mpsc::Receiver<()>>,
+}
+
+impl SlabStore for Slow {
+    fn put_away(&self, slab: usize, at: usize, bytes: &[u8]) -> std::io::Result<()> {
+        let _ = self.going.try_send(());
+        let _ = self.let_go.lock().expect("held").recv();
+        self.kept.put_away(slab, at, bytes)
+    }
+
+    fn bring_back(&self, slab: usize, at: usize, into: &mut [u8]) -> std::io::Result<()> {
+        self.kept.bring_back(slab, at, into)
+    }
+}
+
+#[test]
+fn counting_and_reading_never_wait_for_a_slab_going_to_disk() {
+    let held = three_slabs();
+    let (going, on_its_way) = std::sync::mpsc::sync_channel(1);
+    let (let_go, waiting) = std::sync::mpsc::channel();
+    held.keep_away_in(Arc::new(Slow {
+        kept: Kept::default(),
+        going,
+        let_go: Mutex::new(waiting),
+    }));
+    let looked = std::thread::scope(|scope| {
+        let putting = scope.spawn(|| held.put_away_least_used());
+        on_its_way.recv().expect("a slab is on its way");
+        let (seen, found) = std::sync::mpsc::channel();
+        let held = &held;
+        scope.spawn(move || {
+            let _ = seen.send((held.bytes_held(), held.slice_values(0)));
+        });
+        let looked = found.recv_timeout(std::time::Duration::from_secs(2));
+        // Let the slab go however the look went, so that the threads end.
+        for _ in 0..4 {
+            let _ = let_go.send(());
+        }
+        let _ = putting.join();
+        looked
+    });
+    let (bytes, values) = looked.expect("neither waited for the disk");
+    assert_eq!(bytes, 48);
+    assert_eq!(values, Some(vec![-100.0, -99.0, -98.0, -97.0]));
+}
+
+#[test]
+fn reading_a_slice_or_a_slab_put_away_reads_the_disk_and_leaves_it_there() {
+    let held = three_slabs();
+    held.keep_away_in(Arc::new(Kept::default()));
+    held.put_away_least_used().expect("put");
+    let away = (0..3)
+        .find(|slab| held.is_away(*slab))
+        .expect("one is away");
+    let slice = u32::try_from(away * 2 + 1).expect("small");
+    let first = -100.0 + 10.0 * f32::from(u16::try_from(slice).expect("small"));
+    assert_eq!(
+        held.slice_values(slice),
+        Some(vec![first, first + 1.0, first + 2.0, first + 3.0])
+    );
+    let numbers = held.with_slab(away, |raw| match raw {
+        SlabRaw::Signed(numbers) => numbers.to_vec(),
+        _ => Vec::new(),
+    });
+    assert_eq!(numbers.map(|numbers| numbers.len()), Some(8));
+    assert!(held.is_away(away), "still on disk");
+    assert_eq!(held.bytes_held(), 32, "and not in memory");
+}

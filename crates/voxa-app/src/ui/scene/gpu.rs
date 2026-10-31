@@ -116,6 +116,15 @@ impl SceneGpu {
         self.has_preview()
     }
 
+    /// Give up a volume on its way to the device, and the volume itself with it: its series
+    /// is no longer the one shown.
+    pub fn give_up_upload(&mut self) {
+        if self.pipeline.is_uploading() {
+            self.pipeline.give_up_upload();
+            self.given = Weak::new();
+        }
+    }
+
     /// Give up the preview, if there is one.
     pub fn drop_preview(&mut self) {
         if self.preview.take().is_some() {

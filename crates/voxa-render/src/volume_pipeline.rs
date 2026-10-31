@@ -265,6 +265,12 @@ impl VolumePipeline {
         self.upload.is_some()
     }
 
+    /// Stop handing a volume to the device, giving back its textures and letting the volume
+    /// go: what is done when the series it is of is no longer shown.
+    pub fn give_up_upload(&mut self) {
+        self.upload = None;
+    }
+
     /// Whether the volume on the device is held in more than one texture, too long for one:
     /// no curve is made through such a volume, since it would take as much room again.
     pub fn held_in_slabs(&self) -> bool {

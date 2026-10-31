@@ -1,11 +1,12 @@
-//! Slabs put away past a memory budget, and brought back when they are read. Only a whole
-//! slab is put away, the one read least lately first; reading one that is away brings it
-//! back, and one that cannot be brought back reads as missing.
+//! Slabs put away past a memory budget. Only a whole slab is put away, the one read least
+//! lately first. A slice or slab of one that is away is read from the store, leaving it there;
+//! a single value brings the slab back. One that cannot be read reads as missing.
 
+use std::ops::Range;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, PoisonError};
 
-use super::{HeldVolume, Values};
+use super::{HeldVolume, SlabRaw, Values};
 
 /// How many numbers of a slab go to its store, or come back, at once: a mebibyte of 16-bit
 /// numbers, so that moving a slab takes little memory besides the slab.
@@ -29,6 +30,10 @@ pub trait SlabStore: Send + Sync {
     ///
     /// When they cannot be read; the slab then reads as missing.
     fn bring_back(&self, slab: usize, at: usize, into: &mut [u8]) -> std::io::Result<()>;
+
+    /// A slab has been brought back into memory, which is used again. Said with no lock of the
+    /// volume held. Nothing by default.
+    fn brought_back(&self) {}
 }
 
 /// Where one slab's numbers are.
@@ -66,7 +71,8 @@ impl HeldVolume {
             let Some(cell) = self.slabs.get(slab) else {
                 continue;
             };
-            let mut held = cell.write().unwrap_or_else(PoisonError::into_inner);
+            // Written with the slab still readable: a whole slab is never written to again.
+            let held = cell.read().unwrap_or_else(PoisonError::into_inner);
             let Slab::Here(values) = &*held else {
                 continue;
             };
@@ -80,8 +86,14 @@ impl HeldVolume {
                 );
                 store.put_away(slab, first * size, &part)?;
             }
+            drop(held);
+            let mut held = cell.write().unwrap_or_else(PoisonError::into_inner);
+            let Slab::Here(values) = &*held else {
+                continue;
+            };
             let freed = values.bytes();
             *held = Slab::Away;
+            self.held_bytes.fetch_sub(freed, Ordering::SeqCst);
             return Ok(freed);
         }
         Ok(0)
@@ -154,18 +166,73 @@ impl HeldVolume {
             return Some(());
         }
         let store = self.away.get()?;
-        let (numbers, size) = (
-            self.slab_slices(slab).len() * self.in_slice(),
-            self.stored.bytes(),
-        );
-        let mut values = Values::zeroed(self.stored, numbers);
-        let mut part = vec![0; NUMBERS_AT_ONCE.min(numbers) * size];
-        for first in (0..numbers).step_by(NUMBERS_AT_ONCE) {
-            let bytes = part.get_mut(..(numbers - first).min(NUMBERS_AT_ONCE) * size)?;
-            store.bring_back(slab, first * size, bytes).ok()?;
+        let numbers = self.slab_slices(slab).len() * self.in_slice();
+        let values = self.read_from(store.as_ref(), slab, 0..numbers)?;
+        self.held_bytes.fetch_add(values.bytes(), Ordering::SeqCst);
+        *held = Slab::Here(values);
+        drop(held);
+        store.brought_back();
+        Some(())
+    }
+
+    /// The numbers `numbers` of slab `slab`, read from `store` a part at a time.
+    fn read_from(
+        &self,
+        store: &dyn SlabStore,
+        slab: usize,
+        numbers: Range<usize>,
+    ) -> Option<Values> {
+        let size = self.stored.bytes();
+        let mut values = Values::zeroed(self.stored, numbers.len());
+        let mut part = vec![0; NUMBERS_AT_ONCE.min(numbers.len()) * size];
+        for first in (0..numbers.len()).step_by(NUMBERS_AT_ONCE) {
+            let bytes = part.get_mut(..(numbers.len() - first).min(NUMBERS_AT_ONCE) * size)?;
+            store
+                .bring_back(slab, (numbers.start + first) * size, bytes)
+                .ok()?;
             values.set_from_bytes(first, bytes);
         }
-        *held = Slab::Here(values);
-        Some(())
+        Some(values)
+    }
+
+    /// Read the numbers `numbers` of slab `slab` as held: from memory, or, where the slab is
+    /// away, from its store into memory made for this read alone, leaving the slab where it
+    /// is. `None` when it has not been made, or cannot be read.
+    pub(super) fn read_part<T>(
+        &self,
+        slab: usize,
+        numbers: Range<usize>,
+        read: impl FnOnce(SlabRaw<'_>) -> T,
+    ) -> Option<T> {
+        let held = self
+            .slabs
+            .get(slab)?
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        match &*held {
+            Slab::Here(values) => return part_of(values.raw(), numbers).map(read),
+            Slab::Empty => return None,
+            Slab::Away => {}
+        }
+        // Read with the slab held as it is, so that it does not come back half way.
+        let values = self.read_from(self.away.get()?.as_ref(), slab, numbers)?;
+        drop(held);
+        Some(read(values.raw()))
+    }
+}
+
+/// The numbers `numbers` of a slab's.
+fn part_of(raw: SlabRaw<'_>, numbers: Range<usize>) -> Option<SlabRaw<'_>> {
+    Some(match raw {
+        SlabRaw::Unsigned(all) => SlabRaw::Unsigned(all.get(numbers)?),
+        SlabRaw::Signed(all) => SlabRaw::Signed(all.get(numbers)?),
+        SlabRaw::Float(all) => SlabRaw::Float(all.get(numbers)?),
+    })
+}
+
+impl HeldVolume {
+    /// Count bytes made in memory for a slab.
+    pub(super) fn count_made(&self, bytes: usize) {
+        self.held_bytes.fetch_add(bytes, Ordering::SeqCst);
     }
 }
