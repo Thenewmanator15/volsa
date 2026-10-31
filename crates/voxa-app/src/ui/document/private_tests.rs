@@ -189,3 +189,39 @@ fn what_is_hidden_in_a_heading_is_told_of_in_the_note_too() {
     assert!(words.contains(&"Notes on [hidden]"), "{words:?}");
     assert!(words.contains(&LEFT_OUT), "{words:?}");
 }
+
+#[test]
+fn the_note_is_shown_when_only_the_title_in_the_header_was_replaced() {
+    // The lines of the report name nobody, but its title holds the patient's name.
+    let report = Report {
+        lines: vec![line(0, None, "Width: 12 mm")],
+        cut_short: false,
+    };
+    let state = opened_with(scans_and_a_named_report(), NAMED, Some(Ok(report)));
+    let drawn = pass(&seen::context(1.0), &state, Vec::new());
+    let words = words_of(&drawn.seen);
+    assert!(
+        words.contains(&"Report on [hidden] · 2 January 2020"),
+        "{words:?}"
+    );
+    assert!(words.contains(&LEFT_OUT), "{words:?}");
+    // With the details on, nothing is left out, and nothing says so.
+    let shown = AppState {
+        show_patient: true,
+        ..state
+    };
+    let drawn = pass(&seen::context(1.0), &shown, Vec::new());
+    assert!(!words_of(&drawn.seen).contains(&LEFT_OUT));
+}
+
+#[test]
+fn the_note_says_that_a_name_held_by_an_item_is_hidden_too() {
+    // An item that holds a name is shown as `Name hidden`, which the note must cover.
+    assert!(LEFT_OUT.contains("[hidden]"), "{LEFT_OUT}");
+    assert!(
+        LEFT_OUT.to_lowercase().contains("name hidden"),
+        "{LEFT_OUT}"
+    );
+    let hidden = NAME_HIDDEN.to_lowercase();
+    assert!(hidden.starts_with("name hidden"), "{hidden}");
+}

@@ -54,7 +54,7 @@ pub struct Kept {
     content: Option<Content>,
     /// What is left out of the words of the lines.
     mask: Mask,
-    /// Whether the mask changes any word of any line or heading of the report.
+    /// Whether the mask changes any word of any line or heading of the report, or of its title.
     replaced: bool,
     /// What each line is drawn with, once it has come in sight.
     prepared: Vec<Option<Prepared>>,
@@ -90,11 +90,13 @@ impl Kept {
             self.prepared = lines.iter().map(|_| None).collect();
             self.width = 0.0;
             let changes = |text: &str, is_name| self.mask.changes(text, is_name);
-            self.replaced = lines.iter().any(|line| {
-                let heading = line.heading.as_deref();
-                changes(&line.text, line.is_name)
-                    || heading.is_some_and(|text| changes(text, false))
-            });
+            let title = crate::naming::printable(&shown.document.title);
+            self.replaced = changes(&title, false)
+                || lines.iter().any(|line| {
+                    let heading = line.heading.as_deref();
+                    changes(&line.text, line.is_name)
+                        || heading.is_some_and(|text| changes(text, false))
+                });
         }
         self.replaced
     }

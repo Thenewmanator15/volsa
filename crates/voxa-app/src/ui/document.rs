@@ -31,8 +31,9 @@ use lines::Shown;
 /// The line above a report, which says what is shown is not the report itself.
 pub const HEADING: &str = "Shown as text. The original report is the reference.";
 /// The line under it that says what the report leaves out while the patient's details are
-/// hidden. It is shown only when something was in fact replaced.
-pub const LEFT_OUT: &str = "While patient details are hidden, the patient's name and identifier are shown as [hidden]. Turn on Show patient details to see the report as written.";
+/// hidden. It is shown only when something was in fact replaced, in the report or in the title
+/// above it.
+pub const LEFT_OUT: &str = "While patient details are hidden, the patient's name and identifier are shown as [hidden], and a name the report gives as an item is shown as Name hidden. Turn on Show patient details to see the report as written.";
 /// The line that says part of a report is not shown.
 pub const CUT_SHORT: &str = "Part of this report is too long or too deeply nested to show here.";
 /// What a PDF stored in DICOM is said to be.
