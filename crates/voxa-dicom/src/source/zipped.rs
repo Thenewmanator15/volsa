@@ -1,6 +1,5 @@
 //! The files inside a zip archive, read straight from the archive.
 
-use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
@@ -23,7 +22,7 @@ pub(super) struct ZipSource {
 
 impl ZipSource {
     pub(super) fn open(path: &Path) -> Result<Self, VoxaError> {
-        let (mut archive, _) = open_archive(File::open(path)?).map_err(archive_error)?;
+        let (mut archive, _) = open_archive(ArchiveFile::open(path)?).map_err(archive_error)?;
         let mut files = Vec::new();
         for at in 0..archive.len() {
             let entry = archive.by_index_raw(at).map_err(archive_error)?;
@@ -82,8 +81,7 @@ const END_SEARCHED: u64 = 64 * 1024 + 1024;
 /// and only there; and when the record it reads is the only one near the file's end, what it
 /// finds is what its search would have found. Any other file, such as one with data before the
 /// archive or with a second end record near its end, is searched as before.
-fn open_archive(file: File) -> ZipResult<(ZipArchive<ArchiveFile>, Opening)> {
-    let reader = ArchiveFile::new(file);
+fn open_archive(reader: ArchiveFile) -> ZipResult<(ZipArchive<ArchiveFile>, Opening)> {
     if one_end_record(&mut reader.clone()) {
         let at_the_start = Config {
             archive_offset: ArchiveOffset::Known(0),
