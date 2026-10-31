@@ -5,7 +5,9 @@ use proptest::prelude::*;
 
 use super::NetworkError;
 use super::tests::{one_node, read_bytes, standard};
-use crate::testkit::onnx::{AttrSpec, GraphSpec, conv_network, image_input, network_bytes};
+use crate::testkit::onnx::{
+    AttrSpec, DimSpec, GraphSpec, conv_network, floats, image_input, network_bytes,
+};
 
 /// A network whose graph holds subgraphs `depth` deep, each in an `If`.
 fn nested(depth: usize) -> Vec<u8> {
@@ -58,5 +60,79 @@ proptest! {
     #[test]
     fn random_bytes_never_panic(bytes in proptest::collection::vec(any::<u8>(), 0..512)) {
         let _ = read_bytes(&bytes, &[]);
+    }
+}
+
+/// Protobuf's wire format, by hand, for what the test kit does not write.
+fn varint(out: &mut Vec<u8>, mut value: u64) {
+    loop {
+        let low = u8::try_from(value & 0x7f).unwrap_or(0);
+        value >>= 7;
+        if value == 0 {
+            out.push(low);
+            return;
+        }
+        out.push(low | 0x80);
+    }
+}
+
+fn length_field(out: &mut Vec<u8>, number: u64, bytes: &[u8]) {
+    varint(out, number << 3 | 2);
+    varint(out, bytes.len() as u64);
+    out.extend_from_slice(bytes);
+}
+
+/// A model whose one tensor names `elsewhere.bin` for its numbers, with its location field
+/// written as `location` when there is one.
+fn kept_elsewhere(location: Option<u64>) -> Vec<u8> {
+    let mut entry = Vec::new();
+    length_field(&mut entry, 1, b"location");
+    length_field(&mut entry, 2, b"elsewhere.bin");
+    let mut tensor = Vec::new();
+    length_field(&mut tensor, 8, b"w");
+    length_field(&mut tensor, 13, &entry);
+    if let Some(location) = location {
+        varint(&mut tensor, 14 << 3);
+        varint(&mut tensor, location);
+    }
+    let mut graph = Vec::new();
+    length_field(&mut graph, 5, &tensor);
+    let mut opset = Vec::new();
+    length_field(&mut opset, 1, b"");
+    varint(&mut opset, 2 << 3);
+    varint(&mut opset, 17);
+    let mut model = Vec::new();
+    varint(&mut model, 1 << 3);
+    varint(&mut model, 8);
+    length_field(&mut model, 7, &graph);
+    length_field(&mut model, 8, &opset);
+    model
+}
+
+#[test]
+fn a_tensor_kept_elsewhere_is_checked_however_its_location_is_written() {
+    // ONNX Runtime reads the location as 32 bits: 2^32 + 1 is "external" to it.
+    for location in [Some(1), Some((1 << 32) + 1), None] {
+        let refused = read_bytes(&kept_elsewhere(location), &[]).expect_err("refused");
+        assert_eq!(refused, NetworkError::Outside, "{location:?}");
+    }
+}
+
+#[test]
+fn more_ports_dimensions_or_operator_sets_than_the_reader_keeps_are_refused() {
+    let mut ports = one_node("Relu", "", standard());
+    let port = ports.graph.inputs[0].clone();
+    ports.graph.inputs = vec![port; 1_025];
+    let mut dims = one_node("Relu", "", standard());
+    dims.graph.inputs[0] = floats("x", vec![DimSpec::Fixed(1); 17]);
+    let mut opsets = one_node("Relu", "", standard());
+    opsets.opsets = vec![(String::new(), 17); 65];
+    for (what, spec) in [
+        ("ports", ports),
+        ("dimensions", dims),
+        ("operator sets", opsets),
+    ] {
+        let refused = read_bytes(&network_bytes(&spec), &[]).expect_err(what);
+        assert_eq!(refused, NetworkError::TooDeep, "{what}");
     }
 }

@@ -9,12 +9,32 @@ use super::wire::{LENGTH, VARINT, Wire};
 use super::{Dim, Element, NetworkError, Port};
 use crate::Listed;
 
+mod external;
+
+use external::External;
+
 /// The deepest a graph may lie inside the attributes of nodes: the main graph is 0.
 const MOST_DEPTH: usize = 16;
 /// The most nodes, in every graph together.
 const MOST_NODES: usize = 100_000;
 /// The longest a name or a domain is read, in bytes.
-const MOST_TEXT: u64 = 1 << 16;
+pub(super) const MOST_TEXT: u64 = 1 << 16;
+/// The most inputs, and the most outputs, of the main graph; the most dimensions of a port;
+/// the most operator sets; and the most names of fixed tensors kept: each costs the reader far
+/// more than the few bytes of file it takes.
+const MOST_PORTS: usize = 1_024;
+const MOST_DIMS: usize = 16;
+const MOST_OPSETS: usize = 64;
+const MOST_FIXED: usize = 1 << 20;
+
+/// `Err(TooDeep)` once `held` things are held of the most there may be.
+fn room(held: usize, most: usize) -> Result<(), NetworkError> {
+    if held < most {
+        Ok(())
+    } else {
+        Err(NetworkError::TooDeep)
+    }
+}
 
 /// What the walk has met so far, and what it checks against.
 pub(super) struct Walk<'a> {
@@ -69,6 +89,7 @@ pub(super) fn model<R: Read + Seek>(
             }
             (8, LENGTH) => {
                 let ends = wire.length(end)?;
+                room(model.opsets.len(), MOST_OPSETS)?;
                 model.opsets.push(opset(wire, ends)?);
             }
             (25, _) => return Err(NetworkError::Functions),
@@ -118,12 +139,19 @@ fn graph<R: Read + Seek>(
             (5, main) => {
                 let name = tensor(wire, ends, walk)?;
                 if let (Some(main), Some(name)) = (main, name) {
+                    room(main.fixed.len(), MOST_FIXED)?;
                     main.fixed.insert(name);
                 }
             }
             (15, _) => sparse(wire, ends, walk)?,
-            (11, Some(main)) => main.inputs.push(port(wire, ends)?),
-            (12, Some(main)) => main.outputs.push(port(wire, ends)?),
+            (11, Some(main)) => {
+                room(main.inputs.len(), MOST_PORTS)?;
+                main.inputs.push(port(wire, ends)?);
+            }
+            (12, Some(main)) => {
+                room(main.outputs.len(), MOST_PORTS)?;
+                main.outputs.push(port(wire, ends)?);
+            }
             _ => wire.skip_to(ends)?,
         }
     }
@@ -217,69 +245,16 @@ fn tensor<R: Read + Seek>(
                 let ends = wire.length(end)?;
                 entries.read(wire, ends)?;
             }
-            (14, VARINT) => external = wire.varint(end)? == 1,
+            // ONNX Runtime reads the location as 32 bits, so only those are looked at.
+            (14, VARINT) => external = wire.varint(end)? & 0xFFFF_FFFF == 1,
             (_, kind) => wire.skip(kind, end)?,
         }
     }
-    if external && !entries.within(walk.listed) {
+    // A tensor that names a place for its numbers is checked whatever its location says.
+    if (external || entries.seen) && !entries.within(walk.listed) {
         return Err(NetworkError::Outside);
     }
     Ok(name)
-}
-
-/// Where a tensor kept outside the file says its numbers are.
-#[derive(Default)]
-struct External {
-    location: Option<String>,
-    offset: Option<String>,
-    length: Option<String>,
-}
-
-impl External {
-    /// Reads one entry: a key and its value.
-    fn read<R: Read + Seek>(&mut self, wire: &mut Wire<R>, end: u64) -> Result<(), NetworkError> {
-        let (mut key, mut value) = (None, None);
-        while wire.at() < end {
-            match wire.tag(end)? {
-                (1, LENGTH) => key = wire.text(end, MOST_TEXT)?,
-                (2, LENGTH) => value = wire.text(end, MOST_TEXT)?,
-                (_, kind) => wire.skip(kind, end)?,
-            }
-        }
-        match key.as_deref() {
-            Some("location") => self.location = value,
-            Some("offset") => self.offset = value,
-            Some("length") => self.length = value,
-            _ => {}
-        }
-        Ok(())
-    }
-
-    /// Whether the numbers lie inside a listed file: its name plain and listed, and the offset
-    /// and the length within it.
-    fn within(&self, listed: &[Listed]) -> bool {
-        let Some(location) = self.location.as_deref() else {
-            return false;
-        };
-        let Some(file) = listed.iter().find(|file| file.name == location) else {
-            return false;
-        };
-        let number = |text: &Option<String>| text.as_deref().map(str::parse::<u64>);
-        let offset = match number(&self.offset) {
-            None => 0,
-            Some(Ok(offset)) => offset,
-            Some(Err(_)) => return false,
-        };
-        let length = match number(&self.length) {
-            None => file.bytes.checked_sub(offset),
-            Some(Ok(length)) => Some(length),
-            Some(Err(_)) => return false,
-        };
-        voxa_models::is_plain_name(location)
-            && length
-                .and_then(|length| offset.checked_add(length))
-                .is_some_and(|ends| ends <= file.bytes)
-    }
 }
 
 /// Reads a port: its name, its element type and its dimensions.
@@ -327,6 +302,7 @@ fn tensor_type<R: Read + Seek>(
             (2, LENGTH) => {
                 let ends = wire.length(end)?;
                 each(wire, ends, 1, |wire, ends| {
+                    room(port.dims.len(), MOST_DIMS)?;
                     port.dims.push(dimension(wire, ends)?);
                     Ok(())
                 })?;

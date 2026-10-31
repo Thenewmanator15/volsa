@@ -89,7 +89,8 @@ pub enum NetworkError {
     /// Its IR version or its operators are newer than the runtime runs.
     #[error("The network needs a newer ONNX Runtime than the one Voxa uses.")]
     TooNew,
-    /// Its graphs nest more than 16 deep, it has more than 100 000 nodes, or a name is too long.
+    /// Its graphs nest more than 16 deep, it has more than 100 000 nodes, a name is too long, or
+    /// it holds more ports, dimensions, operator sets or fixed tensors than the reader keeps.
     #[error("The network is nested too deeply or is too large for Voxa to check.")]
     TooDeep,
 }
