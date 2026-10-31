@@ -23,6 +23,20 @@ pub(super) use mouse::turned as wheel_turned;
 /// Where a viewport gets a decoded slice from, by series and place: `None` until it is there.
 pub type Frames<'a> = dyn Fn(&SeriesId, usize) -> Option<Arc<Frame>> + 'a;
 
+/// Where a viewport reads a single value of a slice from, by series, place and the pixel as its
+/// column and row: for the value under the pointer, which is asked for as the pointer moves.
+/// `None` when the value is not there to be read, or the slice is a picture in colour.
+pub type ValueAt<'a> = dyn Fn(&SeriesId, usize, (usize, usize)) -> Option<f32> + 'a;
+
+/// What a viewport reads slices from: the whole decoded slice, to draw it, and a single value
+/// of it, to say what is under the pointer.
+pub struct Slices<'a> {
+    /// A whole decoded slice.
+    pub frame: &'a Frames<'a>,
+    /// One value of a slice.
+    pub value: &'a ValueAt<'a>,
+}
+
 /// Space between neighbouring viewports, in points.
 pub const GAP: f32 = 4.0;
 /// Thickness of the line round the active viewport, in points.
@@ -162,7 +176,7 @@ pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
-    frames: &Frames<'_>,
+    slices: &Slices<'_>,
     gpus: &mut [Gpu],
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
@@ -188,11 +202,11 @@ pub fn show(
         };
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
-            (Some(gpu), Some(render)) => slice(ui, &pane, frames, gpu, render),
+            (Some(gpu), Some(render)) => slice(ui, &pane, slices.frame, gpu, render),
             _ => false,
         };
         if drawn {
-            let value = value::under_pointer(&pane, frames, response.hover_pos());
+            let value = value::under_pointer(&pane, slices.value, response.hover_pos());
             annotate::overlays(ui, &pane, value);
         }
         if let Some(text) = message(state, at, drawn) {

@@ -77,8 +77,13 @@ impl VoxaApp {
         }
         if let Some(for_slices) = areas.slices {
             let (session, gpus) = (&self.session, &mut self.gpus);
-            let frames = |series: &_, slice| session.cached(series, slice);
-            viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
+            let frame = |series: &_, slice| session.cached(series, slice);
+            let value = |series: &_, slice, pixel| session.value_at(series, slice, pixel);
+            let slices = viewport::Slices {
+                frame: &frame,
+                value: &value,
+            };
+            viewport::show(ui, for_slices, state, &slices, gpus, render, actions);
         }
         ui.allocate_rect(whole, egui::Sense::hover());
         for request in asked {

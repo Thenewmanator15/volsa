@@ -5,7 +5,7 @@ use super::*;
 use crate::action::Action;
 use crate::reducer::reduce;
 use crate::state::{AppState, Layout};
-use crate::testing::{THICK_SCAN, id, showing_a_scan_of, three_series};
+use crate::testing::{KIND_SCAN, THICK_SCAN, id, showing_a_scan_of, three_series};
 use crate::ui::hand::Hand;
 
 fn area() -> Rect {
@@ -169,12 +169,22 @@ fn bottom_left(state: &AppState, value: Option<f32>) -> Vec<String> {
     bottom_left
 }
 
+/// Where the one value the hover asks for is read from in these tests: the 4 x 4 slice with a
+/// dip, as a lookup of a single value.
+fn from_the_dip(_: &SeriesId, _: usize, (col, row): (usize, usize)) -> Option<f32> {
+    slice_with_a_dip().values.get(row * 4 + col).copied()
+}
+
+/// Where the pointer is when it is over column `col` of row `row` of the 4 x 4 slice.
+fn over(col: f64, row: f64) -> egui::Pos2 {
+    let [x, y] = centre_of(&ViewTransform::fit(), col, row);
+    pos2(x, y)
+}
+
 #[test]
 fn the_value_under_the_pointer_is_in_hu_for_ct() {
     let state = showing_a_scan_of("CT", None);
-    let frame = slice_with_a_dip();
-    let pointer = centre_of(&ViewTransform::fit(), 1.0, 2.0);
-    let value = value::value_at(&frame, &ViewTransform::fit(), SIZE, 1.0, pointer);
+    let value = value::under_pointer(&pane_of(&state), &from_the_dip, Some(over(1.0, 2.0)));
     assert_eq!(value, Some(-12.0));
     let lines = bottom_left(&state, value);
     assert_eq!(lines.last().map(String::as_str), Some("Value -12 HU"));
@@ -225,12 +235,7 @@ fn with_nothing_under_the_pointer_the_corner_says_no_value() {
 }
 
 #[test]
-fn the_value_is_that_of_the_pixel_under_the_pointer_however_the_picture_is_placed() {
-    // Each pixel holds its own place: 0 to 15, row by row.
-    let frame = Frame {
-        values: (0..16_u8).map(f32::from).collect(),
-        ..slice_with_a_dip()
-    };
+fn the_pixel_under_the_pointer_is_found_however_the_picture_is_placed() {
     let fit = ViewTransform::fit();
     let zoomed = fit.zoomed_about(2.0, [30.0, -10.0]);
     let views = [
@@ -246,8 +251,8 @@ fn the_value_is_that_of_the_pixel_under_the_pointer_however_the_picture_is_place
         for row in 0..4_u8 {
             for col in 0..4_u8 {
                 let pointer = centre_of(&view, f64::from(col), f64::from(row));
-                let got = value::value_at(&frame, &view, SIZE, 1.0, pointer);
-                let wanted = Some(f32::from(row * 4 + col));
+                let got = value::pixel_at(&view, SIZE, 1.0, [4, 4], pointer);
+                let wanted = Some((usize::from(col), usize::from(row)));
                 assert_eq!(got, wanted, "{view:?} column {col}, row {row}");
             }
         }
@@ -255,66 +260,50 @@ fn the_value_is_that_of_the_pixel_under_the_pointer_however_the_picture_is_place
 }
 
 #[test]
-fn off_the_picture_the_pointer_reads_nothing() {
-    let frame = slice_with_a_dip();
+fn off_the_picture_the_pointer_is_over_no_pixel() {
     let fit = ViewTransform::fit();
     // The picture is square and so is the viewport: just outside it is off the picture.
     for outside in [[-1.0, 200.0], [401.0, 200.0], [200.0, -1.0], [200.0, 401.0]] {
-        assert_eq!(value::value_at(&frame, &fit, SIZE, 1.0, outside), None);
+        assert_eq!(value::pixel_at(&fit, SIZE, 1.0, [4, 4], outside), None);
     }
     // A picture wider than tall leaves bands above and below it, where there is no pixel.
-    let wide = Frame {
-        cols: 8,
-        rows: 2,
-        values: vec![1.0; 16],
-        colour: None,
-    };
-    let above = value::value_at(&wide, &fit, SIZE, 1.0, [200.0, 100.0]);
+    let above = value::pixel_at(&fit, SIZE, 1.0, [8, 2], [200.0, 100.0]);
     assert_eq!(above, None, "above a picture that is wider than tall");
-    let on_it = value::value_at(&wide, &fit, SIZE, 1.0, [200.0, 200.0]);
-    assert_eq!(on_it, Some(1.0));
+    let on_it = value::pixel_at(&fit, SIZE, 1.0, [8, 2], [210.0, 190.0]);
+    assert_eq!(on_it, Some((4, 0)));
+    let nothing = value::pixel_at(&fit, SIZE, 1.0, [0, 0], [200.0, 200.0]);
+    assert_eq!(nothing, None, "a picture of no pixels");
 }
 
 #[test]
-fn a_picture_in_colour_has_no_value_and_a_short_frame_does_not_stop_anything() {
-    let fit = ViewTransform::fit();
-    let pointer = centre_of(&fit, 1.0, 2.0);
-    let coloured = Frame {
-        colour: Some(vec![[1, 2, 3]; 16]),
-        ..slice_with_a_dip()
-    };
-    assert_eq!(value::value_at(&coloured, &fit, SIZE, 1.0, pointer), None);
-    let short = Frame {
-        values: vec![0.0; 3],
-        ..slice_with_a_dip()
-    };
-    assert_eq!(value::value_at(&short, &fit, SIZE, 1.0, pointer), None);
-}
-
-#[test]
-fn the_slice_is_looked_up_only_with_a_pointer_over_the_viewport_and_only_if_decoded() {
+fn the_hover_asks_for_the_one_pixel_under_the_pointer_and_only_while_it_is_over_the_picture() {
     let state = showing_a_scan_of("CT", None);
     let pane = pane_of(&state);
-    let [x, y] = centre_of(&ViewTransform::fit(), 1.0, 2.0);
-    let at = Some(pos2(x, y));
-    let there = |_: &SeriesId, _| Some(Arc::new(slice_with_a_dip()));
-    assert_eq!(value::under_pointer(&pane, &there, at), Some(-12.0));
+    let asked = std::cell::RefCell::new(Vec::new());
+    let lookup = |series: &SeriesId, slice: usize, pixel: (usize, usize)| {
+        asked.borrow_mut().push((series.clone(), slice, pixel));
+        from_the_dip(series, slice, pixel)
+    };
+    let value = value::under_pointer(&pane, &lookup, Some(over(1.0, 2.0)));
+    assert_eq!(value, Some(-12.0));
+    assert_eq!(asked.borrow().as_slice(), [(id(KIND_SCAN), 0, (1, 2))]);
+    asked.borrow_mut().clear();
     assert_eq!(
-        value::under_pointer(&pane, &there, None),
+        value::under_pointer(&pane, &lookup, None),
         None,
         "no pointer"
     );
-    let not_decoded = |_: &SeriesId, _| None;
-    assert_eq!(value::under_pointer(&pane, &not_decoded, at), None);
-    let looked_up = std::cell::Cell::new(false);
-    let watching = |_: &SeriesId, _| {
-        looked_up.set(true);
-        None
-    };
-    let _ = value::under_pointer(&pane, &watching, None);
+    let off = Some(pos2(-5.0, 200.0));
+    assert_eq!(value::under_pointer(&pane, &lookup, off), None, "off it");
     assert!(
-        !looked_up.get(),
-        "nothing is fetched while no pointer is over"
+        asked.borrow().is_empty(),
+        "nothing asked: {:?}",
+        asked.borrow()
+    );
+    let none = |_: &SeriesId, _: usize, _: (usize, usize)| None;
+    assert_eq!(
+        value::under_pointer(&pane, &none, Some(over(1.0, 2.0))),
+        None
     );
 }
 

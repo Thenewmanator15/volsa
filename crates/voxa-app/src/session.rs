@@ -18,6 +18,13 @@ use crate::state::AppState;
 use crate::volume_store::VolumeStore;
 use crate::worker::Workers;
 
+#[cfg(test)]
+thread_local! {
+    /// How many slices [`Session::cached`] has copied out of a volume on this thread: what the
+    /// tests count, to show that reading a value copies none.
+    static SLICES_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The state, the workers, the frame cache and the volume store, joined up: an action goes in, the state
 /// changes, and the work it calls for is handed to the workers, whose reports come back as
 /// further actions. The window is a view of this; the tests drive it with no window at all.
@@ -87,6 +94,8 @@ impl Session {
             let [cols, rows, _] = volume.dims();
             let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
             let colour = None;
+            #[cfg(test)]
+            SLICES_COPIED.with(|copied| copied.set(copied.get() + 1));
             Some(Arc::new(Frame {
                 rows,
                 cols,
@@ -94,6 +103,27 @@ impl Session {
                 colour,
             }))
         })
+    }
+
+    /// The value of one pixel, as its column and row, of a slice, read where it lies: from the
+    /// decoded slice if the cache holds it, and otherwise from the series' kept volume. Unlike
+    /// [`Session::cached`], nothing is built or copied, so this can be asked for each time the
+    /// pointer moves. `None` when neither holds the slice, the pixel is not in it, or it is a
+    /// picture in colour, whose values only say how bright each pixel is.
+    pub fn value_at(&self, series: &SeriesId, slice: usize, pixel: (usize, usize)) -> Option<f32> {
+        let cached = self
+            .cache
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get(series, slice);
+        if let Some(frame) = cached {
+            let size = [frame.cols, frame.rows];
+            return value_of(&frame.values, size, pixel).filter(|_| frame.colour.is_none());
+        }
+        let volume = self.volume(series)?;
+        let [cols, rows, _] = volume.dims();
+        let values = volume.slice_values(u32::try_from(slice).ok()?)?;
+        value_of(values, [cols, rows], pixel)
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
@@ -163,6 +193,17 @@ impl Session {
     }
 }
 
+/// The value at `(column, row)` of a slice of `cols` by `rows` values, held row by row.
+fn value_of(values: &[f32], [cols, rows]: [u32; 2], (col, row): (usize, usize)) -> Option<f32> {
+    let (cols, rows) = (usize::try_from(cols).ok()?, usize::try_from(rows).ok()?);
+    if col >= cols || row >= rows {
+        return None;
+    }
+    values
+        .get(row.checked_mul(cols)?.checked_add(col)?)
+        .copied()
+}
+
 #[cfg(test)]
 mod annotation_tests;
 #[cfg(test)]
@@ -171,3 +212,5 @@ mod kept_tests;
 mod lost_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod value_tests;
