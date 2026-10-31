@@ -57,6 +57,8 @@ struct Shared {
     /// Held while a slab is being put on disk: one at a time, each copy of a slab made to be
     /// written being memory too.
     putting_away: Mutex<()>,
+    /// How much more memory the system can give Voxa now; tests put a stand-in here.
+    free_memory: Mutex<memory::FreeMemorySource>,
     /// These very workers, for what is done later on another thread.
     me: Weak<Shared>,
     /// The source that is open, once it has been indexed.
@@ -136,6 +138,7 @@ impl Workers {
             slab_bytes: AtomicUsize::new(held::SLAB_BYTES),
             told_no_room: AtomicBool::new(false),
             putting_away: Mutex::new(()),
+            free_memory: Mutex::new(Box::new(voxa_models::free_memory)),
             me: me.clone(),
             source: Mutex::new(None),
             opened: AtomicU64::new(0),

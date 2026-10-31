@@ -12,6 +12,12 @@ use crate::budget::{self, Held};
 use crate::spill::SpillFile;
 use crate::state::{Notice, NoticeKind};
 
+/// What tells how much more memory the system can give Voxa now.
+pub(super) type FreeMemorySource = Box<dyn Fn() -> voxa_models::FreeMemory + Send + Sync>;
+
+/// What is kept free for everything else besides a volume being built: 512 MiB.
+const MARGIN: usize = 512 << 20;
+
 /// What is said when a volume past the budget cannot be put on disk.
 const NO_ROOM_ON_DISK: &str =
     "Voxa could not make room on disk, so this series uses more memory than the amount set.";
@@ -134,7 +140,57 @@ fn within_budget_later(me: &Weak<Shared>) {
     });
 }
 
+impl Shared {
+    /// Why a volume of `values` bytes cannot be built now, in a sentence: the system cannot
+    /// give Voxa what it will hold, the values or the budget if that is less, a slab more, and
+    /// a margin. `None` when it can, or when the system does not say.
+    pub(super) fn too_little_memory(&self, values: usize) -> Option<String> {
+        let needed = values.min(self.budget) + self.slab_bytes() + MARGIN;
+        let free = (lock(&self.free_memory))();
+        let (has, said) = match free {
+            voxa_models::FreeMemory::Promised(bytes) => (bytes, "Windows can promise Voxa"),
+            voxa_models::FreeMemory::Physical(bytes) => (bytes, "the computer has free"),
+            voxa_models::FreeMemory::Unknown => return None,
+        };
+        let has = usize::try_from(has).unwrap_or(usize::MAX);
+        (has < needed).then(|| {
+            format!(
+                "Not enough memory to show this series in 3D: it needs {} GB, and {said} {} GB. \
+                 Close other programs and open it again.",
+                gigabytes(needed),
+                gigabytes(has)
+            )
+        })
+    }
+
+    /// Whether a 32-bit copy of `voxels` values, which the processor's curve is made from,
+    /// would pass the budget.
+    pub(super) fn copy_passes_budget(&self, voxels: usize) -> bool {
+        voxels.saturating_mul(size_of::<f32>()) > self.budget
+    }
+}
+
+/// Bytes in gigabytes of 1,024 MiB, to one decimal place, as Windows counts them.
+fn gigabytes(bytes: usize) -> String {
+    #[expect(
+        clippy::cast_precision_loss,
+        reason = "a memory size said to one decimal place"
+    )]
+    let gigabytes = bytes as f64 / f64::from(1_u32 << 30);
+    format!("{gigabytes:.1}")
+}
+
 impl Workers {
+    /// Have the workers ask `free` how much memory the system can give, in place of the
+    /// system itself, for tests.
+    #[cfg(test)]
+    pub(crate) fn set_free_memory(
+        &self,
+        free: impl Fn() -> voxa_models::FreeMemory + Send + Sync + 'static,
+    ) {
+        *lock(&self.shared.free_memory) = Box::new(free);
+    }
+
     /// Build volumes in slabs of at most `bytes`, for tests that want many slabs.
     #[cfg(test)]
     pub(crate) fn set_slab_bytes(&self, bytes: usize) {

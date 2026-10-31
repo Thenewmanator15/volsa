@@ -51,6 +51,12 @@ impl Shared {
         self.told_no_room
             .store(false, std::sync::atomic::Ordering::SeqCst);
         let (stored, rescale) = self.first_kind(listed);
+        let voxels = listed.info.voxel_count();
+        let values =
+            usize::try_from(voxels).map_or(usize::MAX, |n| n.saturating_mul(stored.bytes()));
+        if let Some(why) = self.too_little_memory(values) {
+            return Built::Failed(None, why);
+        }
         if let Some(built) = self.fill(listed, build, stored, rescale) {
             return built;
         }
@@ -306,6 +312,8 @@ impl<'a> Progress<'a> {
     }
 }
 
+#[cfg(test)]
+mod memory_tests;
 #[cfg(test)]
 mod spill_tests;
 #[cfg(test)]

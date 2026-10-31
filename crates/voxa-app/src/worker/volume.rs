@@ -72,9 +72,11 @@ impl Workers {
             .map_or_else(|| Arc::clone(&volume), |(copy, _)| copy);
         drop(store);
         // A series the device holds in several textures gets no curve: the curve is one
-        // texture, and would take as much room again.
+        // texture, and would take as much room again. Nor one whose 32-bit copy, which the
+        // curve is made from here, would pass the memory budget.
         let room = *lock(&self.shared.card_room);
-        if room.textures(card.dims()) != Some(1) {
+        let voxels = card.dims().iter().map(|&side| side as usize).product();
+        if room.textures(card.dims()) != Some(1) || self.shared.copy_passes_budget(voxels) {
             let why = crate::planes::too_long_to_smooth();
             self.shared.report(Action::Post(why));
             return;
