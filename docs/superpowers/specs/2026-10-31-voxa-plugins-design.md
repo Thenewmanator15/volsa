@@ -1,8 +1,8 @@
 # Voxa: plugins, models people add themselves
 
 Date: 2026-10-31
-Status: draft, for the owner's review (builder check done; the owner's three answers of
-2026-10-31 written in)
+Status: approved by the owner on 2026-10-31 (after a builder check and the owner's three
+answers of that day)
 
 **Voxa is not a medical device and is not for diagnostic use.** Nothing here changes that. A
 plugin is a model someone else made, added by the person using Voxa; Voxa runs it and says
