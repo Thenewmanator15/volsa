@@ -42,6 +42,33 @@ These are not for this form:
 - A fault in ONNX Runtime or DirectML themselves, which goes to Microsoft, or in a library Voxa
   is built on, which goes to that library. If it reaches Voxa, tell us too.
 
+## Files nested too deeply
+
+Security note S-DICOM-01. A DICOM file can hold sequences of items, and sequences inside those
+items, as deep as it likes. The DICOM library Voxa reads with (dicom-rs) builds each level by
+calling itself once more, with no limit of its own, so a damaged or crafted file nested deeply
+enough would use up the stack of the thread reading it. That stops Voxa at once, and nothing
+can catch it. Each level takes about 20 bytes of file, so a file of a few tens of kilobytes was
+enough, and a deflated file could be smaller still.
+
+- **The check.** Before the library is given a file, Voxa walks the same bytes with the
+  library's own reader of one piece at a time, which keeps its place in memory rather than on
+  the stack, set up as the library sets up its own read, a deflated file inflated as the
+  library would inflate it. A file whose sequences nest more than 64 deep is refused unread.
+  Real files nest far less: structured reports, the deepest, some ten to twenty.
+- **Everywhere a file is read.** The check is made in both places Voxa hands the library a
+  file: reading headers while an export is indexed, and opening a file whole to show its
+  pictures or list its tags. Nesting after the pixels, which a header read never reaches, is
+  checked when the file is opened whole.
+- **What the person sees.** A refused file is named, with the reason "nested too deeply to read
+  safely", in a warning that some files were not read, and the rest of the export opens. A file
+  opened on its own says it was not read, and why. The log records only how many.
+- **A second line.** Every thread that reads files has a 16 MiB stack, eight times the usual.
+  Reading a file nested 64 deep takes at most about half a megabyte of it.
+
+A file that still stops Voxa, for example through a way of nesting this check does not see, or
+that makes the library run out of memory or time, is a fault to report here.
+
 ## Never include a real scan
 
 A report must never include a real scan, a scan export, a label file made from a scan, a

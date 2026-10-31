@@ -25,7 +25,12 @@ coordinates lives below it, where it can be tested without a window.
    end record says its directory is, without searching the whole file for it.
 2. `voxa-dicom` parses headers on a worker and emits an index of studies and series. Of each
    file it reads only as much as the header needs, never the pixels. The browser fills as
-   results arrive. Entries that are not DICOM are skipped and counted.
+   results arrive. Entries that are not DICOM are skipped and counted. Before the DICOM library
+   is given any file, here or when one is opened whole, `nesting.rs` walks the same bytes with
+   the library's own token reader and refuses a file whose sequences nest more than 64 deep:
+   the library builds nesting by recursion, and a deep enough file would overflow the reading
+   thread's stack (SECURITY.md, "Files nested too deeply"). A refused file is listed with the
+   reason. The workers that read files have a 16 MiB stack as a second line.
 3. Selecting a series queues decoding of its slices on worker threads, nearest slices first.
    Each worker reads through a reader of the source of its own, so a zip or a folder is read
    by several at once. Decoded frames are cached under a memory budget.
@@ -289,7 +294,10 @@ file), pictures in colour, and RLE, for which the test writes the compressed fra
 JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency. A JPEG 2000
 picture is a small made-up file kept with the tests, written by `tools/fixtures/make_ramp_j2k.py`,
 and is decoded exactly. A deflated file is deflated in its test. Lossless JPEG and lossy
-JPEG 2000 have no test of their own.
+JPEG 2000 have no test of their own. Files nested too deeply are written byte by byte by the
+testkit's `nested_slice`, since the library's own writer recurses as its reader does; their
+tests read on a thread with a 1 MiB stack, so that it is the check on nesting that keeps them
+from overflowing it.
 
 Labelling is tested in layers, none of which needs a runtime or a model folder. Each of
 SynthSeg's preparing and tidying steps is held to arrays that SynthSeg's own Python made from

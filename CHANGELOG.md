@@ -6,6 +6,20 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Security
+
+- A damaged or crafted DICOM file whose sequences nest very deeply no longer stops Voxa. The
+  DICOM library builds each level of nesting by calling itself again, with no limit, so a file
+  of a few tens of kilobytes could use up the stack of the thread reading it, which ends the
+  program at once and cannot be caught. Voxa now walks every file before the library builds
+  it, with the library's own step-by-step reader, and refuses one nested more than 64 deep
+  (real files nest some ten to twenty deep at most): while an export is indexed, and when a
+  file is opened whole for its pictures or its tags. A refused file is listed, with the reason
+  "nested too deeply to read safely", in the warning "1 file was not read", and the rest of the
+  export opens; a lone file says "That file was not read: it is nested too deeply to read
+  safely". The threads that read files now have a 16 MiB stack, as a second line of defence.
+  The check costs about 3 microseconds a file.
+
 ## [0.6.0] - 2026-10-22
 
 The sixth release, made for a first public release: a download for Windows, the notices and
