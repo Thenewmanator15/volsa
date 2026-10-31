@@ -1,7 +1,7 @@
 //! Fitting the window to the screen it opens on, and keeping how the window is set out: its
-//! size, how much of its width the series list, the column and the tab panel take, whether the
-//! list is shown, which tab the panel shows and whether it is folded, and the size of the
-//! interface.
+//! size, how much of its width the series list and the tab panel take, whether the list is
+//! shown, which tab the panel shows and whether it is folded, and the size of the interface.
+//! In a narrow window the two fold on their own (see [`folds`]).
 //!
 //! Sizes and places here are in points at the interface's usual size, which is what Windows
 //! calls the window's size at its display scale: a laptop screen of 1920 by 1080 pixels at
@@ -104,6 +104,9 @@ pub struct Screen {
     pub panel: PanelState,
     /// What opening has still to do, until it is done.
     opening: Option<Opening>,
+    /// How the side columns were when last settled, for the window to fold them itself while
+    /// it is narrow.
+    folds: folds::Folds,
 }
 
 /// What the window does as it opens.
@@ -130,19 +133,20 @@ impl Screen {
             list_shown: false,
             panel,
             opening: Some(Opening { fit, hide_list }),
+            folds: folds::Folds::new(!panel.folded),
         }
     }
 
     /// How the window is set out now, with the interface at `interface_size`. The panel's width
     /// is the person's only once it has been dragged to one, or was kept from a run in which it
-    /// was.
+    /// was; and its fold only when the person folded it, not the window.
     pub fn arrangement(&self, interface_size: f32) -> Arrangement {
         let share = self.panel.share;
         let chosen = self.arrangement.panel_share.is_some() || (share - PANEL_SHARE).abs() > 1e-6;
         Arrangement {
             interface_size,
             panel_share: chosen.then_some(share),
-            panel_folded: self.panel.folded,
+            panel_folded: self.panel_folded_by_choice(),
             tab: self.panel.tab.name().to_owned(),
             ..self.arrangement.clone()
         }
@@ -153,19 +157,9 @@ impl Screen {
         self.arrangement.list_share
     }
 
-    /// The share of the middle of the window the column takes.
-    pub fn column_share(&self) -> f32 {
-        self.arrangement.column_share
-    }
-
     /// Give the series list `share` of the window's width.
     pub fn set_list_share(&mut self, share: f32) {
         self.arrangement.list_share = share;
-    }
-
-    /// Give the column `share` of the middle of the window.
-    pub fn set_column_share(&mut self, share: f32) {
-        self.arrangement.column_share = share;
     }
 
     /// Whether the window has opened, and been fitted to its screen if it was to be.
@@ -191,6 +185,7 @@ impl Screen {
             let resized = sides.into_iter().any(|(now, was)| (now - was).abs() > 0.5);
             if resized {
                 ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(wide, high)));
+                self.awaits(wide);
             }
             if let Some([x, y]) = placed.at {
                 let corner = pos2(x / zoom, y / zoom);
@@ -200,6 +195,8 @@ impl Screen {
         }
         let wide = width.is_none_or(|width| list_starts_shown(width, zoom));
         self.list_shown = wide && !opening.hide_list;
+        // Shown as the window opens, which is not the person opening it.
+        self.rail_shown_as_it_opens();
     }
 
     /// Note the window's size as it is now, to be remembered, unless it is minimised,
@@ -271,6 +268,8 @@ fn measure(frame: &eframe::Frame) -> Option<Seen> {
 fn as_points(points: f64) -> f32 {
     points as f32
 }
+
+mod folds;
 
 #[cfg(test)]
 mod tests;

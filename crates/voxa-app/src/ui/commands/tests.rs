@@ -9,7 +9,6 @@ use super::super::help;
 use super::super::keys::{self, Held};
 use super::*;
 use crate::annotations::Tool;
-use crate::scene::MainPanel;
 use crate::state::Layout;
 use crate::testing::thick_scan_ready;
 
@@ -82,7 +81,9 @@ fn no_two_commands_share_a_key() {
 }
 
 /// What 0.6.0's keys gave with the first viewport active and no tool in hand, written out
-/// from its own list of keys, its `shortcut_action` and `keys::pressed`, and their tests.
+/// from its own list of keys, its `shortcut_action` and `keys::pressed`, and their tests. Esc,
+/// which gave the 3D view the large part of the window, is not among them: there is no large
+/// part now.
 fn what_0_6_0_gave() -> Vec<(Key, Held, Gives)> {
     let viewport = 0;
     let act = Gives::Act;
@@ -118,7 +119,6 @@ fn what_0_6_0_gave() -> Vec<(Key, Held, Gives)> {
         (Key::Z, CTRL, act(Action::Undo)),
         (Key::Y, CTRL, act(Action::Redo)),
         (Key::Z, CTRL_SHIFT, act(Action::Redo)),
-        (Key::Escape, NONE, act(Action::SetMain(MainPanel::Scene))),
         (Key::B, NONE, ask(Request::FoldRail)),
         (Key::F11, NONE, ask(Request::FullScreen)),
         (Key::Questionmark, NONE, ask(Request::Help(None))),
@@ -149,6 +149,16 @@ fn every_key_of_0_6_0_still_does_what_it_did() {
             "{nothing:?} is no key of Voxa's"
         );
     }
+}
+
+#[test]
+fn escape_with_no_tool_in_hand_leaves_the_pictures_as_they_are() {
+    // 0.6.0 gave the 3D view the large part of the window; there is no large part now.
+    let state = thick_scan_ready();
+    assert_eq!(on(Key::Escape, NONE, &state), None);
+    assert!(keys::pressed(Key::Escape, NONE, &state).is_none());
+    let escape = find("view.escape").expect("listed");
+    assert!(!escape.name.contains("3D"), "{}", escape.name);
 }
 
 #[test]

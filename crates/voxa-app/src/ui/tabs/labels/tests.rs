@@ -180,7 +180,8 @@ fn the_search_and_the_part_chosen_stay_in_view_while_the_list_scrolls() {
     let mut draw = |ui: &mut Ui| {
         let contents =
             |ui: &mut Ui, tab| crate::ui::tabs::show(ui, tab, &state, &mut kept, &mut Vec::new());
-        rect.set(panel::show(ui, &mut panel, &state, contents).rect);
+        let wide = panel.width(ui.ctx().content_rect().width());
+        rect.set(panel::show(ui, &mut panel, &state, wide, contents).rect);
     };
     let fixed = ["Search parts", "How solid it is drawn", "Show only this"];
     let place = |seen: &Seen| fixed.map(|name| bounds_of(seen, name));

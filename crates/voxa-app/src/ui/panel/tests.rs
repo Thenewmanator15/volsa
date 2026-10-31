@@ -44,7 +44,8 @@ fn draws<'a>(
             drew.shown.push(tab);
             vec![Request::About]
         };
-        let shown = show(ui, panel, state, contents);
+        let wide = panel.width(ui.ctx().content_rect().width());
+        let shown = show(ui, panel, state, wide, contents);
         drew.rect = shown.rect;
         drew.asked = shown.requests;
     }

@@ -34,13 +34,8 @@ fn click(ctx: &egui::Context, state: &AppState, at: Pos2) -> (Vec<Action>, Asked
     pass(ctx, state, vec![button(false)])
 }
 
-/// Click all the way along the bar and gather everything that was asked for.
-fn sweep(state: &AppState) -> (Vec<Action>, Asked) {
-    let (actions, all, _) = sweep_with_picks(state);
-    (actions, all)
-}
-
-/// As [`sweep`], with every kind of thing asked to be opened, in the order met.
+/// Click all the way along the bar and gather everything that was asked for, with every kind
+/// of thing asked to be opened, in the order met.
 fn sweep_with_picks(state: &AppState) -> (Vec<Action>, Asked, Vec<Pick>) {
     let ctx = egui::Context::default();
     let _ = pass(&ctx, state, Vec::new());
@@ -68,13 +63,10 @@ fn sweep_with_picks(state: &AppState) -> (Vec<Action>, Asked, Vec<Pick>) {
 fn the_bar_offers_each_thing_once_from_left_to_right() {
     let (actions, asked, picks) = sweep_with_picks(&AppState::default());
     assert_eq!(picks, [Pick::Folder, Pick::File]);
-    let expected = vec![
-        Action::SetLayout(Layout::TwoAcross),
-        Action::SetLayout(Layout::TwoByTwo),
-    ];
     assert_eq!(
-        actions, expected,
-        "the layout in use is not asked for again"
+        actions,
+        [],
+        "the bar asks only of the window: the viewports are chosen in the strip above the pictures"
     );
     assert_eq!(
         asked,
@@ -89,22 +81,6 @@ fn the_bar_offers_each_thing_once_from_left_to_right() {
         },
         "opening the Size menu chooses no size"
     );
-}
-
-#[test]
-fn the_layouts_are_chosen_from_the_bar_and_the_one_in_use_is_not_offered_again() {
-    let state = AppState {
-        layout: Layout::TwoByTwo,
-        active: 2,
-        ..AppState::default()
-    };
-    let (actions, _) = sweep(&state);
-    let layouts = [Layout::One, Layout::TwoAcross].map(Action::SetLayout);
-    assert!(
-        layouts.iter().all(|layout| actions.contains(layout)),
-        "{actions:?}"
-    );
-    assert!(!actions.contains(&Action::SetLayout(Layout::TwoByTwo)));
 }
 
 #[test]

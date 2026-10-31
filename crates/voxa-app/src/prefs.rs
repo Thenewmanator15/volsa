@@ -1,6 +1,6 @@
 //! What Voxa remembers between runs of how the person had it set: the window's size, the size
-//! of the interface, how wide the series list, the column and the tab panel are, which tab is
-//! open and whether the panel is folded, how many viewports, and three switches. Nothing about
+//! of the interface, how wide the series list and the tab panel are, which tab is open and
+//! whether the panel is folded, how many viewports, and three switches. Nothing about
 //! any scan, and nothing that says which scans were opened.
 
 use std::ops::RangeInclusive;
@@ -21,11 +21,14 @@ pub const SMALLEST_WINDOW: [f32; 2] = [640.0, 480.0];
 pub const INTERFACE_SIZES: RangeInclusive<f32> = 0.5..=3.0;
 /// The share of the window's width the series list starts with.
 pub const LIST_SHARE: f32 = 1.0 / 6.0;
-/// The share of the middle of the window the column beside the large part starts with.
+/// The share of the middle of the window the column beside the large part started with in
+/// Voxa 0.6.0, whose window had a column of pictures where the tab panel is now.
 pub const COLUMN_SHARE: f32 = 0.3;
 /// The share of the window's width the tab panel starts with, until the person drags it: what
 /// the column beside the large part took of what the series list left, at its starting widths.
 pub const PANEL_SHARE: f32 = COLUMN_SHARE * (1.0 - LIST_SHARE);
+/// The most of the window's width the tab panel takes, however wide it was dragged.
+pub const PANEL_MOST_SHARE: f32 = 0.4;
 /// The tab the panel opens on when none is remembered, by the name it is kept under.
 pub const FIRST_TAB: &str = "View";
 
@@ -40,10 +43,12 @@ pub struct Prefs {
     pub interface_size: f32,
     /// The share of the window's width the series list takes.
     pub list_share: f32,
-    /// The share of the middle of the window the column beside the large part takes.
-    pub column_share: f32,
+    /// The share of the middle of the window the column beside the large part took, in a
+    /// settings file of Voxa 0.6.0: read to give the tab panel its width, and never written.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_share: Option<f32>,
     /// The share of the window's width the tab panel takes; `None` until the person has dragged
-    /// it to one, so that a settings file of an earlier Voxa can give its column's width.
+    /// it to one, or a settings file of Voxa 0.6.0 gave its column's width.
     pub panel_share: Option<f32>,
     /// Whether the tab panel is folded to a strip of icons.
     pub panel_folded: bool,
@@ -61,7 +66,8 @@ pub struct Prefs {
 }
 
 /// How the window itself is set out, which the state does not hold: its size, the size of
-/// the interface, and how wide the person dragged the series list and the column.
+/// the interface, how wide the person dragged the series list and the tab panel, and which tab
+/// is open.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Arrangement {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
@@ -71,8 +77,6 @@ pub struct Arrangement {
     pub interface_size: f32,
     /// The share of the window's width the series list takes.
     pub list_share: f32,
-    /// The share of the middle of the window the column beside the large part takes.
-    pub column_share: f32,
     /// The share of the window's width the tab panel takes, once the person has chosen one.
     pub panel_share: Option<f32>,
     /// Whether the tab panel is folded to a strip of icons.
@@ -87,7 +91,6 @@ impl Default for Arrangement {
             window: None,
             interface_size: 1.0,
             list_share: LIST_SHARE,
-            column_share: COLUMN_SHARE,
             panel_share: None,
             panel_folded: false,
             tab: FIRST_TAB.to_owned(),
@@ -136,7 +139,7 @@ impl Prefs {
             window: arrangement.window,
             interface_size: arrangement.interface_size,
             list_share: arrangement.list_share,
-            column_share: arrangement.column_share,
+            column_share: None,
             panel_share: arrangement.panel_share,
             panel_folded: arrangement.panel_folded,
             tab: arrangement.tab,
@@ -153,7 +156,6 @@ impl Prefs {
             window: self.window,
             interface_size: self.interface_size,
             list_share: self.list_share,
-            column_share: self.column_share,
             panel_share: self.panel_share,
             panel_folded: self.panel_folded,
             tab: self.tab.clone(),
@@ -198,10 +200,12 @@ impl Prefs {
         if !a_share(self.list_share) {
             self.list_share = start.list_share;
         }
-        if !a_share(self.column_share) {
-            self.column_share = start.column_share;
-        }
         self.panel_share = self.panel_share.filter(|share| a_share(*share));
+        // The column of pictures of 0.6.0 gives the tab panel in its place its width, unless the
+        // person has dragged the panel: what the column took of what the series list left.
+        let column = self.column_share.take().filter(|share| a_share(*share));
+        let carried = column.map(|share| (share * (1.0 - self.list_share)).min(PANEL_MOST_SHARE));
+        self.panel_share = self.panel_share.or(carried);
         if layout_of(self.viewports).is_none() {
             self.viewports = start.viewports;
         }

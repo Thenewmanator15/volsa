@@ -5,7 +5,8 @@ use voxa_render::{Camera, Look, NamedView};
 
 use super::tests::{frames_around, loaded, showing};
 use super::*;
-use crate::scene::{MainPanel, Scene, SceneStatus};
+use crate::pictures::Pictures;
+use crate::scene::{Scene, SceneStatus};
 use crate::state::Layout;
 use crate::testing::{FINE_SCAN, LOCALISER, SINGLE, THICK_SCAN, id, with_odd_series};
 
@@ -50,9 +51,13 @@ pub(super) fn ready() -> AppState {
 }
 
 #[test]
-fn a_fresh_scene_is_empty_and_has_the_large_part_of_the_window() {
+fn a_fresh_scene_is_empty_and_the_window_shows_the_slices() {
     let state = AppState::default();
-    assert_eq!(state.main, MainPanel::Scene);
+    assert_eq!(
+        state.pictures,
+        Pictures::Slices,
+        "a newcomer measures on a slice"
+    );
     assert_eq!(state.scene, Scene::default());
     assert_eq!(
         (state.scene.series.clone(), &state.scene.status),

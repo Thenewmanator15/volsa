@@ -3,7 +3,7 @@
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Request, Tab};
+use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::{PLAIN, alone, ctrl};
 use crate::action::Action;
 use crate::annotations::Tool;
@@ -12,14 +12,14 @@ use crate::state::AppState;
 use crate::ui::tabs::{NO_VOLUME, NOTHING_MEASURED, Save};
 
 /// Why a tool cannot be used: there is no volume to measure on.
-fn no_volume(state: &AppState) -> Option<&'static str> {
-    grid(state).is_none().then_some(NO_VOLUME)
+fn no_volume(state: &AppState) -> Option<Why> {
+    grid(state).is_none().then_some(Why::Borrowed(NO_VOLUME))
 }
 
 /// Why the measurements cannot be saved or cleared: there are none.
-fn none_measured(state: &AppState) -> Option<&'static str> {
+fn none_measured(state: &AppState) -> Option<Why> {
     let none = state.annotations.items.is_empty();
-    none.then_some(NOTHING_MEASURED)
+    none.then_some(Why::Borrowed(NOTHING_MEASURED))
 }
 
 /// The entries.
@@ -99,7 +99,7 @@ pub(super) const COMMANDS: &[Command] = &[
         place: Place::Tab(Tab::Measure),
         why_not: |state| {
             let none = !state.annotations.can_undo();
-            none.then_some("There is nothing to take back.")
+            none.then_some(Why::Borrowed("There is nothing to take back."))
         },
         does: Does::Act(|_| Some(Action::Undo)),
         ..PLAIN
@@ -114,7 +114,7 @@ pub(super) const COMMANDS: &[Command] = &[
         place: Place::Tab(Tab::Measure),
         why_not: |state| {
             let none = !state.annotations.can_redo();
-            none.then_some("There is nothing to do again.")
+            none.then_some(Why::Borrowed("There is nothing to do again."))
         },
         does: Does::Act(|_| Some(Action::Redo)),
         ..PLAIN

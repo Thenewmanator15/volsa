@@ -3,7 +3,7 @@
 use super::entries::Target;
 use crate::action::Action;
 use crate::state::{AppState, Notice, NoticeKind};
-use crate::ui::commands::{self, Command, Request, Tab};
+use crate::ui::commands::{self, Command, Request, Tab, Why};
 
 /// What is said of an action that is listed but not offered for the scan shown.
 const NOT_OFFERED: &str = "This is not offered for the scan shown.";
@@ -13,11 +13,11 @@ const NOT_OFFERED: &str = "This is not offered for the scan shown.";
 const NOTICE_KEY: &str = "search";
 
 /// Why `command` cannot be used now, in a sentence, if it cannot.
-pub fn unavailable(command: &Command, state: &AppState) -> Option<&'static str> {
+pub fn unavailable(command: &Command, state: &AppState) -> Option<Why> {
     if commands::offered(command, state) {
         (command.why_not)(state)
     } else {
-        Some(NOT_OFFERED)
+        Some(Why::Borrowed(NOT_OFFERED))
     }
 }
 
@@ -35,7 +35,7 @@ pub fn run(target: &Target, state: &AppState, actions: &mut Vec<Action>) -> Opti
                 Some(why) => {
                     actions.push(Action::Post(Notice {
                         kind: NoticeKind::Info,
-                        text: why.to_owned(),
+                        text: why.into_owned(),
                         details: Vec::new(),
                         key: Some(NOTICE_KEY),
                     }));

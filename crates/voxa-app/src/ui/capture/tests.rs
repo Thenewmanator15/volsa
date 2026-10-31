@@ -81,6 +81,7 @@ fn a_picture_can_ask_for_the_first_series_listed_once_the_index_is_finished() {
 
 #[test]
 fn a_picture_can_ask_for_the_labelled_parts_to_be_posed_once_they_are_read() {
+    use voxa_render::Look;
     assert_eq!(
         label_pose("parts, filled, mip"),
         [],
@@ -312,4 +313,26 @@ fn a_picture_can_ask_for_a_tab_of_the_panel_to_be_open() {
 #[test]
 fn the_parts_are_no_longer_a_pose_of_the_column() {
     assert_eq!(pose("parts"), [], "they are a tab of the panel now");
+}
+
+#[test]
+fn a_picture_can_ask_for_an_arrangement_of_the_pictures() {
+    use crate::pictures::Pictures;
+    assert_eq!(arrangement_asked(""), None, "the slices, as Voxa opens");
+    assert_eq!(arrangement_asked("tags, vr"), None);
+    assert_eq!(arrangement_asked("planes"), Some(Pictures::Planes));
+    assert_eq!(arrangement_asked("quad"), Some(Pictures::Planes));
+    assert_eq!(arrangement_asked("3d"), Some(Pictures::Scene));
+    assert_eq!(
+        arrangement_asked("vr, slices3d"),
+        Some(Pictures::SlicesAndScene)
+    );
+    assert_eq!(
+        arrangement_asked("3d, planes"),
+        Some(Pictures::Planes),
+        "the last of those asked for"
+    );
+    for word in ["planes", "quad", "3d", "slices3d"] {
+        assert_eq!(pose(word), [], "{word} is set at once, not as a pose");
+    }
 }

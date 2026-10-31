@@ -19,7 +19,7 @@ fn an_action_not_offered_for_the_scan_shown_says_so() {
     };
     // The made-up scans are MR.
     assert_eq!(
-        unavailable(&for_ct, &state),
+        unavailable(&for_ct, &state).as_deref(),
         Some("This is not offered for the scan shown.")
     );
     assert_eq!(unavailable(fit, &state), None);

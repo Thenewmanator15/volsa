@@ -13,7 +13,6 @@ fn arranged() -> Arrangement {
         window: Some([1200.0, 800.0]),
         interface_size: 1.25,
         list_share: 0.2,
-        column_share: 0.45,
         panel_share: Some(0.3),
         panel_folded: true,
         tab: "Scene".to_owned(),
@@ -25,7 +24,7 @@ fn changed() -> Prefs {
         window: Some([1200.0, 800.0]),
         interface_size: 1.25,
         list_share: 0.2,
-        column_share: 0.45,
+        column_share: None,
         panel_share: Some(0.3),
         panel_folded: true,
         tab: "Scene".to_owned(),
@@ -102,7 +101,6 @@ fn the_interface_size_and_the_shares_start_as_voxa_has_them() {
     assert_eq!(start.window, None);
     assert_eq!(start.interface_size, 1.0, "the interface's usual size");
     assert_eq!(start.list_share, LIST_SHARE);
-    assert_eq!(start.column_share, COLUMN_SHARE);
     assert_eq!(start, Arrangement::default());
 }
 
@@ -123,10 +121,10 @@ fn an_interface_size_or_a_share_that_makes_no_sense_is_not_taken() {
         let text = format!(r#"{{"list_share": {share}, "column_share": {share}}}"#);
         let read = read(&text);
         assert_eq!(read.list_share, LIST_SHARE, "{share}");
-        assert_eq!(read.column_share, COLUMN_SHARE, "{share}");
+        assert_eq!(read.panel_share, None, "no column to carry over: {share}");
     }
     let read = read(r#"{"list_share": 0.25, "column_share": 0.5}"#);
-    assert_eq!((read.list_share, read.column_share), (0.25, 0.5));
+    assert_eq!((read.list_share, read.panel_share), (0.25, Some(0.375)));
 }
 
 #[test]
@@ -219,6 +217,32 @@ fn a_panel_width_that_makes_no_sense_is_not_taken() {
         std::fs::write(folder.path().join(FILE), text).expect("writes");
         assert_eq!(load(folder.path()).panel_share, None, "{share}");
     }
+}
+
+#[test]
+fn a_0_6_0_column_width_becomes_the_panels() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    let read = |text: &str| {
+        std::fs::write(folder.path().join(FILE), text).expect("writes");
+        load(folder.path())
+    };
+    // The column took 0.6 of the 0.8 the list left: 0.48 of the window, more than the panel's
+    // most.
+    let widest = read(r#"{"list_share": 0.2, "column_share": 0.6}"#);
+    assert_eq!(widest.panel_share, Some(PANEL_MOST_SHARE));
+    assert_eq!(PANEL_MOST_SHARE, 0.4);
+    let narrower = read(r#"{"list_share": 0.2, "column_share": 0.3}"#);
+    let share = narrower.panel_share.expect("carried over");
+    assert!((share - 0.24).abs() < 1e-6, "{share}");
+    // A width the person dragged the panel to is theirs, whatever the column was.
+    let dragged = read(r#"{"list_share": 0.2, "column_share": 0.6, "panel_share": 0.3}"#);
+    assert_eq!(dragged.panel_share, Some(0.3));
+    // A column width that makes no sense gives nothing to carry.
+    assert_eq!(read(r#"{"column_share": 4.0}"#).panel_share, None);
+    // And the column is written no more.
+    let written = serde_json::to_value(widest).expect("serialises");
+    let names = written.as_object().expect("a table of settings");
+    assert!(!names.contains_key("column_share"), "{names:?}");
 }
 
 #[test]

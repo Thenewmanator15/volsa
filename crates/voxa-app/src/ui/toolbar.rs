@@ -7,7 +7,7 @@ use egui::Ui;
 
 use super::commands::{self, Request, Tab};
 use crate::action::Action;
-use crate::state::{AppState, Layout};
+use crate::state::AppState;
 
 /// The kinds of thing a scan can be opened from. The system's own dialogs choose either a
 /// folder or a file, never both, so there is a button for each.
@@ -91,17 +91,11 @@ fn offer(
     }
 }
 
-/// The layouts offered, each by the action that chooses it.
-const LAYOUTS: [(Layout, &str); 3] = [
-    (Layout::One, "layout.one"),
-    (Layout::TwoAcross, "layout.two"),
-    (Layout::TwoByTwo, "layout.four"),
-];
-
 /// Draw the toolbar: the series list shown or hidden (`list_shown` says which it is), open,
-/// the layouts, the measurements, the tag browser, the size of the interface, the list of keys
+/// the measurements, the tag browser, the size of the interface, the list of keys
 /// and About. In a narrow window the bar wraps onto further lines. The brightness, the
-/// switches and playback are in the View tab of the panel at the right.
+/// switches and playback are in the View tab of the panel at the right, and the number of
+/// viewports in the strip above the pictures.
 pub fn show(ui: &mut Ui, state: &AppState, list_shown: bool, actions: &mut Vec<Action>) -> Asked {
     let mut asked = Asked::default();
     ui.horizontal_wrapped(|ui| {
@@ -120,16 +114,6 @@ pub fn show(ui: &mut Ui, state: &AppState, list_shown: bool, actions: &mut Vec<A
         ui.label("Open");
         offer(ui, "open.folder", state, None, &mut asked, actions);
         offer(ui, "open.file", state, None, &mut asked, actions);
-        ui.separator();
-        ui.label("Layout");
-        for (layout, id) in LAYOUTS {
-            let chosen = state.layout == layout;
-            let pressed = commands::button(ui, id, state, Some(chosen));
-            // The layout in use is not asked for again.
-            if let Some(does) = pressed.filter(|_| !chosen) {
-                asked.take(does.run(state, actions));
-            }
-        }
         ui.separator();
         offer(ui, "measure.show", state, None, &mut asked, actions);
         offer(ui, "tags.show", state, None, &mut asked, actions);

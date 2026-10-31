@@ -23,14 +23,17 @@ impl VoxaApp {
             Request::Tags => self.tags.open = !self.tags.open,
             Request::FullScreen => screen::toggle_full_screen(ctx),
             Request::ShowTab(tab) => {
-                self.screen.panel.show_tab(tab);
+                self.screen.show_tab(tab);
                 ctx.request_repaint();
             }
             Request::FoldPanel => {
-                self.screen.panel.toggle_fold();
+                self.screen.toggle_panel();
                 ctx.request_repaint();
             }
-            Request::FoldRail => self.screen.list_shown = !self.screen.list_shown,
+            Request::FoldRail => {
+                self.screen.toggle_rail();
+                ctx.request_repaint();
+            }
             Request::Size(size) => ctx.set_zoom_factor(size),
             Request::Larger => egui::gui_zoom::zoom_in(ctx),
             Request::Smaller => egui::gui_zoom::zoom_out(ctx),

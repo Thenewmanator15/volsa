@@ -5,6 +5,7 @@
 //!
 //! The entries themselves are in [`table`], a file for each part of the window.
 
+use std::borrow::Cow;
 use std::sync::LazyLock;
 
 use egui::{Button, Key, Ui};
@@ -50,10 +51,14 @@ pub struct Command {
     /// The profiles of scan it is offered for; empty when it is offered for every scan.
     pub profiles: &'static [Profile],
     /// Why it cannot be used now, in a sentence; `None` when it can.
-    pub why_not: fn(&AppState) -> Option<&'static str>,
+    pub why_not: fn(&AppState) -> Option<Why>,
     /// What it does.
     pub does: Does,
 }
+
+/// Why an action cannot be used now, in a sentence: most are written once, and some say what
+/// the scan itself says, such as why it has no 3D view.
+pub type Why = Cow<'static, str>;
 
 /// A key, with the keys held with it, and how the help writes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

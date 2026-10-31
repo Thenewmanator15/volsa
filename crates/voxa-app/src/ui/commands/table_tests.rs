@@ -71,9 +71,10 @@ fn each_cut_there_can_be_has_an_entry_that_removes_it() {
 fn an_action_that_cannot_be_used_says_why_in_a_sentence() {
     let nothing = AppState::default();
     let why = |id| (find(id).expect("listed").why_not)(&nothing);
-    assert_eq!(why("measure.ruler"), Some(super::super::tabs::NO_VOLUME));
+    let no_volume = super::super::tabs::NO_VOLUME;
+    assert_eq!(why("measure.ruler").as_deref(), Some(no_volume));
     assert_eq!(
-        why("scene.save.picture"),
+        why("scene.save.picture").as_deref(),
         Some("There is no 3D view to save yet.")
     );
     assert!(why("volume.before").is_some_and(|said| said.contains("several volumes")));
@@ -81,13 +82,13 @@ fn an_action_that_cannot_be_used_says_why_in_a_sentence() {
 }
 
 /// States in which actions give their reasons: nothing open; a scan shown; its 3D view cut
-/// as many times as it can be; the labelled parts drawn as solids; and the first and the last
-/// volume of a scan that holds several.
+/// as many times as it can be; the labelled parts drawn as solids; the first and the last
+/// volume of a scan that holds several; and a picture in colour, which has no 3D view.
 fn states_that_give_reasons() -> Vec<AppState> {
     use crate::reducer::reduce;
     use crate::testing::{
-        FIRST_ECHO, SECOND_ECHO, id, indexed, labelled_head, thick_scan_ready, three_series_files,
-        two_echoes_files,
+        COLOUR, FIRST_ECHO, SECOND_ECHO, colour_files, id, indexed, labelled_head,
+        thick_scan_ready, three_series_files, two_echoes_files,
     };
     let mut cut = thick_scan_ready();
     for _ in 0..MAX_CUTS {
@@ -95,21 +96,22 @@ fn states_that_give_reasons() -> Vec<AppState> {
     }
     let (mut solid, _) = labelled_head();
     reduce(&mut solid, Action::SceneLook(voxa_render::Look::Parts));
-    let on_echo = |echo: &str| {
+    let on = |files: Vec<(String, Vec<u8>)>, shown: &str| {
         let mut state = AppState::default();
-        let files = [three_series_files(), two_echoes_files()].concat();
         reduce(&mut state, Action::IndexProgress(indexed(files)));
-        let (viewport, series) = (0, id(echo));
+        let (viewport, series) = (0, id(shown));
         reduce(&mut state, Action::SelectSeries { viewport, series });
         state
     };
+    let echoes = || [three_series_files(), two_echoes_files()].concat();
     vec![
         AppState::default(),
         thick_scan_ready(),
         cut,
         solid,
-        on_echo(FIRST_ECHO),
-        on_echo(SECOND_ECHO),
+        on(echoes(), FIRST_ECHO),
+        on(echoes(), SECOND_ECHO),
+        on(colour_files(), COLOUR),
     ]
 }
 
@@ -138,7 +140,13 @@ fn every_reason_an_action_cannot_be_used_ends_with_a_full_stop() {
         "There is no 3D view to save yet.",
         "The slice is a picture of the scan: it is not drawn among the labelled parts.",
         "Open labels in the Labels tab to see them as solids here.",
+        "There is no tool in hand to put down.",
     ] {
         assert!(said.contains(reached), "no state gives: {reached}");
     }
+    // And a reason that says what the scan itself says.
+    let no_view = said
+        .iter()
+        .find(|why| why.starts_with("This scan has no 3D view: "));
+    assert!(no_view.is_some(), "{said:?}");
 }

@@ -1,5 +1,5 @@
-//! The window: toolbar, series list, the 3D scene, the viewport grid, the tab panel and status
-//! line.
+//! The window: toolbar, series list, the pictures under the strip that arranges them, the tab
+//! panel and status line.
 
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
@@ -43,6 +43,7 @@ mod shares;
 mod size;
 mod start;
 mod status;
+mod strip;
 mod tabs;
 mod tags;
 mod theme;
@@ -97,9 +98,8 @@ pub struct VoxaApp {
     kept: crate::prefs::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
     card: lost::Card,
-    /// How the window is set out: its size, the widths of the series list, the column and the
-    /// tab panel, whether the list is shown, and which tab the panel shows and whether it is
-    /// folded.
+    /// How the window is set out: its size, the widths of the series list and the tab panel,
+    /// whether the list is shown, and which tab the panel shows and whether it is folded.
     screen: screen::Screen,
 }
 
@@ -265,13 +265,13 @@ impl VoxaApp {
 
 impl VoxaApp {
     /// The series list down the left of the window, when it is shown, taking its share of
-    /// the window's width: where it is.
+    /// the window's width, or less where the pictures need it: where it is.
     fn list(&self, ui: &mut egui::Ui, actions: &mut Vec<Action>) -> Option<egui::Rect> {
         if !self.screen.list_shown {
             return None;
         }
         let window = ui.ctx().content_rect().width();
-        let width = shares::list_width(window, self.screen.list_share());
+        let width = self.screen.widths(window).rail;
         let column = egui::Panel::left("browser")
             .exact_size(width)
             .resizable(false);
@@ -312,6 +312,9 @@ impl eframe::App for VoxaApp {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
+        // A narrow window folds a side column before any is drawn.
+        let window = ui.ctx().content_rect().width();
+        self.screen.settle(window);
         let list_shown = self.screen.list_shown;
         let shown = bars::show(ui, self.session.state(), list_shown, &mut actions);
         let (asked, _disclaimer) = shown;
@@ -323,12 +326,11 @@ impl eframe::App for VoxaApp {
         }
         let list = self.list(ui, &mut actions);
         let panel = self.tab_panel(ui, &mut actions);
-        let behind = egui::Frame::NONE
-            .fill(theme::BACKGROUND)
-            .inner_margin(viewport::GAP);
-        egui::CentralPanel::default().frame(behind).show(ui, |ui| {
-            self.pictures(ui, frame.wgpu_render_state(), &mut actions);
-        });
+        egui::CentralPanel::default()
+            .frame(middle())
+            .show(ui, |ui| {
+                self.pictures(ui, frame.wgpu_render_state(), &mut actions);
+            });
         self.drag_the_list(ui, list);
         self.drag_the_panel(ui, panel);
         about::show(ui.ctx(), &mut self.about_open);
@@ -346,5 +348,17 @@ impl eframe::App for VoxaApp {
             self.dispatch(action);
         }
         self.for_a_picture(ui.ctx());
+        // A column opened this frame in a narrow window folds the other in the next.
+        if self.screen.unsettled(window) {
+            ui.ctx().request_repaint();
+        }
     }
+}
+
+/// The middle of the window, where the pictures are: on the background, with the gap between
+/// viewports around them.
+fn middle() -> egui::Frame {
+    egui::Frame::NONE
+        .fill(theme::BACKGROUND)
+        .inner_margin(viewport::GAP)
 }

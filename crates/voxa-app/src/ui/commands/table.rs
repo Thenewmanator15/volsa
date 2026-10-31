@@ -3,12 +3,13 @@
 
 use egui::Key;
 
-use super::{Command, Does, Place, Shortcut};
+use super::{Command, Does, Place, Shortcut, Why};
 use crate::action::Action;
 use crate::state::AppState;
 
 mod measure;
 mod panel;
+mod pictures;
 mod scene;
 mod slices;
 mod tools;
@@ -19,6 +20,7 @@ mod window;
 pub(super) fn all() -> Vec<Command> {
     [
         slices::COMMANDS,
+        pictures::COMMANDS,
         window::COMMANDS,
         panel::COMMANDS,
         measure::COMMANDS,
@@ -46,7 +48,7 @@ const PLAIN: Command = Command {
 };
 
 /// The why-not of an action that can always be used.
-fn usable(_: &AppState) -> Option<&'static str> {
+fn usable(_: &AppState) -> Option<Why> {
     None
 }
 

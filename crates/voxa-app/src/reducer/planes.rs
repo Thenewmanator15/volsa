@@ -21,7 +21,6 @@ pub(super) fn concerns(action: &Action) -> bool {
             | Action::PlaneZoom { .. }
             | Action::PlanePan { .. }
             | Action::PlaneFit(_)
-            | Action::SetColumn(_)
             | Action::SetLinked(_)
             | Action::SetSmooth(_)
             | Action::SmoothReady { .. }
@@ -39,7 +38,6 @@ pub(super) fn reduce(state: &mut AppState, action: &Action) {
         } => zoom(state.planes.panel_mut(kind), factor, about_mm),
         Action::PlanePan { kind, by_mm } => pan(state.planes.panel_mut(kind), by_mm),
         Action::PlaneFit(kind) => *state.planes.panel_mut(kind) = PlanePanel::default(),
-        Action::SetColumn(column) => state.planes.column = column,
         Action::SetLinked(linked) => state.planes.linked = linked,
         Action::SetSmooth(smooth) => state.planes.smooth = smooth,
         _ => {}

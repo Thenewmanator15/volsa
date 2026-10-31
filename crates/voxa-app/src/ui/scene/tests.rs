@@ -161,7 +161,7 @@ fn dragging_the_slices_handle_moves_through_the_slices() {
 /// The 30-slice series ready in the scene, seen from the patient's left at half a millimetre
 /// a point with the position in the middle of the scene, which is at (410, 320) in the
 /// window. Up the screen is up the stack, and the back of the head is to the right.
-fn with_planes(column: crate::planes::ColumnShows) -> AppState {
+fn with_planes(pictures: crate::pictures::Pictures) -> AppState {
     use voxa_core::Point;
     use voxa_render::{Camera, NamedView};
 
@@ -179,7 +179,7 @@ fn with_planes(column: crate::planes::ColumnShows) -> AppState {
     });
     let series = id(THICK_SCAN);
     reduce(&mut state, Action::VolumeReady { series, corners });
-    reduce(&mut state, Action::SetColumn(column));
+    reduce(&mut state, Action::SetPictures(pictures));
     let position = state.planes.position.expect("the volume is ready");
     state.scene.camera = Camera::looking(NamedView::Left, position, 0.5);
     state
@@ -189,8 +189,8 @@ fn with_planes(column: crate::planes::ColumnShows) -> AppState {
 fn dragging_the_end_of_an_arm_of_the_cross_moves_that_plane_through_its_layers() {
     use voxa_volume::PlaneKind;
 
-    use crate::planes::ColumnShows;
-    let state = with_planes(ColumnShows::Planes);
+    use crate::pictures::Pictures;
+    let state = with_planes(Pictures::Planes);
     // The arm along the axial plane's normal stands 28 points up from the position. Slices
     // are 5 mm apart: 10 points.
     let (grip, half_way, a_layer) = ([410.0, 292.0], [410.0, 287.0], [410.0, 282.0]);
@@ -231,7 +231,7 @@ fn dragging_the_end_of_an_arm_of_the_cross_moves_that_plane_through_its_layers()
 
 #[test]
 fn with_the_planes_out_of_sight_there_is_no_cross_to_take_hold_of() {
-    let state = with_planes(crate::planes::ColumnShows::Slices);
+    let state = with_planes(crate::pictures::Pictures::Scene);
     let asked = after(&state, drag([410.0, 292.0], [410.0, 282.0]));
     assert_eq!(asked, [Action::SceneOrbit { by: [0.0, -10.0] }]);
 }

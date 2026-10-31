@@ -6,7 +6,7 @@ use egui::{Frame, Margin, Rect, Sense, StrokeKind, Ui, WidgetInfo, WidgetType, v
 
 use super::commands::{self, Does, Request};
 use super::{scrolled, theme};
-use crate::prefs::{FIRST_TAB, PANEL_SHARE};
+use crate::prefs::{FIRST_TAB, PANEL_MOST_SHARE, PANEL_SHARE};
 use crate::state::AppState;
 
 mod icons;
@@ -14,8 +14,6 @@ mod icons;
 /// The narrowest the panel is while it is open, in points: wide enough for the names of its
 /// tabs, except in a window too narrow for that to be the most it may take.
 const LEAST: f32 = 260.0;
-/// The most of the window's width the panel takes, however wide it was dragged.
-const MOST_SHARE: f32 = 0.4;
 /// How wide the panel is folded, in points: a strip of one icon for each tab.
 pub const STRIP: f32 = 44.0;
 /// How large the button of each icon in the strip is, in points.
@@ -130,13 +128,23 @@ impl PanelState {
     pub fn toggle_fold(&mut self) {
         self.folded = !self.folded;
     }
+
+    /// How wide the panel is in a window `window` points across: its strip of icons while it is
+    /// folded, and its share of the window, within the limits of [`width`], while it is open.
+    pub fn width(self, window: f32) -> f32 {
+        if self.folded {
+            STRIP
+        } else {
+            width(window, self.share)
+        }
+    }
 }
 
 /// The width of the panel while open, in a window `window` points across, for its `share` of
 /// it: between 260 points and two fifths of the window. In a window so narrow that two fifths
 /// is less than 260 points, two fifths.
 pub fn width(window: f32, share: f32) -> f32 {
-    let most = MOST_SHARE * window;
+    let most = PANEL_MOST_SHARE * window;
     let least = LEAST.min(most);
     (window * share).min(most).max(least)
 }
@@ -156,21 +164,19 @@ pub struct Shown {
     pub requests: Vec<Request>,
 }
 
-/// Draw the panel down the right of the window: open, a row of tabs above the tab chosen,
-/// whose `contents` are drawn by the caller and give what they ask of the window; or folded,
-/// a strip of icons. A tab or the fold chosen in the panel is taken at once.
+/// Draw the panel down the right of the window, `wide` points across: open, a row of tabs
+/// above the tab chosen, whose `contents` are drawn by the caller and give what they ask of the
+/// window; or folded, a strip of icons. How wide it is is the window's to say, which gives it
+/// less than [`PanelState::width`] when the pictures would otherwise have too little room. A
+/// tab or the fold chosen in the panel is taken at once.
 pub fn show(
     ui: &mut Ui,
     panel: &mut PanelState,
     state: &AppState,
+    wide: f32,
     contents: impl FnOnce(&mut Ui, Tab) -> Vec<Request>,
 ) -> Shown {
-    let window = ui.ctx().content_rect().width();
-    let (wide, margin) = if panel.folded {
-        (STRIP, 4)
-    } else {
-        (width(window, panel.share), 8)
-    };
+    let margin = if panel.folded { 4 } else { 8 };
     let frame = Frame::NONE
         .fill(theme::PANEL)
         .inner_margin(Margin::same(margin));

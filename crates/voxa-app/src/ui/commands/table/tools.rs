@@ -1,6 +1,6 @@
 //! The tools of the Tools tab that are part of Voxa: so far, labelling a brain scan.
 
-use super::super::{Command, Does, Place, Request, Tab};
+use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::PLAIN;
 use crate::labelling::can_label;
 use crate::ui::tabs::{LABEL_BUTTON, LABEL_TOOL};
@@ -16,7 +16,11 @@ pub(super) const COMMANDS: &[Command] = &[Command {
     explains: "Outline about thirty parts of the brain on this scan, on this computer",
     words: &["segment", "parts", "synthseg", "labelling"],
     place: Place::Tab(Tab::Tools),
-    why_not: |state| can_label(state).is_err().then_some(CANNOT_LABEL),
+    why_not: |state| {
+        can_label(state)
+            .is_err()
+            .then_some(Why::Borrowed(CANNOT_LABEL))
+    },
     // The window says how much of the graphics card it holds itself, which the run is told.
     does: Does::Ask(Request::LabelScan),
     ..PLAIN

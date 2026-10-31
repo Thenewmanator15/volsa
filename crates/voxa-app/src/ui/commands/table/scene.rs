@@ -3,7 +3,7 @@
 
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
-use super::super::{Command, Does, Place, Request, Tab};
+use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::PLAIN;
 use crate::action::Action;
 use crate::labels::{look_drawn, on_this_series};
@@ -24,14 +24,14 @@ const SIDE: &[&str] = &["side", "viewpoint", "orientation", "camera"];
 const UNCUT: &[&str] = &["remove", "uncut", "cut"];
 
 /// Why there is nothing to save of the scene yet.
-fn not_ready(state: &AppState) -> Option<&'static str> {
+fn not_ready(state: &AppState) -> Option<Why> {
     let there = state.scene.status == SceneStatus::Ready;
-    (!there).then_some("There is no 3D view to save yet.")
+    (!there).then_some(Why::Borrowed("There is no 3D view to save yet."))
 }
 
 /// Why a cut cannot be removed: there are fewer than `cut` cuts.
-fn no_cut(state: &AppState, cut: usize, why: &'static str) -> Option<&'static str> {
-    (state.scene.cuts.len() < cut).then_some(why)
+fn no_cut(state: &AppState, cut: usize, why: &'static str) -> Option<Why> {
+    (state.scene.cuts.len() < cut).then_some(Why::Borrowed(why))
 }
 
 /// The entries.
@@ -78,7 +78,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: PARTS_HINT,
         words: &["parts", "labels", "segmentation", "solids"],
         place: Place::Tab(Tab::Scene),
-        why_not: |state| (!on_this_series(state)).then_some(PARTS_NEED_LABELS),
+        why_not: |state| (!on_this_series(state)).then_some(Why::Borrowed(PARTS_NEED_LABELS)),
         does: Does::Act(|_| Some(Action::SceneLook(Look::Parts))),
         ..PLAIN
     },
@@ -143,7 +143,9 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Straight across the view; drag the cut's handle to move it",
         words: &["cut", "clip", "section", "open"],
         place: Place::Tab(Tab::Scene),
-        why_not: |state| (state.scene.cuts.len() >= MAX_CUTS).then_some("Three cuts at most."),
+        why_not: |state| {
+            (state.scene.cuts.len() >= MAX_CUTS).then_some(Why::Borrowed("Three cuts at most."))
+        },
         does: Does::Act(|_| Some(Action::CutAdd)),
         ..PLAIN
     },
@@ -182,11 +184,15 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "scene.slice",
-        name: "Draw the slice shown in 2D inside the 3D scene",
+        // Short, so that search lists it among the actions on slices, which are many.
+        name: "Draw the slice in the 3D view",
         label: "Slice in 3D",
+        explains: "The slice shown in 2D, where it lies in the volume",
         words: &["slice", "plane", "2D", "inside"],
         place: Place::Tab(Tab::Scene),
-        why_not: |state| (look_drawn(state) == Look::Parts).then_some(NO_SLICE_AMONG_PARTS),
+        why_not: |state| {
+            (look_drawn(state) == Look::Parts).then_some(Why::Borrowed(NO_SLICE_AMONG_PARTS))
+        },
         does: Does::Act(|state| Some(Action::ShowSliceInScene(!state.scene.slice_shown))),
         ..PLAIN
     },

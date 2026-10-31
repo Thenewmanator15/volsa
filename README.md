@@ -44,10 +44,14 @@ Voxa opens at a size that fits your screen, and its window can be made as small 
 at your display's scale. **Series** in the toolbar, or **B**, shows or hides the list of
 series, which starts hidden in a narrow window; **F11** is full screen. **Size** in the toolbar
 draws the words and buttons larger or smaller, as do Ctrl+= and Ctrl+- (Ctrl+0 puts them back).
-The edge of the list of series and the line beside the column at the right can be dragged to
-give either more of the width. Voxa remembers the window's size, the size of the words and
-buttons, and how wide you dragged the list and the column; whether the list is shown, and full
-screen, start afresh each time. **?** lists every key.
+An export opens on its slices. The strip above the pictures arranges them: **Slices** (with one,
+two or four viewports), **Slices + 3D**, **Planes** (the three planes and the 3D view, two by
+two) or **3D** alone. The edge of the list of series and the edge of the tab panel at the right
+can be dragged to give either more of the width; in a window under 760 points across only one
+of the two is open at a time, so that the pictures keep their room. Voxa remembers the window's
+size, the size of the words and buttons, how wide you dragged the list and the panel, and which
+tab is open; whether the list is shown, and full screen, start afresh each time. **?** lists
+every key.
 
 ### Removing Voxa
 
@@ -79,7 +83,7 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 
 | File | What it holds |
 |---|---|
-| `preferences.json` | The window's size, the size of the interface, how wide the list of series and the column beside the large part are, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+| `preferences.json` | The window's size, the size of the interface, how wide the list of series and the tab panel are, which tab is open and whether the panel is folded, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
 
 `%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
 its servers, so it holds nothing else.

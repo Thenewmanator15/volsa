@@ -14,7 +14,8 @@ const PICTURE: [f32; 2] = [1440.0, 900.0];
 
 impl VoxaApp {
     /// Make ready what a picture of the window wants: the interface at the size it asks for,
-    /// everything at rest rather than fading in, and the windows it wants open in it.
+    /// everything at rest rather than fading in, the windows and the tab it wants open in it,
+    /// and the pictures arranged as it asks.
     pub(super) fn set_up_a_picture(&mut self, ctx: &egui::Context) {
         ctx.set_zoom_factor(capture::zoom().unwrap_or(1.0));
         // A picture is of things as they come to rest, not part-way through fading in.
@@ -24,7 +25,10 @@ impl VoxaApp {
         let asked = |word: &str| capture::asks_for(&wanted, word);
         self.tags.open = asked("tags");
         if let Some(tab) = capture::tab_asked(&wanted) {
-            self.screen.panel.show_tab(tab);
+            self.screen.show_tab(tab);
+        }
+        if let Some(pictures) = capture::arrangement_asked(&wanted) {
+            self.dispatch(crate::action::Action::SetPictures(pictures));
         }
         self.help_open = asked("keys");
         self.about_open = asked("about");

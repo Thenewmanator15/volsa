@@ -17,6 +17,9 @@ impl VoxaApp {
         asked: Option<export::Asked>,
         actions: &mut Vec<Action>,
     ) {
+        if asked.is_some() || self.turntable.is_some() {
+            self.hold_the_scene(render, actions);
+        }
         let state = self.session.state();
         let viewport = state.scene.viewport;
         let wanted = asked.zip(scene::scene_params(state, 1.0));
@@ -59,6 +62,16 @@ impl VoxaApp {
             }
             Some(Err(why)) => actions.push(Action::Post(export::not_drawn(&why))),
             None => {}
+        }
+    }
+
+    /// Put the scene's volume on the graphics device for a picture of it to be drawn: the
+    /// arrangement shown may have no 3D view in it, which is what puts it there otherwise.
+    fn hold_the_scene(&mut self, render: Option<&RenderState>, actions: &mut Vec<Action>) {
+        let shown = self.session.state().scene.series.as_ref();
+        let volume = shown.and_then(|series| self.session.volume(series));
+        if let Some(halved) = self.scene.hold(render, volume.as_ref()) {
+            actions.push(Action::SceneUploaded { halved });
         }
     }
 }

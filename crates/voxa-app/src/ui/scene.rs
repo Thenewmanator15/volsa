@@ -81,6 +81,18 @@ impl SceneView {
         }
     }
 
+    /// Put `volume` on the graphics device if it is not there yet, as drawing the scene does:
+    /// for a picture of the scene to be saved while the arrangement shown has no 3D view in
+    /// it. Gives how many times it had to be halved, when it was put there now.
+    pub fn hold(
+        &mut self,
+        render: Option<&RenderState>,
+        volume: Option<&Arc<Volume>>,
+    ) -> Option<u32> {
+        let (gpu, render, volume) = (self.gpu.as_mut()?, render?, volume?);
+        gpu.hold(render, volume, self.ready.take())
+    }
+
     /// Whether a picture of a volume has been drawn, so there is something to see.
     pub fn has_picture(&self) -> bool {
         self.gpu.as_ref().is_some_and(gpu::SceneGpu::has_picture)

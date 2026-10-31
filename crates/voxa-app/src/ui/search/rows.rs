@@ -20,7 +20,7 @@ pub fn heading(ui: &mut Ui, heading: Heading) {
 
 /// The line beneath a result's name, if it has one: why an action cannot be used now, a part's
 /// group, a scan's own description.
-fn beneath(entry: &Entry, state: &AppState, why_not: Option<&'static str>) -> Option<String> {
+fn beneath(entry: &Entry, state: &AppState, why_not: Option<&str>) -> Option<String> {
     let text = match &entry.target {
         Target::Command(_) => why_not.map(str::to_owned),
         Target::Part(_) => entry.words.first().cloned(),
@@ -50,7 +50,7 @@ pub fn row(ui: &mut Ui, entry: &Entry, state: &AppState, chosen: bool) -> Respon
     };
     let name = TextFormat::simple(TextStyle::Body.resolve(ui.style()), colour);
     job.append(&entry.name, 0.0, name);
-    if let Some(line) = beneath(entry, state, why_not) {
+    if let Some(line) = beneath(entry, state, why_not.as_deref()) {
         let small = TextStyle::Small.resolve(ui.style());
         let format = TextFormat::simple(small, theme::QUIET_TEXT);
         job.append(&format!("\n{line}"), 0.0, format);

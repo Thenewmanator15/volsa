@@ -290,7 +290,8 @@ fn frame(
             let mut actions = Vec::new();
             super::super::show(ui, tab, state, &mut kept.all, &mut actions)
         };
-        let _ = panel::show(ui, panel, state, contents);
+        let wide = panel.width(ui.ctx().content_rect().width());
+        let _ = panel::show(ui, panel, state, wide, contents);
         drew.layers = ui
             .ctx()
             .memory(|memory| memory.areas().visible_layer_ids())

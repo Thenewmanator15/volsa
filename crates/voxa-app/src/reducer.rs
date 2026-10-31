@@ -6,8 +6,9 @@ use voxa_core::SeriesId;
 use voxa_dicom::best_series;
 
 use crate::action::{Action, Effect};
+use crate::pictures::Pictures;
 use crate::planes::Planes;
-use crate::scene::{MainPanel, Scene};
+use crate::scene::Scene;
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
@@ -44,8 +45,9 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let before = link::Before::of(state, &action);
     let smoothed = planes::smoothing(state);
     let mut effects = act(state, action);
-    if fit && state.main == MainPanel::Scene {
-        // The key that shows the whole slice again shows the whole volume again too.
+    if fit && state.pictures.given(&state.scene.status) == Pictures::Scene {
+        // The key that shows the whole slice again shows the whole volume again too, while the
+        // 3D view is shown alone.
         scene::refit(state);
     }
     effects.extend(if rebuild {
@@ -78,7 +80,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::SetTagFilter(_)
         | Action::DismissNotice(_)
         | Action::Post(_)
-        | Action::SetMain(_) => {
+        | Action::SetPictures(_) => {
             window(state, action);
             Vec::new()
         }
@@ -184,13 +186,12 @@ fn emptied(state: &AppState) -> AppState {
         active: state.active,
         radiological: state.radiological,
         show_patient: state.show_patient,
-        main: state.main,
+        pictures: state.pictures,
         scene: Scene {
             viewport: state.scene.viewport,
             ..Scene::default()
         },
         planes: Planes {
-            column: state.planes.column,
             linked: state.planes.linked,
             smooth: state.planes.smooth,
             ..Planes::default()
@@ -214,7 +215,7 @@ fn window(state: &mut AppState, action: Action) {
         Action::ToggleRadiological => state.radiological = !state.radiological,
         Action::TogglePatient => state.show_patient = !state.show_patient,
         Action::SetTagFilter(filter) => state.tag_filter = filter,
-        Action::SetMain(panel) => state.main = panel,
+        Action::SetPictures(pictures) => state.pictures = pictures,
         Action::Post(notice) => match notice.key {
             Some(key) => post(state, key, Some(notice)),
             None => state.notices.push(notice),
@@ -315,6 +316,8 @@ mod labels_open_tests;
 mod labels_tests;
 #[cfg(test)]
 mod link_tests;
+#[cfg(test)]
+mod pictures_tests;
 #[cfg(test)]
 mod planes_tests;
 #[cfg(test)]

@@ -10,8 +10,9 @@ use voxa_volume::PRESETS;
 use crate::annotations::{Annotations, Tool};
 use crate::labelling::Labelling;
 use crate::labels::Labels;
+use crate::pictures::Pictures;
 use crate::planes::Planes;
-use crate::scene::{MainPanel, Scene};
+use crate::scene::Scene;
 use crate::views::SavedView;
 
 /// How many viewports the window can show at once.
@@ -162,8 +163,8 @@ pub struct AppState {
     pub failed: HashMap<(SeriesId, usize), String>,
     /// The 3D scene, which shows the series of the active viewport.
     pub scene: Scene,
-    /// Whether the 3D scene or the 2D viewports have the large part of the window.
-    pub main: MainPanel,
+    /// How the pictures in the middle of the window are arranged.
+    pub pictures: Pictures,
     /// The views saved of the scene's series, oldest first.
     pub views: Vec<SavedView>,
     /// The axial, coronal and sagittal planes through one point of the scene's volume.
@@ -192,7 +193,7 @@ impl Default for AppState {
             windows: HashMap::new(),
             failed: HashMap::new(),
             scene: Scene::default(),
-            main: MainPanel::default(),
+            pictures: Pictures::default(),
             views: Vec::new(),
             planes: Planes::default(),
             annotations: Annotations::default(),

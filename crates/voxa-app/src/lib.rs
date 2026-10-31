@@ -28,6 +28,7 @@ mod measurements;
 mod moved;
 mod naming;
 mod parts_table;
+mod pictures;
 mod planes;
 mod prefs;
 mod profile;
@@ -61,11 +62,12 @@ pub use labels::{
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use naming::{Group, group_of, plain_name};
-pub use planes::{ColumnShows, PlanePanel, Planes};
+pub use pictures::Pictures;
+pub use planes::{PlanePanel, Planes};
 pub use profile::{CT_WINDOWS, NamedWindow, Profile, Unit, readout, unit_of};
 pub use reducer::reduce;
 pub use said::{Outcome, WINDOWED, outcome, tell};
-pub use scene::{MainPanel, Scene, SceneStatus};
+pub use scene::{Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,

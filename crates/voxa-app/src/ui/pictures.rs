@@ -1,5 +1,6 @@
-//! The middle of the window: the 3D scene, the plane views and the 2D viewports, each in the
-//! part of it the layout gives them.
+//! The middle of the window: the strip that arranges the pictures, and beneath it the 3D
+//! scene, the plane views and the 2D viewports, as many of them as the arrangement shows, each
+//! in the part of it the layout gives them.
 
 use std::sync::Arc;
 
@@ -7,16 +8,15 @@ use egui_wgpu::RenderState;
 use voxa_core::Volume;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, labels, layout, planes, scene, shares, viewport};
+use super::{VoxaApp, labels, layout, planes, scene, strip, viewport};
 use crate::action::Action;
-use crate::scene::SceneStatus;
 use crate::session::Session;
 
 impl VoxaApp {
-    /// Draw the 3D scene, the planes and the 2D viewports in what is left of the window. One
-    /// of them has the large part and another a column beside it, under a strip that says
-    /// what the column shows and has the button that enlarges it. The line between the two
-    /// can be dragged to give the column more or less of the width.
+    /// Draw the strip and, beneath it, the pictures of the arrangement shown in what is left of
+    /// the window. The 3D scene is drawn only when the arrangement has it, and it is what puts
+    /// the scene's volume on the graphics device; the volume becomes ready all the same, as
+    /// the worker that builds it says so, and measuring needs no picture of it.
     pub(super) fn pictures(
         &mut self,
         ui: &mut egui::Ui,
@@ -25,15 +25,10 @@ impl VoxaApp {
     ) {
         let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
-        let share = self.screen.column_share();
-        let layout::Panels { main, side } = layout::panels(whole, share);
-        let (strip, side) = layout::header_and_rest(side);
-        // A series with no 3D view has its slices in the large part: they are all there is.
-        let large = state.main.given(&state.scene.status);
-        let column = state.planes.column;
-        let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
-        layout::header(ui, strip, (large, column), there_is_3d, actions);
-        let areas = layout::areas(large, column, main, side);
+        let (along, rest) = layout::strip_and_pictures(whole);
+        let asked = strip::show(ui, along, state, actions);
+        // A scan with no 3D view has its slices alone: they are all there is.
+        let areas = layout::areas(state.pictures.given(&state.scene.status), rest);
         let shown = state.scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));
         // If it has still to go on the graphics device, take what a worker made ready of it.
@@ -51,10 +46,11 @@ impl VoxaApp {
         let (on_device, stamp) = (self.held.on_device(), self.held.stamp());
         self.planes.label(on_device, state.labels.overlay);
         self.scene.label(render, on_device, stamp);
-        let scene = &mut self.scene;
         let volume = volume.as_ref();
-        let sources = (volume, set.as_deref());
-        scene::show(ui, areas.scene, state, sources, scene, render, actions);
+        if let Some(area) = areas.scene {
+            let sources = (volume, set.as_deref());
+            scene::show(ui, area, state, sources, &mut self.scene, render, actions);
+        }
         let views = (&self.scene, &mut self.planes);
         Self::smooth_planes(&self.session, views, render, volume, actions);
         if let Some(cells) = areas.planes {
@@ -77,19 +73,8 @@ impl VoxaApp {
             viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
         }
         ui.allocate_rect(whole, egui::Sense::hover());
-        // After everything beside it, so that the drag is the line's.
-        self.drag_the_column(ui, whole, f32::midpoint(main.right(), side.left()));
-    }
-
-    /// Let the line at `between` the large part and the column, down the middle of the
-    /// window (`whole`), be dragged to give the column more or less of its width.
-    fn drag_the_column(&mut self, ui: &egui::Ui, whole: egui::Rect, between: f32) {
-        let edge = egui::Id::new("column edge");
-        let by = shares::divider(ui, edge, between, whole.y_range());
-        if by.abs() > 0.0 {
-            let share = self.screen.column_share();
-            let share = layout::column_dragged(whole.width(), share, by);
-            self.screen.set_column_share(share);
+        for request in asked {
+            self.ask(ui.ctx(), request);
         }
     }
 
@@ -125,9 +110,14 @@ impl VoxaApp {
         }
     }
 
-    /// Whether the 2D viewports are out of sight, their place in the column taken by the
-    /// planes.
+    /// Whether the 2D viewports are out of sight, the arrangement shown having none.
     pub(super) fn slices_hidden(&self) -> bool {
         !crate::planes::slices_in_sight(self.session.state())
+    }
+
+    /// Whether the 3D scene is in sight, the arrangement shown having it.
+    pub(super) fn scene_in_sight(&self) -> bool {
+        let state = self.session.state();
+        state.pictures.given(&state.scene.status).has_scene()
     }
 }

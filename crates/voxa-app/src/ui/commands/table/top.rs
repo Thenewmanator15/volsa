@@ -3,7 +3,7 @@
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Request, Tab};
+use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::{PLAIN, alone, ctrl};
 use crate::planes::grid;
 use crate::ui::parts::NO_VOLUME;
@@ -150,7 +150,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Open labels…",
         words: &["labels", "segmentation", "nifti", "open"],
         place: Place::Tab(Tab::Labels),
-        why_not: |state| grid(state).is_none().then_some(NO_VOLUME),
+        why_not: |state| grid(state).is_none().then_some(Why::Borrowed(NO_VOLUME)),
         does: Does::Ask(Request::OpenLabels),
         ..PLAIN
     },

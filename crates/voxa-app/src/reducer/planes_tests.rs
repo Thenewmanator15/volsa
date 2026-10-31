@@ -9,8 +9,9 @@ use voxa_volume::{PlaneKind, central_voxel, clamped_into, nearest_slice};
 use super::scene_tests::{ready, select};
 use super::tests::showing;
 use super::*;
-use crate::planes::{ColumnShows, PlanePanel, Planes, plane};
-use crate::scene::{MainPanel, SceneStatus};
+use crate::pictures::Pictures;
+use crate::planes::{PlanePanel, Planes, plane};
+use crate::scene::SceneStatus;
 use crate::testing::{FINE_SCAN, THICK_SCAN, id};
 
 /// Where the 30-slice series lies, and its columns, rows and slices.
@@ -175,7 +176,7 @@ fn a_panel_is_moved_and_then_shown_whole_again() {
 #[test]
 fn another_series_or_another_scan_starts_the_planes_afresh_but_keeps_what_was_chosen() {
     let mut state = ready();
-    reduce(&mut state, Action::SetColumn(ColumnShows::Planes));
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
     reduce(
         &mut state,
         Action::PlanePan {
@@ -186,21 +187,21 @@ fn another_series_or_another_scan_starts_the_planes_afresh_but_keeps_what_was_ch
     select(&mut state, 0, FINE_SCAN);
     assert_eq!(state.planes.position, None);
     assert_eq!(state.planes.panels, [PlanePanel::default(); 3]);
-    assert_eq!(state.planes.column, ColumnShows::Planes);
+    assert_eq!(state.pictures, Pictures::Planes);
     let mut state = ready();
-    reduce(&mut state, Action::SetColumn(ColumnShows::Planes));
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
     reduce(&mut state, Action::OpenPath(PathBuf::from("another.zip")));
     assert_eq!(state.planes.position, None);
-    assert_eq!(state.planes.column, ColumnShows::Planes);
+    assert_eq!(state.pictures, Pictures::Planes);
 }
 
 #[test]
-fn the_planes_can_have_the_large_part_unless_there_is_no_3d_view() {
+fn the_planes_can_be_shown_unless_there_is_no_3d_view() {
     let mut state = ready();
-    reduce(&mut state, Action::SetMain(MainPanel::Planes));
-    assert_eq!(state.main.given(&state.scene.status), MainPanel::Planes);
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
+    assert_eq!(state.pictures.given(&state.scene.status), Pictures::Planes);
     let no_view = SceneStatus::Unavailable(vec!["why".to_owned()]);
-    assert_eq!(MainPanel::Planes.given(&no_view), MainPanel::Stack);
+    assert_eq!(Pictures::Planes.given(&no_view), Pictures::Slices);
 }
 
 #[test]
@@ -222,28 +223,25 @@ fn a_plane_is_had_only_of_a_volume_that_is_ready_and_faces_as_radiological_says(
 }
 
 #[test]
-fn the_planes_are_in_sight_in_the_column_or_with_the_large_part() {
-    use crate::planes::in_sight;
+fn the_planes_are_in_sight_only_in_their_own_arrangement() {
+    use crate::planes::{in_sight, slices_in_sight};
     let mut state = ready();
-    assert!(!in_sight(&state), "the column shows the slices");
-    reduce(&mut state, Action::SetColumn(ColumnShows::Planes));
+    assert!(!in_sight(&state), "the slices, as Voxa opens");
+    assert!(slices_in_sight(&state));
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
     assert!(in_sight(&state));
-    reduce(&mut state, Action::SetMain(MainPanel::Stack));
     assert!(
-        !in_sight(&state),
-        "the slices are large and the column holds the 3D scene"
+        !slices_in_sight(&state),
+        "the planes take the place of the slices"
     );
-    reduce(&mut state, Action::SetMain(MainPanel::Planes));
-    reduce(&mut state, Action::SetColumn(ColumnShows::Slices));
-    assert!(
-        in_sight(&state),
-        "they have the large part whatever the column held"
-    );
+    for others in [Pictures::Slices, Pictures::SlicesAndScene, Pictures::Scene] {
+        reduce(&mut state, Action::SetPictures(others));
+        assert!(!in_sight(&state), "{others:?}");
+    }
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
     state.scene.status = SceneStatus::Unavailable(vec!["why".to_owned()]);
-    assert!(
-        !in_sight(&state),
-        "with no 3D view the slices have the large part"
-    );
+    assert!(!in_sight(&state), "with no 3D view the slices are shown");
+    assert!(slices_in_sight(&state));
 }
 
 #[test]

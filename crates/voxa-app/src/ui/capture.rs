@@ -14,31 +14,32 @@ use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use voxa_core::{SeriesId, Volume};
-use voxa_render::Look;
 
 use super::VoxaApp;
 use super::viewport::Gpu;
 use crate::action::Action;
 use crate::labels::LabelsStatus;
-use crate::planes::ColumnShows;
-use crate::scene::MainPanel;
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 use labelling::Run;
 
 mod labelling;
 mod measured;
+mod poses;
 mod tabs;
 
 pub use labelling::made_up_look;
 pub use measured::sample_annotations;
+pub use poses::{arrangement_asked, label_pose, pose};
 pub use tabs::tab_asked;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, `measure`, `labelling` and `parts` for the Measure, Tools and Labels tab open in the panel, for the 3D scene `vr` or `mip`, `turned`, `cut` and
-/// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
+/// `slice`, `planes` or `quad` for the three planes with the 3D view, `3d` for the 3D view
+/// alone and `slices3d` for the slices beside it (with none of these, the slices alone, as
+/// Voxa opens), `measured`
 /// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
@@ -103,44 +104,6 @@ pub fn wants(word: &str) -> bool {
 /// The size the interface is drawn at for a picture that asks for one.
 pub fn zoom() -> Option<f32> {
     zoom_from(&std::env::var(ZOOM_VARIABLE).ok()?)
-}
-
-/// What to do to the 3D scene, once its volume is ready, for a picture that asks for it by
-/// the words in `wanted`: a look, a turn, a cut, the slice drawn in it.
-pub fn pose(wanted: &str) -> Vec<Action> {
-    let asked = |word: &str| asks_for(wanted, word);
-    let poses = [
-        ("vr", Action::SceneLook(Look::Vr)),
-        ("mip", Action::SceneLook(Look::Mip)),
-        ("turned", Action::SceneOrbit { by: [70.0, 35.0] }),
-        ("cut", Action::CutAdd),
-        ("slice", Action::ShowSliceInScene(true)),
-        ("planes", Action::SetColumn(ColumnShows::Planes)),
-        ("quad", Action::SetMain(MainPanel::Planes)),
-        ("filled", Action::SetOverlay(voxa_render::Overlay::Filled)),
-        ("smooth", Action::SetSmooth(true)),
-        ("stepped", Action::StepVolume { viewport: 0, by: 1 }),
-    ];
-    let wanted = poses.into_iter().filter(|(word, _)| asked(word));
-    wanted.map(|(_, action)| action).collect()
-}
-
-/// What to do to the labelled parts, once labels have been read, for a picture that asks
-/// for it by the words in `wanted`: the parts as solids in the scene, the first part faded,
-/// the first part selected.
-pub fn label_pose(wanted: &str) -> Vec<Action> {
-    let asked = |word: &str| asks_for(wanted, word);
-    let faded = Action::PartOpacity {
-        part: 0,
-        opacity: 0.3,
-    };
-    let poses = [
-        ("solids", Action::SceneLook(Look::Parts)),
-        ("faded", faded),
-        ("chosen", Action::PartSelect(Some(0))),
-    ];
-    let wanted = poses.into_iter().filter(|(word, _)| asked(word));
-    wanted.map(|(_, action)| action).collect()
 }
 
 /// Whether a picture is of the 3D scene at rest or while it moves.
@@ -357,8 +320,7 @@ impl VoxaApp {
             SceneStatus::Building { .. } | SceneStatus::Ready
         );
         let slices = self.slices_hidden() || self.gpus.first().is_some_and(Gpu::has_picture);
-        // And, if the planes are to be drawn smooth, for the curve they are drawn from.
-        let curve = !self.session.state().planes.smooth || self.planes.is_smooth();
+        let volume = self.volume_shown();
         // And for labels that are still to be opened, or are being read.
         let reading = self.session.state().labels.status == LabelsStatus::Reading;
         let waiting = self.labels.is_waiting() && !no_volume_to_come;
@@ -376,13 +338,29 @@ impl VoxaApp {
             .as_ref()
             .is_none_or(|capture| capture.has_labelled(state));
         let labelled = !waiting && !reading && posed && ran;
-        let ready = slices && labelled && (no_volume_to_come || self.scene.has_picture() && curve);
+        let ready = slices && labelled && volume;
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
             capture.step(ctx, ready && pick.is_none());
             if let Some(pick) = pick {
                 self.session.dispatch(pick);
             }
+        }
+    }
+
+    /// Whether a picture of the window has the volume in it as it should be: none is to come;
+    /// or it is ready and, with the 3D view among the pictures, drawn there, and the planes,
+    /// if they are shown and to be drawn smooth, have the curve they are drawn from.
+    fn volume_shown(&self) -> bool {
+        let state = self.session.state();
+        match state.scene.status {
+            SceneStatus::Building { .. } => false,
+            SceneStatus::Ready => {
+                let plain = !state.planes.smooth || !crate::planes::in_sight(state);
+                let curve = plain || self.planes.is_smooth();
+                curve && (!self.scene_in_sight() || self.scene.has_picture())
+            }
+            SceneStatus::Empty | SceneStatus::Unavailable(_) => true,
         }
     }
 }

@@ -88,13 +88,14 @@ fn offer(
 
 impl VoxaApp {
     /// Draw the tab panel down the right of the window, after the panels beside it, with the
-    /// tab that is open. What a tab's buttons ask of the window is done. Gives where the panel
-    /// is while it is open, for its left edge to be dragged.
+    /// tab that is open, as wide as the window gives it. What a tab's buttons ask of the window
+    /// is done. Gives where the panel is while it is open, for its left edge to be dragged.
     pub(super) fn tab_panel(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) -> Option<Rect> {
         let state = self.session.state();
         let kept = &mut self.tabs;
         let tab_in = |ui: &mut Ui, tab| show(ui, tab, state, kept, actions);
-        let shown = panel::show(ui, &mut self.screen.panel, state, tab_in);
+        let wide = self.screen.widths(ui.ctx().content_rect().width()).panel;
+        let shown = panel::show(ui, &mut self.screen.panel, state, wide, tab_in);
         for request in shown.requests {
             self.ask(ui.ctx(), request);
         }

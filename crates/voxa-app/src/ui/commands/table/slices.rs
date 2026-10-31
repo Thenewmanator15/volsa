@@ -1,13 +1,13 @@
 //! The slices of the active viewport and how they are laid out: the keys that step through
-//! them, play them, mirror, turn and fit the picture, and choose one, two or four viewports.
+//! them, play them, mirror, turn and fit the picture, choose one, two or four viewports, and
+//! put a tool down.
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Tab};
+use super::super::{Command, Does, Place, Tab, Why};
 use super::{PLAIN, alone};
 use crate::action::Action;
 use crate::annotations::Tool;
-use crate::scene::MainPanel;
 use crate::state::{AppState, Layout};
 
 /// How many slices Page Up and Page Down step.
@@ -15,7 +15,7 @@ const PAGE: i32 = 10;
 
 /// Why the volume before or after cannot be shown: no scan of several volumes is shown, or
 /// the one shown is already the first or the last of them.
-fn volume_at_end(state: &AppState, last: bool) -> Option<&'static str> {
+fn volume_at_end(state: &AppState, last: bool) -> Option<Why> {
     let set = state
         .viewports
         .get(state.active)
@@ -23,12 +23,14 @@ fn volume_at_end(state: &AppState, last: bool) -> Option<&'static str> {
         .and_then(|series| state.series(series))
         .and_then(|listed| listed.info.set.as_ref());
     let Some(set) = set else {
-        return Some("The scan shown is not one of several volumes.");
+        return Some(Why::Borrowed(
+            "The scan shown is not one of several volumes.",
+        ));
     };
     if last && set.at + 1 >= set.count {
-        Some("This is the last volume.")
+        Some(Why::Borrowed("This is the last volume."))
     } else if !last && set.at == 0 {
-        Some("This is the first volume.")
+        Some(Why::Borrowed("This is the first volume."))
     } else {
         None
     }
@@ -218,16 +220,16 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "view.escape",
-        name: "Put the tool down; with none in hand, give 3D the large part of the window",
+        name: "Put the tool down",
         label: "Esc",
-        words: &["escape", "cancel", "tool", "3D"],
+        words: &["escape", "cancel", "tool", "navigate"],
         key: Some(alone(Key::Escape, "Esc")),
+        why_not: |state| {
+            let none = state.tool == Tool::Navigate;
+            none.then_some(Why::Borrowed("There is no tool in hand to put down."))
+        },
         does: Does::Act(|state| {
-            Some(if state.tool == Tool::Navigate {
-                Action::SetMain(MainPanel::Scene)
-            } else {
-                Action::SetTool(Tool::Navigate)
-            })
+            (state.tool != Tool::Navigate).then_some(Action::SetTool(Tool::Navigate))
         }),
         ..PLAIN
     },
