@@ -11,7 +11,8 @@ use voxa_core::SeriesId;
 use voxa_models::{SUPPORTED, Stop};
 use voxa_plugins::{HelperStarter, Installed, Measured, Offered, ProcessStarter};
 
-use super::{Shared, Workers, lock};
+use super::labelling::on_its_own;
+use super::{Shared, Workers, lock, shielded};
 use crate::action::Action;
 use crate::kept_labels::{forget, kept};
 use crate::plugins::{PluginAction, PluginEffect, PluginEntry, folder, list};
@@ -31,6 +32,8 @@ const NO_RUNTIME: &str = "Plugins need ONNX Runtime, as labelling does: put it i
 const GONE: &str = "That plugin is no longer among those added.";
 /// What is said when no result of a plugin is kept for the scan.
 const NONE_KEPT: &str = "No result of this plugin is kept for this scan.";
+/// What is said when work on a plugin stops part-way inside Voxa.
+const WENT_WRONG: &str = "Something went wrong inside Voxa while it worked on the plugin.";
 /// The key of the notices about plugins the workers post.
 const KEY: &str = "plugin";
 /// The runtime's library, as a runtime folder holds it.
@@ -48,6 +51,8 @@ pub(super) struct Kit {
     offered: Mutex<Option<Offered>>,
     /// The stop of the run on, if one is.
     run: Mutex<Option<Stop>>,
+    /// The stop of the plugin being added, if one is.
+    adding: Mutex<Option<Stop>>,
 }
 
 impl Default for Kit {
@@ -57,6 +62,7 @@ impl Default for Kit {
             starter: Mutex::new(Arc::new(ProcessStarter { program })),
             offered: Mutex::new(None),
             run: Mutex::new(None),
+            adding: Mutex::new(None),
         }
     }
 }
@@ -74,26 +80,41 @@ impl Workers {
         *lock(&self.shared.plugins.starter) = starter;
     }
 
-    /// Carry out an effect about plugins.
+    /// Carry out an effect about plugins. Stop ends the run on and the adding on, if any.
     pub(super) fn plugins(&self, effect: PluginEffect) {
-        let shared = Arc::clone(&self.shared);
         match effect {
-            PluginEffect::Look { look } => self.spawn(move || shared.look_at_plugins(look)),
-            PluginEffect::Offer(folder) => self.spawn(move || shared.offer(&folder)),
-            PluginEffect::Add { runtime } => self.spawn(move || shared.add_offered(runtime)),
-            PluginEffect::Remove(id) => self.spawn(move || shared.remove_plugin(&id)),
             PluginEffect::Stop => {
-                if let Some(stop) = lock(&self.shared.plugins.run).take() {
-                    stop.stop();
+                let kit = &self.shared.plugins;
+                for stop in [lock(&kit.run).take(), lock(&kit.adding).take()] {
+                    stop.inspect(Stop::stop);
                 }
             }
-            PluginEffect::ShowKept { id, series } => {
-                self.spawn(move || shared.kept_result(&id, &series, true));
-            }
-            PluginEffect::DeleteKept { id, series } => {
-                self.spawn(move || shared.kept_result(&id, &series, false));
-            }
             run @ PluginEffect::Run { .. } => self.run_plugin(run),
+            other => self.plugin_work(other),
+        }
+    }
+
+    /// Work on plugins on a thread of its own, never the workers' shared pool: adding measures
+    /// for minutes and checking a folder reads every byte of its files, which on the pool would
+    /// hold up a volume being built. Work that stops part-way inside Voxa says so, so that
+    /// nothing waits for it.
+    fn plugin_work(&self, effect: PluginEffect) {
+        let failed = match &effect {
+            PluginEffect::Offer(_) => Some(PluginAction::Offered(Err(WENT_WRONG.to_owned()))),
+            PluginEffect::Add { .. } => Some(PluginAction::Added(Err(WENT_WRONG.to_owned()))),
+            PluginEffect::Remove(_) => Some(PluginAction::Removed(Err(WENT_WRONG.to_owned()))),
+            _ => None,
+        };
+        let (shared, unsaid) = (Arc::clone(&self.shared), failed.clone());
+        let started = on_its_own(move || {
+            if !shielded(|| shared.work_on_plugins(effect))
+                && let Some(failed) = failed
+            {
+                shared.tell_plugins(failed);
+            }
+        });
+        if !started && let Some(failed) = unsaid {
+            self.shared.tell_plugins(failed);
         }
     }
 }
@@ -144,6 +165,19 @@ fn kept_key(series: &SeriesId, id: &str) -> String {
 }
 
 impl Shared {
+    /// Carry out an effect about plugins, other than a run or a stop, here.
+    fn work_on_plugins(&self, effect: PluginEffect) {
+        match effect {
+            PluginEffect::Look { look } => self.look_at_plugins(look),
+            PluginEffect::Offer(folder) => self.offer(&folder),
+            PluginEffect::Add { runtime } => self.add_offered(runtime),
+            PluginEffect::Remove(id) => self.remove_plugin(&id),
+            PluginEffect::ShowKept { id, series } => self.kept_result(&id, &series, true),
+            PluginEffect::DeleteKept { id, series } => self.kept_result(&id, &series, false),
+            PluginEffect::Run { .. } | PluginEffect::Stop => {}
+        }
+    }
+
     /// Tell the state something about plugins.
     fn tell_plugins(&self, action: PluginAction) {
         self.report(Action::Plugins(action));

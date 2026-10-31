@@ -32,6 +32,7 @@ mod run;
 mod scaling;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
+mod watched;
 
 pub use accepts::{Decision, contrasts_named, decide, spacing_note};
 pub use blocks::BlockPlan;

@@ -12,9 +12,10 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use voxa_models::{Card, CardKind, Device, Helper, Room, RunsOn, start_helper};
+use voxa_models::{Card, CardKind, Device, Helper, Room, RunsOn, Stop, start_helper};
 
 use crate::helper::{Client, HelperError, OpenJob};
+use crate::watched::on_helper;
 
 #[cfg(test)]
 mod tests;
@@ -128,8 +129,8 @@ pub fn write_measured(folder: &Path, measured: &Measured) -> io::Result<()> {
 }
 
 /// Measures a plugin: one helper, capped at `cap` when one is given, runs the job on one
-/// made-up block (a smooth pattern, not zeros) and ends. Gives the most ordinary memory the
-/// helper held and the most of a card, when it ran on one.
+/// made-up block (a smooth pattern, not zeros) and ends, at once when `stop` is set. Gives the
+/// most ordinary memory the helper held and the most of a card, when it ran on one.
 ///
 /// # Errors
 ///
@@ -138,21 +139,20 @@ pub fn measure(
     starter: &dyn HelperStarter,
     job: &OpenJob,
     cap: Option<u64>,
+    stop: &Stop,
 ) -> Result<(u64, Option<u64>), HelperError> {
-    let mut helper = starter.start(cap).map_err(|_| HelperError::Ended)?;
-    let mut client = helper.client().ok_or(HelperError::Ended)?;
     let voxels: usize = job.block.iter().product();
     #[expect(clippy::cast_possible_truncation, reason = "a made-up pattern")]
     let block: Vec<f32> = (0..voxels)
         .map(|at| (at as f64 * 0.01).sin() as f32)
         .collect();
-    let outcome = client
-        .open(job)
-        .and_then(|()| client.block(&block))
-        .and_then(|_| client.finish());
-    let peak = helper.peak_memory().unwrap_or(0);
-    helper.stop();
-    outcome.map(|card| (peak, card))
+    let (outcome, peak) = on_helper(starter, cap, stop, |client| {
+        client
+            .open(job)
+            .and_then(|()| client.block(&block))
+            .and_then(|_| client.finish())
+    })?;
+    outcome.map(|card| (peak.unwrap_or(0), card))
 }
 
 /// What Voxa itself holds during a run beside the helper: one block of 32-bit numbers, the

@@ -114,7 +114,7 @@ fn a_helper_starts_and_loads_the_runtime_within_a_second_and_a_half() {
         // Started, the runtime loaded, a network of one convolution opened and given one
         // block of 8 x 8 x 8: all but the start and the load is a few milliseconds.
         let clock = Instant::now();
-        measure(&starter, &job, None).expect("the helper answers");
+        measure(&starter, &job, None, &voxa_models::Stop::new()).expect("the helper answers");
         let seconds = clock.elapsed().as_secs_f64();
         println!("helper started, runtime loaded, run {attempt}: {seconds:.2} s");
         slowest = slowest.max(seconds);

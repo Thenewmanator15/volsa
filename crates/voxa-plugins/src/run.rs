@@ -4,17 +4,14 @@
 //! map made a label set with the notes a reader should see. A stop ends the helper at once.
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, PoisonError};
-use std::thread;
-use std::time::Duration;
 
 use voxa_core::Volume;
 use voxa_labels::{LabelGrid, Table};
 use voxa_models::{Device, RunError, Stop, Supported};
 
 use crate::finish::FinishError;
-use crate::helper::{Client, HelperError, OpenJob, Where};
+use crate::helper::{HelperError, OpenJob, Where};
+use crate::watched::{Pipes, on_helper};
 use crate::{
     BlockPlan, DescribeError, Description, Fit, Fits, Grid, HelperStarter, Input, LabelMap,
     LabelOutput, Measured, Output, Outside, Over, PluginError, Region, Scale, ScaleError, Scaling,
@@ -32,8 +29,6 @@ use notes::notes;
 /// The most blocks a scan is cut into: a description may ask for blocks so small and close
 /// that a large scan would need millions, which no one could wait for.
 pub const MOST_BLOCKS: usize = 10_000;
-/// How often a run looks at its stop.
-const LOOK_EVERY: Duration = Duration::from_millis(50);
 
 /// A plugin as Voxa keeps it: its copy, checked again when it is read.
 #[derive(Debug, Clone, PartialEq)]
@@ -243,12 +238,12 @@ pub fn run_plugin(
     let prepared = prepare(volume, &description.input)?;
     let job = job_of(plugin, output, &prepared, place, runtime);
     let mut map = LabelMap::new(prepared.region).map_err(PluginRunError::Finish)?;
-    let outcome = on_helper(starter, place.cap, stop, |client| {
+    let (outcome, _) = on_helper(starter, Some(place.cap), stop, |client| {
         client.open(&job)?;
         run_blocks(&prepared, volume, client, &mut map, said, stop)?;
         client.finish()?;
-        Ok(())
-    });
+        Ok::<(), PluginRunError>(())
+    })?;
     match outcome {
         Err(_) if stop.is_set() => return Err(PluginRunError::Run(RunError::Stopped)),
         other => other?,
@@ -313,47 +308,11 @@ pub fn measuring_job(plugin: &Installed, device: Device, runtime: &Path) -> Opti
     Some(job_for(plugin, output, block, device, runtime))
 }
 
-/// Does `work` with a helper capped at `cap`, ending the helper when `stop` is set and when the
-/// work is done.
-fn on_helper(
-    starter: &dyn HelperStarter,
-    cap: u64,
-    stop: &Stop,
-    work: impl FnOnce(
-        &mut Client<Box<dyn std::io::Read + Send>, Box<dyn std::io::Write + Send>>,
-    ) -> Result<(), PluginRunError>,
-) -> Result<(), PluginRunError> {
-    let pipes = starter.start(Some(cap)).map_err(|_| HelperError::Ended)?;
-    let helper = Mutex::new(pipes);
-    let mut client = helper
-        .lock()
-        .unwrap_or_else(PoisonError::into_inner)
-        .client()
-        .ok_or(HelperError::Ended)?;
-    let done = AtomicBool::new(false);
-    let outcome = thread::scope(|scope| {
-        scope.spawn(|| {
-            while !done.load(Ordering::SeqCst) {
-                if stop.is_set() {
-                    helper.lock().unwrap_or_else(PoisonError::into_inner).stop();
-                    return;
-                }
-                thread::sleep(LOOK_EVERY);
-            }
-        });
-        let outcome = work(&mut client);
-        done.store(true, Ordering::SeqCst);
-        outcome
-    });
-    helper.lock().unwrap_or_else(PoisonError::into_inner).stop();
-    outcome
-}
-
 /// Samples, scales and sends each block, and puts its labels in the map.
 fn run_blocks(
     prepared: &Prepared,
     volume: &Volume,
-    client: &mut Client<Box<dyn std::io::Read + Send>, Box<dyn std::io::Write + Send>>,
+    client: &mut Pipes,
     map: &mut LabelMap,
     said: &mut dyn FnMut(Stage),
     stop: &Stop,

@@ -363,6 +363,8 @@ fn while_the_workers_are_busy_the_section_says_so_and_adding_waits() {
         !swept.add,
         "nothing else is offered while one is being added"
     );
+    let stop = plugins(PluginAction::Stop);
+    assert!(swept.actions.contains(&stop), "{:?}", swept.actions);
 }
 
 #[test]

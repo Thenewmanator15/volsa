@@ -12,6 +12,8 @@ use crate::ui::theme;
 /// Said when a person points at the button that adds a plugin.
 const ADD_HINT: &str = "Choose the folder of a model someone else made, with the plugin.json \
                         that tells Voxa how to run it";
+/// Said when a person points at the button that stops what the workers are doing for plugins.
+const STOP_HINT: &str = "Stop adding the plugin; nothing of it is kept";
 /// Said when a person points at the button that runs a plugin.
 const RUN_HINT: &str = "Run this plugin on the scan in the 3D view";
 /// Said when a person points at the button that opens a plugin's result.
@@ -47,7 +49,13 @@ pub fn plugin_section(
         })
         .inner;
     if let Some(busy) = busy {
-        ui.label(quiet(busy));
+        ui.horizontal_wrapped(|ui| {
+            ui.label(quiet(busy));
+            let stop = ui.small_button("Stop").on_hover_text(STOP_HINT);
+            if stop.clicked() {
+                actions.push(Action::Plugins(PluginAction::Stop));
+            }
+        });
     }
     if !entries.is_empty() {
         // The entries scroll rather than push what is beneath them out of a short tab.

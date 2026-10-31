@@ -106,7 +106,14 @@ fn runs(state: &mut AppState, action: PluginAction) -> Vec<Effect> {
                 return labels::open(state, labels, Some(table));
             }
         }
-        PluginAction::Stop => return stop(state).into_iter().collect(),
+        PluginAction::Stop => {
+            // With no run on, a plugin being added is stopped; the worker says how it ended.
+            let stopped = stop(state).or_else(|| {
+                let adding = state.plugins.busy.is_some();
+                adding.then(|| effect(PluginEffect::Stop))
+            });
+            return stopped.into_iter().collect();
+        }
         PluginAction::ShowKept(id) => return kept(state, id, true),
         PluginAction::DeleteKept(id) => return kept(state, id, false),
         // What an older run says is old news.

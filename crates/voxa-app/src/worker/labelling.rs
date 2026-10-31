@@ -52,6 +52,9 @@ mod lab;
 #[path = "labelling_look_tests.rs"]
 mod look_tests;
 #[cfg(test)]
+#[path = "plugins_adding_tests.rs"]
+mod plugins_adding_tests;
+#[cfg(test)]
 #[path = "plugins_run_tests.rs"]
 mod plugins_run_tests;
 #[cfg(test)]

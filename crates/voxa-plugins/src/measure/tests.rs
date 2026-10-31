@@ -264,7 +264,51 @@ fn measuring_runs_one_made_up_block_and_reports_the_jobs_peak() {
         },
     };
     let starter = Starter::default();
-    let figures = measure(&starter, &job, Some(8 * GIB)).expect("measured");
+    let figures =
+        measure(&starter, &job, Some(8 * GIB), &voxa_models::Stop::new()).expect("measured");
     assert_eq!(figures, (99, Some(77)));
     assert_eq!(*starter.caps.lock().expect("caps"), [Some(8 * GIB)]);
+}
+
+#[test]
+fn measuring_ends_at_once_when_stopped() {
+    let folder = tempfile::tempdir().expect("a folder");
+    let network = folder.path().join("net.onnx");
+    std::fs::write(&network, b"net").expect("written");
+    let job = OpenJob {
+        runtime: folder.path().to_owned(),
+        network,
+        sha256: crate::testkit::sum(b"net"),
+        device: Where::Processor,
+        free: Vec::new(),
+        output: None,
+        layout: crate::Layout::ChannelsFirst,
+        block: [4, 4, 4],
+        finish: crate::LabelOutput {
+            gives: crate::Gives::Labels,
+            from: None,
+            keep_largest_piece: false,
+            names: Vec::new(),
+        },
+    };
+    // A network that takes a second over each block, unless its helper is stopped.
+    let starter = crate::testkit::helper::InProcessStarter {
+        opener: crate::testkit::helper::Threshold {
+            slow: true,
+            ..crate::testkit::helper::Threshold::default()
+        },
+        ..crate::testkit::helper::InProcessStarter::default()
+    };
+    let stop = voxa_models::Stop::new();
+    let later = stop.clone();
+    let stopping = thread::spawn(move || {
+        thread::sleep(std::time::Duration::from_millis(100));
+        later.stop();
+    });
+    let began = std::time::Instant::now();
+    let outcome = measure(&starter, &job, None, &stop);
+    stopping.join().expect("stopped");
+    assert!(outcome.is_err(), "{outcome:?}");
+    let took = began.elapsed();
+    assert!(took < std::time::Duration::from_millis(800), "{took:?}");
 }

@@ -162,6 +162,7 @@ impl Shared {
             }
             let place = match place.cap {
                 0 => match self.measure_place(
+                    &job.stop,
                     plugin,
                     place.device,
                     runtime,
@@ -201,9 +202,14 @@ impl Shared {
     }
 
     /// Measure a plugin on a place it was not measured on, keep the figures, and give the
-    /// place with its cap if it fits there now.
+    /// place with its cap if it fits there now. Stop ends the measuring at once.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "the run's stop, the plugin and where it is measured, and what it is told"
+    )]
     fn measure_place(
         &self,
+        stop: &Stop,
         plugin: &Installed,
         device: Device,
         runtime: &Path,
@@ -213,7 +219,8 @@ impl Shared {
     ) -> Option<Fits> {
         let job = measuring_job(plugin, device, runtime)?;
         let starter = self.plugins.starter();
-        let (ordinary, card) = measure(starter.as_ref(), &job, Some(room.free_memory)).ok()?;
+        let (ordinary, card) =
+            measure(starter.as_ref(), &job, Some(room.free_memory), stop).ok()?;
         match device {
             Device::Processor => measured.processor = Some(ordinary),
             Device::Card(id) => {

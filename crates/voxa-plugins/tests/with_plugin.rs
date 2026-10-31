@@ -142,7 +142,7 @@ fn run_on(
         program: PathBuf::from(env!("CARGO_BIN_EXE_voxa-plugin-helper")),
     };
     let job = measuring_job(plugin, device, runtime).expect("a job to measure");
-    let (ordinary, _) = measure(&starter, &job, None).expect("measured");
+    let (ordinary, _) = measure(&starter, &job, None, &Stop::new()).expect("measured");
     let place = Fits {
         device,
         cap: ordinary.saturating_add(ordinary / 4),

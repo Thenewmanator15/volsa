@@ -270,3 +270,11 @@ fn moving_the_scene_to_another_series_stops_a_plugin_run() {
     );
     assert!(state.plugins.running.is_none());
 }
+
+#[test]
+fn stop_while_a_plugin_is_being_added_stops_the_adding() {
+    let mut state = AppState::default();
+    state.plugins.busy = Some("Adding the plugin and measuring what it needs.".to_owned());
+    let effects = reduce(&mut state, plugins(PluginAction::Stop));
+    assert_eq!(effects, [Effect::Plugins(PluginEffect::Stop)]);
+}

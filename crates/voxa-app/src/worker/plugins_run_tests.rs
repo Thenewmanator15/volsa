@@ -22,12 +22,12 @@ use crate::testing::{THICK_SCAN, id};
 /// A GiB.
 const GIB: u64 = 1 << 30;
 /// What the stand-in helper says it held at most.
-const PEAK: u64 = 64 << 20;
+pub(super) const PEAK: u64 = 64 << 20;
 /// The example plugin's identity.
 const ID: &str = "example.skull-strip";
 
 /// A folder that passes for a runtime's: it holds a file of the library's name.
-fn runtime() -> TempDir {
+pub(super) fn runtime() -> TempDir {
     let folder = tempfile::tempdir().expect("a folder");
     let library = if cfg!(windows) {
         "onnxruntime.dll"
@@ -40,7 +40,7 @@ fn runtime() -> TempDir {
 
 /// The example plugin, its brightness scaled from the scan's lowest to its highest value, so
 /// that the made-up head's brighter half is labelled.
-fn source() -> TempDir {
+pub(super) fn source() -> TempDir {
     source_of("1.0")
 }
 
@@ -55,7 +55,7 @@ fn source_of(version: &str) -> TempDir {
 }
 
 /// The lab, keeping settings, its helpers served in this process by `opener`.
-fn lab(opener: Threshold) -> Lab {
+pub(super) fn lab(opener: Threshold) -> Lab {
     let lab = Lab::keeping(StandIn::with(8 * GIB, 32 * GIB));
     let starter = InProcessStarter {
         opener,
@@ -67,7 +67,7 @@ fn lab(opener: Threshold) -> Lab {
 }
 
 /// What the workers say about plugins, until `end` holds of something said.
-fn until(lab: &Lab, end: impl Fn(&PluginAction) -> bool) -> Vec<PluginAction> {
+pub(super) fn until(lab: &Lab, end: impl Fn(&PluginAction) -> bool) -> Vec<PluginAction> {
     let mut said = Vec::new();
     loop {
         if let Action::Plugins(action) = lab.next() {
