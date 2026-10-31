@@ -1,0 +1,18 @@
+[package]
+name = "voxa-plugins"
+description = "Models people add to Voxa themselves: reading and checking a plugin folder, preparing a scan by the plugin's description, running its network in a helper process, and making its answer a label set."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+voxa-labels.workspace = true
+voxa-segment.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

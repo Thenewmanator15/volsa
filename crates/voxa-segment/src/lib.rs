@@ -43,6 +43,7 @@ mod table;
 #[cfg(feature = "testing")]
 pub mod testing;
 mod tidy;
+mod toward;
 
 pub use find::{Found, Networks, Stage, find};
 pub use label::{LabelError, Labelled, ModelChoice, THICK_MM, choose, label};
@@ -50,3 +51,4 @@ pub use pieces::largest_piece;
 pub use prepare::{Back, PrepareError, Prepared, Sizes, prepare, resampled, sizes};
 pub use table::{FAIL_BELOW, table};
 pub use tidy::tidy;
+pub use toward::Toward;
