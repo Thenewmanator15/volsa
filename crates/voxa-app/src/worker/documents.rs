@@ -13,7 +13,7 @@ use voxa_dicom::{Report, ReportLine, SliceRef, TagRow, pdf_bytes, read_report};
 
 use super::{Shared, Workers};
 use crate::action::Action;
-use crate::naming::printable;
+use crate::naming::{printable, printable_multiline};
 use crate::state::{Notice, NoticeKind};
 
 /// What is said of a report that is there but cannot be read as one.
@@ -98,11 +98,12 @@ fn logged(error: &VoxaError, sentence: &str) -> String {
 
 /// The report with every line cleared once, here, of the characters that would turn, hide or
 /// break the words around them, so that the window draws the lines as they are and does no
-/// such work for each line each time it draws.
+/// such work for each line each time it draws. The text of a line keeps its own line breaks,
+/// which the window draws; a heading is one line.
 fn printable_lines(report: Report) -> Report {
     let lines = report.lines.into_iter().map(|line| ReportLine {
         heading: line.heading.map(|heading| printable(&heading)),
-        text: printable(&line.text),
+        text: printable_multiline(&line.text),
         ..line
     });
     Report {

@@ -313,3 +313,49 @@ fn timings_never_name_a_weighting() {
     info.scan.echo_ms = Some(100.0);
     assert_eq!(plain_name(&info), "T1, axial");
 }
+
+#[test]
+fn a_body_part_written_as_one_code_is_spelled_out() {
+    // The defined terms of Body Part Examined that run words together would read as a typing
+    // mistake ("Cspine") if only their case were changed; each is said as it is spelled.
+    let named = |body| plain_name(&mr("t2", Some(Axial), None, body));
+    let spelled = [
+        ("CSPINE", "Cervical spine"),
+        ("TSPINE", "Thoracic spine"),
+        ("LSPINE", "Lumbar spine"),
+        ("SSPINE", "Sacrum"),
+        ("CTSPINE", "Cervical and thoracic spine"),
+        ("TLSPINE", "Thoracic and lumbar spine"),
+        ("LSSPINE", "Lumbar spine and sacrum"),
+        ("HEADNECK", "Head and neck"),
+        ("CHESTABDOMEN", "Chest and abdomen"),
+        ("ABDOMENPELVIS", "Abdomen and pelvis"),
+        ("CHESTABDPELVIS", "Chest, abdomen and pelvis"),
+        ("WHOLEBODY", "Whole body"),
+    ];
+    for (written, said) in spelled {
+        assert_eq!(named(written), format!("{said}, T2, axial"), "{written}");
+    }
+    // Whatever the case or the spaces around it, and in a name without a weighting.
+    assert_eq!(named(" cSpine "), "Cervical spine, T2, axial");
+    let facts = plain_name(&mr("zzqq", Some(Axial), None, "CSPINE"));
+    assert_eq!(facts, "Cervical spine, axial scan");
+}
+
+#[test]
+fn an_unknown_body_part_is_as_written() {
+    let named = |body| plain_name(&mr("t2", Some(Axial), None, body));
+    assert_eq!(named("ZSPINE"), "Zspine, T2, axial");
+    assert_eq!(named("CSPINE EXTRA"), "Cspine extra, T2, axial");
+    assert_eq!(named("HEAD_NECK"), "Head neck, T2, axial");
+}
+
+#[test]
+fn a_star_weighting_is_a_t2_weighting_when_two_are_written() {
+    // T1 and T2* are two contrasts, as T1 and T2 are: the description contradicts itself.
+    assert_eq!(axial("t1 t2*"), "Axial scan");
+    assert_eq!(axial("t2* flair t1"), "Axial scan");
+    // T2 and T2* are one contrast, and are both said.
+    assert_eq!(axial("t2 t2*"), "T2 T2*, axial");
+    assert_eq!(axial("t2*"), "T2*, axial");
+}

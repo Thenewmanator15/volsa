@@ -225,15 +225,16 @@ fn the_tags_of_a_named_entry_are_listed_on_a_worker() {
 
 #[test]
 fn a_report_is_cleared_of_characters_that_turn_or_hide_text_once_where_it_is_read() {
-    // Read from a file, a line break and a tab become spaces.
+    // Read from a file, a tab becomes a space and a line break stays one, so that the
+    // paragraphs of a text and the lines of a list are still lines.
     let bench = Bench::with_budget(1 << 20);
-    let content = [ReportItem::text("Note", "one\ttwo\nthree")];
+    let content = [ReportItem::text("Note", "one\ttwo\r\nthree\n- four")];
     let opts = DocumentOptions::default();
     let files = vec![("DOCS/A0001".to_owned(), structured_report(&opts, &content))];
     let folder = folder_of(&files);
     let index = bench.index(folder.path()).expect("indexes");
     let report = read(&bench, &index, "DOCS/A0001").expect("a report is read");
-    assert_eq!(report.lines[0].text, "Note: one two three");
+    assert_eq!(report.lines[0].text, "Note: one two\nthree\n- four");
     // And the marks that turn or hide letters are left out, wherever a line has them.
     let line = |heading: Option<&str>, text: &str, is_name: bool| ReportLine {
         depth: 1,
@@ -243,7 +244,7 @@ fn a_report_is_cleared_of_characters_that_turn_or_hide_text_once_where_it_is_rea
     };
     let turned = Report {
         lines: vec![
-            line(Some("Se\u{202E}ction"), "", false),
+            line(Some("Se\u{202E}ction\nnext"), "", false),
             line(None, "No\u{200B}te: one\u{202E}two\u{2066}three", false),
             line(None, "Seen by: Nobody\u{200F}^Madeup", true),
         ],
@@ -254,7 +255,8 @@ fn a_report_is_cleared_of_characters_that_turn_or_hide_text_once_where_it_is_rea
     assert_eq!(
         cleared.lines,
         [
-            line(Some("Section"), "", false),
+            // A heading is one line, whatever it held.
+            line(Some("Section next"), "", false),
             line(None, "Note: onetwothree", false),
             line(None, "Seen by: Nobody^Madeup", true),
         ]

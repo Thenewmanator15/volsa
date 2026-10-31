@@ -295,3 +295,41 @@ fn the_documents_own_name_is_hidden_beside_the_name_of_the_study_it_is_found_in(
         "[hidden], [hidden], [hidden]"
     );
 }
+
+#[test]
+fn a_name_broken_over_two_lines_of_a_text_is_still_found() {
+    // A line break in the middle of a name is as good as a space: the text keeps its breaks to
+    // be drawn, and the name is no less hidden for being split.
+    let text = "Reviewed for Test\nPhantom today; PHANTOM\nTEST again";
+    assert_eq!(hidden(text), "Reviewed for [hidden] today; [hidden] again");
+    // And a break that is not inside a name is left where it is.
+    assert_eq!(hidden("Width: 12 mm\nClosing"), "Width: 12 mm\nClosing");
+}
+
+#[test]
+fn a_mask_of_everyone_in_the_export_works_on_any_string_with_no_document() {
+    // For the words of anything that may name a patient but is no report: a file's name or path.
+    let everyone = Mask::of_everyone(&export(), false);
+    assert_eq!(
+        everyone
+            .apply("DICOM/Phantom Test/MADEUP-7/I0001.dcm")
+            .as_ref(),
+        "DICOM/[hidden]/[hidden]/I0001.dcm"
+    );
+    assert_eq!(
+        everyone.apply("DICOM/S1/I0001.dcm").as_ref(),
+        "DICOM/S1/I0001.dcm"
+    );
+    // With the details shown, or with no export open, everything is as written.
+    assert_eq!(Mask::of_everyone(&export(), true), Mask::off());
+    let state = AppState {
+        index: Some(export()),
+        ..AppState::default()
+    };
+    assert_eq!(Mask::for_export(&state).apply("MADEUP-7").as_ref(), HIDDEN);
+    let closed = AppState::default();
+    assert_eq!(
+        Mask::for_export(&closed).apply("MADEUP-7").as_ref(),
+        "MADEUP-7"
+    );
+}

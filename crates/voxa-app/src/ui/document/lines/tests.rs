@@ -262,3 +262,27 @@ fn a_second_report_opens_at_its_top_not_where_the_first_was_left() {
     let drawn = pass_with(&ctx, &state, &mut kept, Vec::new());
     assert_eq!(items_drawn(&drawn.seen).first(), Some(&0));
 }
+
+#[test]
+fn the_paragraphs_of_a_text_are_drawn_on_rows_of_their_own() {
+    let report = Report {
+        lines: vec![
+            line(0, None, "Findings: one\n- two\n- three"),
+            line(0, None, "A short one."),
+        ],
+        cut_short: false,
+    };
+    let state = opened(REPORT, Some(Ok(report)));
+    let (ctx, mut kept) = (seen::context(1.0), Kept::default());
+    let drawn = pass_with(&ctx, &state, &mut kept, Vec::new());
+    let listed = where_is(&drawn.seen, "Findings: one\n- two\n- three");
+    let single = where_is(&drawn.seen, "A short one.");
+    assert!(
+        listed.height() > 2.5 * single.height(),
+        "{listed:?} {single:?}"
+    );
+    assert!(
+        listed.bottom() <= single.top(),
+        "{listed:?} over {single:?}"
+    );
+}

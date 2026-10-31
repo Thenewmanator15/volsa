@@ -8,9 +8,9 @@
 //! weighting is ever worked out from a timing. With nothing recognised, the name is the facts
 //! alone. The scanner's own description is always shown beneath a name, unchanged.
 
-pub use printable::printable;
+pub use printable::{printable, printable_multiline};
 use voxa_core::{Facing, SeriesInfo, SeriesKind};
-use words::{JOINED, MODALITIES, PLANES, WEIGHTINGS, plane_word};
+use words::{BODY_PARTS, JOINED, MODALITIES, PLANES, WEIGHTINGS, plane_word};
 
 mod printable;
 mod words;
@@ -202,9 +202,11 @@ fn weightings_in(words: &[String]) -> Vec<&'static str> {
 
 /// The one of T1, T2 and PD that a weighting is made of, if it is.
 fn contrast_of(weighting: &str) -> Option<&'static str> {
-    CONTRASTS
-        .into_iter()
-        .find(|contrast| weighting.split(' ').any(|word| word == *contrast))
+    CONTRASTS.into_iter().find(|contrast| {
+        // A star keeps the contrast: T2* is a T2 weighting, and does not agree with T1.
+        let made_of = |word: &str| word.trim_end_matches('*') == *contrast;
+        weighting.split(' ').any(made_of)
+    })
 }
 
 /// The plane of the slices: the geometry of the files first, else the one plane the
@@ -218,11 +220,15 @@ fn plane_of(info: &SeriesInfo, words: &[String]) -> Option<Facing> {
     written.all(|facing| facing == first).then_some(first)
 }
 
-/// The part of the body, as the file's own element gives it, in sentence case: "Head".
-/// `None` when the element is absent or blank.
+/// The part of the body, as the file's own element gives it, in sentence case: "Head". A term
+/// that runs words together is spelled out as they are: "Cervical spine". `None` when the
+/// element is absent or blank.
 fn body_of(info: &SeriesInfo) -> Option<String> {
     let text = tidy(&info.scan.body_part);
-    (!text.is_empty()).then(|| sentence_case(&text))
+    let spelled = lookup(BODY_PARTS, &text.to_ascii_uppercase());
+    spelled
+        .map(str::to_owned)
+        .or_else(|| (!text.is_empty()).then(|| sentence_case(&text)))
 }
 
 /// The modality's code, in upper case.

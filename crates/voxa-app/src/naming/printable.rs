@@ -49,9 +49,47 @@ pub fn printable(text: &str) -> String {
         .collect()
 }
 
+/// Like [`printable`], for text drawn over several lines: each end of a line (`\n`, `\r\n` or
+/// `\r`) stays as one `\n`, so that paragraphs and lists keep their lines, and every other
+/// control character is taken for a space and every format character left out.
+pub fn printable_multiline(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut letters = text.chars().peekable();
+    while let Some(letter) = letters.next() {
+        match letter {
+            '\r' => {
+                letters.next_if_eq(&'\n');
+                out.push('\n');
+            }
+            _ if is_format(letter) => {}
+            _ if letter.is_control() && letter != '\n' => out.push(' '),
+            _ => out.push(letter),
+        }
+    }
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn text_of_several_paragraphs_keeps_its_line_breaks_and_nothing_else_that_breaks() {
+        // Every way of ending a line is one line break; a tab is a space; marks that turn or hide
+        // letters are left out, wherever they are.
+        assert_eq!(
+            printable_multiline("one\ttwo\r\nthree\rfour\nfive"),
+            "one two\nthree\nfour\nfive"
+        );
+        assert_eq!(
+            printable_multiline("No\u{200B}te\n\u{202E}x\u{1b}y"),
+            "Note\nx y"
+        );
+        assert_eq!(printable_multiline("\n\n"), "\n\n", "blank lines stay");
+        assert_eq!(printable_multiline("Tête\n頭部"), "Tête\n頭部");
+        // The single line is still one line.
+        assert_eq!(printable("one\r\ntwo"), "one  two");
+    }
 
     #[test]
     fn what_turns_hides_or_breaks_text_is_left_out_and_every_letter_is_kept() {

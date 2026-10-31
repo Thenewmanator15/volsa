@@ -77,6 +77,50 @@ impl Mask {
             .map(|study| (&study.patient_name, &study.patient_id))
             .collect();
         people.push((&document.patient_name, &document.patient_id));
+        Self::hiding(&people)
+    }
+
+    /// The mask for any text that may name a patient but is no report, such as the name or path
+    /// of a file in the export (see [`Mask::apply`]): while `show_patient` is false, the name and
+    /// identifier of everyone whose studies the export holds.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "for the masking of the file names and paths the window shows, which uses it next"
+        )
+    )]
+    pub fn of_everyone(index: &Index, show_patient: bool) -> Self {
+        if show_patient {
+            return Self::off();
+        }
+        let people: Vec<_> = index
+            .studies
+            .iter()
+            .map(|study| (&study.patient_name, &study.patient_id))
+            .collect();
+        Self::hiding(&people)
+    }
+
+    /// [`Mask::of_everyone`] for the export open in `state`; one that leaves everything as
+    /// written when none is open.
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "for the masking of the file names and paths the window shows, which uses it next"
+        )
+    )]
+    pub fn for_export(state: &AppState) -> Self {
+        match &state.index {
+            Some(index) => Self::of_everyone(index, state.show_patient),
+            None => Self::default(),
+        }
+    }
+
+    /// The mask that leaves out the names and identifiers of these people (name, identifier),
+    /// as far as they are worth looking for.
+    fn hiding(people: &[(&Option<String>, &Option<String>)]) -> Self {
         let mut needles: Vec<Vec<char>> = Vec::new();
         for (name, id) in people {
             let given = |field: &Option<String>| field.as_deref().map(str::trim).map(str::to_owned);
@@ -179,9 +223,13 @@ fn name_hidden(text: &str) -> String {
     }
 }
 
-/// A letter in lower case; one letter for one, so that places in the folded text are places in
-/// the text itself.
+/// A letter in lower case, and any space or line break as a plain space; one letter for one, so
+/// that places in the folded text are places in the text itself. A name broken over two lines of a
+/// text is found as if it were not.
 fn fold(letter: char) -> char {
+    if letter.is_whitespace() {
+        return ' ';
+    }
     letter.to_lowercase().next().unwrap_or(letter)
 }
 
