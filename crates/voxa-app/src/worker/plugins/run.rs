@@ -273,7 +273,7 @@ impl Shared {
                 sum: plugin.sum.clone(),
             }),
         });
-        let key = kept_key(&job.series, plugin);
+        let key = kept_key(&job.series, &description.id);
         let written = write_labels(&grid).ok().zip(write_table(&table).ok());
         let files = written
             .filter(|(labels, table)| keep(settings, &key, labels, table).is_ok())

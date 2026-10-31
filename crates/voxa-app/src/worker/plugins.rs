@@ -3,6 +3,7 @@
 //! a result kept for a series, and running one (the module `run`). Every plugin network runs in
 //! a helper process, started by the kit's starter: Voxa itself, `--plugin-helper`.
 
+use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -132,9 +133,13 @@ pub(super) fn library(runtime: &Path) -> PathBuf {
 }
 
 /// The key a plugin's result for a series is kept under: the series' own key, `p`, and the
-/// first 16 digits of the plugin's sum, letters and digits only as a kept key must be.
-fn kept_key(series: &SeriesId, plugin: &Installed) -> String {
-    let named = plugin.sum.get(..16).unwrap_or_default();
+/// plugin's identity written in hexadecimal, letters and digits only as a kept key must be. A
+/// new version of the plugin, or the plugin added again after it was removed, finds it.
+fn kept_key(series: &SeriesId, id: &str) -> String {
+    let named = id.bytes().fold(String::new(), |mut named, byte| {
+        let _ = write!(named, "{byte:02x}");
+        named
+    });
     format!("{}p{named}", series_key(series))
 }
 
@@ -179,12 +184,13 @@ impl Shared {
         self.tell_plugins(PluginAction::Looked { look, entries });
     }
 
-    /// Open, or delete, the result a plugin made for a series.
+    /// Open, or delete, the result a plugin made for a series, whether or not that plugin is
+    /// still added.
     fn kept_result(&self, id: &str, series: &SeriesId, show: bool) {
-        let (Some(settings), Some(plugin)) = (self.settings.as_deref(), self.plugin(id)) else {
+        let Some(settings) = self.settings.as_deref() else {
             return self.say(NoticeKind::Warning, NONE_KEPT, KEY);
         };
-        let key = kept_key(series, &plugin);
+        let key = kept_key(series, id);
         if !show {
             if forget(settings, &key).is_err() {
                 self.say(

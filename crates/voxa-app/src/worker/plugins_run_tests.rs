@@ -41,7 +41,13 @@ fn runtime() -> TempDir {
 /// The example plugin, its brightness scaled from the scan's lowest to its highest value, so
 /// that the made-up head's brighter half is labelled.
 fn source() -> TempDir {
+    source_of("1.0")
+}
+
+/// The same plugin at `version`.
+fn source_of(version: &str) -> TempDir {
     let mut description = example();
+    description["version"] = json!(version);
     description["input"]["scaling"] =
         json!({ "kind": "percentiles", "low": 0, "high": 100, "over": "scan" });
     let network = conv_network(&image_input(), &[0.0, 1.0], &[0.0, -0.5]);
@@ -293,4 +299,41 @@ fn a_card_the_system_lists_twice_is_measured_once() {
         .path();
     let measured = voxa_plugins::read_measured(&copy).expect("measured.json");
     assert_eq!(measured.cards.len(), 1, "{measured:?}");
+}
+
+/// Asks for the result kept for the 30-slice series by the example plugin: the labels opened,
+/// or the sentence said instead.
+fn shown(lab: &Lab) -> Result<PathBuf, String> {
+    let asked = PluginEffect::ShowKept {
+        id: ID.to_owned(),
+        series: id(THICK_SCAN),
+    };
+    lab.workers.run(Effect::Plugins(asked), None);
+    loop {
+        match lab.next() {
+            Action::OpenLabels { labels, .. } => return Ok(labels),
+            Action::Post(notice) => return Err(notice.text),
+            _ => {}
+        }
+    }
+}
+
+#[test]
+fn a_result_is_found_by_the_plugins_identity_after_a_new_version_and_after_removing_it() {
+    let lab = lab(Threshold::default());
+    let (source, runtime) = (source(), runtime());
+    add(&lab, source.path(), runtime.path());
+    let PluginAction::Made { labels, .. } = run(&lab, runtime.path(), "A stamp.") else {
+        panic!("made");
+    };
+    let newer = source_of("2.0");
+    let PluginAction::Added(Ok(entry)) = add(&lab, newer.path(), runtime.path()) else {
+        panic!("version 2 added");
+    };
+    assert_eq!(entry.version, "2.0");
+    assert_eq!(shown(&lab), Ok(labels.clone()), "after a new version");
+    lab.workers
+        .run(Effect::Plugins(PluginEffect::Remove(ID.to_owned())), None);
+    until(&lab, |said| matches!(said, PluginAction::Removed(_)));
+    assert_eq!(shown(&lab), Ok(labels), "after it is removed");
 }
