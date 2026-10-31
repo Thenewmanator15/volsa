@@ -70,7 +70,7 @@ impl VoxaApp {
     fn hold_the_scene(&mut self, render: Option<&RenderState>, actions: &mut Vec<Action>) {
         let shown = self.session.state().scene.series.as_ref();
         let volume = shown.and_then(|series| self.session.volume(series));
-        if let Some(halved) = self.scene.hold(render, volume.as_ref()) {
+        if let Some(halved) = self.scene.keep_on_card(render, volume.as_ref()) {
             actions.push(Action::SceneUploaded { halved });
         }
     }

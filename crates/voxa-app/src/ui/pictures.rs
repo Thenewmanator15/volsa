@@ -6,16 +6,18 @@ use std::sync::Arc;
 
 use egui_wgpu::RenderState;
 use voxa_core::Volume;
+use voxa_labels::LabelSet;
 use voxa_render::VolumePipeline;
 
 use super::{VoxaApp, labels, layout, planes, scene, strip, viewport};
 use crate::action::Action;
 use crate::session::Session;
+use crate::state::AppState;
 
 impl VoxaApp {
     /// Draw the strip and, beneath it, the pictures of the arrangement shown in what is left of
-    /// the window. The 3D scene is drawn only when the arrangement has it, and it is what puts
-    /// the scene's volume on the graphics device; the volume becomes ready all the same, as
+    /// the window. The 3D scene is drawn only when the arrangement has it; without it, its
+    /// volume is put on the graphics card all the same. The volume becomes ready either way, as
     /// the worker that builds it says so, and measuring needs no picture of it.
     pub(super) fn pictures(
         &mut self,
@@ -47,10 +49,16 @@ impl VoxaApp {
         self.planes.label(on_device, state.labels.overlay);
         self.scene.label(render, on_device, stamp);
         let volume = volume.as_ref();
-        if let Some(area) = areas.scene {
-            let sources = (volume, set.as_deref());
-            scene::show(ui, area, state, sources, &mut self.scene, render, actions);
-        }
+        let sources = (volume, set.as_deref());
+        scene_or_card(
+            ui,
+            areas.scene,
+            state,
+            sources,
+            &mut self.scene,
+            render,
+            actions,
+        );
         let views = (&self.scene, &mut self.planes);
         Self::smooth_planes(&self.session, views, render, volume, actions);
         if let Some(cells) = areas.planes {
@@ -121,3 +129,26 @@ impl VoxaApp {
         state.pictures.given(&state.scene.status).has_scene()
     }
 }
+
+/// Draw the 3D scene in `area`; or, with no area for it in the arrangement shown, keep its
+/// volume on the graphics card all the same, so that no second copy of it waits in memory.
+fn scene_or_card(
+    ui: &mut egui::Ui,
+    area: Option<egui::Rect>,
+    state: &AppState,
+    sources: (Option<&Arc<Volume>>, Option<&LabelSet>),
+    view: &mut scene::SceneView,
+    render: Option<&RenderState>,
+    actions: &mut Vec<Action>,
+) {
+    if let Some(area) = area {
+        scene::show(ui, area, state, sources, view, render, actions);
+    } else {
+        let (volume, _) = sources;
+        let halved = view.keep_on_card(render, volume);
+        actions.extend(halved.map(|halved| Action::SceneUploaded { halved }));
+    }
+}
+
+#[cfg(test)]
+mod tests;

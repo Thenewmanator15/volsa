@@ -81,16 +81,26 @@ impl SceneView {
         }
     }
 
-    /// Put `volume` on the graphics device if it is not there yet, as drawing the scene does:
-    /// for a picture of the scene to be saved while the arrangement shown has no 3D view in
-    /// it. Gives how many times it had to be halved, when it was put there now.
-    pub fn hold(
+    /// Put `volume` on the graphics card if it is not there yet, taking up what a worker made
+    /// ready of it, exactly as drawing the scene does. It exists so that the volume reaches the
+    /// card while no 3D view is shown, as in the slices alone that Voxa opens on: drawing is
+    /// what takes it up otherwise, and a copy left waiting is a second copy of the whole volume
+    /// in memory, with the card still holding the volume before it. Saving a picture of the
+    /// scene needs it there too. Gives how many times it had to be halved, when it was put
+    /// there now.
+    pub fn keep_on_card(
         &mut self,
         render: Option<&RenderState>,
         volume: Option<&Arc<Volume>>,
     ) -> Option<u32> {
         let (gpu, render, volume) = (self.gpu.as_mut()?, render?, volume?);
         gpu.hold(render, volume, self.ready.take())
+    }
+
+    /// Whether what a worker made ready of a volume waits to be put on the card.
+    #[cfg(test)]
+    pub fn has_waiting(&self) -> bool {
+        self.ready.is_some()
     }
 
     /// Whether a picture of a volume has been drawn, so there is something to see.
