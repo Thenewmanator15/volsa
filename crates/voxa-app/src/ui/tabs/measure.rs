@@ -13,11 +13,11 @@ use crate::action::Action;
 use crate::annotations::{Annotation, MAX_LABEL, Tool, measured};
 use crate::export::write;
 use crate::measurements::{MEASUREMENTS_NAME, measurements_csv, measurements_json, rows};
-use crate::planes::grid;
+use crate::measuring::{
+    Scale, SlicePlacement, plain_stack_note, scene_placement, why_not_measurable,
+};
 use crate::state::{AppState, Notice};
 
-/// What is said in the tab while there is no volume to measure on.
-pub const NO_VOLUME: &str = "Measuring needs a 3D view of the series.";
 /// What is said while nothing has been measured on the series: in place of its list, and as
 /// the reason the list cannot be saved or cleared.
 pub const NOTHING_MEASURED: &str = "Nothing has been measured on this series yet.";
@@ -63,9 +63,8 @@ pub fn show(
     actions: &mut Vec<Action>,
 ) -> Vec<Request> {
     let mut asked = Vec::new();
-    let placement = grid(state).map(|(placement, _)| placement);
-    if placement.is_none() {
-        ui.label(RichText::new(NO_VOLUME).color(theme::QUIET_TEXT));
+    if let Some(why) = why_not_measurable(state) {
+        ui.label(RichText::new(why).color(theme::QUIET_TEXT));
     }
     section(ui, "Tools");
     tools(ui, state, actions, &mut asked);
@@ -75,19 +74,21 @@ pub fn show(
         }
     });
     section(ui, "On this series");
+    if let Some(note) = plain_stack_note(state) {
+        ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+    }
     let list = &state.annotations;
     if list.items.is_empty() {
         ui.label(RichText::new(NOTHING_MEASURED).color(theme::QUIET_TEXT));
     }
+    let at = scene_placement(state);
+    let placement = at.map(|at| at.placement);
     for item in &list.items {
-        let said = measured(&item.shape, placement.as_ref());
-        listed(
-            ui,
-            item,
-            (&said.value, &said.detail),
-            &mut tab.editing,
-            actions,
-        );
+        let said = measured(&item.shape, placement.as_ref(), item.scale);
+        let words = (said.shown(), said.detail);
+        if listed(ui, item, (&words.0, &words.1), &mut tab.editing, actions) {
+            actions.extend(go_to(state, at.as_ref(), item));
+        }
     }
     ui.separator();
     row(ui, |ui| {
@@ -114,13 +115,14 @@ fn tools(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
 
 /// One annotation in the list: its name, which can be typed over, and a button that removes
 /// it; beneath, what it measures, which can be pressed to go to it, and what qualifies that.
+/// True when it was pressed to go to it.
 fn listed(
     ui: &mut Ui,
     item: &Annotation,
     (value, detail): (&str, &str),
     editing: &mut Option<(u64, String)>,
     actions: &mut Vec<Action>,
-) {
+) -> bool {
     ui.add_space(4.0);
     ui.horizontal(|ui| {
         // The button is at the right and the name takes what is left of the line.
@@ -132,14 +134,46 @@ fn listed(
         });
     });
     let go = ui.add(Button::new(value).frame(false).truncate());
-    if go.on_hover_text("Go to it").clicked() {
-        let first = item.shape.points().into_iter().next();
-        let there = first.map(|[x, y, z]| Point::new(x, y, z));
-        actions.extend(there.map(Action::SetPosition));
-    }
+    let pressed = go.on_hover_text("Go to it").clicked();
     if !detail.is_empty() {
         ui.label(RichText::new(detail).small().color(theme::QUIET_TEXT));
     }
+    pressed
+}
+
+/// What going to an annotation asks for: the planes' position at its first point, for one in
+/// the patient's millimetres, and the active viewport on the slice that point lies on, where
+/// `at` places the slices of the series it was measured on.
+fn go_to(state: &AppState, at: Option<&SlicePlacement>, item: &Annotation) -> Vec<Action> {
+    let Some([x, y, z]) = item.shape.points().into_iter().next() else {
+        return Vec::new();
+    };
+    let first = Point::new(x, y, z);
+    let in_the_patient = item.scale == Scale::Patient;
+    let position = in_the_patient.then_some(Action::SetPosition(first));
+    let made_at = at.filter(|at| at.scale == item.scale);
+    let voxel = made_at.and_then(|at| Some(at.placement.inverse()?.apply(first)));
+    let slice = voxel.and_then(|voxel| slice_number(voxel.z));
+    let viewport = state.active;
+    let shown = slice.map(|slice| Action::SetSlice { viewport, slice });
+    position.into_iter().chain(shown).collect()
+}
+
+/// The slice nearest a place along a series' slices, counting from 0; `None` before the first.
+fn slice_number(along: f64) -> Option<usize> {
+    let nearest = along.round();
+    (0.0..=f64::from(u32::MAX))
+        .contains(&nearest)
+        .then(|| whole(nearest))
+}
+
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "checked to be a whole number between 0 and u32::MAX first"
+)]
+fn whole(number: f64) -> usize {
+    number as usize
 }
 
 /// The name of an annotation, in a field that fills the line. It is taken when the person
@@ -181,7 +215,7 @@ pub fn save(kind: Save, state: &AppState) -> Option<Notice> {
         .set_file_name(format!("{MEASUREMENTS_NAME}.{ending}"))
         .add_filter(what, &[ending])
         .save_file()?;
-    let placement = grid(state).map(|(placement, _)| placement);
+    let placement = scene_placement(state).map(|at| at.placement);
     let rows = rows(&state.annotations.items, placement.as_ref());
     let text = match kind {
         Save::Csv => measurements_csv(&rows, theme::DISCLAIMER),
@@ -190,5 +224,7 @@ pub fn save(kind: Save, state: &AppState) -> Option<Notice> {
     Some(said(&path, write(&path, text.as_bytes())))
 }
 
+#[cfg(test)]
+mod slice_tests;
 #[cfg(test)]
 mod tests;

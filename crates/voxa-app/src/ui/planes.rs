@@ -15,6 +15,7 @@ use super::scene::status_text;
 use super::{overlay as slice_overlay, theme};
 use crate::action::Action;
 use crate::annotations::{Shape, Tool, measured};
+use crate::measuring::Scale;
 use crate::planes::{grid, plane};
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -32,7 +33,8 @@ pub use overlay::{
     Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_colour,
     plane_letters,
 };
-pub use shapes::{Drawn, beside, paint};
+pub use shapes::{Drawn, beside, drawn_through, paint, shown_on};
+pub use tools::{Draft, Pointer, drafted, preview};
 
 /// How thick the lines of the cross and the bar along the top of a panel are, in points.
 const LINE: f32 = 1.0;
@@ -317,10 +319,10 @@ fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far
     let pitch = placement.and_then(|placement| pitch_along(&placement, view.plane.normal()));
     // Half a layer either side, and a hair more for what lies exactly between two.
     let half_layer = pitch.map_or(0.5, |pitch| pitch / 2.0) + 1.0e-6;
-    let value = |shape: &Shape| measured(shape, placement.as_ref()).value;
+    let value = |shape: &Shape, scale| measured(shape, placement.as_ref(), scale).shown();
     for item in &state.annotations.items {
         if shapes::shown_on(&item.shape, &view.plane, half_layer) {
-            let words = shapes::beside(item, &value(&item.shape));
+            let words = shapes::beside(item, &value(&item.shape, item.scale));
             let drawn = shapes::drawn(&item.shape, view, size);
             shapes::paint(pen, (cell, ROOM.top), &drawn, theme::ACCENT, &words);
         }
@@ -332,7 +334,8 @@ fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far
             (cell, ROOM.top),
             &drawn,
             theme::WARNING,
-            &value(&shape),
+            // The planes are of a volume, which is placed in the patient.
+            &value(&shape, Scale::Patient),
         );
     }
 }

@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use voxa_core::{Affine, Patient, Point, Voxel};
 use voxa_volume::{RegionStats, angle_degrees, distance_mm, pitch_along};
 
+use crate::measuring::Scale;
+
 pub use kept::{ANNOTATIONS_VERSION, load_annotations, save_annotations};
 
 /// The most annotations one series may have.
@@ -103,6 +105,10 @@ pub struct Annotation {
     pub label: String,
     /// What it is.
     pub shape: Shape,
+    /// Whose millimetres its points are in. What 0.6.0 kept has none, and was measured in a 3D
+    /// view, in the patient's.
+    #[serde(default)]
+    pub scale: Scale,
 }
 
 impl Annotation {
@@ -152,9 +158,9 @@ impl Annotations {
         self.items.len() >= MAX_ANNOTATIONS
     }
 
-    /// Add an annotation, named by its kind and number. False, with nothing added, when the
-    /// list is full.
-    pub(crate) fn add(&mut self, shape: Shape) -> bool {
+    /// Add an annotation in the millimetres of `scale`, named by its kind and number. False,
+    /// with nothing added, when the list is full.
+    pub(crate) fn add(&mut self, shape: Shape, scale: Scale) -> bool {
         if self.is_full() {
             return false;
         }
@@ -164,6 +170,7 @@ impl Annotations {
             id: self.numbered,
             label: String::new(),
             shape,
+            scale,
         };
         added.label = added.default_label();
         self.items.push(added);
@@ -247,12 +254,28 @@ pub struct Measured {
     pub value: String,
     /// What qualifies it, or nothing.
     pub detail: String,
+    /// Whose millimetres it is measured in.
+    pub scale: Scale,
 }
 
-/// What an annotation measures. `placement` is where the series' voxels lie, which is what
-/// says how exactly a length can be known; without it nothing is said of that.
-pub fn measured(shape: &Shape, placement: Option<&Affine<Voxel, Patient>>) -> Measured {
+impl Measured {
+    /// The measurement as the list and the picture show it: its value, and after it, for one
+    /// made from the file's pixel spacing alone, that it was.
+    pub fn shown(&self) -> String {
+        format!("{}{}", self.value, self.scale.said_after())
+    }
+}
+
+/// What an annotation measures, in the millimetres of `scale`. `placement` is where the
+/// series' voxels lie, which is what says how exactly a length can be known; without it
+/// nothing is said of that.
+pub fn measured(
+    shape: &Shape,
+    placement: Option<&Affine<Voxel, Patient>>,
+    scale: Scale,
+) -> Measured {
     let (value, detail) = match shape {
+        Shape::Marker { at } if scale == Scale::PixelSpacing => in_the_picture(*at),
         Shape::Ruler { a, b } => {
             let along = [0, 1, 2].map(|part| part_of(*b, part) - part_of(*a, part));
             let pitch = placement.and_then(|placement| pitch_along(placement, along));
@@ -278,7 +301,17 @@ pub fn measured(shape: &Shape, placement: Option<&Affine<Voxel, Patient>>) -> Me
         kind: shape.kind(),
         value,
         detail,
+        scale,
     }
+}
+
+/// Where a point of a picture placed by its pixel spacing alone is, as "12.0 mm across, 4.5 mm
+/// down, slice 3", and from where that is measured. The picture is taken as its file holds it,
+/// before it is turned or mirrored on the screen.
+fn in_the_picture([x, y, z]: [f64; 3]) -> (String, String) {
+    let place = format!("{x:.1} mm across, {y:.1} mm down, slice {:.0}", z + 1.0);
+    let from = "From the middle of the picture's first pixel, as its file holds it.";
+    (place, from.to_owned())
 }
 
 /// What a region says: the mean and spread of the scan values in it, then the rest; or that

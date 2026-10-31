@@ -189,7 +189,10 @@ fn a_set_of_locating_images_says_why_it_has_no_3d_view() {
 fn a_single_slice_says_that_3d_needs_more() {
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(with_odd_series()));
-    assert_eq!(select(&mut state, 0, SINGLE), frames_around(SINGLE, 0));
+    // Its slice is measured on all the same, so what was measured on it before is asked for.
+    let mut asked = frames_around(SINGLE, 0);
+    asked.push(Effect::LoadAnnotations { series: id(SINGLE) });
+    assert_eq!(select(&mut state, 0, SINGLE), asked);
     let SceneStatus::Unavailable(lines) = &state.scene.status else {
         panic!("{:?}", state.scene.status);
     };

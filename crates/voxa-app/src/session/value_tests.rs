@@ -106,3 +106,24 @@ fn a_decoded_slice_is_read_in_place_and_a_picture_in_colour_has_no_value() {
     );
     assert_eq!(copied(), before);
 }
+
+#[test]
+fn a_slice_is_read_where_it_lies_whether_decoded_or_in_a_kept_volume() {
+    let session = session_holding_a_volume_and_no_slices();
+    let series = id(FINE_SCAN);
+    let volume = session.volume(&series).expect("kept");
+    let before = copied();
+    let read = session.read_slice(&series, 31, |values| (values.values.as_ptr(), values.size));
+    let kept = volume.slice_values(31).expect("in the volume").as_ptr();
+    assert_eq!(read, Some((kept, [8, 8])), "the volume's own values");
+    let decoded = slice_of_places(false);
+    let at = decoded.values.as_ptr();
+    let grey = id("1.1");
+    let mut cache = session.cache().lock().expect("no worker panicked");
+    cache.insert(&grey, 2, decoded, 4);
+    drop(cache);
+    let read = session.read_slice(&grey, 2, |values| (values.values.as_ptr(), values.size));
+    assert_eq!(read, Some((at, [3, 2])), "the decoded slice's own values");
+    assert_eq!(copied(), before, "and nothing was copied");
+    assert_eq!(session.read_slice(&grey, 3, |_| ()), None, "not decoded");
+}

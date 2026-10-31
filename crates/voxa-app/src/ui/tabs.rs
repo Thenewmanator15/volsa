@@ -21,7 +21,7 @@ mod scene;
 mod tools;
 mod view;
 
-pub use measure::{MeasureTab, NO_VOLUME, NOTHING_MEASURED, Save, save as save_measurements};
+pub use measure::{MeasureTab, NOTHING_MEASURED, Save, save as save_measurements};
 pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
 pub use tools::{LABEL_BUTTON, LABEL_TOOL};
 pub use view::{LINK_SAYS, SMOOTH_SAYS};

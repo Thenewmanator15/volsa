@@ -88,13 +88,20 @@ The plane views and measuring hang on one point, the position:
    blended reads a pixel. Nothing passes through the processor. A device with no compute
    shaders, or with no room for the working texture, leaves it to a worker, which hands the
    coefficients over as before.
-4. Annotations (rulers, angles, regions, markers) are points in the patient, in millimetres,
-   kept with the series they were made on. What each measures is worked out in `voxa-volume`
-   from those points and from the scan's own values, never from the screen. A plane view shows
-   the ones that lie in its layer; the 3D scene shows them all, in front of the picture.
-5. The list is written to `annotations.json` in Voxa's local folder, filed under a hash of
-   the series, and can be saved as a table or as JSON. None of these holds anything that says
-   whose scan it was.
+4. Annotations (rulers, angles, regions, markers) are points in millimetres, kept with the
+   series they were made on: the patient's, where the files say where the slices lie, or the
+   picture's own, from its Pixel Spacing alone, which each such annotation says (its
+   `Scale`). `measuring` decides which from the files alone, and why nothing can be measured
+   when it cannot; it never takes a detector's spacing for the body's. They are drawn on the
+   2D slices as soon as one is shown, as well as on the planes and in 3D, with no volume
+   needed. What each measures is worked out from those points and from the scan's own values,
+   never from the screen: a region on a slice from that slice, read in place once
+   (`Session::read_slice`). A slice or a plane view shows the ones that lie in its layer; the
+   3D scene shows them all, in front of the picture.
+5. The list is written to `annotations.json` in Voxa's local folder (version 2; version 1,
+   from 0.6.0, still opens), filed under a hash of the series, and can be saved as a table or
+   as JSON, each saying whose millimetres a measurement is in. None of these holds anything
+   that says whose scan it was.
 
 Labelled parts come from files made elsewhere, or from a run that Voxa makes itself (the next
 section), and are kept apart from the scan:

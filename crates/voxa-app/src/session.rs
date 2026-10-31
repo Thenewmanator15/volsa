@@ -13,6 +13,7 @@ use voxa_render::{Prepared, Smoothed};
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::choices::load_choices;
+use crate::measuring::SliceValues;
 use crate::reducer::reduce;
 use crate::state::AppState;
 use crate::volume_store::VolumeStore;
@@ -105,25 +106,45 @@ impl Session {
         })
     }
 
-    /// The value of one pixel, as its column and row, of a slice, read where it lies: from the
+    /// Read the values of a slice where they lie, with `read`, and give what it gives: from the
     /// decoded slice if the cache holds it, and otherwise from the series' kept volume. Unlike
-    /// [`Session::cached`], nothing is built or copied, so this can be asked for each time the
-    /// pointer moves. `None` when neither holds the slice, the pixel is not in it, or it is a
-    /// picture in colour, whose values only say how bright each pixel is.
-    pub fn value_at(&self, series: &SeriesId, slice: usize, pixel: (usize, usize)) -> Option<f32> {
+    /// [`Session::cached`], nothing is built or copied. This is the one way the window reads a
+    /// slice's values: the value under the pointer as it moves, and what a region drawn on a
+    /// slice holds. `None` when neither holds the slice, or it is a picture in colour, whose
+    /// values only say how bright each pixel is.
+    pub fn read_slice<T>(
+        &self,
+        series: &SeriesId,
+        slice: usize,
+        read: impl FnOnce(SliceValues<'_>) -> T,
+    ) -> Option<T> {
         let cached = self
             .cache
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(series, slice);
         if let Some(frame) = cached {
-            let size = [frame.cols, frame.rows];
-            return value_of(&frame.values, size, pixel).filter(|_| frame.colour.is_none());
+            return frame
+                .colour
+                .is_none()
+                .then(|| read(SliceValues::from(&*frame)));
         }
         let volume = self.volume(series)?;
         let [cols, rows, _] = volume.dims();
         let values = volume.slice_values(u32::try_from(slice).ok()?)?;
-        value_of(values, [cols, rows], pixel)
+        Some(read(SliceValues {
+            values,
+            size: [cols, rows],
+        }))
+    }
+
+    /// The value of one pixel, as its column and row, of a slice, read where it lies as
+    /// [`Session::read_slice`] reads it, so that it can be asked for each time the pointer
+    /// moves. `None` when the slice is not there to read, the pixel is not in it, or it is a
+    /// picture in colour.
+    pub fn value_at(&self, series: &SeriesId, slice: usize, pixel: (usize, usize)) -> Option<f32> {
+        self.read_slice(series, slice, |values| values.at(pixel))
+            .flatten()
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
@@ -191,17 +212,6 @@ impl Session {
             Err(_) => 0,
         }
     }
-}
-
-/// The value at `(column, row)` of a slice of `cols` by `rows` values, held row by row.
-fn value_of(values: &[f32], [cols, rows]: [u32; 2], (col, row): (usize, usize)) -> Option<f32> {
-    let (cols, rows) = (usize::try_from(cols).ok()?, usize::try_from(rows).ok()?);
-    if col >= cols || row >= rows {
-        return None;
-    }
-    values
-        .get(row.checked_mul(cols)?.checked_add(col)?)
-        .copied()
 }
 
 #[cfg(test)]

@@ -73,6 +73,36 @@ pub fn drawn(shape: &Shape, view: &PlaneView, viewport: [f32; 2]) -> Drawn {
     }
 }
 
+/// Where an annotation falls in a picture whose points `seen` places, in points from its top
+/// left corner. A region, which may be seen at a slant, or in a picture that is turned or
+/// mirrored, is the outline of its ellipse.
+pub fn drawn_through(shape: &Shape, seen: impl Fn([f64; 3]) -> [f32; 2]) -> Drawn {
+    match shape {
+        Shape::Ruler { a, b } => Drawn::Line([seen(*a), seen(*b)]),
+        Shape::Angle { a, vertex, b } => Drawn::Arms([seen(*a), seen(*vertex), seen(*b)]),
+        Shape::Marker { at } => Drawn::Dot(seen(*at)),
+        Shape::Region {
+            centre,
+            across,
+            down,
+            radii_mm: [wide, high],
+            ..
+        } => {
+            let round = (0..PIECES).map(|piece| {
+                let turn = std::f64::consts::TAU * f64::from(piece) / f64::from(PIECES);
+                let (along, up) = (wide * turn.cos(), high * turn.sin());
+                let at = [0, 1, 2].map(|part| {
+                    part_of(*centre, part)
+                        + along * part_of(*across, part)
+                        + up * part_of(*down, part)
+                });
+                seen(at)
+            });
+            Drawn::Outline(round.collect())
+        }
+    }
+}
+
 impl Drawn {
     /// Where words about the annotation are written: beside its last point, or above a
     /// region.
@@ -183,6 +213,14 @@ pub fn paint(pen: &Pen, (cell, top): (Rect, f32), drawn: &Drawn, colour: Color32
 
 fn point([x, y, z]: [f64; 3]) -> Point<Patient> {
     Point::new(x, y, z)
+}
+
+fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
+    match part {
+        0 => x,
+        1 => y,
+        _ => z,
+    }
 }
 
 fn cross([ax, ay, az]: [f64; 3], [bx, by, bz]: [f64; 3]) -> [f64; 3] {

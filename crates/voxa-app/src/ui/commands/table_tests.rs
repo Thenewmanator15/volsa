@@ -71,8 +71,8 @@ fn each_cut_there_can_be_has_an_entry_that_removes_it() {
 fn an_action_that_cannot_be_used_says_why_in_a_sentence() {
     let nothing = AppState::default();
     let why = |id| (find(id).expect("listed").why_not)(&nothing);
-    let no_volume = super::super::tabs::NO_VOLUME;
-    assert_eq!(why("measure.ruler").as_deref(), Some(no_volume));
+    let no_scale = crate::measuring::NO_SCALE;
+    assert_eq!(why("measure.ruler").as_deref(), Some(no_scale));
     assert_eq!(
         why("scene.save.picture").as_deref(),
         Some("There is no 3D view to save yet.")

@@ -7,6 +7,8 @@ use voxa_volume::RegionStats;
 
 use super::*;
 use crate::annotations::Shape;
+use crate::measuring::NO_SCALE;
+use crate::planes::grid;
 use crate::reducer::reduce;
 use crate::testing::thick_scan_ready;
 use crate::ui::commands;
@@ -147,11 +149,11 @@ fn with_nothing_measured_there_is_nothing_to_save_clear_or_take_back() {
         "{:?}",
         seen.words
     );
-    assert!(!seen.words.iter().any(|word| word == NO_VOLUME));
+    assert!(!seen.words.iter().any(|word| word == NO_SCALE));
 }
 
 #[test]
-fn with_no_volume_the_tab_says_so_and_offers_no_tool() {
+fn with_nothing_to_measure_on_the_tab_says_why_and_offers_no_tool() {
     let state = AppState::default();
     let (actions, requests) = sweep(&state);
     assert_eq!(actions, []);
@@ -159,11 +161,14 @@ fn with_no_volume_the_tab_says_so_and_offers_no_tool() {
     let (hand, mut kept) = (Hand::new(NARROW, 900.0), Kept::default());
     let seen = hand.settle(&mut |ui| kept.draw(ui, &state));
     assert!(
-        seen.words.iter().any(|word| word == NO_VOLUME),
+        seen.words.iter().any(|word| word == NO_SCALE),
         "{:?}",
         seen.words
     );
-    assert_eq!(NO_VOLUME, "Measuring needs a 3D view of the series.");
+    assert_eq!(
+        NO_SCALE,
+        "Measuring needs a scan with a scale in its files."
+    );
 }
 
 #[test]
@@ -173,7 +178,7 @@ fn each_row_says_what_was_measured_and_how_exactly() {
     let seen = hand.settle(&mut |ui| kept.draw(ui, &state));
     let placement = grid(&state).map(|(placement, _)| placement);
     for item in &state.annotations.items {
-        let said = measured(&item.shape, placement.as_ref());
+        let said = measured(&item.shape, placement.as_ref(), item.scale);
         let has = |text: &str| seen.words.iter().any(|word| word.contains(text));
         assert!(has(&said.value), "{} in {:?}", said.value, seen.words);
         assert!(has(&said.detail), "{}", said.detail);

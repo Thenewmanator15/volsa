@@ -2,7 +2,7 @@
 //! for. The slice itself is never built for it, as it is asked for whenever the pointer moves.
 
 use egui::Pos2;
-use voxa_core::Point;
+use voxa_core::{Affine, Point, Screen, Voxel};
 use voxa_render::ViewTransform;
 
 use super::{Pane, ValueAt, pixel_aspect};
@@ -37,10 +37,23 @@ pub(super) fn pixel_at(
     image: [u32; 2],
     [x, y]: [f32; 2],
 ) -> Option<(usize, usize)> {
-    let to_pixel = shown.image_to_screen(image, size, aspect).inverse()?;
+    let to_pixel = screen_to_image(shown, size, aspect, image)?;
     let at = to_pixel.apply(Point::new(f64::from(x), f64::from(y), 0.0));
     let [cols, rows] = image;
     Some((pixel(at.x, cols)?, pixel(at.y, rows)?))
+}
+
+/// From points of a viewport of `size`, counted from its top left corner, to the columns and
+/// rows of the picture of `image` (columns, rows) it draws through `shown` with pixels `aspect`
+/// times taller than wide, counting from the middles of pixels. `None` for a picture drawn so
+/// that the way back cannot be found.
+pub(super) fn screen_to_image(
+    shown: &ViewTransform,
+    size: [f32; 2],
+    aspect: f32,
+    image: [u32; 2],
+) -> Option<Affine<Screen, Voxel>> {
+    shown.image_to_screen(image, size, aspect).inverse()
 }
 
 /// Which of `count` pixels a coordinate lies in, if it lies in one. Coordinates count from the

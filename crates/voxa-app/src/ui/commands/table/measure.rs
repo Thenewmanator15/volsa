@@ -7,13 +7,19 @@ use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::{PLAIN, alone, ctrl};
 use crate::action::Action;
 use crate::annotations::Tool;
-use crate::planes::grid;
+use crate::measuring::{why_no_region, why_not_measurable};
 use crate::state::AppState;
-use crate::ui::tabs::{NO_VOLUME, NOTHING_MEASURED, Save};
+use crate::ui::tabs::{NOTHING_MEASURED, Save};
 
-/// Why a tool cannot be used: there is no volume to measure on.
-fn no_volume(state: &AppState) -> Option<Why> {
-    grid(state).is_none().then_some(Why::Borrowed(NO_VOLUME))
+/// Why a tool cannot be used: there is nothing to measure on, neither a volume nor a slice
+/// shown whose files give it a scale.
+fn not_measurable(state: &AppState) -> Option<Why> {
+    why_not_measurable(state).map(Why::Borrowed)
+}
+
+/// Why the region tool cannot be used: as any other, or the picture is in colour.
+fn no_region(state: &AppState) -> Option<Why> {
+    why_no_region(state).map(Why::Borrowed)
 }
 
 /// Why the measurements cannot be saved or cleared: there are none.
@@ -42,7 +48,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "The main button moves the position, or turns the 3D view",
         words: &["navigate", "move", "pointer", "turn"],
         place: Place::Tab(Tab::Measure),
-        why_not: no_volume,
+        why_not: not_measurable,
         does: Does::Act(|_| Some(Action::SetTool(Tool::Navigate))),
         ..PLAIN
     },
@@ -53,7 +59,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Press at one end and let go at the other; in 3D, click two surfaces",
         words: &["ruler", "length", "distance", "size", "millimetres"],
         place: Place::Tab(Tab::Measure),
-        why_not: no_volume,
+        why_not: not_measurable,
         does: Does::Act(|_| Some(Action::SetTool(Tool::Ruler))),
         ..PLAIN
     },
@@ -61,10 +67,10 @@ pub(super) const COMMANDS: &[Command] = &[
         id: "measure.angle",
         name: "Measure an angle",
         label: "Angle",
-        explains: "In a plane view: click an arm's end, the corner, the other arm's end",
+        explains: "On a slice or a plane: click an arm's end, the corner, the other arm's end",
         words: &["angle", "degrees", "protractor"],
         place: Place::Tab(Tab::Measure),
-        why_not: no_volume,
+        why_not: not_measurable,
         does: Does::Act(|_| Some(Action::SetTool(Tool::Angle))),
         ..PLAIN
     },
@@ -72,10 +78,10 @@ pub(super) const COMMANDS: &[Command] = &[
         id: "measure.region",
         name: "Measure the values in a region",
         label: "Region",
-        explains: "An ellipse in a plane view: drag from its middle",
+        explains: "An ellipse on a slice or a plane: drag from its middle",
         words: &["region", "ellipse", "roi", "mean", "area"],
         place: Place::Tab(Tab::Measure),
-        why_not: no_volume,
+        why_not: no_region,
         does: Does::Act(|_| Some(Action::SetTool(Tool::Region))),
         ..PLAIN
     },
@@ -86,7 +92,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Click where it goes",
         words: &["marker", "point", "pin", "note"],
         place: Place::Tab(Tab::Measure),
-        why_not: no_volume,
+        why_not: not_measurable,
         does: Does::Act(|_| Some(Action::SetTool(Tool::Marker))),
         ..PLAIN
     },

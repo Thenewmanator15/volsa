@@ -307,6 +307,7 @@ fn beside_a_marker_is_its_name_and_beside_the_rest_the_name_and_what_was_measure
         id: 1,
         label: label.to_owned(),
         shape,
+        scale: crate::measuring::Scale::Patient,
     };
     let marker = named(
         "Marker 4",

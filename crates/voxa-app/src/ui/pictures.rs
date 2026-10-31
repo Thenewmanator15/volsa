@@ -11,6 +11,7 @@ use voxa_render::VolumePipeline;
 
 use super::{VoxaApp, labels, layout, planes, scene, strip, viewport};
 use crate::action::Action;
+use crate::measuring::SliceValues;
 use crate::session::Session;
 use crate::state::AppState;
 
@@ -75,15 +76,9 @@ impl VoxaApp {
                 actions,
             );
         }
-        if let Some(for_slices) = areas.slices {
-            let (session, gpus) = (&self.session, &mut self.gpus);
-            let frame = |series: &_, slice| session.cached(series, slice);
-            let value = |series: &_, slice, pixel| session.value_at(series, slice, pixel);
-            let slices = viewport::Slices {
-                frame: &frame,
-                value: &value,
-            };
-            viewport::show(ui, for_slices, state, &slices, gpus, render, actions);
+        if let Some(area) = areas.slices {
+            let held = (&mut self.gpus[..], &mut self.drafts);
+            slices(ui, area, (&self.session, held), render, actions);
         }
         ui.allocate_rect(whole, egui::Sense::hover());
         for request in asked {
@@ -133,6 +128,28 @@ impl VoxaApp {
         let state = self.session.state();
         state.pictures.given(&state.scene.status).has_scene()
     }
+}
+
+/// Draw the 2D viewports in `area`, reading their slices from the session: whole, to draw
+/// them, and in place, for the value under the pointer and for what is measured on them.
+fn slices(
+    ui: &mut egui::Ui,
+    area: egui::Rect,
+    (session, held): (&Session, (&mut [viewport::Gpu], &mut viewport::Drafts)),
+    render: Option<&RenderState>,
+    actions: &mut Vec<Action>,
+) {
+    let frame = |series: &_, slice| session.cached(series, slice);
+    let value = |series: &_, slice, pixel| session.value_at(series, slice, pixel);
+    let read = |series: &_, slice, with: &mut dyn FnMut(SliceValues<'_>)| {
+        let _ = session.read_slice(series, slice, with);
+    };
+    let slices = viewport::Slices {
+        frame: &frame,
+        value: &value,
+        read: &read,
+    };
+    viewport::show(ui, area, session.state(), &slices, held, render, actions);
 }
 
 /// Draw the 3D scene in `area`; or, with no area for it in the arrangement shown, keep its

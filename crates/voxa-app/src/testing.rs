@@ -278,6 +278,66 @@ pub fn lose(device: &egui_wgpu::wgpu::Device) {
     let _ = device.poll(egui_wgpu::wgpu::PollType::wait_indefinitely());
 }
 
+/// A made-up picture of 16 x 16 pixels, series number 9, whose file says nothing of where it
+/// lies in the patient.
+pub const PICTURE: &str = "1.2.3.9";
+
+/// The file of [`PICTURE`], giving this Pixel Spacing (between rows, then between columns) and
+/// this detector's spacing, each if any.
+pub fn picture_file(
+    pixel_spacing: Option<[f64; 2]>,
+    imager_pixel_spacing: Option<[f64; 2]>,
+) -> (String, Vec<u8>) {
+    let options = SliceOptions {
+        position: None,
+        orientation: None,
+        pixel_spacing,
+        imager_pixel_spacing,
+        ..slice_options(PICTURE, 9, 0, 16)
+    };
+    ("S9/I0000.dcm".to_owned(), classic_slice(&options))
+}
+
+/// A state showing [`PICTURE`] in the first viewport, its file as [`picture_file`] makes it,
+/// with its one slice decoded and shown.
+pub fn showing_a_picture(
+    pixel_spacing: Option<[f64; 2]>,
+    imager_pixel_spacing: Option<[f64; 2]>,
+) -> crate::state::AppState {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let file = picture_file(pixel_spacing, imager_pixel_spacing);
+    let mut state = crate::state::AppState::default();
+    reduce(&mut state, Action::IndexProgress(indexed(vec![file])));
+    let (viewport, series) = (0, id(PICTURE));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    shown(&mut state);
+    state
+}
+
+/// Say that the slice the active viewport shows has been decoded, as the worker says once it
+/// has: it is then shown.
+pub fn shown(state: &mut crate::state::AppState) {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let Some(viewport) = state.viewports.get(state.active) else {
+        return;
+    };
+    let Some(series) = viewport.series.clone() else {
+        return;
+    };
+    let windows = [voxa_core::WindowLevel::new(50.0, 100.0); voxa_volume::PRESETS.len()];
+    let slice = viewport.slice;
+    reduce(
+        state,
+        Action::FrameReady {
+            series,
+            slice,
+            windows,
+        },
+    );
+}
+
 /// A made-up single slice, series number 8, that says what kind of scan it is.
 pub const KIND_SCAN: &str = "1.2.3.8";
 

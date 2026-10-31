@@ -25,6 +25,7 @@ mod labelling;
 mod labels;
 mod log;
 mod measurements;
+mod measuring;
 mod moved;
 mod naming;
 mod parts_table;
@@ -62,6 +63,7 @@ pub use labels::{
     on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
+pub use measuring::Scale;
 pub use naming::{Group, group_of, plain_name};
 pub use pictures::Pictures;
 pub use planes::{PlanePanel, Planes};

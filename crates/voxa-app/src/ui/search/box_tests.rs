@@ -7,10 +7,10 @@ use super::matching::ranked;
 use super::run::run;
 use super::*;
 use crate::action::Action;
+use crate::measuring::NO_SCALE;
 use crate::state::{Notice, NoticeKind};
 use crate::testing::{labelled_head, thick_scan_ready};
 use crate::ui::keys;
-use crate::ui::tabs::NO_VOLUME;
 use crate::ui::theme;
 
 /// One pass of the window with `events`: what search chose and every piece of text it drew,
@@ -170,7 +170,7 @@ fn an_unavailable_command_is_listed_and_says_why() {
             .any(|word| word.contains("Measure a length"))
     );
     assert!(
-        drawn.words.iter().any(|word| word.contains(NO_VOLUME)),
+        drawn.words.iter().any(|word| word.contains(NO_SCALE)),
         "{:?}",
         drawn.words
     );
@@ -179,7 +179,7 @@ fn an_unavailable_command_is_listed_and_says_why() {
     let asked = run(&ruler, &state, &mut actions);
     let notice = Notice {
         kind: NoticeKind::Info,
-        text: NO_VOLUME.to_owned(),
+        text: NO_SCALE.to_owned(),
         details: Vec::new(),
         key: Some("search"),
     };
@@ -199,7 +199,7 @@ fn an_action_that_can_be_used_is_not_listed_with_a_reason() {
             .iter()
             .any(|word| word.contains("Measure a length"))
     );
-    assert!(!drawn.words.iter().any(|word| word.contains(NO_VOLUME)));
+    assert!(!drawn.words.iter().any(|word| word.contains(NO_SCALE)));
 }
 
 #[test]

@@ -9,8 +9,10 @@ use serde::{Deserialize, Serialize};
 
 use super::Annotation;
 
-/// The version of the file this Voxa writes, and the newest it reads.
-pub const ANNOTATIONS_VERSION: u32 = 1;
+/// The version of the file this Voxa writes, and the newest it reads. Version 2 says for each
+/// annotation whose millimetres it is in; version 1, which 0.6.0 wrote, says nothing of that,
+/// and is read as it was made, in a 3D view, in the patient's.
+pub const ANNOTATIONS_VERSION: u32 = 2;
 /// The name of the file within its folder, beside the saved views.
 const FILE: &str = "annotations.json";
 /// The name a file Voxa cannot read is given before a new one is written in its place, so
@@ -95,6 +97,7 @@ mod tests {
 
     use super::super::Shape;
     use super::*;
+    use crate::measuring::Scale;
 
     fn marker(id: u64, label: &str) -> Annotation {
         let shape = Shape::Marker {
@@ -104,6 +107,7 @@ mod tests {
             id,
             label: label.to_owned(),
             shape,
+            scale: Scale::Patient,
         }
     }
 
@@ -127,6 +131,8 @@ mod tests {
             id,
             label: "Region 2".to_owned(),
             shape,
+            // Made on a picture placed by its pixel spacing alone, which is kept with it.
+            scale: Scale::PixelSpacing,
         }
     }
 
@@ -138,7 +144,7 @@ mod tests {
         assert_eq!(load_annotations(folder.path(), "0123456789abcdef"), items);
         assert_eq!(load_annotations(folder.path(), "another series"), []);
         let text = std::fs::read_to_string(folder.path().join(FILE)).expect("reads");
-        assert!(text.contains("\"version\": 1"), "{text}");
+        assert!(text.contains("\"version\": 2"), "{text}");
     }
 
     #[test]
@@ -182,7 +188,7 @@ mod tests {
         let (file, aside) = (folder.path().join(FILE), folder.path().join(SET_ASIDE));
         save_annotations(folder.path(), "one", &[marker(1, "A")]).expect("saves");
         let whole = std::fs::read_to_string(&file).expect("reads");
-        let newer = whole.replace("\"version\": 1", "\"version\": 2");
+        let newer = whole.replace("\"version\": 2", "\"version\": 3");
         let cut_short = &whole[..whole.len() / 2];
         for unreadable in ["not json", newer.as_str(), cut_short, ""] {
             std::fs::write(&file, unreadable).expect("writes");

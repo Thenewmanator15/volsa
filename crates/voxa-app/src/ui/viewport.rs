@@ -1,4 +1,5 @@
-//! The grid of viewports: what each one draws, what is written over it, and its mouse.
+//! The grid of viewports: what each one draws, what is written over it, what is measured on
+//! it, and its mouse.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
@@ -11,14 +12,17 @@ use voxa_render::{SlicePipeline, ViewTransform};
 use super::overlay;
 use super::theme;
 use crate::action::Action;
+use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
 
 mod annotate;
 mod colour;
 mod mouse;
+mod tools;
 mod value;
 
 pub(super) use mouse::turned as wheel_turned;
+pub use tools::Drafts;
 
 /// Where a viewport gets a decoded slice from, by series and place: `None` until it is there.
 pub type Frames<'a> = dyn Fn(&SeriesId, usize) -> Option<Arc<Frame>> + 'a;
@@ -28,13 +32,20 @@ pub type Frames<'a> = dyn Fn(&SeriesId, usize) -> Option<Arc<Frame>> + 'a;
 /// `None` when the value is not there to be read, or the slice is a picture in colour.
 pub type ValueAt<'a> = dyn Fn(&SeriesId, usize, (usize, usize)) -> Option<f32> + 'a;
 
-/// What a viewport reads slices from: the whole decoded slice, to draw it, and a single value
-/// of it, to say what is under the pointer.
+/// Where a viewport reads the values of a slice from, where they lie, by series and place: the
+/// values are handed to the reader given, if they are there to be read and the slice is not a
+/// picture in colour. For what a region drawn on a slice holds, read once as it is finished.
+pub type ReadSlice<'a> = dyn Fn(&SeriesId, usize, &mut dyn FnMut(SliceValues<'_>)) + 'a;
+
+/// What a viewport reads slices from: the whole decoded slice, to draw it, a single value of
+/// it, to say what is under the pointer, and its values in place, to measure on it.
 pub struct Slices<'a> {
     /// A whole decoded slice.
     pub frame: &'a Frames<'a>,
     /// One value of a slice.
     pub value: &'a ValueAt<'a>,
+    /// A slice's values, where they lie.
+    pub read: &'a ReadSlice<'a>,
 }
 
 /// Space between neighbouring viewports, in points.
@@ -171,16 +182,20 @@ fn narrowed(value: f64) -> f32 {
 }
 
 /// Draw the viewports of the current layout into `area`, and turn what the mouse does over
-/// each into actions.
+/// each into actions: what it asks of the viewport, and what it measures on the slice the
+/// active one shows. `held` is what each viewport keeps between frames: what is on the
+/// graphics device, and what is being drawn on its slice.
 pub fn show(
     ui: &mut Ui,
     area: Rect,
     state: &AppState,
     slices: &Slices<'_>,
-    gpus: &mut [Gpu],
+    (gpus, drafts): (&mut [Gpu], &mut Drafts),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) {
+    let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    drafts.keep_up(state, cancel);
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
         let Some(viewport) = state.viewports.get(at) else {
             continue;
@@ -191,15 +206,7 @@ pub fn show(
             Sense::click_and_drag(),
         );
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
-        let placement = viewport.series.as_ref().and_then(|id| state.series(id));
-        let placement = placement.and_then(|series| series.info.voxel_to_patient.as_ref());
-        let shown = overlay::display_view(placement, &viewport.view, state.radiological);
-        let pane = Pane {
-            state,
-            at,
-            cell,
-            shown,
-        };
+        let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
             (Some(gpu), Some(render)) => slice(ui, &pane, slices.frame, gpu, render),
@@ -208,25 +215,48 @@ pub fn show(
         if drawn {
             let value = value::under_pointer(&pane, slices.value, response.hover_pos());
             annotate::overlays(ui, &pane, value);
+            actions.extend(tools::measure(ui, &pane, &response, (drafts, slices.read)));
         }
-        if let Some(text) = message(state, at, drawn) {
-            let font = egui::TextStyle::Body.resolve(ui.style());
-            ui.painter().text(
-                cell.center(),
-                Align2::CENTER_CENTER,
-                text,
-                font,
-                theme::QUIET_TEXT,
-            );
-        }
-        if at == state.active {
-            let line = Stroke::new(ACTIVE_BORDER, theme::ACCENT);
-            ui.painter().rect_stroke(cell, 0, line, StrokeKind::Inside);
-        }
+        written_over(ui, &pane, drawn);
         let mut unused = 0.0;
         let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
         actions.extend(overlay::input_to_actions(at, &input));
+    }
+}
+
+/// Viewport `at` of `state` being drawn in `cell` this frame, with the view its slice is drawn
+/// with: the person's own, mirrored if the convention asks.
+fn pane(state: &AppState, at: usize, cell: Rect) -> Pane<'_> {
+    let viewport = state.viewports.get(at);
+    let shown = viewport.and_then(|viewport| state.series(viewport.series.as_ref()?));
+    let placement = shown.and_then(|series| series.info.voxel_to_patient.as_ref());
+    let view = viewport.map_or_else(ViewTransform::fit, |viewport| viewport.view);
+    Pane {
+        state,
+        at,
+        cell,
+        shown: overlay::display_view(placement, &view, state.radiological),
+    }
+}
+
+/// Write over a viewport why it has no picture, if it has none, and mark it if it is the
+/// active one.
+fn written_over(ui: &Ui, pane: &Pane<'_>, drawn: bool) {
+    if let Some(text) = message(pane.state, pane.at, drawn) {
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        ui.painter().text(
+            pane.cell.center(),
+            Align2::CENTER_CENTER,
+            text,
+            font,
+            theme::QUIET_TEXT,
+        );
+    }
+    if pane.at == pane.state.active {
+        let line = Stroke::new(ACTIVE_BORDER, theme::ACCENT);
+        ui.painter()
+            .rect_stroke(pane.cell, 0, line, StrokeKind::Inside);
     }
 }
 
@@ -280,3 +310,5 @@ fn slice(
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tools_tests;

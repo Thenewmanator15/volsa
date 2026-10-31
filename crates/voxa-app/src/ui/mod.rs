@@ -69,6 +69,8 @@ pub struct VoxaApp {
     session: Session,
     /// One for each viewport; empty when the window has no graphics device to draw slices.
     gpus: Vec<viewport::Gpu>,
+    /// What is being drawn on the slice of each viewport.
+    drafts: viewport::Drafts,
     scene: scene::SceneView,
     planes: planes::PlanesView,
     thumbnails: browser::Thumbnails,
@@ -168,6 +170,7 @@ impl VoxaApp {
             kept: prefs,
             session: Session::new(from_workers, reports, CACHE_BYTES, local),
             gpus: gpus.unwrap_or_default(),
+            drafts: viewport::Drafts::default(),
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),
             thumbnails: browser::Thumbnails::default(),

@@ -1,10 +1,11 @@
 //! Actions about the 3D scene, and keeping the scene on the series the active viewport shows.
 
-use voxa_core::{SeriesId, SeriesProblem};
+use voxa_core::{SeriesId, SeriesInfo, SeriesProblem};
 use voxa_render::{Camera, CutPlane, MAX_CUTS, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView};
-use voxa_volume::can_be_volume;
+use voxa_volume::{VolumeError, can_be_volume};
 
 use crate::action::{Action, Effect};
+use crate::measuring::placement_of;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
@@ -168,13 +169,7 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
             };
             (building, vec![volume, views, annotations])
         }
-        Err(why) => {
-            // Why, each reason once, and then what is done about it, once.
-            let problems = info.problems.iter().map(SeriesProblem::what);
-            let said = std::iter::once(why.to_string()).chain(problems);
-            let lines = said.chain([AS_A_STACK.to_owned()]).collect();
-            (SceneStatus::Unavailable(lines), Vec::new())
-        }
+        Err(why) => without_a_volume(&series, &info, &why),
     };
     state.scene = Scene {
         series: Some(series),
@@ -182,6 +177,26 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
         ..fresh
     };
     effects
+}
+
+/// The scene of a series that cannot be a volume, for the reason `why`: saying why, each reason
+/// once and then what is done about it, once. Its slices may still be measured on, and if they
+/// can, what was measured on them before is asked for.
+fn without_a_volume(
+    series: &SeriesId,
+    info: &SeriesInfo,
+    why: &VolumeError,
+) -> (SceneStatus, Vec<Effect>) {
+    let problems = info.problems.iter().map(SeriesProblem::what);
+    let said = std::iter::once(why.to_string()).chain(problems);
+    let lines = said.chain([AS_A_STACK.to_owned()]).collect();
+    let measured = placement_of(info).map(|_| Effect::LoadAnnotations {
+        series: series.clone(),
+    });
+    (
+        SceneStatus::Unavailable(lines),
+        measured.into_iter().collect(),
+    )
 }
 
 /// A new size for the scene's picture. While the camera is still Voxa's own choice the volume

@@ -6,8 +6,10 @@ use super::scene_tests::{ready, select};
 use super::tests::showing;
 use super::*;
 use crate::annotations::{Annotations, MAX_ANNOTATIONS, MAX_LABEL, Shape, Tool};
+use crate::measuring::Scale;
+use crate::scene::SceneStatus;
 use crate::state::NoticeKind;
-use crate::testing::{FINE_SCAN, THICK_SCAN, id};
+use crate::testing::{FINE_SCAN, THICK_SCAN, id, showing_a_picture, shown};
 
 fn ruler(length: f64) -> Shape {
     Shape::Ruler {
@@ -151,26 +153,57 @@ fn the_list_holds_two_hundred_and_says_so_when_it_is_full() {
 }
 
 #[test]
-fn a_tool_is_taken_up_only_where_there_is_a_volume_to_measure() {
+fn a_tool_is_taken_up_only_where_there_is_a_slice_with_a_scale_to_measure_on() {
     let mut state = showing(THICK_SCAN);
     assert_eq!(state.tool, Tool::Navigate);
     reduce(&mut state, Action::SetTool(Tool::Ruler));
-    assert_eq!(
-        state.tool,
-        Tool::Navigate,
-        "the volume is still being built"
-    );
+    assert_eq!(state.tool, Tool::Navigate, "its slice is not shown yet");
     add(&mut state, marker());
     assert_eq!(
         state.annotations.items,
         [],
         "nor is there anything to mark yet"
     );
+    // A detector's spacing is no scale for the body.
+    let mut state = showing_a_picture(None, Some([0.2, 0.2]));
+    reduce(&mut state, Action::SetTool(Tool::Ruler));
+    assert_eq!(state.tool, Tool::Navigate, "the picture has no scale");
+    add(&mut state, marker());
+    assert_eq!(state.annotations.items, []);
     let mut state = ready();
     reduce(&mut state, Action::SetTool(Tool::Ruler));
     assert_eq!(state.tool, Tool::Ruler);
     reduce(&mut state, Action::SetTool(Tool::Navigate));
     assert_eq!(state.tool, Tool::Navigate);
+}
+
+#[test]
+fn a_ruler_can_be_drawn_on_a_slice_before_the_volume_is_ready() {
+    let mut state = showing(THICK_SCAN);
+    shown(&mut state);
+    assert!(matches!(state.scene.status, SceneStatus::Building { .. }));
+    reduce(&mut state, Action::SetTool(Tool::Ruler));
+    assert_eq!(state.tool, Tool::Ruler);
+    let effects = reduce(&mut state, Action::AnnotationAdd(ruler(5.0)));
+    assert_eq!(labels(&state), ["Ruler 1"]);
+    assert_eq!(state.annotations.items[0].scale, Scale::Patient);
+    assert_eq!(effects, kept_as_it_is(&state), "and it is kept");
+    // The tool stays in hand, and the ruler in the list, once the volume is ready.
+    let (series, corners) = (id(THICK_SCAN), super::scene_tests::corners());
+    reduce(&mut state, Action::VolumeReady { series, corners });
+    assert_eq!((state.tool, labels(&state)), (Tool::Ruler, vec!["Ruler 1"]));
+}
+
+#[test]
+fn a_picture_with_a_pixel_spacing_alone_is_measured_in_its_own_millimetres() {
+    let mut state = showing_a_picture(Some([0.5, 0.5]), None);
+    reduce(&mut state, Action::SetTool(Tool::Ruler));
+    assert_eq!(state.tool, Tool::Ruler);
+    add(&mut state, ruler(5.0));
+    let [ruler] = &state.annotations.items[..] else {
+        panic!("{:?}", state.annotations.items);
+    };
+    assert_eq!(ruler.scale, Scale::PixelSpacing);
 }
 
 #[test]
@@ -180,6 +213,16 @@ fn another_series_or_another_scan_starts_with_no_annotations_and_no_tool() {
     reduce(&mut state, Action::SetTool(Tool::Angle));
     select(&mut state, 0, FINE_SCAN);
     assert_eq!(state.annotations, Annotations::default());
+    assert_eq!(state.tool, Tool::Navigate);
+    // Even back on a series whose slice was shown before, and so can be measured on at once,
+    // the tool is to be taken up again.
+    shown(&mut state);
+    select(&mut state, 0, THICK_SCAN);
+    shown(&mut state);
+    reduce(&mut state, Action::SetTool(Tool::Ruler));
+    assert_eq!(state.tool, Tool::Ruler);
+    select(&mut state, 0, FINE_SCAN);
+    assert_eq!(crate::measuring::why_not_measurable(&state), None);
     assert_eq!(state.tool, Tool::Navigate);
     let mut state = ready();
     add(&mut state, marker());
@@ -252,6 +295,7 @@ fn annotations_read_from_where_they_are_kept_become_the_list_with_nothing_to_und
         id: 4,
         label: "kept".to_owned(),
         shape: marker(),
+        scale: crate::measuring::Scale::Patient,
     }];
     let read = |series: &str| {
         let (series, items) = (id(series), kept.clone());
@@ -286,7 +330,7 @@ fn annotations_read_from_where_they_are_kept_become_the_list_with_nothing_to_und
 #[test]
 fn a_scene_started_on_a_series_asks_for_its_annotations() {
     use super::tests::loaded;
-    use crate::testing::{LOCALISER, with_odd_series};
+    use crate::testing::{LOCALISER, SINGLE, with_odd_series};
     let mut state = loaded();
     let effects = select(&mut state, 0, THICK_SCAN);
     let series = id(THICK_SCAN);
@@ -294,13 +338,20 @@ fn a_scene_started_on_a_series_asks_for_its_annotations() {
         effects.contains(&Effect::LoadAnnotations { series }),
         "{effects:?}"
     );
+    // A series with no 3D view is measured on its slices, and so has annotations kept too.
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(with_odd_series()));
+    let effects = select(&mut state, 0, SINGLE);
+    let series = id(SINGLE);
+    assert!(
+        effects.contains(&Effect::LoadAnnotations { series }),
+        "{effects:?}"
+    );
     let effects = select(&mut state, 0, LOCALISER);
     let asked = |effect: &Effect| matches!(effect, Effect::LoadAnnotations { .. });
     assert!(
         !effects.iter().any(asked),
-        "nothing is measured on a series with no 3D view"
+        "nothing is measured on slices in several planes"
     );
 }
 

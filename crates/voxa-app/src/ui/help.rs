@@ -6,7 +6,7 @@ use egui::scroll_area::ScrollAreaOutput;
 use super::{commands, floating, scrolled, theme};
 
 /// What the mouse does over a viewport, for the same window.
-pub const MOUSE: [(&str, &str); 14] = [
+pub const MOUSE: [(&str, &str); 15] = [
     ("Wheel", "Move through the slices"),
     ("Ctrl + wheel", "Zoom about the pointer"),
     ("Middle drag", "Move the picture"),
@@ -15,6 +15,10 @@ pub const MOUSE: [(&str, &str); 14] = [
         "Change the window: across for width, down for centre",
     ),
     ("Double-click", "Fit the whole picture in the viewport"),
+    (
+        "Click or drag, on a slice",
+        "Draw with the tool in hand, in the viewport chosen",
+    ),
     (
         "Click or drag, in a plane view",
         "Move the position, or draw with the tool in hand",
@@ -176,7 +180,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(keys_listed().len() + MOUSE.len(), 42);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 43);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
