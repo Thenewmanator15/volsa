@@ -130,8 +130,10 @@ anyone's scan:
   ("Find the scan of the brain") cannot be run on it as written, although the script allows a
   made-up study from `write_phantom` to be handed to a participant (D-08);
 - a made-up export with brain-like descriptions, written for this dry run by a throwaway program
-  that is not kept in the repository: "t1_mprage_sag_iso" and "AX T2 FLAIR" (each with the body
-  part BRAIN), "sag t2 tse" (CSPINE) and one report, in one study.
+  that is not kept in the repository: two brain series described in the scanner abbreviations
+  common to many makes (a sagittal 3D T1 and an axial T2 FLAIR, each with the body part BRAIN), a
+  sagittal T2 of the neck (body part CSPINE) and one report, in one study. None of it comes from
+  a real person's scan.
 
 **S-01. Open an export and find the brain scan.**
 
