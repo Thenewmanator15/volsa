@@ -42,6 +42,31 @@ These are not for this form:
 - A fault in ONNX Runtime or DirectML themselves, which goes to Microsoft, or in a library Voxa
   is built on, which goes to that library. If it reaches Voxa, tell us too.
 
+## Reading reports
+
+Security note S-UI-01. An export can hold structured reports (DICOM SR) and PDFs stored in
+DICOM, and both come from anywhere. Voxa shows a report as plain text and saves a PDF as the
+bytes it holds, and does nothing else with either.
+
+- **Limits.** A report is read no deeper than 16 sections, into no more than 5,000 lines and
+  1,000,000 characters, whichever comes first. Where it goes past one, Voxa stops reading, keeps
+  what it has, and says the report was cut short, so the lines shown are always the start of
+  the report, whole and in order. The original report is the reference.
+- **Text only.** What a report says is turned into text. A link, a reference to an image or
+  another object, or a waveform is never followed or fetched. Voxa writes a line that says
+  what the item was and that it is not shown, so that nothing is left out without a word.
+- **No PDF is drawn or opened.** Voxa has no PDF reader in it and starts no other program for
+  a PDF. Its bytes are only written, whole, to the place the person chooses.
+- **Nothing is executed.** A report or a PDF is read as data. No script, macro or embedded
+  file in either is run, and none is written anywhere except the copy of the PDF the person
+  asks for.
+- **A damaged file is an error for that file.** A report or PDF that cannot be read, or that
+  makes the DICOM library fail, is refused with an error, and Voxa goes on.
+- **What the limits do not cover.** The DICOM library reads the whole file before Voxa walks
+  the report, as it does for every file Voxa opens, so a file Voxa is given is still read
+  into memory up to the size limit for one file (4 GiB). A report that tries to make that
+  library run out of memory or time is a fault to report here.
+
 ## Never include a real scan
 
 A report must never include a real scan, a scan export, a label file made from a scan, a

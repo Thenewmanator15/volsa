@@ -112,7 +112,7 @@ fn opens_on(series: Vec<voxa_dicom::IndexedSeries>) -> Option<voxa_core::SeriesI
     let index = voxa_dicom::Index {
         studies: vec![study],
         series,
-        skipped: Vec::new(),
+        ..voxa_dicom::Index::default()
     };
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(index));

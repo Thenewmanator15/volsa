@@ -13,6 +13,7 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod decode;
+mod document;
 mod geometry;
 mod header;
 mod index;
@@ -22,6 +23,10 @@ mod tags;
 pub mod testkit;
 
 pub use decode::{Frame, ImageFile, decode_slice};
+pub use document::{
+    DocumentKind, IndexedDocument, MAX_REPORT_CHARS, MAX_REPORT_DEPTH, MAX_REPORT_LINES, Report,
+    ReportLine, pdf_bytes, read_report,
+};
 pub use geometry::{StackGeometry, stack_geometry};
 pub use index::{Index, IndexedSeries, SliceRef, best_series, index};
 pub use source::{Entry, SeriesSource, open_source};

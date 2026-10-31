@@ -83,8 +83,12 @@ pub enum Unit<'a> {
 /// A CT scan whose Rescale Type is `HU`, or is not given, is in [`Unit::Hu`]. A scan with no
 /// Rescale Type, or `US` (DICOM's "unspecified"), is in [`Unit::None`]. Any other Rescale Type
 /// is named. So a CT scan that says it is not in Hounsfield units is not shown as if it were,
-/// and nor is a scan of another kind that merely says `HU`.
+/// and nor is a scan of another kind that merely says `HU`. A scan stored as `MONOCHROME1` is
+/// in no unit at all: its values are flipped when decoded, so they are not the file's own.
 pub fn unit_of(info: &SeriesInfo) -> Unit<'_> {
+    if info.inverted {
+        return Unit::None;
+    }
     let code = info
         .rescale_type
         .as_deref()

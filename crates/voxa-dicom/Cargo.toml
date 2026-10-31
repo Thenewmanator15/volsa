@@ -10,7 +10,7 @@ publish.workspace = true
 [dependencies]
 voxa-core.workspace = true
 dicom-core.workspace = true
-dicom-dictionary-std.workspace = true
+dicom-dictionary-std = { workspace = true, features = ["sop-class"] }
 dicom-object.workspace = true
 dicom-pixeldata.workspace = true
 dicom-transfer-syntax-registry.workspace = true

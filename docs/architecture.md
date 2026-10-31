@@ -25,7 +25,8 @@ coordinates lives below it, where it can be tested without a window.
    end record says its directory is, without searching the whole file for it.
 2. `voxa-dicom` parses headers on a worker and emits an index of studies and series. Of each
    file it reads only as much as the header needs, never the pixels. The browser fills as
-   results arrive. Entries that are not DICOM are skipped and counted.
+   results arrive. A DICOM file with no image, such as a structured report or a PDF, is listed
+   as a document; any other entry that is not a DICOM image is skipped and counted.
 3. Selecting a series queues decoding of its slices on worker threads, nearest slices first.
    Each worker reads through a reader of the source of its own, so a zip or a folder is read
    by several at once. Decoded frames are cached under a memory budget.

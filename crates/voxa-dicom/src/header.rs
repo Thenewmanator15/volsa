@@ -47,6 +47,8 @@ pub(crate) struct Header {
     pub colour: bool,
     /// The `RescaleType`, such as `HU`: what the rescaled values are in.
     pub rescale_type: Option<String>,
+    /// True when the photometric interpretation is `MONOCHROME1`: bright stored values are dark.
+    pub inverted: bool,
     /// What the file says about how the series was acquired.
     pub scan: ScanFacts,
     /// What each frame says that sets it apart from others at its position; one entry
@@ -141,6 +143,7 @@ fn parse(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<Header> {
         rescale_type: stated_or_grouped(obj, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, |from| {
             text(from, tags::RESCALE_TYPE)
         }),
+        inverted: text(obj, tags::PHOTOMETRIC_INTERPRETATION).as_deref() == Some("MONOCHROME1"),
         scan: scan::facts(obj, orientation),
         told: if multi_frame {
             told::of_frames(obj, frames)
@@ -190,7 +193,7 @@ fn frame_positions(obj: &InMemDicomObject, frames: usize) -> Vec<Option<[f64; 3]
 }
 
 /// A text value with padding removed; `None` when absent or empty.
-fn text(obj: &InMemDicomObject, tag: Tag) -> Option<String> {
+pub(crate) fn text(obj: &InMemDicomObject, tag: Tag) -> Option<String> {
     let value = obj.get(tag)?.to_str().ok()?;
     let trimmed = value.trim_matches(|c: char| c == '\0' || c.is_whitespace());
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
@@ -211,13 +214,13 @@ fn position(obj: &InMemDicomObject) -> Option<[f64; 3]> {
 }
 
 /// The items of a sequence; empty when the element is absent or not a sequence.
-fn items(obj: &InMemDicomObject, tag: Tag) -> &[InMemDicomObject] {
+pub(crate) fn items(obj: &InMemDicomObject, tag: Tag) -> &[InMemDicomObject] {
     obj.get(tag)
         .and_then(|element| element.items())
         .unwrap_or(&[])
 }
 
-fn first_item(obj: &InMemDicomObject, tag: Tag) -> Option<&InMemDicomObject> {
+pub(crate) fn first_item(obj: &InMemDicomObject, tag: Tag) -> Option<&InMemDicomObject> {
     items(obj, tag).first()
 }
 
@@ -310,6 +313,21 @@ mod tests {
         };
         assert_eq!(named(Some("HU ")).rescale_type.as_deref(), Some("HU"));
         assert_eq!(named(None).rescale_type, None);
+    }
+
+    #[test]
+    fn a_monochrome1_header_is_read_as_inverted() {
+        let inverted = |monochrome1: bool| {
+            let opts = SliceOptions {
+                monochrome1,
+                ..SliceOptions::default()
+            };
+            read_header(&classic_slice(&opts))
+                .expect("is an image")
+                .inverted
+        };
+        assert!(inverted(true));
+        assert!(!inverted(false));
     }
 
     #[test]

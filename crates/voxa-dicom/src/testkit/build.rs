@@ -10,7 +10,10 @@ use super::{
 };
 
 mod colour;
+mod document;
 mod scan;
+
+pub use document::{encapsulated_pdf, structured_report};
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";
@@ -218,6 +221,11 @@ fn ramp(count: usize) -> Vec<u16> {
 /// Serialise as a file. The data are always explicit VR little endian; when the options name
 /// another transfer syntax, only the file header says so.
 fn write(obj: InMemDicomObject, opts: &SliceOptions) -> Vec<u8> {
+    write_labelled(obj, &opts.transfer_syntax)
+}
+
+/// Serialise as a file whose header names `labelled` as its transfer syntax.
+fn write_labelled(obj: InMemDicomObject, labelled: &str) -> Vec<u8> {
     let header = |syntax: &str| {
         FileMetaTableBuilder::new()
             .transfer_syntax(syntax)
@@ -225,7 +233,7 @@ fn write(obj: InMemDicomObject, opts: &SliceOptions) -> Vec<u8> {
     };
     let labelled = obj
         .clone()
-        .with_meta(header(&opts.transfer_syntax))
+        .with_meta(header(labelled))
         .expect("the synthetic object has its identifiers");
     let honest = obj
         .with_meta(header(EXPLICIT_VR_LITTLE_ENDIAN))

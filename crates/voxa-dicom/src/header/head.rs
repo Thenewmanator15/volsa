@@ -16,19 +16,23 @@ const FIRST_READ: u64 = 64 * 1024;
 /// header. What it gives is what parsing the whole file gives. No more than `limit` bytes are
 /// read.
 ///
+/// With the header, which is `None` for a file that is not an image, it gives the start of the
+/// file that was read to find it. Of a file that is not an image but is DICOM, that is the
+/// whole file, which is what a document is read from.
+///
 /// # Errors
 /// An error reading the file, or [`VoxaError::Archive`] when more than `limit` bytes would
 /// have to be read.
 pub(crate) fn read_header_from(
     contents: &mut dyn Read,
     limit: u64,
-) -> Result<Option<Header>, VoxaError> {
+) -> Result<(Option<Header>, Vec<u8>), VoxaError> {
     let mut start = Vec::new();
     let mut wanted = FIRST_READ;
     loop {
         let whole = read_more(contents, &mut start, wanted, limit)?;
         if let Ok(header) = read_header_start(&start, whole) {
-            return Ok(header);
+            return Ok((header, start));
         }
         wanted = wanted.saturating_mul(2);
     }

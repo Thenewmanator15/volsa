@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyId, StudyInfo, VoxaError};
 
 use crate::decode::unreadable;
+use crate::document::{self, IndexedDocument};
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
@@ -46,15 +47,19 @@ pub struct Index {
     pub studies: Vec<StudyInfo>,
     /// Every series, study by study in the order of `studies`, then by series number.
     pub series: Vec<IndexedSeries>,
-    /// Names of the entries that are not DICOM images, in name order.
+    /// Names of the entries that are neither DICOM images nor documents, in name order.
     pub skipped: Vec<String>,
+    /// The DICOM files that hold no image but a document: reports, PDFs and the like, in study
+    /// order, then by entry name.
+    pub documents: Vec<IndexedDocument>,
 }
 
 /// Read the header of every entry in `source` and group the images into studies and series.
 ///
 /// Only headers are read, never pixels: of each file, no more than its header needs (see
-/// [`SeriesSource::visit_files`]). Entries that are not DICOM images are listed in
-/// [`Index::skipped`]; a `DICOMDIR` is passed over without comment, and without being read.
+/// [`SeriesSource::visit_files`]). A DICOM file with no image is listed in
+/// [`Index::documents`]; any other entry that is not a DICOM image is listed in
+/// [`Index::skipped`]. A `DICOMDIR` is passed over without comment, and without being read.
 /// `on_progress` is given the index so far each time a new series appears, at intervals in
 /// between, and once more with the finished index.
 ///
@@ -73,8 +78,12 @@ pub fn index(
         if is_directory_file(name) {
             return Ok(());
         }
-        let Some(header) = read_header_from(contents, MAX_ENTRY_BYTES)? else {
-            found.skipped.push(name.to_owned());
+        let (header, start) = read_header_from(contents, MAX_ENTRY_BYTES)?;
+        let Some(header) = header else {
+            match document::of(name, &start) {
+                Some(document) => found.documents.push(document),
+                None => found.skipped.push(name.to_owned()),
+            }
             return Ok(());
         };
         let starts_a_series = found.add(name.to_owned(), header);
@@ -127,6 +136,7 @@ struct Found {
     /// Images by series identifier, each list in the order the images arrived.
     series: BTreeMap<String, Vec<Image>>,
     skipped: Vec<String>,
+    documents: Vec<IndexedDocument>,
 }
 
 impl Found {
@@ -164,6 +174,7 @@ impl Found {
             index.studies.push(study);
             index.series.append(&mut listed);
         }
+        index.documents = document::in_order(self.documents.clone(), &index.studies);
         index
     }
 }
@@ -305,16 +316,22 @@ fn assembled(
             scan,
             colour: first.colour,
             rescale_type: first.rescale_type.clone(),
+            inverted: first.inverted,
             ..SeriesInfo::default()
         },
-        slices: slices
-            .iter()
-            .map(|slice| SliceRef {
-                entry: slice.entry.to_owned(),
-                frame: slice.frame,
-            })
-            .collect(),
+        slices: slice_refs(&slices),
     }
+}
+
+/// Where to find each of `slices`, in their order.
+fn slice_refs(slices: &[Slice<'_>]) -> Vec<SliceRef> {
+    slices
+        .iter()
+        .map(|slice| SliceRef {
+            entry: slice.entry.to_owned(),
+            frame: slice.frame,
+        })
+        .collect()
 }
 
 /// Where the stack lies in the patient, or why that cannot be said.

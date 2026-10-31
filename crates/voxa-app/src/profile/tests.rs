@@ -96,6 +96,24 @@ fn hu_in_a_file_that_is_not_ct_is_only_a_name() {
 }
 
 #[test]
+fn an_inverted_series_has_no_unit_whatever_its_files_say() {
+    // The values of a MONOCHROME1 series are flipped when decoded, so they are not the file's.
+    let inverted = |info: SeriesInfo| SeriesInfo {
+        inverted: true,
+        ..info
+    };
+    assert_eq!(unit_of(&inverted(ct(None))), Unit::None);
+    assert_eq!(unit_of(&inverted(ct(Some("HU")))), Unit::None);
+    assert_eq!(unit_of(&inverted(ct(Some("MGML")))), Unit::None);
+    assert_eq!(unit_of(&inverted(mr(Some("OD")))), Unit::None);
+    assert_eq!(
+        unit_of(&ct(None)),
+        Unit::Hu,
+        "the same series, not inverted"
+    );
+}
+
+#[test]
 fn a_rescale_type_of_blanks_says_nothing() {
     assert_eq!(unit_of(&ct(Some(" "))), Unit::Hu);
     assert_eq!(unit_of(&mr(Some(""))), Unit::None);

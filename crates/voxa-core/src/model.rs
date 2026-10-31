@@ -109,6 +109,10 @@ pub struct SeriesInfo {
     /// The Rescale Type of the first image, such as `HU`, with its padding removed; `None` when
     /// the files do not give one.
     pub rescale_type: Option<String>,
+    /// True when the first image says bright stored values are dark (`MONOCHROME1`). The values
+    /// Voxa decodes for such a series are flipped about the middle of their range, so they are
+    /// no longer the file's own and are not in its unit.
+    pub inverted: bool,
 }
 
 /// The place of one volume among the volumes of a series that holds several: the weightings
@@ -146,6 +150,7 @@ impl Default for SeriesInfo {
             set: None,
             colour: false,
             rescale_type: None,
+            inverted: false,
         }
     }
 }

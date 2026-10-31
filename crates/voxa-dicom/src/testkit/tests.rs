@@ -123,6 +123,71 @@ fn a_detectors_spacing_and_a_rescale_type_are_written_when_given() {
 }
 
 #[test]
+fn a_report_parses_as_dicom_with_its_content_in_order_and_no_image() {
+    let content = [
+        ReportItem::container(
+            "Part",
+            vec![ReportItem::text("Comment", "A made-up remark.")],
+        ),
+        ReportItem::number("Width", "12", "mm"),
+    ];
+    let bytes = structured_report(&DocumentOptions::default(), &content);
+    let obj = dicom_object::from_reader(Cursor::new(bytes)).expect("parses");
+    assert_eq!(
+        obj.element(tags::SOP_CLASS_UID)
+            .expect("class")
+            .to_str()
+            .expect("text")
+            .trim_end_matches('\0'),
+        "1.2.840.10008.5.1.4.1.1.88.11"
+    );
+    let items = obj
+        .element(tags::CONTENT_SEQUENCE)
+        .expect("content")
+        .items()
+        .expect("items");
+    assert_eq!(items.len(), 2);
+    let kinds: Vec<String> = items
+        .iter()
+        .map(|item| {
+            item.element(tags::VALUE_TYPE)
+                .expect("type")
+                .to_str()
+                .expect("text")
+                .trim()
+                .to_owned()
+        })
+        .collect();
+    assert_eq!(kinds, ["CONTAINER", "NUM"]);
+    assert!(obj.element(tags::ROWS).is_err() && obj.element(tags::PIXEL_DATA).is_err());
+}
+
+#[test]
+fn a_pdf_is_written_padded_to_an_even_length_and_a_class_can_be_overridden() {
+    let odd = b"%PDF-1.4 a made-up page";
+    assert_eq!(odd.len() % 2, 1, "the test needs a document of odd length");
+    let bytes = encapsulated_pdf(&DocumentOptions::default(), odd);
+    let obj = dicom_object::from_reader(Cursor::new(bytes)).expect("parses");
+    let held = obj.element(tags::ENCAPSULATED_DOCUMENT).expect("document");
+    let held = held.to_bytes().expect("bytes");
+    assert_eq!(held.len(), odd.len() + 1);
+    assert_eq!(held.get(..odd.len()), Some(odd.as_slice()));
+    assert_eq!(held.last(), Some(&0));
+
+    let other = DocumentOptions {
+        sop_class: Some("1.2.840.10008.5.1.4.1.1.11.1".to_owned()),
+        ..DocumentOptions::default()
+    };
+    let obj =
+        dicom_object::from_reader(Cursor::new(structured_report(&other, &[]))).expect("parses");
+    let class = obj.element(tags::SOP_CLASS_UID).expect("class");
+    assert_eq!(
+        class.to_str().expect("text").trim_end_matches('\0'),
+        "1.2.840.10008.5.1.4.1.1.11.1"
+    );
+}
+
+#[test]
 fn a_memory_source_yields_names_in_order_and_reads_by_name() {
     let mut source = MemorySource::new(vec![("b".to_owned(), vec![2]), ("a".to_owned(), vec![1])]);
     let names: Vec<String> = source.entries().map(|e| e.expect("entry").name).collect();
