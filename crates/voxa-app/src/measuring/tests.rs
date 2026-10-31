@@ -324,10 +324,11 @@ fn measurements_kept_by_0_6_0_still_open() {
         b: [3.0, -4.0, 10.0],
     };
     assert_eq!(ruler.shape, shape);
-    // Written again for another series, it keeps the ruler, now saying its scale.
+    // Written again for another series, it keeps the ruler, now saying its scale. Nothing in the
+    // file is in a picture's own millimetres, so it is still a file 0.6.0 reads.
     save_annotations(folder.path(), "another", &read).expect("saves");
     let text = std::fs::read_to_string(&file).expect("reads");
-    assert!(text.contains("\"version\": 2"), "{text}");
+    assert!(text.contains("\"version\": 1"), "{text}");
     assert!(text.contains("\"scale\": \"patient\""), "{text}");
     assert_eq!(load_annotations(folder.path(), "0123456789abcdef"), read);
 }

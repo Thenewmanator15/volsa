@@ -105,7 +105,10 @@ pub fn show(
         card::words(ui, &painter, lines, at, ends);
     }
     let dots = card::dots_button(ui, dots, id, &name);
-    let response = response.on_hover_text(hover_of(document, &mask));
+    // Its words are put together only while the pointer rests on the card.
+    let response = response.on_hover_ui(|ui| {
+        ui.label(hover_of(document, &mask));
+    });
     if response.clicked() {
         asks.actions
             .push(Action::OpenDocument(document.entry.clone()));

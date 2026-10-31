@@ -8,11 +8,15 @@ use std::path::Path;
 use serde::{Deserialize, Serialize};
 
 use super::Annotation;
+use crate::measuring::Scale;
 
-/// The version of the file this Voxa writes, and the newest it reads. Version 2 says for each
-/// annotation whose millimetres it is in; version 1, which 0.6.0 wrote, says nothing of that,
-/// and is read as it was made, in a 3D view, in the patient's.
+/// The newest version of the file this Voxa reads, and writes when it has to. Version 2 says for
+/// each annotation whose millimetres it is in; version 1, which 0.6.0 wrote, says nothing of
+/// that, and is read as it was made, in a 3D view, in the patient's. A file is written as
+/// version 1 while nothing in it is in a picture's own millimetres.
 pub const ANNOTATIONS_VERSION: u32 = 2;
+/// The version of a file that says nothing version 2 added: what 0.6.0 wrote and reads.
+const FIRST_VERSION: u32 = 1;
 /// The name of the file within its folder, beside the saved views.
 const FILE: &str = "annotations.json";
 /// The name a file Voxa cannot read is given before a new one is written in its place, so
@@ -77,12 +81,21 @@ pub fn save_annotations(folder: &Path, key: &str, items: &[Annotation]) -> std::
             Kept::default()
         }
     };
-    all.version = ANNOTATIONS_VERSION;
     if items.is_empty() {
         all.series.remove(key);
     } else {
         all.series.insert(key.to_owned(), items.to_vec());
     }
+    // Version 2 only when something in it needs it: a measurement in a picture's own millimetres.
+    // Otherwise the file says what 0.6.0 would, so that going back to it does not set the file
+    // aside, and with it the measurements of every series.
+    let pixels = |item: &Annotation| item.scale == Scale::PixelSpacing;
+    let needs_two = all.series.values().flatten().any(pixels);
+    all.version = if needs_two {
+        ANNOTATIONS_VERSION
+    } else {
+        FIRST_VERSION
+    };
     let text = serde_json::to_string_pretty(&all)?;
     std::fs::create_dir_all(folder)?;
     // Written beside the file and then moved over it, so a failure half way leaves the old one.
@@ -147,6 +160,33 @@ mod tests {
         assert!(text.contains("\"version\": 2"), "{text}");
     }
 
+    /// The version the file holds, as it is written in it.
+    fn version_written(folder: &Path) -> u32 {
+        let text = std::fs::read_to_string(folder.join(FILE)).expect("reads");
+        let kept: Kept = serde_json::from_str(&text).expect("parses");
+        kept.version
+    }
+
+    #[test]
+    fn a_file_whose_measurements_are_all_in_the_patients_millimetres_is_written_as_0_6_0_wrote_it()
+    {
+        // Going back to 0.6.0 sets a file of a newer version aside, and with it every series'
+        // measurements: a file that says nothing 0.6.0 cannot read says what 0.6.0 would.
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        save_annotations(folder.path(), "one", &[marker(1, "A")]).expect("saves");
+        assert_eq!(version_written(folder.path()), 1);
+        assert_eq!(load_annotations(folder.path(), "one"), [marker(1, "A")]);
+        // A measurement in a picture's own millimetres is what version 2 says, of any series.
+        save_annotations(folder.path(), "two", &[region(1)]).expect("saves");
+        assert_eq!(version_written(folder.path()), ANNOTATIONS_VERSION);
+        save_annotations(folder.path(), "one", &[marker(1, "A"), marker(2, "B")]).expect("saves");
+        assert_eq!(version_written(folder.path()), ANNOTATIONS_VERSION);
+        // And once none is left, the file is as 0.6.0 wrote it again.
+        save_annotations(folder.path(), "two", &[]).expect("saves");
+        assert_eq!(version_written(folder.path()), 1);
+        assert_eq!(load_annotations(folder.path(), "one").len(), 2);
+    }
+
     #[test]
     fn the_annotations_of_two_series_share_a_file_and_do_not_disturb_each_other() {
         let folder = tempfile::tempdir().expect("a temporary folder");
@@ -188,7 +228,7 @@ mod tests {
         let (file, aside) = (folder.path().join(FILE), folder.path().join(SET_ASIDE));
         save_annotations(folder.path(), "one", &[marker(1, "A")]).expect("saves");
         let whole = std::fs::read_to_string(&file).expect("reads");
-        let newer = whole.replace("\"version\": 2", "\"version\": 3");
+        let newer = whole.replace("\"version\": 1", "\"version\": 3");
         let cut_short = &whole[..whole.len() / 2];
         for unreadable in ["not json", newer.as_str(), cut_short, ""] {
             std::fs::write(&file, unreadable).expect("writes");

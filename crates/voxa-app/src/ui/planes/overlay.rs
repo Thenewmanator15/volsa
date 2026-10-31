@@ -3,7 +3,7 @@
 use egui::{Color32, WidgetInfo, WidgetType};
 use voxa_core::{Patient, Point, Volume};
 use voxa_render::PlaneView;
-use voxa_volume::{Plane, PlaneKind, sample};
+use voxa_volume::{Plane, PlaneKind};
 
 use super::super::overlay::{EdgeLabels, letter, value_line};
 use super::super::theme;
@@ -82,7 +82,28 @@ pub fn value_under(
 ) -> Option<String> {
     let (scan, at) = scan.zip(at)?;
     let info = &state.series(state.scene.series.as_ref()?)?.info;
-    value_line(sample(scan, at)?, &unit_of(info))
+    value_line(nearest(scan, at)?, &unit_of(info))
+}
+
+/// The value of the voxel `at` lies in, never a blend of several, as the value under the pointer
+/// on a slice is the pixel's own; a point that is more than half a voxel outside the volume has
+/// none. The planes are drawn smooth, but a value between bone and air that no voxel holds is
+/// not one to read off them.
+fn nearest(volume: &Volume, at: Point<Patient>) -> Option<f32> {
+    let voxel = volume.patient_to_voxel().apply(at);
+    let place = |coord: f64| whole(coord.round());
+    volume.get(place(voxel.x)?, place(voxel.y)?, place(voxel.z)?)
+}
+
+/// A whole coordinate as a place among the voxels; `None` for one before the first or that is
+/// not a number.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "held in range first"
+)]
+fn whole(coord: f64) -> Option<u32> {
+    (coord >= 0.0 && coord <= f64::from(u32::MAX)).then_some(coord as u32)
 }
 
 /// The lines of the cross through the position in a panel, each from one point of the panel

@@ -332,12 +332,20 @@ fn the_value_under_the_pointer_on_a_plane_is_read_from_the_volume_in_the_scans_u
 }
 
 #[test]
-fn between_two_voxels_the_value_is_blended_as_the_planes_blend_it() {
+fn between_two_voxels_the_value_is_the_nearest_voxels_never_a_blend() {
+    // The planes may be drawn smooth, but a value read off them is one a voxel holds, as it is
+    // on a slice: -12 and 8 are in the volume, and -2 between them is in neither.
     let scan = two_voxels();
     let state = scene_of("CT", None);
-    let halfway = Some(Point::new(0.5, 0.0, 0.0));
-    let said = value_under(&state, Some(&scan), halfway);
-    assert_eq!(said.as_deref(), Some("Value -2 HU"));
+    let said = |x: f64| value_under(&state, Some(&scan), Some(Point::new(x, 0.0, 0.0)));
+    assert_eq!(said(0.4).as_deref(), Some("Value -12 HU"));
+    assert_eq!(said(0.6).as_deref(), Some("Value 8 HU"));
+    // Within half a voxel beyond an edge the edge voxel is read; further, nothing is.
+    assert_eq!(said(-0.4).as_deref(), Some("Value -12 HU"));
+    assert_eq!(said(1.4).as_deref(), Some("Value 8 HU"));
+    assert_eq!(said(-0.6), None);
+    assert_eq!(said(1.6), None);
+    assert_eq!(said(f64::NAN), None);
 }
 
 #[test]

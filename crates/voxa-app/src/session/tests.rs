@@ -124,7 +124,10 @@ fn opening_an_export_with_other_files_in_it_says_how_many_were_skipped() {
     let (_folder, zip) = zip_of(&files);
     let mut session = session();
     open_until(&mut session, &zip, first_viewport_has_its_slice);
-    assert_eq!(notice_texts(&session), ["1 file skipped"]);
+    assert_eq!(
+        notice_texts(&session),
+        ["1 file is not a scan or a document Voxa lists"]
+    );
     assert_eq!(session.state().notices[0].details, ["readme.txt"]);
 }
 

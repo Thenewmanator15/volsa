@@ -56,14 +56,22 @@ pub struct Asks<'a> {
     pub requests: &'a mut Vec<Request>,
 }
 
-/// What a screen reader calls the card of a series, without whether it is selected or has a
-/// problem: its plain name, then what the card says of its slices. Two cards that share a plain
-/// name are told apart by the second part.
-pub fn name_of(info: &SeriesInfo) -> String {
-    format!("{}, {}", plain_name(info), caption(info))
+/// What a screen reader calls the card of a series whose plain name is `name`, without whether
+/// it is selected or has a problem: the plain name, then what the card says of its slices. Two
+/// cards that share a plain name are told apart by the second part. The plain name is given so
+/// that the card works it out once.
+fn called(name: &str, info: &SeriesInfo) -> String {
+    format!("{name}, {}", caption(info))
 }
 
-/// What a screen reader says of a card called `name` (see [`name_of`]): the name, then
+/// What a screen reader calls the card of a series: see [`called`], with the plain name worked
+/// out. The tests ask for it by the series alone.
+#[cfg(test)]
+pub fn name_of(info: &SeriesInfo) -> String {
+    called(&plain_name(info), info)
+}
+
+/// What a screen reader says of a card called `name` (see [`called`]): the name, then
 /// ", selected" while it is the one shown and ", cannot be shown in full" while something stops
 /// the series being shown in full.
 pub fn said(name: &str, selected: bool, problem: bool) -> String {
@@ -106,7 +114,7 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) -> bo
     let name = plain_name(info);
     let id = id_of(&info.id);
     let response = ui.interact(rect, id, Sense::click());
-    let called = name_of(info);
+    let called = called(&name, info);
     let said = said(&called, card.selected, info.kind().is_fault());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &said));
     let picture = Rect::from_min_size(
@@ -129,7 +137,10 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) -> bo
     }
     mark(ui, picture, info, id);
     let dots = dots_button(ui, dots, id, &called);
-    let response = response.on_hover_text(hover_of(info));
+    // Its words are put together only while the pointer rests on the card.
+    let response = response.on_hover_ui(|ui| {
+        ui.label(hover_of(info));
+    });
     if response.clicked() {
         asks.actions.push(select(asks.state, &info.id));
     }

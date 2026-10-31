@@ -284,11 +284,13 @@ fn post(state: &mut AppState, key: &'static str, notice: Option<Notice>) {
     state.notices.extend(notice);
 }
 
+/// The notice of the files the export holds that are neither scans nor documents Voxa lists, in
+/// words that do not read as scans being lost; the names are in its details.
 fn skipped_notice(skipped: &[String]) -> Option<Notice> {
     let text = match skipped.len() {
         0 => return None,
-        1 => "1 file skipped".to_owned(),
-        several => format!("{several} files skipped"),
+        1 => "1 file is not a scan or a document Voxa lists".to_owned(),
+        several => format!("{several} files are not scans or documents Voxa lists"),
     };
     Some(Notice {
         kind: NoticeKind::Info,

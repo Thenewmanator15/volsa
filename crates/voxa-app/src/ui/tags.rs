@@ -19,7 +19,7 @@ const HIDDEN_KINDS: &str = "that could identify the patient: the patient's own, 
                             the place of the scan, the numbers of its order, and makers' \
                             private values.";
 /// Where the patient's details are shown again.
-const SHOWS_THEM: &str = "\"Patient details\" in the View tab shows them.";
+const SHOWS_THEM: &str = "\"Show patient details\" in the View tab shows them.";
 
 /// The title of the tag browser window.
 const TITLE: &str = "DICOM tags";
@@ -274,7 +274,7 @@ mod tests {
 
     #[test]
     fn the_window_says_how_many_values_are_hidden() {
-        let shows = "\"Patient details\" in the View tab shows them.";
+        let shows = "\"Show patient details\" in the View tab shows them.";
         let kinds = "that could identify the patient: the patient's own, the people and the place \
                      of the scan, the numbers of its order, and makers' private values.";
         assert_eq!(

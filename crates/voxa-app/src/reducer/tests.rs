@@ -160,7 +160,10 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
     let notice = &state.notices[0];
     assert_eq!(
         (notice.kind, notice.text.as_str()),
-        (NoticeKind::Info, "2 files skipped")
+        (
+            NoticeKind::Info,
+            "2 files are not scans or documents Voxa lists"
+        )
     );
     assert_eq!(notice.details, index.skipped);
 
@@ -171,7 +174,7 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
         .iter()
         .map(|notice| notice.text.as_str())
         .collect();
-    assert_eq!(texts, vec!["1 file skipped"]);
+    assert_eq!(texts, vec!["1 file is not a scan or a document Voxa lists"]);
 
     index.skipped.clear();
     reduce(&mut state, Action::IndexProgress(index));
