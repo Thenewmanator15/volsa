@@ -48,21 +48,29 @@ at your display's scale. The window has a bar across the top (**Open**, the stud
 date, the search box, help, the theme and a menu, **⋯**), the rail of scans down the left, the
 pictures in the middle and, at the right, a panel of tabs: **View**, **Measure**, **3D**,
 **Labels** and **Tools**. Along the bottom are the disclaimer and the notices. The search box,
-which Ctrl+K or `/` opens, finds a button by its name and by other words for it, and also the
-parts of open labels, the scans of the export and the help topics. **?** lists every key.
+which Ctrl+K or `/` opens, finds the actions by their names and by other words for them, and
+also the parts of open labels, the scans of the export and the help topics. **?** opens the
+help: seven short topics, then every key.
 
 An export opens on its slices. The strip above the pictures arranges them: **Slices** (with one,
 two or four viewports), **Slices + 3D**, **Planes** (the three planes and the 3D view, two by
 two) or **3D** alone. **B** folds the rail of scans to a strip, and **P** the tab panel, as do
 the **«** at the top of the rail and the **»** at the top of the panel; a click on a strip
-opens it again. Both start folded in a window under 760 points across, and there no more than
-one is open at a time, so that the pictures keep their room. The edge of the rail and the edge
+opens it again. The rail starts folded in a window under 960 points across; under 760 both
+fold, and no more than one is open at a time, so that the pictures keep their room. The edge of the rail and the edge
 of the panel can be dragged to give either more of the width. **F11** is full screen, and
 **Size** in the **⋯** menu draws the words and buttons larger or smaller, as do Ctrl+= and
 Ctrl+- (Ctrl+0 puts them back). Voxa remembers the window's size, the size of the words and
 buttons, how wide you dragged the rail and the panel, which of them you folded, which tab is
 open and the theme (light, dark or the system's); full screen, which scans you opened, what you
 typed in the search box and whether patient details are shown start afresh each time.
+
+An export can hold more than scans. The rail lists locating images, scanned pages, reports and
+other files under **Other files**, which a click opens. A report opens as text in the middle of
+the window, headed "Shown as text. The original report is the reference.", and its dates are
+written in words. A PDF stored in the export is not shown, since Voxa has no PDF reader and
+starts no other program; **Save a copy as PDF…** writes a copy where you choose. Another kind of
+file is named, with its kind in words, and its tags can be shown.
 
 ### Removing Voxa
 
@@ -94,7 +102,7 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 
 | File | What it holds |
 |---|---|
-| `preferences.json` | The window's size, the size of the interface, how wide the rail of scans and the tab panel are, whether you folded either, which tab is open, the theme, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+| `preferences.json` | The window's size, the size of the interface, how wide the rail of scans and the tab panel are, whether you folded either, which tab is open, the theme, how many viewports, the **Patient's left on the right** and **Link the views** switches, and how labels are drawn over the planes. Nothing about any scan. |
 
 `%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
 its servers, so it holds nothing else.
@@ -105,7 +113,7 @@ computer:
 | File | What it holds |
 |---|---|
 | `views.json` | The views of the 3D scene you saved, for each series. |
-| `annotations.json` | Your markers, rulers, angles and regions for each series, with the names you gave them. |
+| `annotations.json` | Your markers, rulers, angles and regions for each series, with the names you gave them. Voxa 0.6.0 reads this file only as it wrote it; see below. |
 | `choices.json` | What you chose for labelling under **Options**, with the two folders you named, if any. |
 | `labels\` | Labelling results kept to be shown again: for each series, a label file and the table of its parts' names. |
 | `voxa.log` | The log, below. |
@@ -135,17 +143,29 @@ it is, with a button that copies the path.
 
 Apart from these, Voxa writes a file only when you save one, in the place you choose: a picture
 or a turntable of the 3D scene (which holds the picture and nothing else from the scan),
-measurements, the list of parts, or labels. A table Voxa saves (CSV) ends every line with a
-column, `notice`, that says "Voxa is not a medical device and is not for diagnostic use.", so
-the sentence goes wherever a line is copied, sorted or filtered. The table of parts also says on
-every line which model made the labels (`model`: the model Voxa ran, "made by another
-program", or "not said" when the labels name no model) and how the model's own check of its work went (`model_check`: `passed`, `failed`,
-or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
+measurements, the list of parts, labels, or a copy of a PDF from the export. Every table Voxa
+saves (CSV) has a column, `notice`, that says "Voxa is not a medical device and is not for
+diagnostic use." on every line, so the sentence goes wherever a line is copied, sorted or
+filtered. The table of measurements ends with one more column, `scale`: `patient` where the
+files say where the slices lie, `pixel spacing` where the millimetres come from the picture's
+own pixel spacing alone. Measurements saved as JSON say the same in `scale` and carry the
+sentence as `notice`. The table of parts also says on every line which model made the labels
+(`model`: the model Voxa ran, "made by another program", or "not said" when the labels name no
+model) and how the model's own check of its work went (`model_check`: `passed`, `failed`, or
+`not given`).
+
+**Measurements and Voxa 0.6.0.** A measurement made in a picture's own pixel spacing (a scan with
+a pixel spacing but no position) is kept in a newer form of `annotations.json` (version 2) that
+0.6.0 does not read: 0.6.0 shows no measurements for it and, the first time it saves one, sets
+the file aside as `annotations.json.unread`, which no version reads back. A file holding only
+measurements in the patient's millimetres is written as 0.6.0 wrote it (version 1).
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and the **DICOM tags** window (**Show the file's tags**, in the menu of a scan's card in the rail, or found by the
-search box) hides, and
-cannot find by searching, the values of these tags, and only these:
+left out of the rail of scans, the viewports, the titles of documents and reports, and Voxa's
+notices. In a report's text they are shown as `[hidden]`, and a report item that holds a name
+shows as "Name hidden". The **DICOM tags** window (**Show the file's tags**, in the menu of a
+scan's card in the rail, or found by the search box) hides, and cannot find by searching, the
+values of these tags, and only these:
 
 - every tag in the patient group, 0010;
 - every private tag, which is any in a group of odd number, since what a maker keeps there is
@@ -158,14 +178,19 @@ cannot find by searching, the values of these tags, and only these:
   scheduled and performed procedure step IDs.
 
 The window says how many values it has hidden. A sequence, a tag that holds other tags, is shown
-only as the number of items in it. **Patient details** in the View tab shows the hidden values
-until you switch it off or close Voxa.
+only as the number of items in it. **Show patient details** in the View tab shows the hidden
+values until you switch it off or close Voxa.
+
+**A name written some other way inside a report's own text** (with an initial, a title, another
+spelling, or a surname alone) cannot be found reliably and may show; an identifier under four
+letters or digits is not looked for, so that it cannot change a number. When Voxa has replaced
+something in a report it says so under the report's heading.
 
 **Every other value stays shown**, and some of them can still identify a scan or lead to the
 person in it: dates and times, unique identifiers (UIDs), the study ID, and free-text comments
-and descriptions among them. The study's date and description are in each viewport's corner
-either way. Take care with a screenshot of the **DICOM tags** window, or of a viewport, even with
-**Patient details** off.
+and descriptions among them. The study's date and description are in the top bar and in each
+viewport's corner either way. Take care with a screenshot of the **DICOM tags** window, a report or a viewport,
+even with **Show patient details** off.
 
 ONNX Runtime, which runs the labelling networks, reports usage (not images) in Microsoft's
 Windows builds unless told not to. Voxa tells it not to before it asks anything else of it.
@@ -177,12 +202,12 @@ Report a fault, or ask for something Voxa does not do, in the repository's
 
 **Never attach a scan, a scan export, a label file made from a scan, or a screenshot that shows
 patient details, and never paste tag values.** Anyone can read an issue. Describe what you saw
-in words. Even with **Patient details** off, each viewport's corner shows the study's date and
-description.
+in words. Even with **Show patient details** off, the top bar and each viewport's corner show the
+study's date and description, and a report may hold a name written some way Voxa cannot find.
 
 Please include:
 
-- **Voxa's version**, which the **About** window shows.
+- **Voxa's version**, which the **About** window (in the **⋯** menu) shows.
 - **Windows' version**: press Windows+R, type `winver` and press Enter.
 - **The graphics device.** The log names the one Voxa draws with; Device Manager lists it under
   Display adapters.
@@ -197,10 +222,10 @@ A security vulnerability is reported privately, never in an issue: see
 
 ![Voxa as it opens the made-up study: the rail of scans at the left, one slice of the scan it chose in the middle, and the View tab at the right](docs/images/voxa-phantom.png)
 
-How Voxa opens an export: on the slices of the scan it takes to be the most useful, here the
-finer of the two stacks of the ball, with the **View** tab at the right holding brightness,
+How Voxa opens an export: on the slices of the scan with the most detail (of the stacks of ten
+or more slices, the one with the most voxels), here the finer of the two stacks of the ball, with the **View** tab at the right holding brightness,
 orientation, playing through the slices, and mirroring, turning and fitting the picture. The
-other scans are in the rail at the left, and the search box at the top finds a button by its
+other scans are in the rail at the left, and the search box at the top finds an action by its
 name.
 
 ![Voxa showing the made-up study's slice beside its 3D view, cut open with the slice drawn in it, and the 3D tab at the right](docs/images/voxa-phantom-3d.png)
@@ -225,8 +250,9 @@ An export holds more than plain stacks of slices, and the rail says what each is
 made-up study also holds a series of two volumes of the ball, taken at two echo times, listed
 once and shown on its second volume, as the strip above the pictures and the **View** tab say.
 Under **Other files**, which a click opens, are three locating images in three planes and a
-picture in colour; while patient details are off the card of a picture shows a page and not a
-thumbnail.
+picture in colour. The card of the picture in colour, which a program saved and which could
+carry words written on it, shows a page in place of its thumbnail while patient details are
+off; the locating images keep theirs.
 
 ## Labelling a brain scan
 
@@ -372,8 +398,8 @@ The first command writes a small made-up study (a ball, brighter towards the pat
 a bead near the front, with a series of two volumes of it at two echo times, three locating
 images and a picture in colour) to the folder `phantom`; the second opens it. The third opens it
 with the made-up labels the first command wrote beside it: the ball's shell in two halves, its
-core and the bead. Voxa then says it skipped two files, which are the labels and their table:
-they are not part of the scan. Setting the environment variable `VOXA_CAPTURE` to a `.png` path
+core and the bead. Voxa then says that two files are not scans or documents it lists, which are the labels and
+their table: they are not part of the scan. Setting the environment variable `VOXA_CAPTURE` to a `.png` path
 makes Voxa save one picture of its own window and close, which is how the pictures in the
 documentation are made. `VOXA_CAPTURE_SIZE` sets the window's size in points, such as
 `900x600`, and `VOXA_CAPTURE_ZOOM` the size the interface is drawn at, 1 being its usual size,
@@ -382,9 +408,12 @@ so that one display can show what another would: on a display of 1440 by 900 poi
 at 100% would, and `0.375` with `3840x2090` as a 4K one would. `VOXA_CAPTURE_SERIES` names the
 series to show by words from its description. `VOXA_CAPTURE_SHOW` names what else to have in
 the picture, separated by commas: `stepped` shows the next volume of a series that holds
-several, `keys` the list of keys, `nolist` hides the list of series, `light` draws the window
-in the light theme, in place of the dark one every picture is otherwise made in, and `fitted`
-fits the window to the screen as Voxa does when it starts, in place of the size asked for. A
+several, `keys` the list of keys, `nolist` folds the rail of scans, `other` opens the other files
+in it, `light` draws the window in the light theme, in place of the dark one every picture is
+otherwise made in, and `fitted` fits the window to the screen as Voxa does when it starts, in
+place of the size asked for. Others name a tab (`tab-view` and its kin), an arrangement of the
+pictures (`planes`, `3d`, `slices3d`), a window or list open over them (`search`, `notices`) and
+a pose of the 3D scene; the whole list is in `crates/voxa-app/src/ui/capture.rs`. A
 picture's window is otherwise the size asked for, or 1440 by 900 points.
 
 The ball has no brain in it, so there is nothing for the labelling model to find. For something

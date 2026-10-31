@@ -25,53 +25,89 @@ device and is not for diagnostic use.
   and the 3D view) or **3D** alone. The arrangement is not kept between runs. The strip says
   which slice is shown while slices are in sight, and in a narrow middle folds its buttons
   into one menu so that every arrangement can still be chosen.
-- **Search finds anything.** Ctrl+K, `/` or a click on the box opens it; it finds every button
-  by its name and by other words for it, and also the parts of open labels, the scans of the
-  export and the help topics. A button that cannot be used now is listed with the reason.
-  Nothing typed into it is kept.
+- **Search.** Ctrl+K, `/` or a click on the box opens it; it finds the actions by their names
+  and by other words for them, and also the parts of open labels, the scans of the export and
+  the help topics. Every button and every key is one of the actions, but for the rows that
+  belong to one item (a measurement's Remove, a saved view's Delete), the answers to a question
+  and the turntable window's Cancel. A result says where its action lives ("In the View
+  tab"); one that cannot be used now is listed with the reason; one that throws work away asks
+  first, as its button does. A word an action is searched by, spelt out, ranks with a word of
+  its name, so that "size" offers the measuring tools before the size of the interface.
+  A slash opens it with Shift held too, as a keyboard where a slash needs Shift has it. Nothing
+  typed into it is kept.
 - **The rail of scans** lists the scans first, each with a plain name made only from what the
   files say and the scanner's own description beneath it; locating images, scanned pages,
   reports and other files are under **Other files**, closed until opened. An export with the
   studies of more than one person says so and groups them by person. A scan Voxa can only show
   as a plain stack, or cannot read, has a small mark on its card; its sentence is in the
   card's hover text and is posted as a notice when it is opened. Only the cards in sight are
-  drawn, so a study of 500 series is no slower to draw than a small one. A **«** at the top of
-  the rail folds it to a strip; **B** does too.
+  drawn, so the window's bars, rail and panel take about a sixth of the time 0.6.0's bars and list
+  of series did for a made-up study of 500 series, on one computer (the usability file has the
+  numbers). A **«** at the top of the rail folds it to a strip, which says "Scans"; **B** folds
+  it too. A card says how far apart the slices are only when the files gave the distance. A
+  scan's body part is written out where the files give a code ("Cervico-thoracic spine"), and
+  T2* counts as T2.
 - **Patient details** start hidden in every run. The patient's name and identifier are left
-  out of the rail, the viewports, the tag browser and the titles of documents; a scanned page
-  or a radiotherapy image shows an icon in place of its thumbnail; and a report's text is
-  shown with the name replaced where it is written as the file writes it. A name written some
-  other way in a report's free text may still show.
+  out of the rail, the viewports, the tag browser, the titles of documents and reports, and the
+  notices (a skipped file is named by its last part only); a scanned page, a screenshot,
+  another picture saved by a program, or a radiotherapy image or dose shows an icon in place of
+  its thumbnail; and a report's text is shown with the name and identifier replaced by
+  [hidden] where the file writes them, an item that holds a name as "Name hidden", and a line
+  under the heading that says when anything was replaced. An export of documents alone hides
+  the name its own files give. A name written some other way in a report's free text may still
+  show, and an identifier shorter than four letters or digits is not looked for, so that it
+  cannot change a number in a report.
 - **The tabs.** **View** has the brightness and contrast, the way round the patient is drawn,
   the slices and playback. A CT scan offers the windows brain, soft tissue, lung and bone, and
-  the value under the pointer is in Hounsfield units when the file says so; an MR scan keeps
-  Auto, Soft and Hard. **Measure** has the rulers, angles, regions and markers and what has been
-  measured. **3D** has the looks, the sides, the cuts, the saved views and saving a picture or
+  the value under the pointer is in Hounsfield units (HU) unless the file says its values are in
+  another unit; an MR scan keeps Auto, Soft and Hard. The window and level are written with the
+  figures that matter, as the corner of the picture writes them. The slices start again after
+  the last one when the **Start again after the last slice** switch is on (it was a **Loop**
+  box). With no scan shown, or a report open, the controls of the pictures and of 3D are greyed
+  with their reason and the tab says so in a line in place of the window and level fields.
+  The value read under the pointer on a plane is the nearest voxel's, never a blend. **Measure** (which **M** shows) has the rulers, angles, regions and markers and what
+  has been measured, and says how to draw once a tool is in hand, and that Esc puts it down. **3D** has the looks, the sides, the cuts, the saved views and saving a picture or
   a turntable, and says so when the arrangement shows no 3D view. **Labels** says who made the
   labels and the model's own check first, then an overview by group, then the parts; in a short
   window the part that stays in place scrolls too, so the list keeps room. **Tools** has
   **Label this scan**, and a place for tools added later.
 - **Notices** are in one place at the bottom right: the newest one, how many there are, and a
-  list of all of them, each with **Dismiss**. Nothing is shown in red.
+  list of all of them, each with **Dismiss**. Nothing is shown in red. A skipped file is
+  counted in words ("2 files are not scans or documents Voxa lists") and no longer reads
+  "2 files skipped".
 - **Light and dark themes**, and the system's choice, from the top bar. The pictures stay on
   black in both. Every pair of text and background meets the WCAG AA contrast.
-- **A small window.** The window works down to 640 by 480 at the display's scale. Below 760
-  points across both side columns fold, no more than one is open at a time, and the pictures
-  keep at least 200 points; the top bar keeps **Open**, the search box and the menu. The tab
-  panel has a **»** that folds it; so has the rail. A fold the window made itself is not kept
-  as yours.
+- **A small window.** The window works down to 640 by 480 at the display's scale. The rail starts
+  folded in a window under 960 points across; under 760 both side columns fold, no more than
+  one is open at a time, and the pictures keep at least 200 points; the top bar keeps **Open**,
+  the search box and the menu. The tab panel has a **»** that folds it, as **P** does; the
+  rail has a **«**, as **B** does. A fold the window made itself is not kept as yours. At 640
+  by 480 with the interface at twice its size, the icons of the folded panel are made smaller
+  to fit.
 - Voxa remembers, as before, the window's size, the size of the interface, how wide the rail
-  and the panel are, how many viewports, the **Radiological** and **Link** switches and how
-  labels are drawn; and now also which tab is open, whether you folded the rail or the panel,
+  and the panel are, how many viewports, the **Patient's left on the right** and **Link the
+  views** switches and how labels are drawn; and now also which tab is open, whether you folded the rail or the panel,
   and the theme. A settings file written by 0.6.0 opens with its settings: the width of
   the column of pictures becomes the panel's.
 - **Every control, scan card and viewport has a name a screen reader can say**, and the hand-
   drawn ones say what they show ("Axial slice 88 of 176"). Tab goes through the bar, the rail,
-  the pictures and the panel in that order, and the arrow keys move between cards.
+  the pictures, the panel and the notices in that order, and the arrow keys move between cards.
+  After Tab the letter keys of the window still work; with the keyboard on a picture, a ring
+  shows it and the arrow keys step through its slices; Space and Enter stay a focused button's.
+  A letter pressed while a menu is open belongs to the menu, not to the picture behind it, and
+  the Esc that closes a menu does not also close a window. Esc puts the tool down or closes the
+  window opened last; it no longer gives the 3D view the large part, as 0.6.0 did.
+- **Voxa asks before it throws work away.** Closing the labels (which parts were hidden, faded
+  or chosen is forgotten, and labels Voxa made and has not kept are lost), deleting the
+  labels kept for a scan, and deleting a saved view each ask first, with the safe answer in
+  hand, from the button and from the search alike. **Clear all** in the Measure tab can be
+  undone after another scan has been looked at and this one is shown again.
 - The turntable's progress window opens over the pictures, like the other windows that float,
   and Esc stops it. A long title on a document no longer pushes its buttons out of the window.
-- Voxa is for looking at MRI and CT scans, and other DICOM files at a basic level.
-  `docs/intended-use.md` and the About window say so.
+- **The model's own check** of labels Voxa made is said in plain words, with no scores on the
+  screen (they are in the hover text), and first when it fails.
+- Voxa is for looking at MRI and CT scans, and other DICOM files at a basic level, which the
+  owner approved with the design. `docs/intended-use.md` and the About window say so.
 
 ### Added
 
@@ -79,17 +115,28 @@ device and is not for diagnostic use.
   as well as on the planes and in 3D, from the moment a slice is shown, without waiting for the
   3D volume. A scan with a pixel spacing but no position is measured within the picture and its
   measurements say they come from the file's pixel spacing; a scan with no pixel spacing is not
-  measured in millimetres, and the tools say why. Measurement labels never overlap one another.
+  measured in millimetres, and the tools say why. Measurement labels move apart, with a line to
+  what they belong to, so that they do not cover one another or the corner text; in the
+  smallest window at twice the size two can still touch. A table of measurements saved as CSV
+  ends with a column, `scale` (`patient`, or `pixel spacing` where the millimetres come from the
+  picture's own pixel spacing alone), and measurements saved as JSON say the same in `scale`.
+  The file Voxa keeps them in, `annotations.json`, is written as 0.6.0 wrote it unless a
+  measurement is in a picture's own pixel spacing, and then in a newer form (version 2) that
+  0.6.0 does not read: it shows no measurements and, at its first save, sets the file aside as
+  `annotations.json.unread`.
 - **Reports and other documents.** A DICOM structured report is listed in **Other files** and
   opens as text in the middle of the window, headed "Shown as text. The original report is
-  the reference." A PDF stored in DICOM is listed and can be saved as a PDF where you choose;
-  Voxa starts no other program. Other files Voxa cannot show are listed with their kind in
+  the reference." Its dates are written in words ("2 January 2020"), its line breaks are kept,
+  and each report scrolls on its own. A PDF stored in DICOM is listed and can be saved as a
+  PDF where you choose (**Save a copy as PDF…**, an action search finds); Voxa starts no other
+  program. Other files Voxa cannot show are listed with their kind in
   words and their tags.
 - **Help topics**, a few plain sentences each, found by search: opening an export, finding
   your scan, brightness, measuring and where its millimetres come from, left and right,
   labels, and what Voxa is not for.
 - `VOXA_CAPTURE_SHOW` gains `tab-view`, `tab-measure`, `tab-3d`, `tab-labels` and `tab-tools`,
-  `search` and `notices`. `cargo run --release -p voxa-app --example measure_window` times the
+  `search`, `notices`, `light`, `other`, `3d` and `slices3d`; `planes` and `quad` both choose
+  the Planes arrangement. `cargo run --release -p voxa-app --example measure_window` times the
   window's bars, rail and panel for a made-up study of 500 series.
 - `docs/quality/` starts three documents kept from now on: the requirements, each traced to the
   test or check that shows it is met; a risk register; and a usability file.
@@ -543,7 +590,8 @@ and is not for diagnostic use.
 - No FreeSurfer, NRRD or DICOM SEG files, no meshes, no correcting labels by hand, and no
   comparing the labels of two studies.
 - Opening the made-up study's folder reports two files skipped: its labels and their table,
-  which are not part of the scan.
+  which are not part of the scan. (From the redesign on, the notice reads "2 files are not scans
+  or documents Voxa lists".)
 
 ## [0.3.0] - 2026-10-10
 

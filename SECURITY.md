@@ -28,7 +28,7 @@ The faults that matter are those where something Voxa is handed makes it do what
   issue with a made-up file is welcome, and if you are not sure, report it here.
 - **The runtime library.** To label a scan, Voxa loads ONNX Runtime (`onnxruntime.dll`, which
   in turn loads `onnxruntime_providers_shared.dll` and `DirectML.dll`) from a folder called
-  `runtime` beside `voxa.exe`, or from the folder named under **Options** in the Parts tab. A
+  `runtime` beside `voxa.exe`, or from the folder named under **Options** in the Tools tab. A
   way to make Voxa load a library from anywhere else, or one the person did not put there,
   counts. Voxa runs whatever library is in a folder the person names, with the person's own
   rights: that is how it is meant to work, so name only a folder that holds Microsoft's files.

@@ -207,8 +207,8 @@ saved views and kept results are written by workers and do not depend on the car
 
 An export holds more than volumes: locating images, single images, pictures in colour, stacks
 that are not regular. `SeriesInfo::kind` names what a series is, from what the index found,
-and the series list says it in words; only a stack that cannot be shown in 3D and images that
-cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
+and the rail of scans says it in words, and marks a plain stack or a series that cannot
+be read; only a stack that cannot be shown in 3D and images that cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
 family of sequence, times, flip angle, field strength) is kept in `ScanFacts`, read from the
 first image; images in several planes are given no plane.
 
@@ -229,8 +229,8 @@ In two folders the system gives Voxa. The settings folder (`config_dir`, on Wind
 roaming profile, which a managed network may copy to its servers) holds only
 `preferences.json` (the window's size, the interface's size, the shares of the window's width
 the series list and the tab panel take, whether the person folded either, the tab open, the
-theme, the layout, orientation, linking and how labels are drawn). The local folder (`data_local_dir`, which stays on the machine) holds the rest: the
-saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
+theme, the layout, orientation, linking and how labels are drawn). The local folder
+(`data_local_dir`, which stays on the machine) holds the rest: the saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
 model, the cortex areas, where a run goes by the card's name, whether results are kept, and
 the two folders of the model and the runtime, which are its only paths), a `labels` folder
 holding the result of labelling kept for each series, as a label file and a table named by a
@@ -301,11 +301,13 @@ Every action a person can take is described once, in `ui/commands.rs` and its `c
 The buttons, the keys, the help's list of keys, the search, the hints and every control's
 screen-reader name all read this one list, so a name, a key or a hint is written once. A button
 that cannot be used is drawn greyed with its reason; in the search it is listed with the reason,
-and running it posts the reason. A plugin system later adds its tools to the same list at run
+and running it posts the reason. A plugin system is to add its tools to the same list at run
 time. Tests over the list (`commands/table_tests.rs`, `search/tests.rs`, `access_tests.rs`)
 check that every action is found by its name and by each of its words, that no two share a key
-in the same place, that every key does what the list says, and that every button drawn is
-an entry.
+in the same place, that every key does what the list says, and that every button the walk meets is
+an entry or on the walk's stated lists (a row that belongs to one item, and the answers to a
+question; requirements UI-03 and UI-04). The progress window of a turntable is outside the walk,
+and its Cancel is by hand.
 
 ### Taking a picture, and timing the window
 
