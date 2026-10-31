@@ -226,4 +226,49 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
     }
+
+    #[test]
+    fn the_edge_letters_and_the_scale_bar_are_the_same_colours_in_both_themes() {
+        use crate::ui::seen;
+        use crate::ui::theme::ThemeChoice;
+        // The pictures are black in both themes, so what is written over them must not follow
+        // the theme: the letters that tell left from right, and the bar that tells how long.
+        let labels = EdgeLabels {
+            left: "R".to_owned(),
+            right: "L".to_owned(),
+            top: "A".to_owned(),
+            bottom: "P".to_owned(),
+        };
+        let drawn_in = |choice: ThemeChoice| {
+            let ctx = seen::context_in(1.0, choice);
+            let ((), drawn) = seen::pass(&ctx, [400.0, 300.0], Vec::new(), |ui| {
+                let area = Rect::from_min_size(pos2(0.0, 0.0), vec2(400.0, 300.0));
+                let pen = Pen::over(ui, area);
+                letters(&pen, area, &labels);
+                bar(&pen, area, 80.0, "20 mm");
+                bar_in_corner(&pen, area, 80.0, "20 mm");
+            });
+            drawn
+        };
+        let (dark, light) = (drawn_in(ThemeChoice::Dark), drawn_in(ThemeChoice::Light));
+        for letter in ["R", "L", "A", "P", "20 mm"] {
+            let ink = |seen: &seen::Seen| -> Vec<Color32> {
+                let words = seen.inks.iter();
+                words
+                    .filter(|(text, _)| text == letter)
+                    .map(|(_, c)| *c)
+                    .collect()
+            };
+            assert!(!ink(&dark).is_empty(), "{letter} was not drawn");
+            assert_eq!(ink(&dark), ink(&light), "{letter} follows the theme");
+            assert!(
+                ink(&light).contains(&INK),
+                "{letter} is not in the pictures' ink"
+            );
+        }
+        assert_eq!(
+            dark.colours, light.colours,
+            "something else follows the theme"
+        );
+    }
 }
