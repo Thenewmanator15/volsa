@@ -99,8 +99,9 @@ The plane views and measuring hang on one point, the position:
    never from the screen: a region on a slice from that slice, read in place once
    (`Session::read_slice`). A slice or a plane view shows the ones that lie in its layer; the
    3D scene shows them all, in front of the picture.
-5. The list is written to `annotations.json` in Voxa's local folder (version 2; version 1,
-   from 0.6.0, still opens), filed under a hash of the series, and can be saved as a table or
+5. The list is written to `annotations.json` in Voxa's local folder (version 2 when a
+   measurement is in a picture's own millimetres, otherwise version 1, as 0.6.0 wrote it;
+   either opens), filed under a hash of the series, and can be saved as a table or
    as JSON, each saying whose millimetres a measurement is in. None of these holds anything
    that says whose scan it was.
 
