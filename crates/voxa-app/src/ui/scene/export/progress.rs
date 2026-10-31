@@ -1,6 +1,12 @@
 //! The window that shows how far a turntable has got, with a way to stop it. It floats over the
 //! pictures like the other windows that float (see [`crate::ui::floating`]), and Esc stops the
 //! turntable, as the Cancel button does.
+//!
+//! The Cancel button is drawn by hand and is not an entry of the list of actions
+//! (`crate::ui::commands`), on purpose: an entry says when it cannot be used from the
+//! state of the scan, and the turntable being made is held by the window alone, so an entry for
+//! Cancel could not say that it does nothing while no turntable is being made, and search would
+//! offer it then. The window exists only while a turntable is being made, and Esc does the same.
 
 use egui::{Context, Id};
 

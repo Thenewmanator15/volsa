@@ -246,7 +246,10 @@ fn a_pdf_offers_a_copy_and_starts_no_program() {
     let ctx = seen::context(1.0);
     let drawn = pass(&ctx, &state, Vec::new());
     assert_eq!(IS_A_PDF, "This report is a PDF. Voxa does not show PDFs.");
-    assert_eq!(SAVE_PDF, "Save a copy as PDF…");
+    // The button's words are fixed by the design, and it is an action of the list.
+    let save_pdf = commands::find("document.save_pdf").expect("listed");
+    assert_eq!(save_pdf.label, "Save a copy as PDF…");
+    let save_name = save_pdf.name;
     let words = words_of(&drawn.seen);
     assert!(words.contains(&IS_A_PDF), "{words:?}");
     let said = format!("{PDF_TITLE} · 2 January 2020");
@@ -254,7 +257,7 @@ fn a_pdf_offers_a_copy_and_starts_no_program() {
     assert!(!words.contains(&HEADING), "a PDF is not shown as text");
     // The button asks the window for a place to save, and for nothing else: no state changes
     // and no program starts.
-    let clicked = click(&ctx, &state, SAVE_PDF);
+    let clicked = click(&ctx, &state, save_name);
     assert_eq!(clicked.asked, [Request::SaveDocumentPdf(PDF.to_owned())]);
     assert_eq!(clicked.actions, []);
     // Once a place is chosen the one piece of work is writing the copy there.
@@ -306,7 +309,7 @@ fn another_kind_of_file_is_named_and_said_to_be_one_voxa_cannot_show() {
     let words = words_of(&drawn.seen);
     assert!(words.contains(&"Key-image note"), "{words:?}");
     assert!(words.contains(&CANNOT_SHOW));
-    let no_pdf = drawn.seen.place_of(SAVE_PDF).is_none();
+    let no_pdf = drawn.seen.place_of("Save a copy as PDF…").is_none();
     assert!(no_pdf, "there is no PDF to save");
 }
 
@@ -323,5 +326,25 @@ fn each_kind_offers_the_tags_of_its_file_and_a_way_to_close() {
         let closed = click(&ctx, &state, closing());
         assert_eq!(closed.actions, [Action::CloseDocument], "{entry}");
         assert_eq!(closed.asked, []);
+    }
+}
+
+#[test]
+fn saving_a_copy_of_a_pdf_is_an_action_of_the_list_that_asks_for_the_document_open() {
+    let save = commands::find("document.save_pdf").expect("listed");
+    let ask = |state: &AppState| save.does.clone().run(state, &mut Vec::new());
+    // With a PDF open it can be used, from the search as from its button, and asks for that one.
+    let pdf = opened(PDF, None);
+    assert!((save.why_not)(&pdf).is_none());
+    assert_eq!(ask(&pdf), Some(Request::SaveDocumentPdf(PDF.to_owned())));
+    // With nothing open, or a report or another file, it says why it cannot.
+    assert_eq!(
+        (save.why_not)(&AppState::default()).as_deref(),
+        Some("No document is open.")
+    );
+    for entry in [REPORT, NOTE] {
+        let other = opened(entry, None);
+        let why = (save.why_not)(&other);
+        assert_eq!(why.as_deref(), Some("Only a PDF can be saved as a copy."));
     }
 }

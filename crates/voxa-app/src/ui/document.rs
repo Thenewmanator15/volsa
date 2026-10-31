@@ -38,8 +38,6 @@ pub const LEFT_OUT: &str = "While patient details are hidden, the patient's name
 pub const CUT_SHORT: &str = "Part of this report is too long or too deeply nested to show here.";
 /// What a PDF stored in DICOM is said to be.
 pub const IS_A_PDF: &str = "This report is a PDF. Voxa does not show PDFs.";
-/// The button that saves a copy of a PDF.
-pub const SAVE_PDF: &str = "Save a copy as PDF…";
 /// What is said of a file that is listed and that Voxa cannot show.
 pub const CANNOT_SHOW: &str = "Voxa cannot show this kind of file.";
 /// What is said while a report is being read.
@@ -91,7 +89,7 @@ pub fn show(
             ui.separator();
             match &document.kind {
                 DocumentKind::Report => report(ui, open, (document, state), kept),
-                DocumentKind::Pdf => pdf(ui, &open.entry, &mut asked),
+                DocumentKind::Pdf => asked.extend(pdf(ui, state, actions)),
                 DocumentKind::Other(_) => {
                     ui.label(CANNOT_SHOW);
                 }
@@ -174,12 +172,12 @@ fn report(ui: &mut Ui, open: &OpenDocument, of: (&IndexedDocument, &AppState), k
     }
 }
 
-/// A PDF: it is said to be one, and a copy of it can be saved.
-fn pdf(ui: &mut Ui, entry: &str, asked: &mut Vec<Request>) {
+/// A PDF: it is said to be one, and a copy of it can be saved, which asks the window for a
+/// place to save it.
+fn pdf(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
     ui.label(IS_A_PDF);
-    if ui.button(SAVE_PDF).clicked() {
-        asked.push(Request::SaveDocumentPdf(entry.to_owned()));
-    }
+    let save = commands::button(ui, "document.save_pdf", state, None);
+    save.and_then(|does| does.run(state, actions))
 }
 
 #[cfg(test)]

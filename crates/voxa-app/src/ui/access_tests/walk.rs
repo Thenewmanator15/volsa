@@ -17,7 +17,7 @@ use crate::ui::commands::{self, Confirm, menus};
 use crate::ui::panel::Tab;
 use crate::ui::parts::{self, labelling, title};
 use crate::ui::tabs::made_up::{able, labelled_by};
-use crate::ui::{document, top};
+use crate::ui::top;
 
 /// What is done to the window before it is read: a floating window opened, a question asked, or
 /// menus opened by clicking their buttons, one after another.
@@ -243,7 +243,7 @@ pub fn known_names(state: &AppState) -> HashSet<String> {
 
 /// The buttons that are rows: each belongs to one item of a list, and is named by it.
 fn rows_of(state: &AppState) -> Vec<String> {
-    let mut rows = vec![document::SAVE_PDF.to_owned(), "Show only this".to_owned()];
+    let mut rows = vec!["Show only this".to_owned()];
     // A saved view, and its Delete.
     for view in &state.views {
         rows.push(view.name.clone());

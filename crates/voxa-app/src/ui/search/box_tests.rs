@@ -257,7 +257,7 @@ fn an_action_that_can_be_used_says_where_it_lives_beneath_its_name() {
     );
     // An action that has only its key says nothing of where it lives.
     let mut search = opened(&ctx, &state);
-    pass(&ctx, &mut search, &state, vec![typed("slice after")]);
+    pass(&ctx, &mut search, &state, vec![typed("slice before")]);
     let drawn = pass(&ctx, &mut search, &state, Vec::new());
     assert!(
         !drawn.words.iter().any(|word| word.contains("In the ")),

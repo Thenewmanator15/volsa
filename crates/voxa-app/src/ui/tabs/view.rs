@@ -219,24 +219,20 @@ fn picture(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut
 fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     let viewport = state.active;
     let cine = state.viewports.get(viewport).and_then(|shown| shown.cine);
-    let cine = cine.unwrap_or(Cine::new(Cine::DEFAULT_FPS, true, false));
+    let cine = cine.unwrap_or_else(Cine::at_rest);
     row(ui, |ui| {
         let label = if cine.playing { "Pause" } else { "Play" };
         if let Some(does) = commands::button_labelled(ui, "slice.play", label, state, None) {
             asked.extend(does.run(state, actions));
         }
-        let (mut fps, mut looping) = (cine.fps, cine.looping);
+        let mut fps = cine.fps;
         let speed = egui::DragValue::new(&mut fps)
             .speed(0.5)
             .range(Cine::MIN_FPS..=Cine::MAX_FPS)
             .suffix(" /s");
         let speed_changed = field(ui, speed, "Playback speed", "Slices shown each second");
-        let loop_hint = "Start again from the first slice after the last";
-        let loop_changed = ui
-            .checkbox(&mut looping, "Loop")
-            .on_hover_text(loop_hint)
-            .changed();
-        if speed_changed || loop_changed {
+        if speed_changed {
+            let looping = cine.looping;
             actions.push(Action::CineSet {
                 viewport,
                 fps,
@@ -244,9 +240,12 @@ fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut 
             });
         }
     });
+    switch(ui, "slice.loop", state, cine.looping, actions, asked);
     // Nothing is drawn, not even a row, for a scan of one volume.
     asked.extend(volumes::stepper(ui, state, actions));
 }
 
+#[cfg(test)]
+mod looping_tests;
 #[cfg(test)]
 mod tests;

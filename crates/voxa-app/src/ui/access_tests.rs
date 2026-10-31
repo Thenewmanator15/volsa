@@ -21,7 +21,7 @@ use crate::labels::NamesFrom;
 use crate::pictures::Pictures;
 use crate::reducer::reduce;
 use crate::state::{AppState, Layout, OpenDocument};
-use crate::testing::documents::{REPORT, scans_and_documents};
+use crate::testing::documents::{PDF, REPORT, scans_and_documents};
 use crate::testing::thick_scan_ready;
 use crate::views::ViewsAction;
 
@@ -78,7 +78,19 @@ fn with_a_report() -> AppState {
     state
 }
 
-/// The window in each of its arrangements and with a report open, with a name for each.
+/// A PDF open in the middle of the window: it is not shown, and a copy of it can be saved.
+fn with_a_pdf() -> AppState {
+    let mut state = thick_scan_ready();
+    let _ = reduce(&mut state, Action::IndexProgress(scans_and_documents()));
+    let entry = PDF.to_owned();
+    state.document = Some(OpenDocument {
+        entry,
+        report: None,
+    });
+    state
+}
+
+/// The window in each of its arrangements and with a report or a PDF open, with a name for each.
 fn every_window() -> Vec<(&'static str, AppState)> {
     vec![
         ("four slices", measured_in_four()),
@@ -89,6 +101,7 @@ fn every_window() -> Vec<(&'static str, AppState)> {
         ("planes", arranged(measured_in_four(), Pictures::Planes)),
         ("3D alone", arranged(measured_in_four(), Pictures::Scene)),
         ("a report", with_a_report()),
+        ("a PDF", with_a_pdf()),
     ]
 }
 

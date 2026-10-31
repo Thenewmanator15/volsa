@@ -8,7 +8,7 @@ use super::super::{Command, Does, Place, Tab, Why};
 use super::{PLAIN, alone, covered_by_a_document, no_picture};
 use crate::action::Action;
 use crate::annotations::Tool;
-use crate::state::{AppState, Layout};
+use crate::state::{AppState, Cine, Layout};
 
 /// How many slices Page Up and Page Down step.
 const PAGE: i32 = 10;
@@ -149,6 +149,29 @@ pub(super) const COMMANDS: &[Command] = &[
         does: Does::Act(|state| {
             let viewport = state.active;
             Some(Action::CineToggle { viewport })
+        }),
+        ..PLAIN
+    },
+    Command {
+        id: "slice.loop",
+        name: "Start again after the last slice",
+        label: "Loop",
+        explains: "While the slices play, go back to the first slice after the last",
+        words: &["loop", "repeat", "cine", "play", "again", "wrap"],
+        place: Place::Tab(Tab::View),
+        why_not: no_picture,
+        does: Does::Act(|state| {
+            let viewport = state.active;
+            let cine = state
+                .viewports
+                .get(viewport)
+                .and_then(|shown| shown.cine)
+                .unwrap_or_else(Cine::at_rest);
+            Some(Action::CineSet {
+                viewport,
+                fps: cine.fps,
+                looping: !cine.looping,
+            })
         }),
         ..PLAIN
     },

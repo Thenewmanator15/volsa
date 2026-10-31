@@ -63,6 +63,12 @@ impl Cine {
     /// The speed playback starts at.
     pub const DEFAULT_FPS: f32 = 10.0;
 
+    /// Playback as a viewport has it before it is set: at the usual speed, starting again after
+    /// the last slice, and not running.
+    pub fn at_rest() -> Self {
+        Self::new(Self::DEFAULT_FPS, true, false)
+    }
+
     /// Playback at `fps`, held between [`Cine::MIN_FPS`] and [`Cine::MAX_FPS`]; a speed that
     /// is not a number becomes [`Cine::DEFAULT_FPS`].
     pub fn new(fps: f32, looping: bool, playing: bool) -> Self {

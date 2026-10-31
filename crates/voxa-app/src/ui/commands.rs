@@ -122,7 +122,7 @@ impl Place {
             Self::Card => "In the menu of a scan's card",
             Self::Line => "In the line along the bottom",
             Self::About => "In the About window",
-            Self::Document => "Above the document",
+            Self::Document => "In the document",
             Self::Keys => return None,
         })
     }
@@ -150,6 +150,10 @@ impl Does {
             Self::Ask(Request::Tags(TagsOf::Shown)) if state.document.is_some() => {
                 let entry = state.document.as_ref().map(|open| open.entry.clone());
                 entry.map(|entry| Request::Tags(TagsOf::Entry(entry)))
+            }
+            Self::Ask(Request::SaveDocumentPdf(_)) => {
+                let entry = state.document.as_ref().map(|open| open.entry.clone());
+                entry.map(Request::SaveDocumentPdf)
             }
             Self::Ask(request) => Some(request),
         }

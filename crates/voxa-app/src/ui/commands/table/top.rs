@@ -29,6 +29,16 @@ fn no_other_files(state: &AppState) -> Option<Why> {
     (!other_series && index.documents.is_empty()).then_some(none)
 }
 
+/// Whether the document open is a PDF, which is the one kind of document a copy can be saved of.
+fn document_is_a_pdf(state: &AppState) -> bool {
+    let open = state.document.as_ref();
+    let held = state.index.as_ref().map(|index| &index.documents);
+    let found = open
+        .zip(held)
+        .and_then(|(open, all)| all.iter().find(|document| document.entry == open.entry));
+    found.is_some_and(|document| document.kind == voxa_dicom::DocumentKind::Pdf)
+}
+
 /// A size the interface can be drawn at, as the menu offers it.
 const fn size(id: &'static str, label: &'static str, name: &'static str, at: f32) -> Command {
     Command {
@@ -275,6 +285,24 @@ pub(super) const COMMANDS: &[Command] = &[
                 .then_some(Why::Borrowed("No document is open."))
         },
         does: Does::Act(|_| Some(Action::CloseDocument)),
+        ..PLAIN
+    },
+    Command {
+        id: "document.save_pdf",
+        name: "Save a copy as PDF…",
+        label: "Save a copy as PDF…",
+        explains: "Voxa does not show PDFs; this writes a copy of it where you choose",
+        words: &["pdf", "save", "copy", "export", "document", "report"],
+        place: Place::Document,
+        why_not: |state| {
+            if state.document.is_none() {
+                return Some(Why::Borrowed("No document is open."));
+            }
+            (!document_is_a_pdf(state))
+                .then_some(Why::Borrowed("Only a PDF can be saved as a copy."))
+        },
+        // The document it is the copy of is the one open: see [`Does::run`].
+        does: Does::Ask(Request::SaveDocumentPdf(String::new())),
         ..PLAIN
     },
     Command {
