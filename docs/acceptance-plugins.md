@@ -58,10 +58,12 @@ in it.
 
 | Where | Dice with the brain and the fluid around it | Dice with the brain alone | Share of the brain covered | Run | Helper's ordinary memory, measured |
 |---|---|---|---|---|---|
-| the processor | 0.978 | 0.848 | 0.998 | 140.5 s | 2 006 MiB |
-| RTX 5070 Ti | 0.978 | 0.848 | 0.998 | 2.5 s | 2 938 MiB |
+| the processor | 0.978 | 0.848 | 0.998 | 98 to 141 s over three runs | 2 006 MiB |
+| RTX 5070 Ti | 0.978 | 0.848 | 0.998 | 2.4 to 2.5 s over three runs | 2 933 to 2 938 MiB |
 
-Windows listed the RTX 5070 Ti twice on this computer; both runs gave the same mask. Run outside
+Windows lists the RTX 5070 Ti twice on this computer, under one identity. Adding a plugin
+measured it twice, and its entry then said it runs on that card twice; that was fixed (a card
+is measured once), and the test runs on each card once. Run outside
 Voxa, directly in ONNX Runtime from Python, the converted network gave the same figures (Dice
 0.848 with the brain alone, covering 0.998), so Voxa's preparation and its mapping back to the
 scan add nothing. With Brainchop's crop in place of Voxa's whole box, also outside Voxa, it gave
