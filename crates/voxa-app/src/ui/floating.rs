@@ -1,4 +1,4 @@
-//! Windows that float over the pictures: About, the list of keys and a file's tags.
+//! Windows that float over the pictures: About, the help and a file's tags.
 //!
 //! Nothing floats over the column of scans. Each of these windows opens inside the area of
 //! the pictures and is kept there when it is moved, never wider or taller than that area; and
@@ -43,7 +43,7 @@ pub fn over<'a>(window: Window<'a>, ctx: &Context) -> Window<'a> {
 pub struct Open<'a> {
     /// The About window.
     pub about: &'a mut bool,
-    /// The list of keys and what the mouse does.
+    /// The help: its topics, the keys and what the mouse does.
     pub help: &'a mut bool,
     /// The tags of a file.
     pub tags: &'a mut bool,

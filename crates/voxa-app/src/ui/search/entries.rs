@@ -10,6 +10,7 @@ use crate::labels::{LabelsStatus, name_of};
 use crate::naming::plain_name;
 use crate::state::AppState;
 use crate::ui::commands;
+use crate::ui::help::TOPICS;
 
 /// The groups the results are listed under, in the order they are listed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -62,12 +63,6 @@ pub struct Entry {
     pub target: Target,
 }
 
-/// A help topic search finds: its id, its title, and the other words it is found by.
-type Topic = (&'static str, &'static str, &'static [&'static str]);
-
-/// The help topics. Task 19 writes them, and lists them here from `help::TOPICS`.
-const HELP_TOPICS: &[Topic] = &[];
-
 /// Everything search can find in `state`: the actions in the order of the list of actions,
 /// then the parts of the labels that are open, the scans, and the help topics.
 pub fn entries_for(state: &AppState) -> Vec<Entry> {
@@ -93,11 +88,11 @@ pub fn entries_for(state: &AppState) -> Vec<Entry> {
         words: vec![series.info.description.clone()],
         target: Target::Scan(series.info.id.clone()),
     });
-    let help = HELP_TOPICS.iter().map(|(id, title, words)| Entry {
+    let help = TOPICS.iter().map(|topic| Entry {
         heading: Heading::Help,
-        name: (*title).to_owned(),
-        words: owned(words),
-        target: Target::Help(id),
+        name: topic.title.to_owned(),
+        words: owned(topic.words),
+        target: Target::Help(topic.id),
     });
     actions.chain(parts).chain(scans).chain(help).collect()
 }

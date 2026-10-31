@@ -1,9 +1,48 @@
-//! The list of keys, opened with `?`.
+//! The help, opened with `?`: short topics for people looking at their own scans, above the list
+//! of every key and what the mouse does.
 
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
 use super::{commands, floating, scrolled, theme};
+
+#[cfg(test)]
+mod open_tests;
+mod topics;
+#[cfg(test)]
+mod wording_tests;
+
+pub use topics::TOPICS;
+
+/// The heading over the topics.
+const TOPICS_HEADING: &str = "Topics";
+/// The heading over the keys and what the mouse does.
+const KEYS_HEADING: &str = "Keys and mouse";
+
+/// Where the topic the help is to open at is kept until the window has drawn it.
+const AT: &str = "voxa: the help topic to open at";
+
+/// Do what asking for the help does: with no topic it opens the help, or shuts it if it is
+/// open; with a topic it opens the help at that topic, whether it was open or not.
+pub fn ask(ctx: &egui::Context, open: &mut bool, topic: Option<&'static str>) {
+    match topic {
+        None => *open = !*open,
+        Some(topic) => {
+            *open = true;
+            ctx.data_mut(|data| data.insert_temp(egui::Id::new(AT), topic));
+        }
+    }
+}
+
+/// The topic the help is to open at, if one was asked for and is not yet drawn.
+fn asked_for(ctx: &egui::Context) -> Option<&'static str> {
+    ctx.data(|data| data.get_temp(egui::Id::new(AT)))
+}
+
+/// Forget the topic asked for: it is drawn, or the help was shut before it could be.
+fn forget_the_topic(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<&'static str>(egui::Id::new(AT)));
+}
 
 /// What the mouse does over a viewport, for the same window.
 pub const MOUSE: [(&str, &str); 15] = [
@@ -54,16 +93,24 @@ const BESIDE: f32 = 760.0;
 
 /// The interface's own name for the window, which it keeps its place under.
 pub(super) fn id() -> egui::Id {
-    egui::Id::new("voxa: keys and mouse")
+    egui::Id::new("voxa: help")
 }
 
-/// Show the reference while `open` is true; closing it sets `open` to false. In a window too
-/// small to hold it all, it scrolls, with its bar in sight; in a narrow one, what each key
-/// does follows it. Gives what egui said of its list, while it is shown.
+/// Show the help while `open` is true; closing it sets `open` to false. The topics come first,
+/// each closed until it is clicked, except the one asked for (see [`ask`]), which is opened and
+/// brought into sight; then the keys and the mouse. In a window too small to hold it all, it
+/// scrolls, with its bar in sight; in a narrow one, what each key does follows it. Gives what
+/// egui said of its list, while it is shown.
 pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
+    if !*open {
+        // A topic asked for as the help was shut is not for the next time it is opened.
+        forget_the_topic(ctx);
+    }
+    let at = asked_for(ctx);
     let room = floating::area(ctx).size();
     let wide = (room.x - AROUND).clamp(AROUND, WIDEST);
-    let window = egui::Window::new("Keys and mouse");
+    let window = egui::Window::new("Help");
+    let mut in_sight = false;
     let shown = floating::over(window, ctx)
         .id(id())
         .open(open)
@@ -75,6 +122,9 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
             scrolled::solid_bars(ui);
             let most = (room.y - 2.0 * AROUND).max(AROUND);
             scrolled::up_and_down(most).show(ui, |ui| {
+                in_sight = topics(ui, at);
+                ui.add_space(8.0);
+                ui.label(RichText::new(KEYS_HEADING).strong());
                 if wide >= BESIDE {
                     side_by_side(ui);
                 } else {
@@ -82,7 +132,35 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
                 }
             })
         });
+    if in_sight {
+        forget_the_topic(ctx);
+    }
     shown.and_then(|window| window.inner)
+}
+
+/// The topics, each a heading that opens to its words. The topic `at` is opened, and brought
+/// to the top of the list once the window has its size, which it learns in a pass of its own
+/// that is not seen. Gives whether that was done.
+fn topics(ui: &mut egui::Ui, at: Option<&str>) -> bool {
+    let mut brought = false;
+    ui.label(RichText::new(TOPICS_HEADING).strong());
+    for topic in &TOPICS {
+        let asked = at == Some(topic.id);
+        let header = egui::CollapsingHeader::new(topic.title)
+            .id_salt(("voxa: help topic", topic.id))
+            .open(asked.then_some(true))
+            .show(ui, |ui| {
+                ui.add(egui::Label::new(topic.body).wrap());
+            });
+        if asked && !ui.is_sizing_pass() {
+            let jump = egui::style::ScrollAnimation::none();
+            header
+                .header_response
+                .scroll_to_me_animation(Some(egui::Align::TOP), jump);
+            brought = true;
+        }
+    }
+    brought
 }
 
 /// Every key Voxa answers to, from the list of actions, with what it does: each action that

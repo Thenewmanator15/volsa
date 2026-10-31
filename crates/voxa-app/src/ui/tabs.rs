@@ -28,6 +28,33 @@ pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
 pub use tools::{LABEL_BUTTON, LABEL_TOOL};
 pub use view::{LINK_SAYS, SMOOTH_SAYS};
 
+/// Every sentence the tabs keep in a constant, and the label and hint of each look and side of
+/// the 3D scene, for the check that none suggests a finding.
+#[cfg(test)]
+pub(super) fn fixed_texts() -> Vec<&'static str> {
+    let own = [
+        PARTS_HINT,
+        PARTS_NEED_LABELS,
+        LINK_SAYS,
+        SMOOTH_SAYS,
+        NOTHING_MEASURED,
+        LABEL_TOOL,
+        LABEL_BUTTON,
+    ];
+    let looks = LOOKS.iter().flat_map(|(_, label, hint)| [*label, *hint]);
+    let sides = VIEWS.iter().flat_map(|(_, label, hint)| [*label, *hint]);
+    let kept = [
+        labels::TEXTS.as_slice(),
+        tools::TEXTS.as_slice(),
+        view::TEXTS.as_slice(),
+    ];
+    own.into_iter()
+        .chain(looks)
+        .chain(sides)
+        .chain(kept.concat())
+        .collect()
+}
+
 /// What the tabs keep between frames.
 #[derive(Debug, Default)]
 pub struct Kept {

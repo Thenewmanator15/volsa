@@ -40,6 +40,10 @@ const WINDOW_IDS: [&str; 7] = [
 /// What is said in place of the brightness settings for a picture stored in colour.
 const IN_COLOUR: &str = "In its own colours: no brightness to set.";
 
+/// Every sentence the tab keeps in a constant, for the check that none suggests a finding.
+#[cfg(test)]
+pub(super) const TEXTS: [&str; 1] = [IN_COLOUR];
+
 /// The actions that mirror the picture across and down, turn it a quarter, and fit it whole.
 const PICTURE_IDS: [&str; 4] = [
     "view.flip_across",

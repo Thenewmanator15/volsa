@@ -29,6 +29,17 @@ const NOT_NAMED: &str = "No table of names: the parts are called by their number
 const OTHER_STUDY: &str = "The labels open belong to another study than the one shown.";
 /// Said beside the button that shows the Tools tab, where a scan is labelled.
 const LABEL_IN_TOOLS: &str = "Label this scan in the Tools tab.";
+
+/// Every sentence the tab keeps in a constant, for the check that none suggests a finding.
+#[cfg(test)]
+pub(super) const TEXTS: [&str; 5] = [
+    NAMED,
+    NAMED_BY_THE_MODEL,
+    NOT_NAMED,
+    OTHER_STUDY,
+    LABEL_IN_TOOLS,
+];
+
 /// A tab this wide has room for each part's volume beside its name.
 const WIDE: f32 = 300.0;
 

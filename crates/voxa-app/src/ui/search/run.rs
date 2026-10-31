@@ -26,7 +26,7 @@ pub fn unavailable(command: &Command, state: &AppState) -> Option<Why> {
 ///
 /// An action that cannot be used now says why in a notice, in place of doing anything. A part
 /// is shown if it was hidden, then selected, and the Labels tab is shown. A scan is shown in
-/// the active viewport. A help topic is opened.
+/// the active viewport. A help topic is opened, at that topic.
 pub fn run(target: &Target, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
     match target {
         Target::Command(id) => {

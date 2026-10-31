@@ -90,7 +90,7 @@ pub fn label_when_asked(state: &AppState, render: Option<&RenderState>) -> Actio
 pub fn stage_in_words(stage: Stage) -> String {
     match stage {
         Stage::Preparing => "Preparing the scan".to_owned(),
-        Stage::Finding { step, of } => format!("Finding the structures, {step} of {of}"),
+        Stage::Finding { step, of } => format!("Locating the structures, {step} of {of}"),
         Stage::Cortex => "Dividing the cortex".to_owned(),
         Stage::Checking => "The model is checking its work".to_owned(),
         Stage::Tidying => "Tidying up".to_owned(),

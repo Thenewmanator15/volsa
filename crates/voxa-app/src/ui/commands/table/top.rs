@@ -175,9 +175,9 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "help.keys",
-        name: "Show the keys and what the mouse does",
+        name: "Show help, the keys and what the mouse does",
         label: "?",
-        words: &["help", "shortcuts", "keyboard", "mouse", "keys"],
+        words: &["help", "topics", "shortcuts", "keyboard", "mouse", "keys"],
         // Shift with slash does it too: see the other keys in the list's own module.
         key: Some(alone(Key::Questionmark, "?")),
         place: Place::TopBar,

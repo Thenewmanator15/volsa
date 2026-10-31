@@ -163,7 +163,7 @@ fn while_a_run_is_on_the_strip_says_the_stage_and_offers_stop_and_not_the_button
     let lines = lines_of(&said);
     for line in [
         "Label this brain scan",
-        "Finding the structures, 2 of 3",
+        "Locating the structures, 2 of 3",
         "Stop",
         "The 3D view may be slow while the graphics card is busy.",
     ] {
@@ -177,7 +177,7 @@ fn each_stage_is_said_in_plain_words() {
     let said = stage_in_words;
     assert_eq!(said(Stage::Preparing), "Preparing the scan");
     let finding = Stage::Finding { step: 1, of: 2 };
-    assert_eq!(said(finding), "Finding the structures, 1 of 2");
+    assert_eq!(said(finding), "Locating the structures, 1 of 2");
     assert_eq!(said(Stage::Cortex), "Dividing the cortex");
     assert_eq!(said(Stage::Checking), "The model is checking its work");
     assert_eq!(said(Stage::Tidying), "Tidying up");

@@ -7,6 +7,7 @@ use crate::action::Action;
 use crate::reducer::reduce;
 use crate::testing::{labelled_head, thick_scan_ready};
 use crate::ui::commands;
+use crate::ui::help::TOPICS;
 
 /// The id of the action the entry is for, if it is one.
 fn command_of(entry: &Entry) -> Option<&'static str> {
@@ -237,7 +238,43 @@ fn parts_are_listed_only_while_labels_are_open() {
 }
 
 #[test]
-fn there_are_no_help_topics_yet() {
+fn there_are_seven_topics_each_found_by_search() {
     let entries = entries_for(&thick_scan_ready());
-    assert!(entries.iter().all(|entry| entry.heading != Heading::Help));
+    let help: Vec<&Entry> = entries
+        .iter()
+        .filter(|entry| entry.heading == Heading::Help)
+        .collect();
+    let ids: Vec<&Target> = help.iter().map(|entry| &entry.target).collect();
+    let wanted = [
+        "open",
+        "find",
+        "brightness",
+        "measure",
+        "sides",
+        "labels",
+        "not-for",
+    ];
+    let wanted: Vec<Target> = wanted.into_iter().map(Target::Help).collect();
+    assert_eq!(ids, wanted.iter().collect::<Vec<_>>());
+    // Each is found by its title, in first place among the help, and by each of its words.
+    for topic in &TOPICS {
+        let target = Target::Help(topic.id);
+        let place = entries.iter().position(|entry| entry.target == target);
+        let place = place.expect("listed");
+        let found_by = |query: &str| ranked(query, &entries).contains(&place);
+        assert!(!topic.title.is_empty(), "{}", topic.id);
+        assert!(
+            found_by(topic.title),
+            "{} is not found by its title",
+            topic.id
+        );
+        let top = ranked(topic.title, &entries);
+        let first_help = top
+            .iter()
+            .find(|&&found| entries[found].heading == Heading::Help);
+        assert_eq!(first_help, Some(&place), "{} is not first", topic.id);
+        for word in topic.words {
+            assert!(found_by(word), "{} is not found by {word:?}", topic.id);
+        }
+    }
 }

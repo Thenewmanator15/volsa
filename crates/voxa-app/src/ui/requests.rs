@@ -3,7 +3,7 @@
 //! save.
 
 use super::commands::{Request, Tab};
-use super::{VoxaApp, about, document, parts, screen, tabs, top};
+use super::{VoxaApp, about, document, help, parts, screen, tabs, top};
 use crate::action::Action;
 
 /// The tab of the panel that a request also shows, besides doing what it asks: labelling the
@@ -25,9 +25,7 @@ impl VoxaApp {
                     self.dispatch(opening);
                 }
             }
-            Request::Help(None) => self.help_open = !self.help_open,
-            // Opened at its topic once there are topics (Task 19).
-            Request::Help(Some(_)) => self.help_open = true,
+            Request::Help(topic) => help::ask(ctx, &mut self.help_open, topic),
             Request::About => self.about_open = true,
             Request::Tags(of) => self.tags.open_on(of),
             Request::FullScreen => screen::toggle_full_screen(ctx),

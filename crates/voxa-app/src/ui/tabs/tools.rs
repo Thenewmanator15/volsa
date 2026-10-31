@@ -23,6 +23,10 @@ const ADDED_HEADING: &str = "Added by you";
 const NONE_ADDED: &str =
     "Tools you add will be listed here. Adding tools comes in a later version of Voxa.";
 
+/// Every sentence the tab keeps in a constant, for the check that none suggests a finding.
+#[cfg(test)]
+pub(super) const TEXTS: [&str; 3] = [PART_OF_VOXA, ADDED_HEADING, NONE_ADDED];
+
 /// A line of quiet words.
 fn quiet(ui: &mut Ui, text: &str) {
     ui.label(
