@@ -72,7 +72,7 @@ ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "
 # The system's own list of graphics adapters, how much of each card's memory every program
 # together holds, and the memory it can still promise a program, on Windows. The version wgpu
 # already brings.
-windows = { version = "0.62.2", features = ["Wdk_Graphics_Direct3D", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_System_SystemInformation"] }
+windows = { version = "0.62.2", features = ["Wdk_Graphics_Direct3D", "Win32_Foundation", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Security", "Win32_System_JobObjects", "Win32_System_SystemInformation", "Win32_System_Threading"] }
 
 # The icon and the details Explorer shows for voxa.exe, put into it as the program is built,
 # with the resource compiler of the Windows SDK that building for Windows already needs.

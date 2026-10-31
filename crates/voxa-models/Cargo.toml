@@ -28,5 +28,16 @@ testkit = ["dep:tempfile"]
 [dev-dependencies]
 tempfile.workspace = true
 
+# A program that asks for memory, for the tests of the helper's job object only.
+[[bin]]
+name = "voxa-test-eater"
+required-features = ["testkit"]
+test = false
+doc = false
+
+[[test]]
+name = "helper"
+required-features = ["testkit"]
+
 [lints]
 workspace = true

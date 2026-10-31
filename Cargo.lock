@@ -4607,11 +4607,13 @@ dependencies = [
 name = "voxa-plugins"
 version = "0.6.0"
 dependencies = [
+ "proptest",
  "serde",
  "serde_json",
  "sha2",
  "tempfile",
  "thiserror 2.0.21",
+ "voxa-core",
  "voxa-labels",
  "voxa-models",
  "voxa-segment",

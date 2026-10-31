@@ -3,9 +3,11 @@
 //! graphics cards of the computer. It works out, from what a run needs and what the computer
 //! has, which devices the run fits on and in what order to try them. And it runs a network,
 //! on the processor or on a card, through ONNX Runtime loaded from a folder. It never fetches
-//! a network or the runtime: both folders are the person's own.
-// `unsafe` is allowed in one module, `cards`: the system's list of graphics cards has no
-// other door. Running a network needs none.
+//! a network or the runtime: both folders are the person's own. And it starts a helper program
+//! in a job object that caps its memory, for a plugin's network to run apart from Voxa.
+// `unsafe` is allowed in two modules: `cards`, as the system's list of graphics cards has no
+// other door, and `process`, as a helper's job object has none either. Running a network
+// needs none.
 #![deny(unsafe_code)]
 #![deny(missing_docs)]
 #![cfg_attr(
@@ -22,6 +24,8 @@
 mod cards;
 mod model;
 mod network;
+#[allow(unsafe_code)]
+mod process;
 mod room;
 mod runtime;
 mod tensor;
@@ -36,6 +40,7 @@ pub use model::{
     is_plain_name, read_model,
 };
 pub use network::{Device, Network, RunError, SUPPORTED, Stop, Supported};
+pub use process::{Helper, start_helper};
 pub use room::{Cut, Room, Rung, RunsOn, Wanted, asks, needed_gb, needs, rungs, spare_gb, why_not};
 pub use runtime::{Runtime, RuntimeError};
 pub use tensor::{Numbers, Tensor};
