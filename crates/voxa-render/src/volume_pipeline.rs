@@ -260,6 +260,11 @@ impl VolumePipeline {
         self.uploaded.is_some()
     }
 
+    /// Whether a held volume is on its way to the device, a little each frame.
+    pub fn is_uploading(&self) -> bool {
+        self.upload.is_some()
+    }
+
     /// Whether the volume on the device is held in more than one texture, too long for one:
     /// no curve is made through such a volume, since it would take as much room again.
     pub fn held_in_slabs(&self) -> bool {

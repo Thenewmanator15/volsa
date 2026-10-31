@@ -24,6 +24,7 @@ pub(crate) mod labelling;
 mod labels;
 mod opened;
 mod post;
+mod preview;
 mod shown;
 mod tags;
 mod views;
@@ -36,6 +37,9 @@ pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
 pub struct Workers {
     /// The threads the work runs on; the shared pool of the process when none could be made.
     pool: Option<rayon::ThreadPool>,
+    /// The threads volumes are built on, apart, so that a slice a viewport asks for is never
+    /// left waiting behind the many slices of a volume.
+    builds: Option<rayon::ThreadPool>,
     shared: Arc<Shared>,
 }
 
@@ -131,8 +135,10 @@ impl Workers {
             labelling: labelling::Kit::new(labeller),
             keeping: kept::Keeping::default(),
         };
+        let building = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-build-{n}"));
         Self {
             pool: named.build().ok(),
+            builds: building.build().ok(),
             shared: Arc::new(shared),
         }
     }
@@ -266,6 +272,16 @@ impl Workers {
         match &self.pool {
             Some(pool) => pool.spawn(work),
             None => rayon::spawn(work),
+        }
+    }
+
+    /// Run the building of a volume on its own threads, the work it shares out with it.
+    fn spawn_build(&self, work: impl FnOnce() + Send + 'static) {
+        match &self.builds {
+            Some(builds) => builds.spawn(move || {
+                shielded(work);
+            }),
+            None => self.spawn(work),
         }
     }
 }

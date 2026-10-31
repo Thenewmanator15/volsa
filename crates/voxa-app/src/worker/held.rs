@@ -11,6 +11,7 @@ use voxa_core::{HeldError, HeldVolume, Rescale, SeriesId, SliceIn, Stored};
 use voxa_dicom::{ImageFile, IndexedSeries, StoredSamples};
 use voxa_volume::{VolumeError, can_be_volume};
 
+use super::preview::passes;
 use super::volume::Build;
 use super::{Batch, Shared, batches, lock};
 use crate::action::Action;
@@ -96,19 +97,23 @@ impl Shared {
         let Some(held) = made else {
             return Some(Built::Failed(None, VolumeError::NoGeometry.to_string()));
         };
-        let other = AtomicBool::new(false);
-        let failed = Mutex::new(Vec::new());
-        let progress = Progress::new(&info.id, of);
-        let files = batches(listed, (0..of).collect());
-        files.par_iter().for_each(|file| {
-            let ended = |put: Put, slice: usize| match put {
-                Put::Done => progress.one_more(self, build),
-                Put::Other => other.store(true, Ordering::SeqCst),
-                Put::Failed(why) => lock(&failed).push((slice, why)),
-            };
-            let going = || self.building(build) && !other.load(Ordering::SeqCst);
-            self.fill_file(file, &held, &info.id, (&going, &ended));
-        });
+        let filling = Filling {
+            held: &held,
+            build,
+            other: AtomicBool::new(false),
+            failed: Mutex::new(Vec::new()),
+            progress: Progress::new(&info.id, of),
+        };
+        // A long series' every eighth slice first, for a preview while the rest are decoded.
+        let (first, after) = passes(of);
+        if !first.is_empty() {
+            self.fill_slices(listed, first.clone(), &filling);
+            if filling.going(self) && lock(&filling.failed).is_empty() {
+                self.preview_of((&held, &first), &info.id, build);
+            }
+        }
+        self.fill_slices(listed, after, &filling);
+        let Filling { other, failed, .. } = filling;
         if other.load(Ordering::SeqCst) {
             return None;
         }
@@ -123,6 +128,20 @@ impl Shared {
             Some((_, why)) => Built::Failed(Some(held), why),
             None => Built::Whole(held),
         })
+    }
+
+    /// Put these slices of a series, on the workers' threads, while the build goes on.
+    fn fill_slices(&self, listed: &IndexedSeries, slices: Vec<usize>, filling: &Filling<'_>) {
+        let files = batches(listed, slices);
+        files.par_iter().for_each(|file| {
+            let ended = |put: Put, slice: usize| match put {
+                Put::Done => filling.progress.one_more(self, filling.build),
+                Put::Other => filling.other.store(true, Ordering::SeqCst),
+                Put::Failed(why) => lock(&filling.failed).push((slice, why)),
+            };
+            let going = || filling.going(self);
+            self.fill_file(file, filling.held, &listed.info.id, (&going, &ended));
+        });
     }
 
     /// Put the slices held in one file, each from the frame cache if it is there and decoded
@@ -221,6 +240,24 @@ fn outcome(slice: u32, put: Result<(), HeldError>) -> Put {
             }
             .to_string(),
         ),
+    }
+}
+
+/// A volume being filled, and how its slices have gone so far.
+struct Filling<'a> {
+    held: &'a HeldVolume,
+    build: &'a Build,
+    /// Whether a slice was stored another way than the volume holds its values.
+    other: AtomicBool,
+    /// The slices that could not be put, with why.
+    failed: Mutex<Vec<(usize, String)>>,
+    progress: Progress<'a>,
+}
+
+impl Filling<'_> {
+    /// Whether to go on: the build is still the newest, and no slice is stored another way.
+    fn going(&self, shared: &Shared) -> bool {
+        shared.building(self.build) && !self.other.load(Ordering::SeqCst)
     }
 }
 

@@ -123,6 +123,15 @@ impl Session {
             .or_else(|| store.get(series).map(|volume| (volume, 0)))
     }
 
+    /// Take the preview a worker made of a series' volume while it builds, if it is there
+    /// to take. It is handed over once.
+    pub fn take_preview(&self, series: &SeriesId) -> Option<voxa_core::Volume> {
+        self.volumes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take_preview(series)
+    }
+
     /// Take the curve a worker made through a series' volume, for planes drawn smooth, if
     /// it is there to take. It is handed over once.
     pub fn take_smoothed(&self, series: &SeriesId) -> Option<Smoothed> {

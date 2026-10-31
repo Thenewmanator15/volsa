@@ -153,6 +153,16 @@ fn open(session: &mut Session, path: &Path, started: Instant) -> Result<SeriesId
         "first slice",
         &format!("{:.0} ms after opening", ms(opened)),
     );
+    // A long series is shown as a preview first, while the rest of it is decoded.
+    let previewed_or_built = |s: &Session| {
+        let scene = &s.state().scene;
+        scene.preview || !matches!(scene.status, SceneStatus::Building { .. })
+    };
+    until(session, previewed_or_built)?;
+    if session.state().scene.preview {
+        let said = format!("{:.0} ms after opening", ms(opened));
+        step(started, "preview", &said);
+    }
     let built = |s: &Session| !matches!(s.state().scene.status, SceneStatus::Building { .. });
     until(session, built)?;
     let status = session.state().scene.status.clone();

@@ -34,15 +34,7 @@ impl VoxaApp {
         let there_is_3d = !matches!(state.scene.status, SceneStatus::Unavailable(_));
         layout::header(ui, strip, (large, column), there_is_3d, actions);
         let areas = layout::areas(large, column, main, side);
-        let shown = state.scene.series.as_ref();
-        let volume = shown.and_then(|series| self.session.volume(series));
-        // If it has still to go on the graphics device, what the device is to hold of it.
-        let waiting = volume
-            .as_ref()
-            .is_some_and(|volume| self.scene.needs(volume));
-        let ready = shown.filter(|_| waiting);
-        self.scene
-            .offer(ready.and_then(|series| self.session.for_card(series)));
+        let volume = Self::offer_to_the_scene(&self.session, &mut self.scene);
         // One copy of the labels on the device, for the planes and the scene to draw from.
         let set = self.session.labels();
         if self.held.keep(render, state, set.as_ref()) {
@@ -97,6 +89,25 @@ impl VoxaApp {
             let share = layout::column_dragged(whole.width(), share, by);
             self.screen.set_column_share(share);
         }
+    }
+
+    /// Offer the scene what the graphics device is to hold of its series: the volume if it has
+    /// still to go there, or a preview of it while it builds. Gives the volume, if built.
+    fn offer_to_the_scene(
+        session: &Session,
+        scene: &mut scene::SceneView,
+    ) -> Option<Arc<HeldVolume>> {
+        let state = session.state();
+        let shown = state.scene.series.as_ref();
+        let volume = shown.and_then(|series| session.volume(series));
+        let waiting = volume.as_ref().is_some_and(|volume| scene.needs(volume));
+        let ready = shown.filter(|_| waiting);
+        scene.offer(ready.and_then(|series| session.for_card(series)));
+        let previewed = shown.filter(|_| state.scene.preview);
+        let preview =
+            previewed.and_then(|series| Some((series.clone(), session.take_preview(series)?)));
+        scene.offer_preview(preview);
+        volume
     }
 
     /// Have the planes drawn smooth, from the curve through the scene's volume, while that

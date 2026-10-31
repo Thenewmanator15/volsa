@@ -100,7 +100,7 @@ impl Workers {
         // Said at once, before the work starts, so that frames asked for next are left to it.
         let build = self.shared.wants(&listed.info.id);
         let (shared, listed) = (Arc::clone(&self.shared), listed.clone());
-        self.spawn(move || {
+        self.spawn_build(move || {
             let finished = shielded(|| shared.build_volume(&listed, &build));
             if !finished && shared.ended(&build) {
                 // Without this the scene would say it was building for ever.

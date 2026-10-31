@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use voxa_core::{HeldVolume, SeriesId};
+use voxa_core::{HeldVolume, SeriesId, Volume};
 use voxa_render::Smoothed;
 
 /// The one volume in use. A volume is large, so only the newest is kept.
@@ -17,6 +17,9 @@ pub struct VolumeStore {
     curve: Option<Smoothed>,
     /// Whether such a curve is wanted: one that arrives when it is not is not kept.
     curve_wanted: bool,
+    /// A small, rough volume of a long series being built, for the window to take and draw
+    /// until the volume itself is kept.
+    preview: Option<(SeriesId, Volume)>,
 }
 
 impl VolumeStore {
@@ -40,6 +43,7 @@ impl VolumeStore {
     ) -> Option<(SeriesId, Arc<HeldVolume>)> {
         self.for_card = None;
         self.curve = None;
+        self.preview = None;
         self.held.replace((series, volume))
     }
 
@@ -93,11 +97,26 @@ impl VolumeStore {
         }
     }
 
+    /// Keep the preview of a series being built, in place of any kept before.
+    pub fn put_preview(&mut self, series: SeriesId, preview: Volume) {
+        self.preview = Some((series, preview));
+    }
+
+    /// Take the preview of a series, if that is the one kept. It is handed over once.
+    pub fn take_preview(&mut self, series: &SeriesId) -> Option<Volume> {
+        let (of, _) = self.preview.as_ref()?;
+        if of != series {
+            return None;
+        }
+        self.preview.take().map(|(_, preview)| preview)
+    }
+
     /// Keep nothing.
     pub fn clear(&mut self) {
         self.held = None;
         self.for_card = None;
         self.curve = None;
+        self.preview = None;
     }
 }
 

@@ -290,7 +290,8 @@ call)*.
   along the slices first when its slices are closer than its pixels, and the 3D view says
   so as today (LS-10). On the RTX and the Intel card the study CT fits in full.
 - Only the window's thread hands work to the window's card (LS-04). A worker prepares
-  slabs; each frame the window hands the card finished slabs up to 64 MiB *(my call)*,
+  slabs; each frame the window hands the card one finished slab of 32 MiB *(my call; 64 MiB
+  took 21 ms a frame on the RTX, past B11)*,
   and asks for another frame while any are waiting. This removes the WARP race by
   construction. The worker's own hand-over of 0.6.0 goes.
 - `read_back` copies whole rows (LS-05).

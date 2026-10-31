@@ -36,6 +36,7 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::CutRemove { cut } if cut < scene.cuts.len() => {
             scene.cuts.remove(cut);
         }
+        Action::SceneWanted(wanted) => return wanted_or_not(state, wanted),
         about_the_volume => return built(scene, about_the_volume).into_iter().collect(),
     }
     Vec::new()
@@ -53,8 +54,18 @@ fn built(scene: &mut Scene, report: Action) -> Option<Effect> {
         Action::VolumeProgress { series, done, of } if building(scene, &series) => {
             scene.status = SceneStatus::Building { done, of };
         }
+        Action::PreviewReady { series, corners } if building(scene, &series) => {
+            scene.preview = true;
+            // Seen as the volume will be, and left so when it comes.
+            if !std::mem::replace(&mut scene.keeps_view, true) {
+                scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
+                scene.untouched = true;
+            }
+            scene.corners = Some(corners);
+        }
         Action::VolumeReady { series, corners } if building(scene, &series) => {
             scene.status = SceneStatus::Ready;
+            scene.preview = false;
             // Another volume of the series shown before is seen as that one was.
             if !std::mem::take(&mut scene.keeps_view) {
                 scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
@@ -65,10 +76,26 @@ fn built(scene: &mut Scene, report: Action) -> Option<Effect> {
         }
         Action::VolumeFailed { series, reason } if building(scene, &series) => {
             scene.status = SceneStatus::Unavailable(vec![reason]);
+            scene.preview = false;
         }
         _ => {}
     }
     None
+}
+
+/// Say whether the 3D scene is wanted. Wanted again, it starts afresh for the series the
+/// active viewport shows; no longer wanted, it is left empty.
+fn wanted_or_not(state: &mut AppState, wanted: bool) -> Vec<Effect> {
+    if state.scene.wanted == wanted {
+        return Vec::new();
+    }
+    state.scene.wanted = wanted;
+    let shown = if wanted {
+        shown_in_the_active_viewport(state)
+    } else {
+        None
+    };
+    start(state, shown)
 }
 
 /// Show the whole volume again, from the way the camera already faces.
@@ -126,6 +153,7 @@ fn another_volume_of_the_same(state: &AppState, series: Option<&SeriesId>) -> bo
 fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     let mut fresh = Scene {
         viewport: state.scene.viewport,
+        wanted: state.scene.wanted,
         ..Scene::default()
     };
     if another_volume_of_the_same(state, series.as_ref()) {
@@ -145,6 +173,8 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     // The views saved of the series before are not this one's, and nor is a result kept.
     state.views.clear();
     super::labelling::forget_kept(&mut state.labelling);
+    // While the scene is not wanted it stays empty, and nothing is built for it.
+    let series = series.filter(|_| fresh.wanted);
     let listed = series.as_ref().and_then(|id| state.series(id));
     let info = listed.map(|listed| listed.info.clone());
     let Some((series, info)) = series.zip(info) else {

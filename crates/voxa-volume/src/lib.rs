@@ -21,6 +21,7 @@ mod held_tests;
 mod histogram;
 mod measure;
 mod plane;
+mod preview;
 mod ray;
 mod reduce;
 mod sample;
@@ -36,6 +37,7 @@ pub use plane::{
     Plane, PlaneKind, central_voxel, clamped_into, nearest_slice, pitch_along, plane_of,
     position_on_slice, reslice, rises_along, scrolled,
 };
+pub use preview::preview;
 pub use ray::{Ray, enter_and_leave, first_hit};
 pub use reduce::{block_maxima, halved, halved_held, halvings_needed};
 pub use sample::sample;

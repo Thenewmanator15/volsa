@@ -1,5 +1,7 @@
 //! The 3D viewport drawn with no window and no graphics device.
 
+use egui::PointerButton;
+
 use super::*;
 use crate::scene::Scene;
 

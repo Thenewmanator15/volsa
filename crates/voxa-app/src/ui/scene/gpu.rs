@@ -5,7 +5,7 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use egui_wgpu::{RenderState, wgpu};
-use voxa_core::{Grid, HeldVolume};
+use voxa_core::{Grid, HeldVolume, Volume};
 use voxa_render::{
     CardRoom, LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, RenderError, SceneParams,
     UPLOAD_BYTES_A_FRAME, UploadState, VolumePipeline, timed_submit,
@@ -59,6 +59,9 @@ pub struct SceneGpu {
     timing: Timing,
     /// How often the volume being handed over was halved to fit.
     halved: u32,
+    /// A preview of the series being built, drawn until its volume is on the device, and
+    /// made only when there is one.
+    preview: Option<VolumePipeline>,
 }
 
 impl SceneGpu {
@@ -73,6 +76,7 @@ impl SceneGpu {
             drawn: None,
             timing: Timing::default(),
             halved: 0,
+            preview: None,
         }
     }
 
@@ -81,9 +85,50 @@ impl SceneGpu {
         Weak::ptr_eq(&self.given, &Arc::downgrade(volume))
     }
 
-    /// Whether there is a volume on the graphics device to draw.
+    /// Whether there is a volume on the graphics device to draw, or a preview of one.
     pub fn has_volume(&self) -> bool {
-        self.pipeline.has_volume()
+        self.pipeline.has_volume() || self.has_preview()
+    }
+
+    fn has_preview(&self) -> bool {
+        self.preview
+            .as_ref()
+            .is_some_and(VolumePipeline::has_volume)
+    }
+
+    /// Whether a volume is on its way to the graphics device.
+    pub fn is_uploading(&self) -> bool {
+        self.pipeline.is_uploading()
+    }
+
+    /// Draw a preview of the series being built: the one `offered`, if a new one is, or the
+    /// one given before. Whether there is one to draw.
+    pub fn preview(&mut self, render: &RenderState, offered: Option<Volume>) -> bool {
+        if let Some(preview) = offered {
+            let device = &render.device;
+            let pipeline = self
+                .preview
+                .get_or_insert_with(|| VolumePipeline::new(device, FORMAT));
+            if pipeline.upload(device, &render.queue, &preview).is_ok() {
+                self.drawn = None;
+            }
+        }
+        self.has_preview()
+    }
+
+    /// Give up the preview, if there is one.
+    pub fn drop_preview(&mut self) {
+        if self.preview.take().is_some() {
+            self.drawn = None;
+        }
+    }
+
+    /// What is drawn: the preview while there is one, and the volume otherwise.
+    fn shown(&self) -> &VolumePipeline {
+        self.preview
+            .as_ref()
+            .filter(|preview| preview.has_volume())
+            .unwrap_or(&self.pipeline)
     }
 
     /// The pipeline that holds the volume.
@@ -136,7 +181,12 @@ impl SceneGpu {
                 ctx.request_repaint();
                 None
             }
-            UploadState::Done => Some(self.halved),
+            UploadState::Done => {
+                // The volume itself is drawn from now on.
+                self.preview = None;
+                self.drawn = None;
+                Some(self.halved)
+            }
             UploadState::Failed(RenderError::NoRoom) => self.halved_here(render, volume),
             UploadState::Failed(_) | UploadState::Idle => None,
         }
@@ -222,6 +272,8 @@ impl SceneGpu {
             let as_parts = self.as_parts(params);
             if as_parts {
                 self.parts.set_params(&render.queue, params, viewport);
+            } else if let Some(preview) = self.preview.as_mut().filter(|it| it.has_volume()) {
+                preview.set_params(&render.queue, params, viewport);
             } else {
                 self.pipeline.set_params(&render.queue, params, viewport);
             }
@@ -332,7 +384,7 @@ impl SceneGpu {
         if as_parts {
             self.parts.draw(&mut pass);
         } else {
-            self.pipeline.draw(&mut pass);
+            self.shown().draw(&mut pass);
         }
     }
 }

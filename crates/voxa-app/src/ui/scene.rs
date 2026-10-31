@@ -4,14 +4,14 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use egui::{Align2, Color32, PointerButton, Rect, Sense, Ui, pos2};
+use egui::{Align2, Color32, Rect, Sense, Ui, pos2};
 use egui_wgpu::RenderState;
-use voxa_core::{HeldVolume, Patient, Point};
+use voxa_core::{HeldVolume, Patient, Point, SeriesId, Volume};
 use voxa_labels::LabelSet;
 use voxa_render::{CardRoom, LabelsOnDevice, RenderError, SceneParams, VolumePipeline, pick};
 
 use super::pen::{self, Pen};
-use super::{overlay, theme, viewport};
+use super::{overlay, theme};
 use crate::action::Action;
 use crate::annotations::Tool;
 use crate::labels::name_of;
@@ -36,6 +36,8 @@ pub use input::{SceneInput, scene_input_to_actions};
 /// What to say when the volume is ready and this computer cannot draw it.
 pub(super) const CANNOT_DRAW: &str =
     "The 3D view cannot be drawn on this computer's graphics device.";
+/// What to say while the volume is handed to the graphics device, a little each frame.
+const UPLOADING: &str = "Putting the 3D view on the graphics device";
 
 /// What the 3D viewport keeps between frames.
 pub struct SceneView {
@@ -54,6 +56,9 @@ pub struct SceneView {
     card: Option<(Arc<HeldVolume>, u32)>,
     /// What the device can hold of a volume, and how.
     room: CardRoom,
+    /// A preview of the series being built, and the series the one on the device is of.
+    preview: Option<(SeriesId, Volume)>,
+    preview_of: Option<SeriesId>,
     /// The first end of a ruler being clicked in the scene, once it has been placed.
     ruler_from: Option<Point<Patient>>,
 }
@@ -69,6 +74,8 @@ impl SceneView {
             carried: handles::Carried::default(),
             card: None,
             room: render.map(crate::card::room_on).unwrap_or_default(),
+            preview: None,
+            preview_of: None,
             ruler_from: None,
         }
     }
@@ -84,6 +91,18 @@ impl SceneView {
         if card.is_some() {
             self.card = card;
         }
+    }
+
+    /// Give the viewport a preview of its series, to draw until the volume is on the device.
+    pub fn offer_preview(&mut self, preview: Option<(SeriesId, Volume)>) {
+        if preview.is_some() {
+            self.preview = preview;
+        }
+    }
+
+    /// Whether a volume is on its way to the graphics device.
+    pub fn is_uploading(&self) -> bool {
+        self.gpu.as_ref().is_some_and(gpu::SceneGpu::is_uploading)
     }
 
     /// What the window's graphics device can hold of a volume, and how.
@@ -140,10 +159,20 @@ impl SceneView {
         render: Option<&RenderState>,
         actions: &mut Vec<Action>,
     ) -> Option<egui::TextureId> {
-        let ready = scene_params(state, 1.0)
-            .zip(self.gpu.as_mut())
-            .zip(render.zip(volume));
-        let Some(((params, gpu), (render, volume))) = ready else {
+        let shown = state.scene.series.as_ref();
+        if let Some(gpu) = self
+            .gpu
+            .as_mut()
+            .filter(|_| self.preview_of.as_ref() != shown)
+        {
+            // A preview is drawn for its own series only.
+            gpu.drop_preview();
+            self.preview_of = None;
+        }
+        let ready = scene_params(state, 1.0).zip(self.gpu.as_mut()).zip(render);
+        let Some(((params, gpu), render)) =
+            ready.filter(|_| volume.is_some() || state.scene.preview)
+        else {
             // Whatever was drawn before is of a volume no longer shown.
             self.shown = None;
             if let Some(gpu) = &mut self.gpu {
@@ -151,11 +180,22 @@ impl SceneView {
             }
             return None;
         };
-        let card = (self.card.take(), self.room);
-        if let Some(halved) = gpu.hold(render, volume, card, ui.ctx()) {
-            actions.push(Action::SceneUploaded { halved });
-        }
-        if !gpu.has_volume() {
+        let drawable = if let Some(volume) = volume {
+            let card = (self.card.take(), self.room);
+            if let Some(halved) = gpu.hold(render, volume, card, ui.ctx()) {
+                actions.push(Action::SceneUploaded { halved });
+            }
+            gpu.has_volume()
+        } else {
+            // While its series builds, the preview of it, and only of it.
+            let offered = self.preview.take().filter(|(of, _)| shown == Some(of));
+            let offered = offered.map(|(of, preview)| {
+                self.preview_of = Some(of);
+                preview
+            });
+            gpu.preview(render, offered)
+        };
+        if !drawable {
             // The device had no room for it at all: there is nothing to draw.
             gpu.forget();
             return None;
@@ -215,7 +255,10 @@ pub fn show(
         written_over(ui, area, state);
     } else {
         let ready = state.scene.status == SceneStatus::Ready;
-        let text = status_text(&state.scene).or_else(|| ready.then(|| CANNOT_DRAW.to_owned()));
+        let uploading = view.is_uploading().then(|| UPLOADING.to_owned());
+        let text = status_text(&state.scene)
+            .or(uploading)
+            .or_else(|| ready.then(|| CANNOT_DRAW.to_owned()));
         let font = egui::TextStyle::Body.resolve(ui.style());
         let middle = Align2::CENTER_CENTER;
         let text = text.unwrap_or_default();
@@ -240,7 +283,7 @@ pub fn show(
         .viewports
         .get(state.active)
         .map_or(1.0, |shown| shown.wl.width);
-    let input = gather(ui, &response, area, twice, &mut view.part_notch);
+    let input = input::gather(ui, &response, area, twice, &mut view.part_notch);
     let input = SceneInput {
         window_width,
         ..input
@@ -321,43 +364,11 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     } else {
         captions(spacing, scene.halved)
     };
+    said.splice(0..0, captions::preview_text(scene));
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
     let (down, room) = captions::caption_room(inside.width());
     pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
-}
-
-/// What the mouse did over the scene this frame.
-fn gather(
-    ui: &Ui,
-    response: &egui::Response,
-    area: Rect,
-    pointed_at: Option<Point<Patient>>,
-    part_notch: &mut f32,
-) -> SceneInput {
-    let dragged = response.drag_delta();
-    let dragged_with = |button| {
-        if response.dragged_by(button) {
-            [dragged.x, dragged.y]
-        } else {
-            [0.0; 2]
-        }
-    };
-    let mut input = SceneInput {
-        left_drag: dragged_with(PointerButton::Primary),
-        middle_drag: dragged_with(PointerButton::Middle),
-        right_drag: dragged_with(PointerButton::Secondary),
-        shift: ui.input(|i| i.modifiers.shift),
-        pressed: response.is_pointer_button_down_on() && ui.input(|i| i.pointer.any_pressed()),
-        double_clicked_surface: pointed_at,
-        ..SceneInput::default()
-    };
-    if let Some(at) = response.hover_pos() {
-        let from_middle = at - area.center();
-        input.pointer = [from_middle.x, from_middle.y];
-        (input.wheel, _) = viewport::wheel_turned(ui, part_notch);
-    }
-    input
 }
 
 /// The size in pixels of a picture laid out at `viewport` on a screen with this many pixels

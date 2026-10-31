@@ -114,6 +114,7 @@ fn paced_hand_over_finishes_in_steps() {
     gpu.pipeline
         .start_upload(device, Arc::clone(&held), room)
         .expect("room");
+    assert!(gpu.pipeline.is_uploading());
     let mut steps = Vec::new();
     loop {
         let state = gpu
@@ -130,6 +131,7 @@ fn paced_hand_over_finishes_in_steps() {
     let third = of / 3;
     assert_eq!(steps, [going(third), going(2 * third), UploadState::Done]);
     assert!(gpu.pipeline.has_volume());
+    assert!(!gpu.pipeline.is_uploading(), "nothing more on its way");
 }
 
 #[test]

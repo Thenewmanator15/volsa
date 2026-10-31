@@ -131,12 +131,22 @@ pub fn status_text(scene: &Scene) -> Option<String> {
     }
 }
 
+/// What is said over a preview of the volume while the rest of it is decoded.
+pub fn preview_text(scene: &Scene) -> Option<String> {
+    match scene.status {
+        SceneStatus::Building { done, of } if scene.preview => Some(format!(
+            "Preview: loading full detail ({done} of {of} slices)"
+        )),
+        _ => None,
+    }
+}
+
 /// What the scene's picture is drawn from: its camera, look and cuts, the window of the
 /// active viewport, and the slice that viewport shows when it is to be drawn in the scene.
-/// `None` unless the scene's volume is ready.
+/// `None` unless the scene's volume is ready, or a preview of it is there to draw.
 pub fn scene_params(state: &AppState, quality: f32) -> Option<SceneParams> {
     let scene = &state.scene;
-    if scene.status != SceneStatus::Ready {
+    if scene.status != SceneStatus::Ready && preview_text(scene).is_none() {
         return None;
     }
     let viewport = state.viewports.get(state.active)?;
@@ -350,5 +360,17 @@ mod tests {
         state.scene.status = SceneStatus::Building { done: 3, of: 30 };
         assert_eq!(scene_params(&state, 1.0), None);
         assert_eq!(scene_params(&AppState::default(), 1.0), None);
+    }
+
+    #[test]
+    fn a_preview_is_drawn_while_the_volume_builds_and_says_how_far_it_has_got() {
+        let mut state = ready();
+        state.scene.status = SceneStatus::Building { done: 40, of: 300 };
+        state.scene.preview = true;
+        let said = "Preview: loading full detail (40 of 300 slices)";
+        assert_eq!(preview_text(&state.scene).as_deref(), Some(said));
+        assert!(scene_params(&state, 1.0).is_some());
+        state.scene.status = SceneStatus::Ready;
+        assert_eq!(preview_text(&state.scene), None, "the volume itself now");
     }
 }

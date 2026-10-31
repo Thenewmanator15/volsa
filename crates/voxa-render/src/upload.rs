@@ -16,8 +16,9 @@ pub(crate) use paced::Upload;
 pub use paced::UploadState;
 pub(crate) use slabs::SlabPlan;
 
-/// The most bytes handed to the device in one frame.
-pub const UPLOAD_BYTES_A_FRAME: u64 = 64 << 20;
+/// The most bytes handed to the device in one frame: one slab of a held volume, which takes
+/// about 11 ms on the RTX, inside a frame of 16 ms (64 MiB took 21 ms).
+pub const UPLOAD_BYTES_A_FRAME: u64 = 32 << 20;
 /// The most one texture of a volume may take.
 pub(crate) const MAX_TEXTURE_BYTES: u64 = 512 << 20;
 /// What the stored number of a signed value is moved up by, so that it is held as unsigned.

@@ -37,7 +37,7 @@ pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, `preview` for the 3D scene's preview of a long series while the rest of it is decoded, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
@@ -375,7 +375,10 @@ impl VoxaApp {
             .as_ref()
             .is_none_or(|capture| capture.has_labelled(state));
         let labelled = !waiting && !reading && posed && ran;
-        let ready = slices && labelled && (no_volume_to_come || self.scene.has_picture() && curve);
+        // The scene in full detail, unless the picture asks for the preview of a long series.
+        let full = state.scene.status == SceneStatus::Ready && !self.scene.is_uploading();
+        let drawn = self.scene.has_picture() && (full || wants("preview"));
+        let ready = slices && labelled && (no_volume_to_come || drawn && curve);
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
             capture.step(ctx, ready && pick.is_none());
