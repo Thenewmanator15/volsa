@@ -35,6 +35,7 @@ pub(super) fn fixed_texts() -> Vec<&'static str> {
     let own = [
         PARTS_HINT,
         PARTS_NEED_LABELS,
+        scene::NO_3D_VIEW,
         LINK_SAYS,
         SMOOTH_SAYS,
         NOTHING_MEASURED,

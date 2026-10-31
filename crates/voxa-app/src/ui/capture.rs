@@ -26,22 +26,44 @@ use labelling::Run;
 
 mod labelling;
 mod measured;
+mod motion;
 mod poses;
+mod series;
 mod tabs;
 
 pub use labelling::made_up_look;
 pub use measured::sample_annotations;
+pub use motion::{Motion, frames_before, turn_at};
 pub use poses::{arrangement_asked, label_pose, pose};
-pub use tabs::tab_asked;
+pub use series::{asked_for, first_listed, listed_as};
+pub use tabs::{opens, tab_asked};
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
-/// The environment variable naming what to have in the picture, separated by commas: the
-/// windows `tags`, `keys` and `about`, `measure`, `labelling` and `parts` for the Measure, Tools and Labels tab open in the panel, for the 3D scene `vr` or `mip`, `turned`, `cut` and
-/// `slice`, `planes` or `quad` for the three planes with the 3D view, `3d` for the 3D view
-/// alone and `slices3d` for the slices beside it (with none of these, the slices alone, as
-/// Voxa opens), `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the rail of scans folded however wide the window is, `other` for the other files open in the rail, `light` for the light theme in place of the dark one, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// The environment variable naming what to have in the picture, separated by commas. The words:
+///
+/// - Windows and lists open over the pictures: `tags` (the tags of a file), `keys` (the keys and
+///   what the mouse does), `about`, `notices` (the list of notices above the bottom line, while
+///   there is a notice to list) and `search` (the search box).
+/// - The tab open in the panel at the right: `tab-view`, `tab-measure`, `tab-3d`, `tab-labels`
+///   or `tab-tools`; or, as earlier pictures ask, `measure` (the Measure tab), `labelling` (the
+///   Tools tab, with the strip that labels a scan, as it is on a computer that can label) and
+///   `parts` (the Labels tab).
+/// - How the pictures are arranged: `planes` or `quad` for the three planes with the 3D view,
+///   `3d` for the 3D view alone and `slices3d` for the slices beside it. With none of these,
+///   the slices alone, as Voxa opens.
+/// - The 3D scene: the looks `vr`, `mip`, `solids` (the labelled parts as solids) and the
+///   poses `turned`, `cut`, `slice` (the slice drawn in it), `smooth` (smooth planes), `filled`
+///   (labels filled over the planes), `faded` and `chosen` (the first part faded or selected),
+///   and `moving` for a picture taken while the scene is kept moving.
+/// - What is measured and shown: `measured` for one of each kind of annotation in the axial
+///   plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped`
+///   for the next volume of a series that holds several, `labelled` for a result that Voxa
+///   makes itself (the picture starts a run and waits for it).
+/// - The window: `nolist` for the rail of scans folded however wide the window is, `other` for
+///   the other files open in the rail, `light` for the light theme in place of the dark one,
+///   and `fitted` for the window fitted to the screen as it is when Voxa starts with no size
+///   remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
@@ -125,71 +147,11 @@ pub fn theme(capturing: bool, remembered: ThemeChoice) -> ThemeChoice {
     theme_for(&wanted, capturing, remembered)
 }
 
-/// Whether a picture is of the 3D scene at rest or while it moves.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Motion {
-    /// At rest, drawn in full.
-    Still,
-    /// Kept moving, drawn as it is while it moves.
-    Moving,
-}
-
-/// How many frames the window shows what is wanted before its picture is taken: twice as
-/// many for a picture of the scene moving, which is first left to come to rest.
-pub fn frames_before(scene: Motion) -> u32 {
-    if scene == Motion::Moving {
-        2 * SETTLE_FRAMES
-    } else {
-        SETTLE_FRAMES
-    }
-}
-
-/// For a picture of the scene while it moves, asked for by the word `moving`: after
-/// `settled` frames at rest, a turn of half a point one way on one frame and back on the
-/// next, which keeps the scene moving and shows the same view. Nothing for the first
-/// frames, in which the scene comes to rest and is drawn in full.
-pub fn turn_at(scene: Motion, settled: u32) -> Option<Action> {
-    let way = if settled.is_multiple_of(2) { 0.5 } else { -0.5 };
-    (scene == Motion::Moving && settled >= SETTLE_FRAMES + SETTLE_FRAMES / 2)
-        .then_some(Action::SceneOrbit { by: [way, 0.0] })
-}
-
-/// For a picture that asks for the first series listed, whatever Voxa would have opened: what
-/// shows it. `None` until the index is finished, which is when that series' thumbnail is there.
-pub fn first_listed(state: &AppState, has_thumbnail: impl Fn(&SeriesId) -> bool) -> Option<Action> {
-    let series = state.index.as_ref()?.series.first()?.info.id.clone();
-    has_thumbnail(&series).then_some(Action::SelectSeries {
-        viewport: 0,
-        series,
-    })
-}
-
-/// The words a picture asks for a series by, from the variable's `value`: none when it is
-/// not set, or set to nothing.
-pub fn asked_for(value: Option<String>) -> Option<String> {
-    value.filter(|words| !words.trim().is_empty())
-}
-
-/// For a picture that asks for a series by `words` from its description: what shows the
-/// first listed whose description holds them. `None` until that series' thumbnail is there.
-pub fn listed_as(
-    state: &AppState,
-    words: &str,
-    has_thumbnail: impl Fn(&SeriesId) -> bool,
-) -> Option<Action> {
-    let index = state.index.as_ref()?;
-    let listed = index
-        .series
-        .iter()
-        .find(|listed| listed.info.description.contains(words))?;
-    let series = listed.info.id.clone();
-    has_thumbnail(&series).then_some(Action::SelectSeries {
-        viewport: 0,
-        series,
-    })
-}
-
 /// A capture that has been asked for and not yet finished.
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each flag is one more thing the picture is still waiting to have done"
+)]
 pub struct Capture {
     path: PathBuf,
     started: Instant,
@@ -201,6 +163,8 @@ pub struct Capture {
     series: Option<String>,
     /// Whether one of each kind of annotation has still to be made for the picture.
     measured: bool,
+    /// Whether the list of notices has still to be opened for the picture.
+    notices: bool,
     /// Whether the picture is to be of the 3D scene at rest or while it moves.
     scene: Motion,
     /// The run of labelling the picture waits for, if it asks for one.
@@ -211,21 +175,44 @@ impl Capture {
     /// A capture, if the environment asks for one.
     pub fn from_environment() -> Option<Self> {
         let path = PathBuf::from(std::env::var_os(VARIABLE)?);
-        Some(Self {
+        let wanted = std::env::var(SHOW_VARIABLE).unwrap_or_default();
+        let series = asked_for(std::env::var(SERIES_VARIABLE).ok());
+        Some(Self::asking(path, &wanted, series))
+    }
+
+    /// A capture to be saved at `path` of what the words in `wanted` ask for, and of the series
+    /// whose description holds `series`, if any.
+    pub fn asking(path: PathBuf, wanted: &str, series: Option<String>) -> Self {
+        let asks = |word: &str| asks_for(wanted, word);
+        Self {
             path,
             started: Instant::now(),
             settled: 0,
             asked: false,
-            first: wants("first"),
-            series: asked_for(std::env::var(SERIES_VARIABLE).ok()),
-            measured: wants("measured"),
-            scene: if wants("moving") {
+            first: asks("first"),
+            series,
+            measured: asks("measured"),
+            notices: asks("notices"),
+            scene: if asks("moving") {
                 Motion::Moving
             } else {
                 Motion::Still
             },
-            run: Run::asked(&std::env::var(SHOW_VARIABLE).unwrap_or_default()),
-        })
+            run: Run::asked(wanted),
+        }
+    }
+
+    /// Whether the list of notices is to be opened now for a picture that asks for it: once,
+    /// as soon as there is a notice to list, which is not so as the window opens.
+    pub fn open_notices(&mut self, has_notices: bool) -> bool {
+        let now = self.notices && has_notices;
+        self.notices &= !now;
+        now
+    }
+
+    /// Whether the list of notices the picture asks for, if it does, has been opened.
+    pub fn has_opened_notices(&self) -> bool {
+        !self.notices
     }
 
     /// What shows the series the picture asks for, when it asks for one: given once.
@@ -357,7 +344,17 @@ impl VoxaApp {
             .as_ref()
             .is_none_or(|capture| capture.has_labelled(state));
         let labelled = !waiting && !reading && posed && ran;
-        let ready = slices && labelled && volume;
+        // A picture that asks for the list of notices opens it once there is a notice to list.
+        let has_notices = !self.session.state().notices.is_empty();
+        let open = self.capture.as_mut();
+        if open.is_some_and(|capture| capture.open_notices(has_notices)) {
+            self.bars.notices_open = true;
+        }
+        let listed = self
+            .capture
+            .as_ref()
+            .is_none_or(Capture::has_opened_notices);
+        let ready = slices && labelled && volume && listed;
         if let Some(capture) = &mut self.capture {
             let pick = capture.pick(self.session.state(), |id| self.thumbnails.contains_key(id));
             capture.step(ctx, ready && pick.is_none());
@@ -386,3 +383,5 @@ impl VoxaApp {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod words_tests;

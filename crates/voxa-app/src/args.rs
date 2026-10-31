@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 /// What to say for `--help`.
 pub const USAGE: &str = "\
-Voxa, a viewer for MRI scans.
+Voxa, a viewer for MRI and CT scans.
 
 Usage: voxa [PATH] [--labels FILE]
 

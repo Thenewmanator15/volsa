@@ -15,6 +15,7 @@ fn arranged() -> Arrangement {
         list_share: 0.2,
         panel_share: Some(0.3),
         panel_folded: true,
+        rail_folded: true,
         tab: "Scene".to_owned(),
         theme: "light".to_owned(),
     }
@@ -28,6 +29,7 @@ fn changed() -> Prefs {
         column_share: None,
         panel_share: Some(0.3),
         panel_folded: true,
+        rail_folded: true,
         tab: "Scene".to_owned(),
         theme: "light".to_owned(),
         viewports: 4,

@@ -1,7 +1,7 @@
 Voxa
 ====
 
-Voxa is a viewer for MRI scans, for 64-bit Windows. It opens a folder of
+Voxa is a viewer for MRI and CT scans, for 64-bit Windows. It opens a folder of
 DICOM files, a zip of them or a DICOMDIR, lists the studies and series in
 it, and shows each series as slices, as three planes and as a volume in 3D,
 on which lengths, angles and regions can be measured. It can also show
@@ -12,13 +12,13 @@ Voxa is not a medical device and is not for diagnostic use.
 
 WHAT VOXA IS FOR
 
-Voxa is for looking at MRI scans on your own computer: your own scans, and
-scans used for learning, teaching or research. It shows the images, lets
-you measure them and can show labels made by a model, but it does not
-diagnose, screen for or rule out anything, and its measurements and labels
-are not clinical results. Questions about anyone's health belong with a
-qualified clinician. Voxa is not a medical device and is not for diagnostic
-use.
+Voxa is for looking at MRI and CT scans, and other DICOM files at a basic
+level, on your own computer: your own scans, and scans used for learning,
+teaching or research. It shows the images, lets you measure them and can show
+labels made by a model, but it does not diagnose, screen for or rule out
+anything, and its measurements and labels are not clinical results. Questions
+about anyone's health belong with a qualified clinician. Voxa is not a medical
+device and is not for diagnostic use.
 
 
 WHAT YOU NEED

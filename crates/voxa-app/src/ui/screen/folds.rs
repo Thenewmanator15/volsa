@@ -49,14 +49,18 @@ pub(super) struct Folds {
     was: Open,
     /// Whether the panel is folded because the window folded it, not the person.
     panel_by_window: bool,
+    /// Whether the series list is folded because the window folded it, or did not open it for
+    /// being narrow, and not the person.
+    rail_by_window: bool,
     /// The width the window was asked to open at, until it has it, and how many frames it has
     /// been waited for.
     awaited: Option<(f32, u8)>,
 }
 
 impl Folds {
-    /// Before the first frame, with the series list folded and the panel `open` or not.
-    pub(super) fn new(open: bool) -> Self {
+    /// Before the first frame, with the series list folded, by the window unless the person
+    /// folded it (`rail_by_window`), and the panel `open` or not.
+    pub(super) fn new(open: bool, rail_by_window: bool) -> Self {
         Self {
             cramped: false,
             was: Open {
@@ -64,6 +68,7 @@ impl Folds {
                 panel: open,
             },
             panel_by_window: false,
+            rail_by_window,
             awaited: None,
         }
     }
@@ -81,6 +86,9 @@ impl Screen {
         if now.panel {
             self.folds.panel_by_window = false;
         }
+        if now.rail {
+            self.folds.rail_by_window = false;
+        }
         if cramped {
             let was = self.folds.was;
             let (rail_opened, panel_opened) = (now.rail && !was.rail, now.panel && !was.panel);
@@ -92,6 +100,7 @@ impl Screen {
             let keep_rail = rail && !keep_panel && (rail_opened || !newly);
             if rail && !keep_rail {
                 self.list_shown = false;
+                self.folds.rail_by_window = true;
             }
             if panel && !keep_panel {
                 self.panel.folded = true;
@@ -152,6 +161,7 @@ impl Screen {
     /// Fold the series list, or unfold it, as the person asks.
     pub fn toggle_rail(&mut self) {
         self.list_shown = !self.list_shown;
+        self.folds.rail_by_window = false;
     }
 
     /// Whether the panel is folded and the person folded it, which is what is remembered.
@@ -159,15 +169,21 @@ impl Screen {
         self.panel.folded && !self.folds.panel_by_window
     }
 
+    /// Whether the series list is folded and the person folded it, which is what is remembered.
+    pub(super) fn rail_folded_by_choice(&self) -> bool {
+        !self.list_shown && !self.folds.rail_by_window
+    }
+
     /// Take the side columns as they are now as settled, so that none counts as just opened.
     fn settled_as_they_are(&mut self) {
         self.folds.was = self.open_now();
     }
 
-    /// Take the series list as shown or not by the window as it opens, not by the person: a
-    /// tab asked for before then still counts as just opened.
+    /// Take the series list as shown or not by the window as it opens, not by the person, unless
+    /// the person left it folded: a tab asked for before then still counts as just opened.
     pub(super) fn rail_shown_as_it_opens(&mut self) {
         self.folds.was.rail = self.list_shown;
+        self.folds.rail_by_window = !self.list_shown && !self.arrangement.rail_folded;
     }
 
     /// Which side columns are open now.

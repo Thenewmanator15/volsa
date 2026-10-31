@@ -77,7 +77,7 @@ pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
 pub use tools::{ADDED_BY_YOU, MadeBy, ToolInfo};
-pub use ui::{VoxaApp, run, thumbnail};
+pub use ui::{BareLayout, BareWindow, VoxaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, ViewsAction, series_key};
 pub use volume_store::VolumeStore;
 pub use worker::labelling::Labeller;

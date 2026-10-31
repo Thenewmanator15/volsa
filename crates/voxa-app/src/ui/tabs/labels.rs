@@ -49,9 +49,20 @@ fn quiet(ui: &Ui, text: &str) -> RichText {
     RichText::new(text).small().color(quiet)
 }
 
+/// The most of the tab's height the part that stays in place may take; if it would take more,
+/// it scrolls too, so that the list keeps room.
+const FIXED_MOST: f32 = 0.6;
+/// The name the scroll area of the part that stays in place keeps its place under.
+const FIXED_SCROLL: &str = "voxa: the Labels tab, the part that stays in place";
+/// The name the scroll area of the list keeps its place under. It has its own, as the panel's
+/// scroll area, which the other tabs scroll in, has one.
+const LIST_SCROLL: &str = "voxa: the Labels tab, the list";
+
 /// A part of the tab that scrolls, and takes the height that is left.
 fn scrolling<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
-    let area = ScrollArea::vertical().auto_shrink([false, false]);
+    let area = ScrollArea::vertical()
+        .id_salt(LIST_SCROLL)
+        .auto_shrink([false, false]);
     area.show(ui, add).inner
 }
 
@@ -131,14 +142,22 @@ fn list(
     actions: &mut Vec<Action>,
     asked: &mut Vec<Request>,
 ) {
-    asked.extend(about(ui, labels));
-    asked.extend(switches(ui, labels, actions));
-    let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
-    let search = ui.add(search.desired_width(f32::INFINITY));
-    access::call(&search, "Search parts");
-    if let Some(part) = labels.selected {
-        parts::chosen(ui, labels, part, actions);
-    }
+    // In a short window the part that stays in place would leave the list almost no room, so
+    // it scrolls too, with the model's check, which is the first of it, in sight to begin with.
+    let fixed = ScrollArea::vertical()
+        .id_salt(FIXED_SCROLL)
+        .auto_shrink([false, true])
+        .max_height(FIXED_MOST * ui.available_height());
+    fixed.show(ui, |ui| {
+        asked.extend(about(ui, labels));
+        asked.extend(switches(ui, labels, actions));
+        let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
+        let search = ui.add(search.desired_width(f32::INFINITY));
+        access::call(&search, "Search parts");
+        if let Some(part) = labels.selected {
+            parts::chosen(ui, labels, part, actions);
+        }
+    });
     ui.separator();
     scrolling(ui, |ui| {
         section(ui, "Groups");

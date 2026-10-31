@@ -22,17 +22,20 @@ impl VoxaApp {
         ctx.all_styles_mut(|style| style.animation_time = 0.0);
         // A picture for the documentation may want one of the windows open in it.
         let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
-        let asked = |word: &str| capture::asks_for(&wanted, word);
-        self.tags.open = asked("tags");
-        self.rail.other_open = asked("other");
+        let opens = capture::opens(&wanted);
+        self.tags.open = opens.tags;
+        self.rail.other_open = opens.other;
+        if opens.search {
+            self.search.open();
+        }
         if let Some(tab) = capture::tab_asked(&wanted) {
             self.screen.show_tab(tab);
         }
         if let Some(pictures) = capture::arrangement_asked(&wanted) {
             self.dispatch(crate::action::Action::SetPictures(pictures));
         }
-        self.help_open = asked("keys");
-        self.about_open = asked("about");
+        self.help_open = opens.keys;
+        self.about_open = opens.about;
         self.pose = capture::pose(&wanted);
         self.label_pose = capture::label_pose(&wanted);
     }

@@ -80,6 +80,36 @@ a made-up study handed to them as a folder (written beforehand with
 
 Three to five people, during the redesign. None recorded yet.
 
+### Recorded check: the window's own work per frame (2026-10-31)
+
+Spec 7.17 holds the cost of drawing the window's bars, rail and panel to what 0.6.0's bars and
+list of series cost, and says it stays within that with a made-up study of 500 series.
+
+- **What was timed.** One frame of the window laid out headless, with no screen and no
+  pictures, at 1400 by 900 points, for a made-up study of 500 series of one slice each
+  (`crates/voxa-app/examples/measure_window.rs`: 10 frames to warm up, then 200 timed, each
+  with the drawing turned into triangles). The redesign's frame is the top bar, the bottom
+  line, the rail and the tab panel on its View tab; 0.6.0's is its toolbar and status line and
+  its list of series. Both are the library's own code laid out by a `BareWindow`, the
+  redesign's in `crates/voxa-app/src/ui/bare.rs`, 0.6.0's a temporary copy of the same
+  interface over its `bars::show` and `browser::show`, which was never committed.
+- **How.** Release builds. 0.6.0 is commit `ddc5686`, the commit this branch started from, in a
+  temporary worktree (removed afterwards), not the `release` branch, which has moved. Nothing
+  else heavy was running on the computer: the two programs were run alternately, five runs
+  each, the 0.6.0 one first of each pair.
+- **Result.** Median frame time, five runs each:
+
+| | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
+|---|---|---|---|---|---|
+| 0.6.0 (bars and list of series) | 1.184 ms | 1.178 ms | 1.144 ms | 1.158 ms | 1.188 ms |
+| Redesign (bars, rail and panel) | 0.202 ms | 0.211 ms | 0.231 ms | 0.199 ms | 0.202 ms |
+
+  The redesign's frame took about a sixth of the time of 0.6.0's with the same 500 series:
+  the rail draws only the cards in sight, where 0.6.0's list drew all 500. UI-37 is met.
+- **What it does not show.** The pictures, the graphics device and the time to paint are not
+  in it. A computer with a slower processor will show larger numbers for both; only the two
+  beside each other mean anything.
+
 ### Summative: the redesign
 
 None recorded yet.

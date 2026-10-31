@@ -14,6 +14,10 @@ use crate::state::{AppState, Notice, NoticeKind};
 use crate::ui::commands::{self, Does, Request};
 use crate::worker::Workers;
 
+mod progress;
+
+pub use progress::{is_open as turntable_is_open, progress, stop as stop_turntable};
+
 /// The key of the notice that says how saving went.
 const SAVING: &str = "saving";
 
@@ -162,27 +166,6 @@ impl Turntable {
         let file = gif(&self.drawn, self.size, TURNTABLE_SECONDS);
         said(&self.path, file.and_then(|file| write(&self.path, &file)))
     }
-}
-
-/// Show how far a turntable has got, with a way to stop it. True when the person stops it.
-pub fn progress(ctx: &egui::Context, making: &Turntable) -> bool {
-    let (done, of) = making.progress();
-    let mut stop = false;
-    egui::Window::new("Saving a turntable")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .show(ctx, |ui| {
-            ui.label(format!("Drawing picture {} of {of}", (done + 1).min(of)));
-            let share = if of == 0 {
-                1.0
-            } else {
-                done as f32 / of as f32
-            };
-            ui.add(egui::ProgressBar::new(share).desired_width(240.0));
-            stop = ui.button("Cancel").clicked();
-        });
-    stop
 }
 
 #[cfg(test)]
@@ -357,17 +340,5 @@ mod tests {
         let file = Cursor::new(std::fs::read(&path).expect("reads"));
         let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
         assert_eq!(frames, 72);
-    }
-
-    #[test]
-    fn the_progress_window_draws_and_is_not_stopped_unless_asked() {
-        let ctx = egui::Context::default();
-        let making = Turntable::new(PathBuf::from("voxa-3d.gif"), &scene(), [400.0, 300.0]);
-        let mut stopped = true;
-        let mut output = ctx.run_ui(RawInput::default(), |ui| {
-            stopped = progress(ui.ctx(), &making);
-        });
-        output.textures_delta.clear();
-        assert!(!stopped);
     }
 }

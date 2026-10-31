@@ -186,3 +186,108 @@ fn with_four_viewports_the_others_are_offered_and_four_is_not_asked_for_again() 
         ]
     );
 }
+
+#[test]
+fn the_slice_is_said_only_while_slices_are_in_sight() {
+    let mut state = thick_scan_ready();
+    for (pictures, in_sight) in [
+        (Pictures::Slices, true),
+        (Pictures::SlicesAndScene, true),
+        (Pictures::Planes, false),
+        (Pictures::Scene, false),
+    ] {
+        reduce(&mut state, Action::SetPictures(pictures));
+        let words = seen(&state).words;
+        let said = words.iter().any(|word| word.starts_with("slice "));
+        assert_eq!(said, in_sight, "{pictures:?}: {words:?}");
+    }
+}
+
+/// Draw the strip `wide` points across for `state`, keeping what it asked for.
+fn strip_across<'a>(
+    wide: f32,
+    state: &'a AppState,
+    actions: &'a mut Vec<Action>,
+) -> impl FnMut(&mut Ui) + 'a {
+    move |ui| {
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(wide, super::super::layout::STRIP));
+        let _ = show(ui, rect, state, actions);
+    }
+}
+
+/// How wide the strip has to be to hold every button of the arrangements and the viewports:
+/// to the right edge of the last of them.
+fn full_width(state: &AppState) -> f32 {
+    let seen = Hand::new(WIDE, 300.0).settle(&mut strip(state, &mut Vec::new()));
+    let [.., last] = arrangements();
+    seen.bounds_of(&last).expect("drawn").right()
+}
+
+#[test]
+fn in_a_narrow_strip_each_arrangement_and_viewport_count_can_still_be_chosen() {
+    let state = thick_scan_ready();
+    let full = full_width(&state);
+    assert!(full < WIDE - 40.0, "the buttons take {full} of {WIDE}");
+    let every_name: Vec<String> = [arrangements().to_vec(), viewports().to_vec()].concat();
+    // Wide enough, they are all in the strip itself.
+    let hand = Hand::new(full + 40.0, 300.0);
+    let seen = hand.settle(&mut strip_across(full + 40.0, &state, &mut Vec::new()));
+    for name in &every_name {
+        assert!(seen.bounds_of(name).is_some(), "{name} is in the strip");
+    }
+    // Whatever the width around the one they need, none is cut off at the strip's edge.
+    for step in 0..40_i16 {
+        let wide = full - 20.0 + f32::from(step);
+        let hand = Hand::new(wide, 300.0);
+        let seen = hand.settle(&mut strip_across(wide, &state, &mut Vec::new()));
+        for (name, at) in &seen.names {
+            assert!(
+                at.right() <= wide + 0.5,
+                "{name:?} at {at:?} is cut off at {wide}"
+            );
+        }
+    }
+    // Narrower, from just short of that to the narrowest middle of the smallest window at twice
+    // the interface's size, nothing is cut off at the strip's edge, and each is one click or
+    // two away.
+    for wide in [full - 20.0, 0.7 * full, 0.5 * full, 150.0] {
+        let hand = Hand::new(wide, 300.0);
+        let seen = hand.settle(&mut strip_across(wide, &state, &mut Vec::new()));
+        for (name, at) in &seen.names {
+            assert!(
+                at.right() <= wide + 0.5,
+                "{name:?} at {at:?} is cut off by the strip's edge at {wide}"
+            );
+        }
+        let wanted = [
+            Action::SetPictures(Pictures::SlicesAndScene),
+            Action::SetPictures(Pictures::Planes),
+            Action::SetPictures(Pictures::Scene),
+            Action::SetLayout(Layout::TwoAcross),
+            Action::SetLayout(Layout::TwoByTwo),
+        ];
+        let names = [
+            &every_name[1],
+            &every_name[2],
+            &every_name[3],
+            &every_name[5],
+            &every_name[6],
+        ];
+        for (name, action) in names.into_iter().zip(wanted) {
+            let mut actions = Vec::new();
+            {
+                let mut draw = strip_across(wide, &state, &mut actions);
+                if !hand.click_named(name, &mut draw) {
+                    let opened = hand.click_named(&menu_name(state.pictures), &mut draw);
+                    assert!(
+                        opened,
+                        "{name} is not in the strip, nor is the menu at {wide}"
+                    );
+                    let in_it = hand.click_named(name, &mut draw);
+                    assert!(in_it, "{name} is in the menu at {wide}");
+                }
+            }
+            assert_eq!(actions, [action], "{name} at {wide}");
+        }
+    }
+}

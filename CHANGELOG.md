@@ -6,6 +6,94 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+A new window, made so that someone who has never seen Voxa can open an export, find the brain
+scan and measure something on it without help. What Voxa does with a scan is the same; the
+controls are grouped by what you want to do, and more kinds of file open. Voxa is not a medical
+device and is not for diagnostic use.
+
+### Changed
+
+- **The window has five parts.** A bar across the top (**Open**, the study's name and date, a
+  search box, help, the theme and a menu, **⋯**); a rail of scans down the left; the pictures
+  in the middle, under a strip that arranges them; a panel of tabs at the right (**View**,
+  **Measure**, **3D**, **Labels** and **Tools**); and, along the bottom, the disclaimer and the
+  notices. The three rows of buttons that were across the top, the measurements window and
+  the Parts tab are gone: what they held is in the tabs, and the Parts tab is the Labels tab
+  (what labels there are) and the Tools tab (making them).
+- **Voxa opens on the slices**, not the 3D view. The strip above the pictures chooses
+  **Slices** (with one, two or four viewports), **Slices + 3D**, **Planes** (the three planes
+  and the 3D view) or **3D** alone. The arrangement is not kept between runs. The strip says
+  which slice is shown while slices are in sight, and in a narrow middle folds its buttons
+  into one menu so that every arrangement can still be chosen.
+- **Search finds anything.** Ctrl+K, `/` or a click on the box opens it; it finds every button
+  by its name and by other words for it, and also the parts of open labels, the scans of the
+  export and the help topics. A button that cannot be used now is listed with the reason.
+  Nothing typed into it is kept.
+- **The rail of scans** lists the scans first, each with a plain name made only from what the
+  files say and the scanner's own description beneath it; locating images, scanned pages,
+  reports and other files are under **Other files**, closed until opened. An export with the
+  studies of more than one person says so and groups them by person. A scan Voxa can only show
+  as a plain stack, or cannot read, has a small mark on its card; its sentence is in the
+  card's hover text and is posted as a notice when it is opened. Only the cards in sight are
+  drawn, so a study of 500 series is no slower to draw than a small one. A **«** at the top of
+  the rail folds it to a strip; **B** does too.
+- **Patient details** start hidden in every run. The patient's name and identifier are left
+  out of the rail, the viewports, the tag browser and the titles of documents; a scanned page
+  or a radiotherapy image shows an icon in place of its thumbnail; and a report's text is
+  shown with the name replaced where it is written as the file writes it. A name written some
+  other way in a report's free text may still show.
+- **The tabs.** **View** has the brightness and contrast, the way round the patient is drawn,
+  the slices and playback. A CT scan offers the windows brain, soft tissue, lung and bone, and
+  the value under the pointer is in Hounsfield units when the file says so; an MR scan keeps
+  Auto, Soft and Hard. **Measure** has the rulers, angles, regions and markers and what has been
+  measured. **3D** has the looks, the sides, the cuts, the saved views and saving a picture or
+  a turntable, and says so when the arrangement shows no 3D view. **Labels** says who made the
+  labels and the model's own check first, then an overview by group, then the parts; in a short
+  window the part that stays in place scrolls too, so the list keeps room. **Tools** has
+  **Label this scan**, and a place for tools added later.
+- **Notices** are in one place at the bottom right: the newest one, how many there are, and a
+  list of all of them, each with **Dismiss**. Nothing is shown in red.
+- **Light and dark themes**, and the system's choice, from the top bar. The pictures stay on
+  black in both. Every pair of text and background meets the WCAG AA contrast.
+- **A small window.** The window works down to 640 by 480 at the display's scale. Below 760
+  points across both side columns fold, no more than one is open at a time, and the pictures
+  keep at least 200 points; the top bar keeps **Open**, the search box and the menu. The tab
+  panel has a **»** that folds it; so has the rail. A fold the window made itself is not kept
+  as yours.
+- Voxa remembers, as before, the window's size, the size of the interface, how wide the rail
+  and the panel are, how many viewports, the **Radiological** and **Link** switches and how
+  labels are drawn; and now also which tab is open, whether you folded the rail or the panel,
+  and the theme. A settings file written by 0.6.0 opens with its settings: the width of
+  the column of pictures becomes the panel's.
+- **Every control, scan card and viewport has a name a screen reader can say**, and the hand-
+  drawn ones say what they show ("Axial slice 88 of 176"). Tab goes through the bar, the rail,
+  the pictures and the panel in that order, and the arrow keys move between cards.
+- The turntable's progress window opens over the pictures, like the other windows that float,
+  and Esc stops it. A long title on a document no longer pushes its buttons out of the window.
+- Voxa is for looking at MRI and CT scans, and other DICOM files at a basic level.
+  `docs/intended-use.md` and the About window say so.
+
+### Added
+
+- **Measuring on the slices.** Rulers, angles, regions and markers can be drawn on the slices
+  as well as on the planes and in 3D, from the moment a slice is shown, without waiting for the
+  3D volume. A scan with a pixel spacing but no position is measured within the picture and its
+  measurements say they come from the file's pixel spacing; a scan with no pixel spacing is not
+  measured in millimetres, and the tools say why. Measurement labels never overlap one another.
+- **Reports and other documents.** A DICOM structured report is listed in **Other files** and
+  opens as text in the middle of the window, headed "Shown as text. The original report is
+  the reference." A PDF stored in DICOM is listed and can be saved as a PDF where you choose;
+  Voxa starts no other program. Other files Voxa cannot show are listed with their kind in
+  words and their tags.
+- **Help topics**, a few plain sentences each, found by search: opening an export, finding
+  your scan, brightness, measuring and where its millimetres come from, left and right,
+  labels, and what Voxa is not for.
+- `VOXA_CAPTURE_SHOW` gains `tab-view`, `tab-measure`, `tab-3d`, `tab-labels` and `tab-tools`,
+  `search` and `notices`. `cargo run --release -p voxa-app --example measure_window` times the
+  window's bars, rail and panel for a made-up study of 500 series.
+- `docs/quality/` starts three documents kept from now on: the requirements, each traced to the
+  test or check that shows it is met; a risk register; and a usability file.
+
 ## [0.6.0] - 2026-10-22
 
 The sixth release, made for a first public release: a download for Windows, the notices and

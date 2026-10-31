@@ -144,6 +144,21 @@ impl Hand {
         true
     }
 
+    /// Turn the mouse wheel over `at` by `delta` points, a negative one scrolling down, and let
+    /// the scrolling come to rest.
+    pub fn scroll_at(&self, at: Pos2, delta: f32, draw: &mut impl FnMut(&mut Ui)) {
+        let wheel = Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: vec2(0.0, delta),
+            phase: egui::TouchPhase::Move,
+            modifiers: Modifiers::NONE,
+        };
+        let _ = self.pass(vec![Event::PointerMoved(at), wheel], draw);
+        for _ in 0..6 {
+            let _ = self.pass(Vec::new(), draw);
+        }
+    }
+
     /// The widgets that can be clicked now, in the order they were drawn.
     fn clickable(&self) -> Vec<egui::Id> {
         let widgets = self

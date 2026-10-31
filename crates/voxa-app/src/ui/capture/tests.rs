@@ -127,7 +127,7 @@ fn what_a_picture_asks_for_is_read_word_by_word() {
     assert!(asks_for("keys, nolist", "keys"));
     assert!(
         !asks_for("nolist", "list"),
-        "the series list hidden is not the list of measurements"
+        "a word is read whole: `nolist`, which folds the rail of scans, is not `list`"
     );
     assert!(!asks_for("", "keys"));
 }

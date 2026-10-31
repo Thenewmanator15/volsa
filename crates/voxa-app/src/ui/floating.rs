@@ -1,4 +1,5 @@
-//! Windows that float over the pictures: About, the help and a file's tags.
+//! Windows that float over the pictures: About, the help, a file's tags and the progress of a
+//! turntable being saved.
 //!
 //! Nothing floats over the column of scans. Each of these windows opens inside the area of
 //! the pictures and is kept there when it is moved, never wider or taller than that area; and
@@ -6,6 +7,7 @@
 
 use egui::{Context, Id, Key, Modifiers, Rect, Window, vec2};
 
+use super::scene::export;
 use super::{VoxaApp, about, help, search};
 use crate::action::Action;
 
@@ -57,6 +59,8 @@ enum Which {
     Licences,
     Help,
     Tags,
+    /// The window that shows how far a turntable has got; Esc stops the turntable.
+    Turntable,
 }
 
 impl Open<'_> {
@@ -67,6 +71,7 @@ impl Open<'_> {
             Which::Licences => about::notices_are_open(ctx),
             Which::Help => *self.help,
             Which::Tags => *self.tags,
+            Which::Turntable => export::turntable_is_open(ctx),
         }
     }
 
@@ -77,6 +82,7 @@ impl Open<'_> {
             Which::Licences => about::close_notices(ctx),
             Which::Help => *self.help = false,
             Which::Tags => *self.tags = false,
+            Which::Turntable => export::stop_turntable(ctx),
         }
     }
 }
@@ -88,7 +94,14 @@ pub fn close_on_esc(ctx: &Context, mut open: Open<'_>) {
     let kept = Id::new(OPENED);
     let mut order: Vec<Which> = ctx.data(|data| data.get_temp(kept)).unwrap_or_default();
     order.retain(|which| open.is_open(ctx, *which));
-    for which in [Which::About, Which::Licences, Which::Help, Which::Tags] {
+    let all = [
+        Which::About,
+        Which::Licences,
+        Which::Help,
+        Which::Tags,
+        Which::Turntable,
+    ];
+    for which in all {
         if open.is_open(ctx, which) && !order.contains(&which) {
             order.push(which);
         }

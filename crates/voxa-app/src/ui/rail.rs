@@ -1,6 +1,7 @@
 //! The rail of scans down the left of the window: a card for each scan, under each person's
 //! and each study's heading where there are several, and below them the other files, in a
-//! group that is closed until it is opened. Folded, the rail is a strip that opens it again.
+//! group that is closed until it is opened. Open, it has a button at its top that folds it;
+//! folded, the rail is a strip that opens it again.
 //!
 //! An export can hold hundreds of series, so only the rows in sight are drawn: every row is of
 //! a fixed height (see [`rows`]), the rows are kept from one frame to the next (see [`kept`]),
@@ -12,8 +13,8 @@
 
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Color32, FontId, Frame, Id, Margin, Rect, RichText, ScrollArea, Sense, Shape, Stroke,
-    TextStyle, Ui, WidgetInfo, WidgetType, pos2, vec2,
+    Align, Color32, FontId, Frame, Id, Layout, Margin, Rect, RichText, ScrollArea, Sense, Shape,
+    Stroke, TextStyle, Ui, WidgetInfo, WidgetType, pos2, vec2,
 };
 use voxa_dicom::Index;
 
@@ -41,6 +42,8 @@ use rows::Row;
 pub const STRIP: f32 = panel::STRIP;
 /// What the rail says while no export is open.
 const NOTHING_OPEN: &str = "Open a scan export to begin: a folder, a zip file or a DICOMDIR.";
+/// The action that folds the rail to its strip and, from the strip, opens it again.
+const UNFOLDS: &str = "rail.fold";
 /// The action whose label and hint the heading of the other files reads.
 const OTHER_FILES: &str = "rail.other";
 /// The room above the heading of the other files, in its row.
@@ -74,7 +77,9 @@ pub fn column(
         .frame(frame);
     let shown = side.show(ui, |ui| {
         if open {
-            return show(ui, state, thumbnails, rail, actions);
+            let mut asked = header(ui, state, actions);
+            asked.extend(show(ui, state, thumbnails, rail, actions));
+            return asked;
         }
         let does = strip::show(ui);
         does.and_then(|does| does.run(state, actions))
@@ -82,6 +87,24 @@ pub fn column(
             .collect()
     });
     (shown.response.rect, shown.inner)
+}
+
+/// The top of the open rail: its name, and at its right the button that folds it to its strip,
+/// as the tab panel has. Gives what the button asked of the window.
+fn header(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
+    let does = ui
+        .horizontal(|ui| {
+            let name = commands::find(UNFOLDS).map_or("Scans", |command| command.label);
+            ui.label(RichText::new(name).strong());
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                commands::button_labelled(ui, UNFOLDS, "«", state, None)
+            })
+            .inner
+        })
+        .inner;
+    does.and_then(|does| does.run(state, actions))
+        .into_iter()
+        .collect()
 }
 
 /// Draw the rail's scans: with an export of several people, how many there are, then the rows

@@ -5,10 +5,8 @@ use egui::{
     Align2, CornerRadius, FontId, Id, Rect, Sense, Stroke, Ui, WidgetInfo, WidgetType, vec2,
 };
 
+use super::UNFOLDS;
 use crate::ui::commands::{self, Does};
-
-/// The action the strip does when clicked: the rail shown again.
-const UNFOLDS: &str = "rail.fold";
 
 /// Draw the strip in all the room `ui` has; gives what it does when it is clicked. A screen
 /// reader calls it by the name of the action that shows the rail again, and the pointer

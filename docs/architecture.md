@@ -227,8 +227,8 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 In two folders the system gives Voxa. The settings folder (`config_dir`, on Windows in the
 roaming profile, which a managed network may copy to its servers) holds only
 `preferences.json` (the window's size, the interface's size, the shares of the window's width
-the series list and the tab panel take, the tab open and whether the panel is folded, the layout, orientation, linking and how labels are
-drawn). The local folder (`data_local_dir`, which stays on the machine) holds the rest: the
+the series list and the tab panel take, whether the person folded either, the tab open, the
+theme, the layout, orientation, linking and how labels are drawn). The local folder (`data_local_dir`, which stays on the machine) holds the rest: the
 saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
 model, the cortex areas, where a run goes by the card's name, whether results are kept, and
 the two folders of the model and the runtime, which are its only paths), a `labels` folder
@@ -253,6 +253,67 @@ frames, build a volume, work out the curve for smooth planes, read labels, look 
 labelling files, run the labelling networks, stop them, keep and find a result, read and write
 saved views and annotations). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
+
+## The window
+
+`voxa-app/src/ui` is the window. It draws from `AppState` and the workers' reports each frame and
+holds no scan data of its own: the pictures read their slices and volumes from the session.
+
+### Its parts
+
+| Part | Where | What it holds |
+|---|---|---|
+| Top bar | `top.rs`, `top/menu.rs`, `bars.rs` | **Open**, the study's name and date, the search box, help, the theme and the menu (interface size, full screen, the keys and mouse, where the log is, About), on one line; in a narrow window the study's name goes first, then the search box shortens |
+| Bottom line | `notices.rs`, `bars.rs` | The disclaimer, word for word, and the notice area: the newest notice, how many there are, and a list of all of them with **Dismiss** |
+| Rail of scans | `rail.rs` and `rail/` | A card for each scan under each person's and study's heading, then **Other files** (closed until opened); only the cards in sight are laid out, from rows kept between frames; folds to a strip |
+| Strip and pictures | `strip.rs`, `layout.rs`, `pictures.rs`, `viewport.rs`, `planes.rs`, `scene.rs` | The strip chooses **Slices** (1, 2 or 4 viewports), **Slices + 3D**, **Planes** or **3D**; beneath it the 2D viewports, the three planes and the 3D scene as the arrangement shows them; in a narrow middle the strip's buttons fold into one menu |
+| Tab panel | `panel.rs`, `tabs.rs` and `tabs/` | **View**, **Measure**, **3D**, **Labels** and **Tools**, one open at a time; folds to a strip of icons |
+| A document | `document.rs` | A structured report as text, a PDF's "Save a copy", or any other file named, in place of the strip and the pictures |
+| Floating windows | `floating.rs`, `about.rs`, `help.rs`, `tags.rs`, `scene/export/progress.rs` | About, the help, a file's tags and a turntable's progress open over the pictures, never over the rail, and Esc closes the one opened last |
+| Search | `search.rs` and `search/` | Opens with Ctrl+K, `/` or a click; finds actions, the parts of open labels, scans and help topics; its index is rebuilt only when they change |
+| Themes | `theme.rs` | System, light and dark, defined once each; the pictures stay on black |
+
+`screen.rs` and `screen/folds.rs` set the parts out. The window is fitted to the screen it opens
+on; the rail's and the panel's widths are shares of the window's width, can be dragged, and
+are kept; and below 760 points across at most one of the two side columns is open and the
+pictures keep 200 points, the window folding them itself as it becomes narrow (such a fold is
+not kept as the person's). The Tab key goes through the top bar, the rail, the pictures and the
+panel in that order, so the pictures are drawn before the panel beside them.
+
+### The list of actions
+
+Every action a person can take is described once, in `ui/commands.rs` and its `commands/table/`
+(a file for each part of the window), as a `Command`:
+
+- `id`, which never changes, and `name`, what it does in plain words;
+- `label`, what its button shows (which may be short, such as `1` or `VR`), and `explains`, a
+  second line for the hint;
+- `words`, the other words it is searched by;
+- `key`, if it has one, and `place`, where it lives (the top bar, the menu, the strip, a tab, a
+  card, the rail, the panel);
+- `profiles`, the kinds of scan (CT, MR, basic) it is offered for when not all;
+- `why_not`, a function from the state to the sentence that says why it cannot be used now,
+  or `None`;
+- `does`: either a change of state (an `Action`, made from the state when it is run) or a
+  `Request` for the window itself (open a file, fold a column, show a tab, save a picture).
+
+The buttons, the keys, the help's list of keys, the search, the hints and every control's
+screen-reader name all read this one list, so a name, a key or a hint is written once. A button
+that cannot be used is drawn greyed with its reason; in the search it is listed with the reason,
+and running it posts the reason. A plugin system later adds its tools to the same list at run
+time. Tests over the list (`commands/table_tests.rs`, `search/tests.rs`, `access_tests.rs`)
+check that every action is found by its name and by each of its words, that no two share a key
+in the same place, that every key does what the list says, and that every button drawn is
+an entry.
+
+### Taking a picture, and timing the window
+
+`VOXA_CAPTURE` makes Voxa save one picture of its window and close (`ui/capture.rs` lists the
+words `VOXA_CAPTURE_SHOW` takes, among them one for each tab, `search` and `notices`).
+`BareWindow` (`ui/bare.rs`) lays out the bar, the bottom line, the rail and the panel with no
+screen and no pictures; the tests of the window's small sizes use it, and
+`cargo run --release -p voxa-app --example measure_window` times it for a made-up study of 500
+series, the measurement that spec 7.17 holds to 0.6.0's bars and list.
 
 ## Coordinates
 

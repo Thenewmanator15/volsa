@@ -13,7 +13,7 @@
 use std::path::PathBuf;
 
 use egui::{Align, Button, Frame, Label, Layout, Margin, Rect, RichText, Ui};
-use egui::{UiBuilder, vec2};
+use egui::{UiBuilder, pos2, vec2};
 use voxa_dicom::{DocumentKind, IndexedDocument};
 
 use super::commands::{self, Request, TagsOf};
@@ -98,7 +98,9 @@ pub fn show(
 }
 
 /// The top of the document: what kind it is, its title and date, and the buttons that show the
-/// tags of its file and close it.
+/// tags of its file and close it. The buttons are laid out first, at the right, and the words
+/// have the room that is left, cut short with an ellipsis where it runs out: a long title never
+/// pushes the buttons out of the area or under it.
 fn header(
     ui: &mut Ui,
     document: &IndexedDocument,
@@ -106,28 +108,33 @@ fn header(
     actions: &mut Vec<Action>,
     asked: &mut Vec<Request>,
 ) {
-    ui.horizontal(|ui| {
-        ui.vertical(|ui| {
-            ui.label(RichText::new(kind_words(&document.kind)).heading().strong());
-            let mask = Mask::for_document(state, document);
-            let words = format!("{} · {}", title_of(document, &mask), date_of(document));
-            let quiet = RichText::new(words)
-                .small()
-                .color(theme::palette(ui.ctx()).quiet_text);
-            ui.add(Label::new(quiet).truncate());
-        });
-        ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
-            if ui.button(CLOSE).clicked() {
-                actions.push(Action::CloseDocument);
-            }
-            let tags = commands::button_made(ui, "tags.show", state, "", |command| {
-                Button::new(command.name)
-            });
-            if let Some((_, Some(_))) = tags {
-                asked.push(Request::Tags(TagsOf::Entry(document.entry.clone())));
-            }
-        });
+    let full = ui.available_rect_before_wrap();
+    let at_the_right = UiBuilder::new()
+        .max_rect(full)
+        .layout(Layout::right_to_left(Align::Min));
+    let mut buttons = ui.new_child(at_the_right);
+    if buttons.button(CLOSE).clicked() {
+        actions.push(Action::CloseDocument);
+    }
+    let tags = commands::button_made(&mut buttons, "tags.show", state, "", |command| {
+        Button::new(command.name)
     });
+    if let Some((_, Some(_))) = tags {
+        asked.push(Request::Tags(TagsOf::Entry(document.entry.clone())));
+    }
+    let used = buttons.min_rect();
+    let edge = (used.left() - ui.spacing().item_spacing.x).max(full.left());
+    let left = Rect::from_min_max(full.min, pos2(edge, full.bottom()));
+    let mut words = ui.new_child(UiBuilder::new().max_rect(left));
+    let kind = RichText::new(kind_words(&document.kind)).heading().strong();
+    words.add(Label::new(kind).truncate());
+    let mask = Mask::for_document(state, document);
+    let title = format!("{} · {}", title_of(document, &mask), date_of(document));
+    let quiet = RichText::new(title)
+        .small()
+        .color(theme::palette(ui.ctx()).quiet_text);
+    words.add(Label::new(quiet).truncate());
+    ui.advance_cursor_after_rect(used | words.min_rect());
 }
 
 /// A structured report: while it is being read, why it could not be, or the lines of it.
@@ -164,6 +171,8 @@ fn pdf(ui: &mut Ui, entry: &str, asked: &mut Vec<Request>) {
     }
 }
 
+#[cfg(test)]
+mod header_tests;
 #[cfg(test)]
 mod private_tests;
 #[cfg(test)]

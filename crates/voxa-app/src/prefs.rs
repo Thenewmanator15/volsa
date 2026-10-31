@@ -1,6 +1,6 @@
 //! What Voxa remembers between runs of how the person had it set: the window's size, the size
 //! of the interface, how wide the series list and the tab panel are, which tab is open and
-//! whether the panel is folded, whether the window is light, dark or as the system is set,
+//! whether either column is folded, whether the window is light, dark or as the system is set,
 //! how many viewports, and three switches. Nothing about any scan, and nothing that says which
 //! scans were opened.
 
@@ -40,6 +40,10 @@ pub const THEMES: [&str; 3] = [START_THEME, "light", "dark"];
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a settings file of independent switches, each kept by its own name"
+)]
 pub struct Prefs {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
     /// for the size Voxa starts at.
@@ -57,6 +61,9 @@ pub struct Prefs {
     pub panel_share: Option<f32>,
     /// Whether the tab panel is folded to a strip of icons.
     pub panel_folded: bool,
+    /// Whether the series list is folded to its strip, as the person left it: a fold the window
+    /// made because it was narrow is not kept.
+    pub rail_folded: bool,
     /// The tab last open, by the name it is kept under: `View`, `Measure`, `Scene`, `Labels` or
     /// `Tools`. A name that is not one of these opens the first.
     pub tab: String,
@@ -89,6 +96,8 @@ pub struct Arrangement {
     pub panel_share: Option<f32>,
     /// Whether the tab panel is folded to a strip of icons.
     pub panel_folded: bool,
+    /// Whether the series list is folded to its strip, as the person left it.
+    pub rail_folded: bool,
     /// The tab last open, by the name it is kept under.
     pub tab: String,
     /// The theme the window is drawn in, by the name it is kept under.
@@ -103,6 +112,7 @@ impl Default for Arrangement {
             list_share: LIST_SHARE,
             panel_share: None,
             panel_folded: false,
+            rail_folded: false,
             tab: FIRST_TAB.to_owned(),
             theme: START_THEME.to_owned(),
         }
@@ -153,6 +163,7 @@ impl Prefs {
             column_share: None,
             panel_share: arrangement.panel_share,
             panel_folded: arrangement.panel_folded,
+            rail_folded: arrangement.rail_folded,
             tab: arrangement.tab,
             theme: arrangement.theme,
             viewports,
@@ -170,6 +181,7 @@ impl Prefs {
             list_share: self.list_share,
             panel_share: self.panel_share,
             panel_folded: self.panel_folded,
+            rail_folded: self.rail_folded,
             tab: self.tab.clone(),
             theme: self.theme.clone(),
         }
@@ -299,5 +311,7 @@ impl Kept {
     }
 }
 
+#[cfg(test)]
+mod carried_tests;
 #[cfg(test)]
 mod tests;

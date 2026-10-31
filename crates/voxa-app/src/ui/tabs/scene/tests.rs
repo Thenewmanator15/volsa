@@ -6,6 +6,7 @@ use super::super::super::commands::Request;
 use super::super::super::hand::Hand;
 use super::super::super::scene::export;
 use super::*;
+use crate::pictures::Pictures;
 
 /// Click all the way down the tab and gather everything that was asked for, once each, in
 /// the order met: the changes of state, and what was asked of the window.
@@ -138,4 +139,30 @@ fn saving_the_view_is_asked_of_the_window_and_not_dropped() {
         "and it holds {picture}"
     );
     assert_eq!(asked, [Request::SaveScene(export::Asked::Picture)]);
+}
+
+#[test]
+fn the_tab_says_so_at_its_top_when_the_arrangement_shows_no_3d_view() {
+    let words_of = |state: &AppState| {
+        let hand = Hand::new(320.0, 700.0);
+        hand.settle(&mut |ui| {
+            let _ = show(ui, state, &mut Vec::new());
+        })
+        .words
+    };
+    let mut state = crate::testing::thick_scan_ready();
+    for (pictures, hinted) in [
+        (Pictures::Slices, true),
+        (Pictures::SlicesAndScene, false),
+        (Pictures::Planes, false),
+        (Pictures::Scene, false),
+    ] {
+        crate::reducer::reduce(&mut state, Action::SetPictures(pictures));
+        let words = words_of(&state);
+        let at = words.iter().position(|word| word == NO_3D_VIEW);
+        assert_eq!(at.is_some(), hinted, "{pictures:?}: {words:?}");
+        // At the top: before the first heading of the controls.
+        assert!(at.is_none_or(|at| at == 0), "{pictures:?}: {words:?}");
+    }
+    assert_eq!(NO_3D_VIEW, "Choose 3D, Planes or Slices + 3D to see this.");
 }

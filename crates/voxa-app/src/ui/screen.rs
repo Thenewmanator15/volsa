@@ -1,6 +1,6 @@
 //! Fitting the window to the screen it opens on, and keeping how the window is set out: its
 //! size, how much of its width the series list and the tab panel take, whether the list is
-//! shown, which tab the panel shows and whether it is folded, and the size of the interface.
+//! shown, which tab the panel shows and whether either is folded, and the size of the interface.
 //! In a narrow window the two fold on their own (see [`folds`]).
 //!
 //! Sizes and places here are in points at the interface's usual size, which is what Windows
@@ -128,12 +128,13 @@ impl Screen {
             remembered.panel_folded,
             &remembered.tab,
         );
+        let rail_folded = remembered.rail_folded;
         Self {
             arrangement: remembered,
             list_shown: false,
             panel,
             opening: Some(Opening { fit, hide_list }),
-            folds: folds::Folds::new(!panel.folded),
+            folds: folds::Folds::new(!panel.folded, !rail_folded),
         }
     }
 
@@ -147,6 +148,7 @@ impl Screen {
             interface_size,
             panel_share: chosen.then_some(share),
             panel_folded: self.panel_folded_by_choice(),
+            rail_folded: self.rail_folded_by_choice(),
             tab: self.panel.tab.name().to_owned(),
             ..self.arrangement.clone()
         }
@@ -193,10 +195,17 @@ impl Screen {
             }
             width = Some(placed.inner[0]);
         }
-        let wide = width.is_none_or(|width| list_starts_shown(width, zoom));
-        self.list_shown = wide && !opening.hide_list;
-        // Shown as the window opens, which is not the person opening it.
+        self.list_shown = self.list_opens_shown(width, zoom, opening.hide_list);
+        // Shown, or not, as the window opens, which is not the person opening or folding it.
         self.rail_shown_as_it_opens();
+    }
+
+    /// Whether the series list is shown as the window opens, with `width` points across if
+    /// that is known, at interface size `zoom`: not if the person left it folded, nor in a
+    /// window too narrow for it, nor when `hide` asks for it hidden.
+    fn list_opens_shown(&self, width: Option<f32>, zoom: f32, hide: bool) -> bool {
+        let wide = width.is_none_or(|width| list_starts_shown(width, zoom));
+        wide && !hide && !self.arrangement.rail_folded
     }
 
     /// Note the window's size as it is now, to be remembered, unless it is minimised,

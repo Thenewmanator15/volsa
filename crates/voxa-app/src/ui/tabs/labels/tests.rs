@@ -374,3 +374,4 @@ fn labels_of_another_study_are_said_to_be_and_can_be_closed() {
     let (actions, requests) = sweep_labels(&state);
     assert_eq!((actions, requests), (vec![Action::CloseLabels], vec![]));
 }
+mod short;

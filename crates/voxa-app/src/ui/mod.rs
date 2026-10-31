@@ -14,6 +14,7 @@ mod about;
 mod access;
 #[cfg(test)]
 mod access_tests;
+mod bare;
 mod bars;
 mod browser;
 mod capture;
@@ -61,6 +62,7 @@ mod top;
 mod viewport;
 mod volumes;
 
+pub use bare::{BareLayout, BareWindow};
 pub use browser::thumbnail;
 pub use start::run;
 

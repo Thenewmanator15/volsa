@@ -20,11 +20,15 @@ use crate::ui::search::Search;
 use crate::ui::{seen, top};
 
 /// The cards of the rail as a screen reader is told of them, from the top down: the buttons
-/// in the rail but for the one that opens the menu of each.
+/// in the rail but for the one that opens the menu of each and the one at its top that folds it.
 fn cards(told: &Told, window: &Window) -> Vec<String> {
+    let folds = commands::find("rail.fold").map_or("", |command| command.name);
     let in_the_rail = |node: &&Heard| node.at.is_some_and(|at| window.rail_at.contains_rect(at));
     let mut found: Vec<&Heard> = told.nodes.iter().filter(in_the_rail).collect();
-    found.retain(|node| node.role == Role::Button && !node.name.starts_with("More for "));
+    found.retain(|node| {
+        let a_card = node.role == Role::Button && !node.name.starts_with("More for ");
+        a_card && node.name != folds
+    });
     let top = |node: &Heard| node.at.map_or(0.0, |at| at.top());
     found.sort_by(|a, b| top(a).total_cmp(&top(b)));
     found.into_iter().map(|node| node.name.clone()).collect()

@@ -29,11 +29,12 @@ pub const LICENCES: [&str; 7] = [
 
 /// What Voxa is for, as `docs/intended-use.md` says it: the window shows this and then the
 /// disclaimer, which together are that page's first paragraph, word for word.
-pub const INTENDED_USE: &str = "Voxa is for looking at MRI scans on your own computer: your \
-     own scans, and scans used for learning, teaching or research. It shows the images, lets you \
-     measure them and can show labels made by a model, but it does not diagnose, screen for or \
-     rule out anything, and its measurements and labels are not clinical results. Questions \
-     about anyone's health belong with a qualified clinician.";
+pub const INTENDED_USE: &str = "Voxa is for looking at MRI and CT scans, and other DICOM files at a basic \
+     level, on your own computer: your own scans, and scans used for learning, teaching or \
+     research. It shows the images, lets you measure them and can show labels made by a model, \
+     but it does not diagnose, screen for or rule out anything, and its measurements and labels \
+     are not clinical results. Questions about anyone's health belong with a qualified \
+     clinician.";
 
 /// What is said above the path of the log. A crash is logged by the place in the source code
 /// where it happened, which for a library can be a path on the computer Voxa was built on.
@@ -158,7 +159,7 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
 fn contents(ui: &mut egui::Ui) {
     ui.heading("Voxa");
     ui.label(format!("Version {VERSION}"));
-    ui.label("A viewer for MRI scans.");
+    ui.label("A viewer for MRI and CT scans.");
     ui.add_space(8.0);
     ui.label(INTENDED_USE);
     ui.label(

@@ -2,11 +2,12 @@
 //! patient is seen from, the cuts, whether the slice shown in 2D is drawn in the scene, the
 //! saved views, and saving a picture or a turntable.
 
-use egui::Ui;
+use egui::{RichText, Ui};
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
 use super::super::commands::{self, Request};
 use super::super::scene::{export, views};
+use super::super::theme;
 use super::{offer, row, section};
 use crate::action::Action;
 use crate::labels::look_drawn;
@@ -36,6 +37,10 @@ pub const LOOKS: [(Look, &str, &str); 3] = [
 /// What the Parts look is, and why it cannot be chosen while there are no labels.
 pub const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
 pub const PARTS_NEED_LABELS: &str = "Open labels in the Labels tab to see them as solids here.";
+
+/// Said at the top of the tab while the arrangement shown has no 3D view, which its controls act
+/// on all the same.
+pub const NO_3D_VIEW: &str = "Choose 3D, Planes or Slices + 3D to see this.";
 
 /// The sides the patient can be seen from, with what each button says, its letter and a word, and
 /// what it means, from which the list of actions takes its entries for them.
@@ -97,6 +102,10 @@ fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
 /// back.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
     let mut asked = Vec::new();
+    if !state.pictures.given(&state.scene.status).has_scene() {
+        let quiet = theme::palette(ui.ctx()).quiet_text;
+        ui.label(RichText::new(NO_3D_VIEW).small().color(quiet));
+    }
     section(ui, "Look");
     row(ui, |ui| looks(ui, state, actions, &mut asked));
     section(ui, "Seen from");

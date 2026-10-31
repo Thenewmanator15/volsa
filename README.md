@@ -1,6 +1,7 @@
 # Voxa
 
-Voxa is a desktop viewer for MRI scan exports, written in Rust. It opens a folder, a zip or a
+Voxa is a desktop viewer for MRI and CT scan exports, and other DICOM files at a basic level,
+written in Rust. It opens a folder, a zip or a
 `DICOMDIR`, lists the studies and series inside and says what kind each is, and shows any series
 as a stack of slices with correct orientation, contrast controls, overlays, tag inspection and
 cine playback; shows the series being looked at as a 3D volume that can be turned, cut open and
@@ -28,8 +29,9 @@ a marker measured on it, and the slice through its middle beside them. There are
    `INTENDED-USE.txt` (what Voxa is for and what it is not for), the licences and notices,
    `MODELS.md` (how to set up labelling), the changelog, and a `runtime` folder with ONNX
    Runtime, which labelling uses.
-3. Start `voxa.exe`. Open a scan with **Folder…** or **File…** in the toolbar (a folder of
-   DICOM files, a zip of them, or a `DICOMDIR`), or drop it on the window.
+3. Start `voxa.exe`. Open a scan with **Open** at the top left and then **Folder…** or **Zip
+   file or DICOMDIR…** (a folder of DICOM files, a zip of them, or a `DICOMDIR`), or drop it on
+   the window.
 
 **Windows may warn you the first time.** Voxa is not signed with a code-signing certificate, so
 Microsoft Defender SmartScreen may say "Windows protected your PC" and give the publisher as
@@ -41,17 +43,25 @@ opens it with labels another program made for it. `voxa.exe --help` says the res
 window.
 
 Voxa opens at a size that fits your screen, and its window can be made as small as 640 by 480
-at your display's scale. **Series** in the toolbar, or **B**, shows or hides the list of
-series, which starts hidden in a narrow window; **F11** is full screen. **Size** in the toolbar
-draws the words and buttons larger or smaller, as do Ctrl+= and Ctrl+- (Ctrl+0 puts them back).
+at your display's scale. The window has a bar across the top (**Open**, the study's name and
+date, the search box, help, the theme and a menu, **⋯**), the rail of scans down the left, the
+pictures in the middle and, at the right, a panel of tabs: **View**, **Measure**, **3D**,
+**Labels** and **Tools**. Along the bottom are the disclaimer and the notices. The search box,
+which Ctrl+K or `/` opens, finds a button by its name and by other words for it, and also the
+parts of open labels, the scans of the export and the help topics. **?** lists every key.
+
 An export opens on its slices. The strip above the pictures arranges them: **Slices** (with one,
 two or four viewports), **Slices + 3D**, **Planes** (the three planes and the 3D view, two by
-two) or **3D** alone. The edge of the list of series and the edge of the tab panel at the right
-can be dragged to give either more of the width; in a window under 760 points across only one
-of the two is open at a time, so that the pictures keep their room. Voxa remembers the window's
-size, the size of the words and buttons, how wide you dragged the list and the panel, and which
-tab is open; whether the list is shown, and full screen, start afresh each time. **?** lists
-every key.
+two) or **3D** alone. **B** folds the rail of scans to a strip, and **P** the tab panel, as do
+the **«** at the top of the rail and the **»** at the top of the panel; a click on a strip
+opens it again. Both start folded in a window under 760 points across, and there no more than
+one is open at a time, so that the pictures keep their room. The edge of the rail and the edge
+of the panel can be dragged to give either more of the width. **F11** is full screen, and
+**Size** in the **⋯** menu draws the words and buttons larger or smaller, as do Ctrl+= and
+Ctrl+- (Ctrl+0 puts them back). Voxa remembers the window's size, the size of the words and
+buttons, how wide you dragged the rail and the panel, which of them you folded, which tab is
+open and the theme (light, dark or the system's); full screen, which scans you opened, what you
+typed in the search box and whether patient details are shown start afresh each time.
 
 ### Removing Voxa
 
@@ -83,7 +93,7 @@ telemetry. What it keeps between runs stays on this computer, in two folders of 
 
 | File | What it holds |
 |---|---|
-| `preferences.json` | The window's size, the size of the interface, how wide the list of series and the tab panel are, which tab is open and whether the panel is folded, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
+| `preferences.json` | The window's size, the size of the interface, how wide the rail of scans and the tab panel are, whether you folded either, which tab is open, the theme, how many viewports, the **Radiological** and **Link** switches, and how labels are drawn over the planes. Nothing about any scan. |
 
 `%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
 its servers, so it holds nothing else.
@@ -103,7 +113,7 @@ Each series is filed under a 16-digit hash of its identifier, not under the iden
 nothing in these files names a patient. Still, a kept label file is a map of someone's head and
 an annotation holds whatever name you typed, so treat this folder as you would the scans.
 Labelling results are kept unless you switch off **Keep results on this computer** under
-**Options** in the Parts tab, and **Delete**, beside a kept result, removes it.
+**Options** in the Tools tab, and **Delete**, beside a kept result, removes it.
 
 Voxa 0.5.0 and earlier kept the views, annotations, choices and labelling results in
 `%APPDATA%\Voxa\config`. The first time a newer Voxa starts, it moves them to
@@ -132,7 +142,8 @@ program", or "not said" when the labels name no model) and how the model's own c
 or `not given`). Measurements saved as JSON carry the same sentence as `notice`.
 
 **Patient details are hidden.** Each time Voxa starts, the patient's name and identifier are
-left out of the viewports, and the **DICOM tags** window (**Tags** in the toolbar) hides, and
+left out of the viewports, and the **DICOM tags** window (**Show the file's tags**, in the menu of a scan's card in the rail, or found by the
+search box) hides, and
 cannot find by searching, the values of these tags, and only these:
 
 - every tag in the patient group, 0010;
@@ -146,7 +157,7 @@ cannot find by searching, the values of these tags, and only these:
   scheduled and performed procedure step IDs.
 
 The window says how many values it has hidden. A sequence, a tag that holds other tags, is shown
-only as the number of items in it. **Patient details** in the toolbar shows the hidden values
+only as the number of items in it. **Patient details** in the View tab shows the hidden values
 until you switch it off or close Voxa.
 
 **Every other value stays shown**, and some of them can still identify a scan or lead to the
@@ -199,7 +210,8 @@ it cannot tell from noise.
 
 An export holds more than plain stacks of slices, and the list says what each series is. Here
 the made-up study also holds a series of two volumes of the ball, taken at two echo times,
-listed once and shown on its second volume, as the toolbar and the viewport say; three
+listed once and shown on its second volume, as the strip above the pictures and the scan's card
+say; three
 locating images in three planes; and a picture in colour, which is shown in its own colours.
 
 ## Labelling a brain scan
@@ -211,7 +223,7 @@ on this computer when asked, with SynthSeg 2.0's networks run through ONNX Runti
 Windows, DirectML. A label made by a model is a guess that looks certain, so each one comes
 with the model's own check of its work, which is said first when it fails.
 
-To label a scan, open it, choose the Parts tab and press **Label this scan**. That needs three
+To label a scan, open it, choose the Tools tab and press **Label this scan**. That needs three
 things. ONNX Runtime comes in the zip, in a `runtime` folder beside `voxa.exe`, and uses a
 graphics card through the DirectML that Windows has. ONNX Runtime needs Microsoft's free Visual
 C++ 2015-2022 x64 redistributable, which many computers already have; Voxa says so when it is
@@ -251,7 +263,7 @@ cargo run --release -p voxa-app -- path/to/export.zip
 ```
 
 To show labels made for that scan by another program, name the label file too, or open it from
-the Parts tab, or drop it on the window:
+the Labels tab, or drop it on the window:
 
 ```bash
 cargo run --release -p voxa-app -- path/to/export.zip --labels path/to/labels.nii.gz

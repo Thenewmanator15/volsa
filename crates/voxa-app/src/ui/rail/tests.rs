@@ -334,3 +334,39 @@ fn the_rows_are_worked_out_again_only_when_what_they_come_from_changes() {
     assert_eq!(drawn(&state, &mut rail), 5, "the index read again");
     assert_eq!(drawn(&state, &mut rail), 5);
 }
+
+#[test]
+fn an_open_rail_has_a_button_at_its_top_that_folds_it_as_the_panels_does() {
+    let state = AppState {
+        index: Some(with_odd_series()),
+        ..AppState::default()
+    };
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    let named = commands::find("rail.fold").expect("listed").name;
+    let button = drawn.seen.place_of(named).expect("named as its action is");
+    assert!(
+        drawn.rect.contains_rect(button),
+        "{button:?} in {:?}",
+        drawn.rect
+    );
+    assert!(
+        button.top() < drawn.rect.top() + 40.0,
+        "at the top: {button:?}"
+    );
+    assert!(
+        button.center().x > drawn.rect.center().x,
+        "at the right: {button:?}"
+    );
+    // Nothing else is under it: the cards begin below.
+    for (name, at) in &drawn.seen.names {
+        assert!(
+            name == named || at.top() >= button.bottom() - 0.5,
+            "{name:?} at {at:?} is over the button at {button:?}"
+        );
+    }
+    // A click on it asks to fold the rail, and nothing more.
+    let clicked = click(&ctx, &state, &mut rail, button);
+    assert_eq!(clicked.requests, [Request::FoldRail]);
+    assert_eq!(clicked.actions, []);
+}
