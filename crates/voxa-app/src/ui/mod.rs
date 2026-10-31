@@ -141,6 +141,9 @@ impl eframe::App for VoxaApp {
             .refresh(self.session.state(), self.session.workers(), ctx);
     }
 
+    /// The window, drawn in this order: the bars, the rail of scans, the middle beside the panel,
+    /// the notices, then the windows that float. `BareWindow::body` (`ui/bare.rs`) lays out the
+    /// same order by hand, and the small-window tests and UI-37 rest on it: change both.
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let mut actions = Vec::new();
         // A narrow window folds a side column before any is drawn.

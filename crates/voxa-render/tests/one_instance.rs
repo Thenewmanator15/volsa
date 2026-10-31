@@ -5,13 +5,11 @@
 
 use std::path::{Path, PathBuf};
 
-/// Where a graphics instance may be made, as paths from the workspace's folder: the file that
-/// starts devices with no window, and the folder of modules it is split into, so that splitting
-/// it further does not trip this check. A path ending in a slash is a folder.
-const ALLOWED: [&str; 2] = [
-    "crates/voxa-render/src/gpu.rs",
-    "crates/voxa-render/src/gpu/",
-];
+/// Where a graphics instance may be made, as paths from the workspace's folder: the folder of
+/// modules that starts devices with no window, so that splitting it further does not trip this
+/// check. A path ending in a slash is a folder. Each entry must hold a file that makes an
+/// instance, or the allowance has gone stale.
+const ALLOWED: [&str; 1] = ["crates/voxa-render/src/gpu/"];
 
 /// The ways a graphics instance is made, each as what to look for and a line that makes one
 /// that way. Written in pieces so that this file does not hold them.
@@ -84,15 +82,18 @@ fn holds(text: &str, needle: &str) -> bool {
     })
 }
 
+/// Whether the file at `path` is the allowed place `allowed`, a file or a folder.
+fn is_in(allowed: &str, path: &str) -> bool {
+    if allowed.ends_with('/') {
+        path.starts_with(allowed)
+    } else {
+        path == allowed
+    }
+}
+
 /// Whether a graphics instance may be made in the file at `path`, see [`ALLOWED`].
 fn is_allowed(path: &str) -> bool {
-    ALLOWED.iter().any(|allowed| {
-        if allowed.ends_with('/') {
-            path.starts_with(allowed)
-        } else {
-            path == *allowed
-        }
-    })
+    ALLOWED.iter().any(|allowed| is_in(allowed, path))
 }
 
 /// The path of `file` from `root`, written with forward slashes.
@@ -126,11 +127,12 @@ fn only_the_shared_headless_device_makes_a_graphics_instance() {
          without OpenGL on Windows): use `voxa_render::render_state_without_a_window` or \
          `HeadlessScene` instead"
     );
-    // Where it is allowed must still be where it is made, or the allowance has gone stale.
-    assert!(
-        !allowed.is_empty(),
-        "no allowed file makes an instance any more: {ALLOWED:?}"
-    );
+    // Where it is allowed must still be where it is made, or the allowance has gone stale: each
+    // allowed place holds a file that makes an instance.
+    for place in ALLOWED {
+        let makes_one = allowed.iter().any(|path| is_in(place, path));
+        assert!(makes_one, "no file in {place} makes an instance any more");
+    }
 }
 
 #[test]

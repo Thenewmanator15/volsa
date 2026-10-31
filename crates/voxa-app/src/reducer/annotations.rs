@@ -89,8 +89,8 @@ fn read(state: &mut AppState, series: &SeriesId, mut items: Vec<Annotation>) {
 /// Keep the annotations with their series: when the scene has moved to another series than
 /// `was`, the list and its history are put away, to be taken back if the scene comes back to
 /// that series in this run, and the series it has come to has the list it was left with or a
-/// fresh one; the tool is put down And put it down
-/// whenever there is nothing to use it on: no volume ready, and no slice shown with a scale.
+/// fresh one, and the tool is put down. The tool is put down too whenever there is nothing to use
+/// it on: no volume ready, and no slice shown with a scale.
 pub(super) fn settle(state: &mut AppState, was: Option<&SeriesId>) {
     if state.scene.series.as_ref() != was {
         // What was done to the list of the series left can be undone when the series is back.

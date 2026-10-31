@@ -8,9 +8,10 @@
 //!
 //! The design (spec 7.17) holds this to what 0.6.0's bars and list took on the same computer,
 //! so the same example is run on 0.6.0, whose window had no rail and panel but a bar and a
-//! list of series, with the same `BareWindow` in its place. Run it with nothing else heavy
-//! going on: the numbers are of one computer at one time, and are worth only beside each
-//! other.
+//! list of series. 0.6.0 has no `BareWindow`: the run there is of a temporary copy of this
+//! example adapted to lay out 0.6.0's bar and list, which was not kept (see the usability file,
+//! `docs/quality/usability.md`, section 6). Run it with nothing else heavy going on: the numbers
+//! are of one computer at one time, and are worth only beside each other.
 //!
 //! Every series is one made-up slice with a made-up description; nothing in the study is from
 //! anyone's scan.

@@ -43,8 +43,8 @@ pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas. The words:
 ///
 /// - Windows and lists open over the pictures: `tags` (the tags of a file), `keys` (the keys and
-///   what the mouse does), `about`, `notices` (the list of notices above the bottom line, while
-///   there is a notice to list) and `search` (the search box).
+///   what the mouse does), `about`, `notices` (the list of notices above the bottom line, opened
+///   once there is a notice to list; with none, the picture is taken after 20 seconds without it) and `search` (the search box).
 /// - The tab open in the panel at the right: `tab-view`, `tab-measure`, `tab-3d`, `tab-labels`
 ///   or `tab-tools`; or, as earlier pictures ask, `measure` (the Measure tab), `labelling` (the
 ///   Tools tab, with the strip that labels a scan, as it is on a computer that can label) and
