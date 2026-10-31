@@ -120,8 +120,9 @@ fn header(
             if ui.button(CLOSE).clicked() {
                 actions.push(Action::CloseDocument);
             }
-            let tags =
-                commands::button_made(ui, "tags.show", state, |command| Button::new(command.name));
+            let tags = commands::button_made(ui, "tags.show", state, "", |command| {
+                Button::new(command.name)
+            });
             if let Some((_, Some(_))) = tags {
                 asked.push(Request::Tags(TagsOf::Entry(document.entry.clone())));
             }

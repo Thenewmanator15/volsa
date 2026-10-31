@@ -39,7 +39,7 @@ fn contents(ui: &mut Ui, route: &mut Route<'_>) {
     for group in GROUPS {
         ui.separator();
         for id in group {
-            let item = commands::button_made(ui, id, route.state, |command| {
+            let item = commands::button_made(ui, id, route.state, "", |command| {
                 let item = Button::new(command.name);
                 match command.key {
                     Some(key) => item.right_text(key.shown),

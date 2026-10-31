@@ -179,3 +179,60 @@ fn a_change_of_width_measures_the_lines_again_but_prepares_nothing_again() {
         "what is guessed or measured is for the new width"
     );
 }
+
+/// What a screen reader has to tell each line of the `Item n` kind apart by, as drawn in a
+/// pass with nothing happening, by n.
+fn identities(
+    ctx: &Context,
+    state: &AppState,
+    kept: &mut Kept,
+) -> std::collections::BTreeMap<usize, egui::accesskit::NodeId> {
+    let area = egui::Rect::from_min_size(Pos2::ZERO, vec2(WINDOW[0], WINDOW[1]));
+    let input = egui::RawInput {
+        screen_rect: Some(area),
+        ..egui::RawInput::default()
+    };
+    let open = state.document.as_ref().expect("a document is open");
+    let mut actions = Vec::new();
+    let mut output = ctx.run_ui(input, |ui| {
+        let _ = super::super::show(ui, area, state, open, kept, &mut actions);
+    });
+    // No renderer is behind this pass to take the font texture.
+    output.textures_delta.clear();
+    let update = output.platform_output.accesskit_update;
+    let update = update.expect("the interface is described");
+    let item = |node: &egui::accesskit::Node| {
+        let label = node.role() == egui::accesskit::Role::Label;
+        let words = node.value().filter(|_| label)?.strip_prefix("Item ")?;
+        words.split(':').next()?.parse::<usize>().ok()
+    };
+    let found = update
+        .nodes
+        .iter()
+        .filter_map(|(id, node)| Some((item(node)?, *id)));
+    found.collect()
+}
+
+#[test]
+fn a_line_keeps_the_identity_a_screen_reader_knows_it_by_as_the_report_scrolls() {
+    let state = opened(REPORT, Some(Ok(long_report(LINES))));
+    let (ctx, mut kept) = (seen::context(1.0), Kept::default());
+    let _ = pass_with(&ctx, &state, &mut kept, Vec::new());
+    let before = identities(&ctx, &state, &mut kept);
+    // A few lines on, so most of those in sight stay in sight but are no longer the first.
+    let _ = scroll(&ctx, &state, &mut kept, -90.0);
+    let after = identities(&ctx, &state, &mut kept);
+    assert!(
+        before.contains_key(&0) && !after.contains_key(&0),
+        "scrolled past the first"
+    );
+    let shared: Vec<usize> = before
+        .keys()
+        .filter(|n| after.contains_key(n))
+        .copied()
+        .collect();
+    assert!(shared.len() > 5, "{shared:?}");
+    for n in shared {
+        assert_eq!(before[&n], after[&n], "line {n}");
+    }
+}

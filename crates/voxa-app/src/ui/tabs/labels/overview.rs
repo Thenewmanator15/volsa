@@ -6,6 +6,7 @@ use egui::{Align, Layout, RichText, Ui};
 
 use crate::action::Action;
 use crate::labels::Labels;
+use crate::ui::access;
 use crate::ui::parts::{self, Group, all_shown, parts_in, title};
 use crate::ui::theme;
 
@@ -15,12 +16,6 @@ fn count_in_words(count: usize) -> String {
         1 => "1 part".to_owned(),
         _ => format!("{count} parts"),
     }
-}
-
-/// Name `response` for a screen reader as `name`, whatever its button says.
-fn named(ui: &Ui, response: &egui::Response, name: &str) {
-    ui.ctx()
-        .accesskit_node_builder(response.id, |node| node.set_label(name));
 }
 
 /// Draw the row of one group. Gives the group's name if its name was clicked.
@@ -35,7 +30,7 @@ fn row(ui: &mut Ui, labels: &Labels, group: &Group, actions: &mut Vec<Action>) -
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             let word = if all { "Hide" } else { "Show" };
             let toggle = ui.small_button(word);
-            named(ui, &toggle, &format!("{word} {name}"));
+            access::call(&toggle, format!("{word} {name}"));
             if toggle
                 .on_hover_text("Show or hide the whole group")
                 .clicked()
@@ -53,7 +48,7 @@ fn row(ui: &mut Ui, labels: &Labels, group: &Group, actions: &mut Vec<Action>) -
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 let button = egui::Button::new(RichText::new(name).small());
                 let go = ui.add(button.frame(false).truncate());
-                named(ui, &go, &format!("Go to {name}"));
+                access::call(&go, format!("Go to {name}"));
                 if go.on_hover_text("Go to this group in the list").clicked() {
                     clicked = Some(group.name.clone());
                 }

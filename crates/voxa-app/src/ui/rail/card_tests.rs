@@ -284,7 +284,7 @@ fn a_cards_menu_shows_it_or_its_tags() {
     }
     // By its ⋯, named for a screen reader by the card's own name.
     let drawn = pass(&ctx, &state, &mut rail, Vec::new());
-    let dots = card::dots_name(&plain_name(&other));
+    let dots = card::dots_name(&card::name_of(&other));
     let button = drawn.seen.place_of(&dots).expect("named");
     let clicked = click(&ctx, &state, &mut rail, button);
     assert_eq!(
@@ -335,4 +335,30 @@ fn menu_of(
         opened.seen.names
     );
     (opened, card)
+}
+
+#[test]
+fn a_card_that_has_the_keyboard_is_ringed_in_the_themes_colour_of_focus() {
+    let scan = series(1, "MR", "made-up t2 ax", 30);
+    let state = export(vec![("MADE-UP-1", "Made^Up", vec![scan.clone()])]);
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let ring = ctx.global_style().visuals.selection.stroke.color;
+    let rings = |drawn: &Drawn| {
+        drawn
+            .seen
+            .colours
+            .iter()
+            .filter(|colour| **colour == ring)
+            .count()
+    };
+    let plain = pass(&ctx, &state, &mut rail, Vec::new());
+    ctx.memory_mut(|memory| memory.request_focus(card::id_of(&scan.id)));
+    let _ = pass(&ctx, &state, &mut rail, Vec::new());
+    let focused = pass(&ctx, &state, &mut rail, Vec::new());
+    assert!(
+        rings(&focused) > rings(&plain),
+        "{} / {}",
+        rings(&focused),
+        rings(&plain)
+    );
 }

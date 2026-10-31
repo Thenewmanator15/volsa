@@ -198,7 +198,14 @@ pub fn show(ui: &mut Ui, shown: &Shown<'_>, kept: &mut Kept) {
                 let Some(words) = kept.prepared(at, shown.report) else {
                     break;
                 };
-                let height = draw(ui, depth, words) + gap;
+                // Its own id, from its place in the report alone. A line drawn under `push_id`
+                // would still be given an id that depends on how many widgets came before it in
+                // the scroll area, which is how many lines are above those in sight: scrolling
+                // would give a line another id, and a selection or the focus of a screen reader
+                // would move to another line.
+                let own =
+                    egui::UiBuilder::new().id(egui::Id::new(("voxa: a line of a report", at)));
+                let height = ui.scope_builder(own, |ui| draw(ui, depth, words)).inner + gap;
                 changed |= kept.measured(at, height);
                 #[cfg(test)]
                 {

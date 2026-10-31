@@ -5,7 +5,7 @@ use egui::Ui;
 
 use crate::action::Action;
 use crate::state::AppState;
-use crate::ui::commands;
+use crate::ui::{access, commands};
 use crate::views::ViewsAction;
 
 /// The menu itself, closed until it is pressed.
@@ -26,7 +26,8 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         .unwrap_or_default();
     ui.horizontal(|ui| {
         let field = egui::TextEdit::singleline(&mut name).hint_text("Name (optional)");
-        ui.add(field.desired_width(150.0));
+        let field = ui.add(field.desired_width(150.0));
+        access::call(&field, "Name (optional), for the view to be saved");
         // The view is saved under the name typed beside the button.
         if commands::button(ui, "scene.view.save", state, None).is_some() {
             actions.push(Action::Views(ViewsAction::Save {
@@ -47,11 +48,9 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
             {
                 actions.push(Action::Views(ViewsAction::Apply(at)));
             }
-            if ui
-                .small_button("Delete")
-                .on_hover_text("Forget this view")
-                .clicked()
-            {
+            let delete = ui.small_button("Delete");
+            access::call(&delete, format!("Delete {}", view.name));
+            if delete.on_hover_text("Forget this view").clicked() {
                 actions.push(Action::Views(ViewsAction::Delete(at)));
             }
         });

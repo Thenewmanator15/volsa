@@ -1,13 +1,24 @@
 //! How the middle of the window is shared out: the strip along its top that arranges the
 //! pictures, and beneath it the pictures of the arrangement chosen.
 
-use egui::{Rect, pos2, vec2};
+use egui::{Rect, Ui, UiBuilder, pos2, vec2};
 
 use super::viewport;
 use crate::pictures::Pictures;
 
 /// How high the strip above the pictures is, in points.
 pub const STRIP: f32 = 24.0;
+
+/// A part of `ui` for the middle of the window: all the room that is left but `wide` points
+/// along the right, which a panel drawn after it takes. The Tab key goes through what is drawn
+/// in the order it is drawn, so drawing the middle before the panel at its right puts the
+/// pictures before the panel in the order of the keyboard, as they are laid out beside it.
+pub fn beside_the_panel(ui: &mut Ui, wide: f32) -> Ui {
+    let rest = ui.available_rect_before_wrap();
+    let edge = (rest.right() - wide).max(rest.left());
+    let beside = Rect::from_min_max(rest.min, pos2(edge, rest.bottom()));
+    ui.new_child(UiBuilder::new().max_rect(beside))
+}
 
 /// The strip along the top of `area`, and what is left beneath it for the pictures, with the
 /// gap between viewports between the two.

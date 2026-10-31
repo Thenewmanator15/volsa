@@ -234,7 +234,7 @@ fn the_tab_draws_its_buttons_from_the_list() {
     ];
     for id in ids {
         let command = commands::find(id).expect("listed");
-        let name = seen.bounds_of(command.name);
+        let name = seen.bounds_of(&commands::spoken(command, command.label));
         assert!(name.is_some(), "{id} is named {:?}", seen.named());
         assert!(
             seen.words.iter().any(|word| word == command.label),

@@ -5,6 +5,7 @@
 use egui::Ui;
 use voxa_core::WindowLevel;
 
+use super::super::access;
 use super::super::commands::{self, Request};
 use super::super::volumes;
 use super::{offer, row, section};
@@ -113,6 +114,14 @@ fn switch(
     }
 }
 
+/// Add a number that can be typed or dragged, called `name` for a screen reader and saying
+/// `hint` when the pointer rests on it; whether it was changed.
+fn field(ui: &mut Ui, number: egui::DragValue<'_>, name: &str, hint: &str) -> bool {
+    let response = ui.add(number).on_hover_text(hint);
+    access::call(&response, name);
+    response.changed()
+}
+
 /// The window and level of the active viewport, as numbers that can be typed or dragged, in
 /// Hounsfield units where the scan is in them, and the settings its profile offers.
 fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
@@ -142,14 +151,10 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
         .prefix("L ")
         .suffix(unit);
     let (width_changed, level_changed) = row(ui, |ui| {
-        let width_changed = ui
-            .add(width_field)
-            .on_hover_text("Width: the span of values from black to white")
-            .changed();
-        let level_changed = ui
-            .add(level_field)
-            .on_hover_text("Level: the value shown as mid-grey")
-            .changed();
+        let width_hint = "Width: the span of values from black to white";
+        let width_changed = field(ui, width_field, "Window width", width_hint);
+        let level_hint = "Level: the value shown as mid-grey";
+        let level_changed = field(ui, level_field, "Window level", level_hint);
         (width_changed, level_changed)
     });
     if width_changed || level_changed {
@@ -190,10 +195,7 @@ fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut 
             .speed(0.5)
             .range(Cine::MIN_FPS..=Cine::MAX_FPS)
             .suffix(" /s");
-        let speed_changed = ui
-            .add(speed)
-            .on_hover_text("Slices shown each second")
-            .changed();
+        let speed_changed = field(ui, speed, "Playback speed", "Slices shown each second");
         let loop_hint = "Start again from the first slice after the last";
         let loop_changed = ui
             .checkbox(&mut looping, "Loop")

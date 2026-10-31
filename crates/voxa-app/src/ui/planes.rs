@@ -169,6 +169,7 @@ fn panel(
     drawing: &tools::Drawing,
 ) -> Option<(egui::Response, PlaneView)> {
     let response = ui.interact(cell, ui.id().with(("plane", kind)), Sense::click_and_drag());
+    response.widget_info(|| overlay::widget(state, kind));
     ui.painter().rect_filled(cell, 0, Color32::BLACK);
     let size = [cell.width(), cell.height()];
     let shown = plane(state, kind)

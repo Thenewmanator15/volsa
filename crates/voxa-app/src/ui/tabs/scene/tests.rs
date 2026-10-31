@@ -131,9 +131,10 @@ fn saving_the_view_is_asked_of_the_window_and_not_dropped() {
         hand.click_named("Export", &mut draw),
         "the Export menu has a button"
     );
-    let picture = "Save the 3D view as a picture";
+    let command = crate::ui::commands::find("scene.save.picture").expect("listed");
+    let picture = crate::ui::commands::spoken(command, command.label);
     assert!(
-        hand.click_named(picture, &mut draw),
+        hand.click_named(&picture, &mut draw),
         "and it holds {picture}"
     );
     assert_eq!(asked, [Request::SaveScene(export::Asked::Picture)]);

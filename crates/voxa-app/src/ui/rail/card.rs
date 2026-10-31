@@ -13,6 +13,7 @@ use egui::{
 };
 use voxa_core::{SeriesId, SeriesInfo};
 
+use super::walk;
 use crate::action::Action;
 use crate::naming::{plain_name, printable};
 use crate::state::AppState;
@@ -54,7 +55,29 @@ pub struct Asks<'a> {
     pub requests: &'a mut Vec<Request>,
 }
 
-/// What the button of a card's menu is called by a screen reader, for the card of `name`.
+/// What a screen reader calls the card of a series, without whether it is selected or has a
+/// problem: its plain name, then what the card says of its slices. Two cards that share a plain
+/// name are told apart by the second part.
+pub fn name_of(info: &SeriesInfo) -> String {
+    format!("{}, {}", plain_name(info), caption(info))
+}
+
+/// What a screen reader says of a card called `name` (see [`name_of`]): the name, then
+/// ", selected" while it is the one shown and ", has a problem" while something stops the
+/// series being shown in full.
+pub fn said(name: &str, selected: bool, problem: bool) -> String {
+    let mut said = name.to_owned();
+    if selected {
+        said.push_str(", selected");
+    }
+    if problem {
+        said.push_str(", ");
+        said.push_str(HAS_A_PROBLEM);
+    }
+    said
+}
+
+/// What the button of a card's menu is called by a screen reader, for the card called `name`.
 pub fn dots_name(name: &str) -> String {
     format!("More for {name}")
 }
@@ -75,15 +98,16 @@ pub fn facts(info: &SeriesInfo) -> String {
 }
 
 /// Draw a card in `rect`. A click shows its series in the active viewport; a click with the
-/// other button, or on its `⋯`, opens its menu.
-pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) {
+/// other button, or on its `⋯`, opens its menu. Gives whether the card, or the button of its menu,
+/// has the keyboard.
+pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) -> bool {
     let info = card.info;
     let name = plain_name(info);
-    let id = Id::new(("voxa: the card of", &info.id));
+    let id = id_of(&info.id);
     let response = ui.interact(rect, id, Sense::click());
-    let said = format!("{name}, {}", caption(info));
-    let selected = card.selected;
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, &said));
+    let called = name_of(info);
+    let said = said(&called, card.selected, info.kind().is_fault());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &said));
     let picture = Rect::from_min_size(
         rect.min + vec2(PADDING, PADDING),
         vec2(THUMBNAIL, THUMBNAIL),
@@ -95,27 +119,27 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) {
     if ui.is_rect_visible(rect) {
         let painter = ui.painter_at(rect);
         let show_patient = asks.state.show_patient;
-        face(
-            &painter,
-            rect,
-            picture,
-            card,
-            response.hovered(),
-            show_patient,
-        );
+        let (lit, focused) = (response.hovered(), response.has_focus());
+        face(&painter, rect, picture, (card, lit, focused), show_patient);
         let at = picture.right_top() + vec2(PADDING, 0.0);
         let lines = [name.clone(), printable(&title(info)), facts(info)];
         let ends = [dots.left() - 2.0, rect.right() - PADDING];
         words(ui, &painter, lines, at, ends);
     }
     mark(ui, picture, info, id);
-    let dots = dots_button(ui, dots, id, &name);
+    let dots = dots_button(ui, dots, id, &called);
     let response = response.on_hover_text(hover_of(info));
     if response.clicked() {
         asks.actions.push(select(asks.state, &info.id));
     }
     response.context_menu(|ui| menu(ui, &info.id, asks));
     Popup::menu(&dots).show(|ui| menu(ui, &info.id, asks));
+    walk::holds_keys(ui, &response, &dots)
+}
+
+/// The identifier of the card of the series `series`.
+pub(super) fn id_of(series: &SeriesId) -> Id {
+    Id::new(("voxa: the card of", series))
 }
 
 /// Show `series` in the active viewport.
@@ -132,11 +156,10 @@ fn face(
     painter: &Painter,
     rect: Rect,
     picture: Rect,
-    card: &Card<'_>,
-    lit: bool,
+    (card, lit, focused): (&Card<'_>, bool, bool),
     show_patient: bool,
 ) {
-    ground(painter, rect, lit, card.selected);
+    ground(painter, rect, (lit, focused), card.selected);
     painter.rect_filled(picture, CornerRadius::same(4), Color32::BLACK);
     if !may_have_thumbnail(card.info, show_patient) {
         page(painter, picture);
@@ -149,8 +172,10 @@ fn face(
     }
 }
 
-/// A card's ground: raised while the pointer is on it, and outlined when it is the one shown.
-pub(super) fn ground(painter: &Painter, rect: Rect, lit: bool, selected: bool) {
+/// A card's ground: raised while the pointer is on it, outlined when it is the one shown, and
+/// ringed in the theme's own colour of focus while it has the keyboard. `(lit, focused)` says
+/// whether the pointer is on it and whether it has the keyboard.
+pub(super) fn ground(painter: &Painter, rect: Rect, (lit, focused): (bool, bool), selected: bool) {
     let rounded = CornerRadius::same(theme::ROUNDING);
     let palette = theme::palette(painter.ctx());
     let fill = if lit { palette.raised } else { palette.panel };
@@ -158,6 +183,10 @@ pub(super) fn ground(painter: &Painter, rect: Rect, lit: bool, selected: bool) {
     if selected {
         let outline = Stroke::new(1.5, palette.accent);
         painter.rect_stroke(rect, rounded, outline, StrokeKind::Inside);
+    }
+    if focused {
+        let ring = painter.ctx().global_style().visuals.selection.stroke;
+        painter.rect_stroke(rect.shrink(1.0), rounded, ring, StrokeKind::Inside);
     }
 }
 
@@ -221,8 +250,9 @@ pub(super) fn words(
     );
 }
 
-/// The mark on the picture of a series that cannot be shown in full: an amber `!`, which a
-/// screen reader calls [`HAS_A_PROBLEM`]. The card's hover text says what the problem is.
+/// The mark on the picture of a series that cannot be shown in full: an amber `!`. A screen
+/// reader hears [`HAS_A_PROBLEM`] at the end of the card's name and not from the mark. The
+/// card's hover text says what the problem is.
 fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
     if !info.kind().is_fault() {
         return;
@@ -231,6 +261,9 @@ fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
     let rect = Rect::from_min_size(corner, vec2(MARK, MARK));
     let response = ui.interact(rect, card.with("mark"), Sense::hover());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Image, true, HAS_A_PROBLEM));
+    // The card's own name ends with the same words: said twice, they would only repeat.
+    ui.ctx()
+        .accesskit_node_builder(response.id, egui::accesskit::Node::set_hidden);
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
         // Over the picture, which is dark whatever the theme: a chip of the picture's own ground.
@@ -270,7 +303,7 @@ fn menu(ui: &mut Ui, series: &SeriesId, asks: &mut Asks<'_>) {
         asks.actions.push(select(asks.state, series));
         ui.close();
     }
-    let tags = commands::button_made(ui, "tags.show", asks.state, |command| {
+    let tags = commands::button_made(ui, "tags.show", asks.state, "", |command| {
         Button::new(command.name)
     });
     if let Some((_, Some(_))) = tags {

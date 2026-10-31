@@ -12,6 +12,7 @@ use egui::{
 use voxa_dicom::IndexedDocument;
 
 use super::card::{self, Asks, DOTS, PADDING};
+use super::walk;
 use crate::action::Action;
 use crate::documents::{Mask, kind_words};
 use crate::naming::printable;
@@ -65,19 +66,21 @@ pub fn hover_of(document: &IndexedDocument, mask: &Mask) -> String {
 }
 
 /// Draw the card of a document in `rect`. A click opens it; a click with the other button, or
-/// on its `⋯`, opens its menu. `selected` is whether it is the document open.
+/// on its `⋯`, opens its menu. `selected` is whether it is the document open. Gives whether the
+/// card, or the button of its menu, has the keyboard.
 pub fn show(
     ui: &mut Ui,
     rect: Rect,
     document: &IndexedDocument,
     selected: bool,
     asks: &mut Asks<'_>,
-) {
+) -> bool {
     let mask = Mask::for_document(asks.state, document);
     let name = card_name(document, &mask);
-    let id = Id::new(("voxa: the card of the document", &document.entry));
+    let id = id_of(document);
     let response = ui.interact(rect, id, Sense::click());
-    response.widget_info(|| WidgetInfo::selected(WidgetType::Button, true, selected, &name));
+    let said = card::said(&name, selected, false);
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &said));
     let picture = Rect::from_min_size(
         rect.min + vec2(PADDING, PADDING),
         vec2(THUMBNAIL, THUMBNAIL),
@@ -88,7 +91,8 @@ pub fn show(
     );
     if ui.is_rect_visible(rect) {
         let painter = ui.painter_at(rect);
-        card::ground(&painter, rect, response.hovered(), selected);
+        let (lit, focused) = (response.hovered(), response.has_focus());
+        card::ground(&painter, rect, (lit, focused), selected);
         painter.rect_filled(picture, CornerRadius::same(4), Color32::BLACK);
         card::page(&painter, picture);
         let lines = [
@@ -108,6 +112,12 @@ pub fn show(
     }
     response.context_menu(|ui| menu(ui, &document.entry, asks));
     Popup::menu(&dots).show(|ui| menu(ui, &document.entry, asks));
+    walk::holds_keys(ui, &response, &dots)
+}
+
+/// The identifier of the card of `document`.
+pub(super) fn id_of(document: &IndexedDocument) -> Id {
+    Id::new(("voxa: the card of the document", &document.entry))
 }
 
 /// A document card's menu: open it, or show the tags of its file.
@@ -116,7 +126,7 @@ fn menu(ui: &mut Ui, entry: &str, asks: &mut Asks<'_>) {
         asks.actions.push(Action::OpenDocument(entry.to_owned()));
         ui.close();
     }
-    let tags = commands::button_made(ui, "tags.show", asks.state, |command| {
+    let tags = commands::button_made(ui, "tags.show", asks.state, "", |command| {
         Button::new(command.name)
     });
     if let Some((_, Some(_))) = tags {

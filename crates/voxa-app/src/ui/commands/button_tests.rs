@@ -91,13 +91,86 @@ fn a_button_shows_its_label_and_is_named_by_its_name() {
     let state = AppState::default();
     let (drawn, given) = pressed(|ui| button(ui, "layout.four", &state, Some(false)));
     assert!(drawn.words.contains(&"4".to_owned()), "{:?}", drawn.words);
+    // The name does not hold the label, so the label comes first.
     assert!(
-        drawn.names.contains(&"Four viewports".to_owned()),
+        drawn.names.contains(&"4, Four viewports".to_owned()),
         "{:?}",
         drawn.names
     );
     let four = Some(Action::SetLayout(Layout::TwoByTwo));
     assert_eq!(acted(given, &state), four);
+}
+
+/// The command `id`, which the table lists.
+fn listed(id: &str) -> &'static Command {
+    find(id).expect("listed")
+}
+
+#[test]
+fn a_name_that_holds_the_label_is_the_name_alone() {
+    // Whatever the case: a person who says the words they see is understood.
+    for (id, label) in [
+        ("pictures.slices", "Slices"),
+        ("pictures.scene", "3D"),
+        ("planes.link", "Link"),
+        ("measure.show", "MEASURE"),
+        ("search.open", "search"),
+    ] {
+        let command = listed(id);
+        assert_eq!(spoken(command, label), command.name, "{id} says {label}");
+    }
+}
+
+#[test]
+fn a_name_that_lacks_the_label_says_the_label_first() {
+    let said = |id: &str, label: &str| spoken(listed(id), label).into_owned();
+    assert_eq!(said("layout.one", "1"), "1, One viewport");
+    assert_eq!(
+        said("scene.look.vr", "VR"),
+        "VR, Show the scan by volume rendering"
+    );
+    assert_eq!(
+        said("view.radiological", "Radiological"),
+        "Radiological, Patient's left on the right"
+    );
+    assert_eq!(said("measure.ruler", "Ruler"), "Ruler, Measure a length");
+    // The search box writes its own words, not the action's label.
+    assert_eq!(
+        said("search.open", "Find a tool or part"),
+        "Find a tool or part, Search actions, parts, scans and help"
+    );
+}
+
+#[test]
+fn a_mark_with_no_letter_or_digit_is_a_picture_and_the_name_stands_alone() {
+    for (id, label) in [
+        ("volume.before", "◀"),
+        ("volume.after", "▶"),
+        ("panel.fold", "«"),
+        ("help.keys", "?"),
+        ("theme.light", ""),
+    ] {
+        let command = listed(id);
+        assert_eq!(spoken(command, label), command.name, "{id} shows {label:?}");
+    }
+}
+
+#[test]
+fn a_button_made_for_the_action_is_named_by_the_words_it_writes() {
+    let state = &AppState::default();
+    let draw = |shows: &'static str| {
+        move |ui: &mut egui::Ui| {
+            let made = button_made(ui, "search.open", state, shows, |_| Button::new(shows));
+            made.and_then(|(_, does)| does)
+        }
+    };
+    let (drawn, _) = pressed(draw("Find a tool or part"));
+    let said = "Find a tool or part, Search actions, parts, scans and help".to_owned();
+    assert!(drawn.names.contains(&said), "{:?}", drawn.names);
+    // A picture alone is named by the name.
+    let (drawn, _) = pressed(draw(""));
+    let name = "Search actions, parts, scans and help".to_owned();
+    assert!(drawn.names.contains(&name), "{:?}", drawn.names);
 }
 
 #[test]
@@ -110,6 +183,7 @@ fn a_label_that_follows_the_state_keeps_the_name() {
         "{:?}",
         drawn.words
     );
+    // The name holds "pause" in any case, so it stands alone.
     let name = "Play or pause through the slices".to_owned();
     assert!(drawn.names.contains(&name), "{:?}", drawn.names);
     let toggled = Some(Action::CineToggle { viewport: 0 });

@@ -7,10 +7,8 @@ use voxa_dicom::{Index, IndexedSeries, SliceRef};
 
 use super::*;
 use crate::action::Action;
-use crate::naming::plain_name;
 use crate::state::Layout;
 use crate::testing::{FINE_SCAN, LOCALISER, SCOUT, SINGLE, THICK_SCAN, id, with_odd_series};
-use crate::ui::browser::caption;
 use crate::ui::seen::{self, Seen, click_at};
 
 /// How wide the rail is in these passes, unless a test says otherwise.
@@ -65,9 +63,10 @@ pub(super) fn click(ctx: &Context, state: &AppState, rail: &mut RailState, rect:
     pass(ctx, state, rail, release)
 }
 
-/// What a screen reader calls the card of a series.
+/// What a screen reader calls the card of a series, without whether it is selected or has a
+/// problem, which are said after it.
 pub(super) fn card_name(info: &SeriesInfo) -> String {
-    format!("{}, {}", plain_name(info), caption(info))
+    card::name_of(info)
 }
 
 /// A made-up series of 4 by 4 pixels, numbered `number`, of this modality and description.
@@ -117,7 +116,7 @@ pub(super) fn export(studies: Vec<(&str, &str, Vec<SeriesInfo>)>) -> AppState {
 /// Where the card of `info` was drawn.
 pub(super) fn card_at(seen: &Seen, info: &SeriesInfo) -> Rect {
     let name = card_name(info);
-    seen.place_of(&name)
+    seen.place_starting(&name)
         .unwrap_or_else(|| panic!("no card {name}: {:?}", seen.names))
 }
 
@@ -135,7 +134,7 @@ pub(super) fn unreadable() -> SeriesProblem {
 
 /// The top of the card of `info`, as a screen reader is told it.
 pub(super) fn top_of(seen: &Seen, info: &SeriesInfo) -> Option<f32> {
-    seen.place_of(&card_name(info)).map(|rect| rect.top())
+    seen.place_starting(&card_name(info)).map(|rect| rect.top())
 }
 
 fn info_of<'a>(state: &'a AppState, series: &str) -> &'a SeriesInfo {
@@ -207,7 +206,9 @@ fn clicking_a_card_shows_that_series_in_the_active_viewport() {
     (state.layout, state.active) = (Layout::TwoAcross, 1);
     let (ctx, mut rail) = (seen::context(1.0), RailState::default());
     let drawn = pass(&ctx, &state, &mut rail, Vec::new());
-    let card = drawn.seen.place_of(&card_name(info_of(&state, FINE_SCAN)));
+    let card = drawn
+        .seen
+        .place_starting(&card_name(info_of(&state, FINE_SCAN)));
     let clicked = click(&ctx, &state, &mut rail, card.expect("drawn"));
     let shown = Action::SelectSeries {
         viewport: 1,

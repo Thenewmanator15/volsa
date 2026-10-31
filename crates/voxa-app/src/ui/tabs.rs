@@ -8,7 +8,7 @@ use egui::{Rect, RichText, Ui};
 use super::commands::{self, Request};
 use super::panel::{self, Tab};
 use super::parts::PartsView;
-use super::{VoxaApp, shares, theme};
+use super::{VoxaApp, layout, shares, theme};
 use crate::action::Action;
 use crate::state::AppState;
 use crate::tools::ToolInfo;
@@ -108,6 +108,28 @@ impl VoxaApp {
         (!self.screen.panel.folded).then_some(shown.rect)
     }
 
+    /// Draw the pictures in the middle of the window, then the tab panel at their right. The
+    /// Tab key goes through what is drawn in the order it is drawn, and is to go through the
+    /// pictures before the panel (spec 7.14), so the pictures are drawn first, in the room the
+    /// panel leaves, and the panel after them. Gives where the panel is while it is open, for
+    /// its left edge to be dragged, and where the pictures are.
+    pub(super) fn pictures_then_panel(
+        &mut self,
+        ui: &mut Ui,
+        frame: &eframe::Frame,
+        actions: &mut Vec<Action>,
+    ) -> (Option<Rect>, Rect) {
+        let wide = self.screen.widths(ui.ctx().content_rect().width()).panel;
+        let mut middle_ui = layout::beside_the_panel(ui, wide);
+        let pictures =
+            egui::CentralPanel::default()
+                .frame(super::middle())
+                .show(&mut middle_ui, |ui| {
+                    self.pictures(ui, frame.wgpu_render_state(), actions);
+                });
+        (self.tab_panel(ui, actions), pictures.response.rect)
+    }
+
     /// Let the left edge of the tab panel, at `at`, be dragged to give it more or less of
     /// the window's width. Made after everything beside it, so that the drag is the edge's.
     pub(super) fn drag_the_panel(&mut self, ui: &Ui, at: Option<Rect>) {
@@ -115,7 +137,7 @@ impl VoxaApp {
             return;
         };
         let edge = egui::Id::new("tab panel edge");
-        let by = shares::divider(ui, edge, at.left(), at.y_range());
+        let by = shares::divider(ui, edge, at.left(), at.y_range(), "Width of the tab panel");
         if by.abs() > 0.0 {
             let window = ui.ctx().content_rect().width();
             let share = self.screen.panel.share;

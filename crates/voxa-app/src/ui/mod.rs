@@ -11,6 +11,9 @@ use crate::session::Session;
 use crate::state::VIEWPORTS;
 
 mod about;
+mod access;
+#[cfg(test)]
+mod access_tests;
 mod bars;
 mod browser;
 mod capture;
@@ -305,7 +308,7 @@ impl VoxaApp {
             return;
         };
         let edge = egui::Id::new("series list edge");
-        let by = shares::divider(ui, edge, list.right(), list.y_range());
+        let by = shares::divider(ui, edge, list.right(), list.y_range(), "Width of the scans");
         if by.abs() > 0.0 {
             let window = ui.ctx().content_rect().width();
             let share = shares::list_dragged(window, self.screen.list_share(), by);
@@ -345,15 +348,10 @@ impl eframe::App for VoxaApp {
         for request in asked {
             self.ask(ui.ctx(), request);
         }
-        let panel = self.tab_panel(ui, &mut actions);
-        let pictures = egui::CentralPanel::default()
-            .frame(middle())
-            .show(ui, |ui| {
-                self.pictures(ui, frame.wgpu_render_state(), &mut actions);
-            });
+        let (panel, pictures) = self.pictures_then_panel(ui, frame, &mut actions);
         self.drag_the_list(ui, list);
         self.drag_the_panel(ui, panel);
-        self.windows(ui.ctx(), pictures.response.rect, &mut actions);
+        self.windows(ui.ctx(), pictures, &mut actions);
         self.keys(ui.ctx(), &mut actions);
         self.show_search(ui.ctx(), &mut actions);
         let saving = self.scene_asked.take();

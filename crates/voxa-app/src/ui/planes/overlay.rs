@@ -1,12 +1,13 @@
 //! What is written and drawn over a plane view: pure functions.
 
-use egui::Color32;
+use egui::{Color32, WidgetInfo, WidgetType};
 use voxa_core::{Patient, Point, Volume};
 use voxa_render::PlaneView;
 use voxa_volume::{Plane, PlaneKind, sample};
 
 use super::super::overlay::{EdgeLabels, letter, value_line};
 use super::super::theme;
+use crate::naming::plain_name;
 use crate::profile::unit_of;
 use crate::state::AppState;
 
@@ -16,6 +17,17 @@ pub const CLEAR: f32 = 6.0;
 /// A picture is said to be interpolated when its pixels run across layers more than this
 /// many times as far apart as the finest voxels.
 const COARSE: f64 = 1.5;
+
+/// What a screen reader is told of a plane's panel, a picture with no words of its own: its
+/// plane, then the plain name of the scan in the scene.
+pub fn widget(state: &AppState, kind: PlaneKind) -> WidgetInfo {
+    let scan = state.scene.series.as_ref().and_then(|id| state.series(id));
+    let said = match scan {
+        Some(listed) => format!("{} plane, {}", kind.name(), plain_name(&listed.info)),
+        None => format!("{} plane, no scan", kind.name()),
+    };
+    WidgetInfo::labeled(WidgetType::Image, true, said)
+}
 
 /// The colour a plane is known by, in its own panel's caption, on the other two panels and
 /// in the 3D scene.

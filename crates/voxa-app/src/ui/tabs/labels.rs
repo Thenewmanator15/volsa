@@ -10,6 +10,7 @@ use super::{offer, row, section};
 use crate::action::Action;
 use crate::labels::{Labels, LabelsStatus, NamesFrom, on_this_series};
 use crate::state::AppState;
+use crate::ui::access;
 use crate::ui::commands::Request;
 use crate::ui::parts::{
     self, Asked, MADE_ELSEWHERE, PartsView, WHAT_LABELS_ARE, all_shown, labelling, title,
@@ -122,7 +123,8 @@ fn list(
     asked.extend(about(ui, labels));
     asked.extend(switches(ui, labels, actions));
     let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
-    ui.add(search.desired_width(f32::INFINITY));
+    let search = ui.add(search.desired_width(f32::INFINITY));
+    access::call(&search, "Search parts");
     if let Some(part) = labels.selected {
         parts::chosen(ui, labels, part, actions);
     }

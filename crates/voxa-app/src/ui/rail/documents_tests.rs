@@ -43,7 +43,7 @@ fn card_name(document: &IndexedDocument) -> String {
 
 fn card_of(seen: &Seen, document: &IndexedDocument) -> Rect {
     let name = card_name(document);
-    let found = seen.place_of(&name);
+    let found = seen.place_starting(&name);
     found.unwrap_or_else(|| panic!("no card {name}: {:?}", seen.names))
 }
 
@@ -59,7 +59,10 @@ fn documents_are_other_files_after_the_series_and_counted_with_them() {
         .collect();
     for document in &documents {
         let name = card_name(document);
-        assert!(closed.seen.place_of(&name).is_none(), "{name}: closed");
+        assert!(
+            closed.seen.place_starting(&name).is_none(),
+            "{name}: closed"
+        );
     }
     rail.other_open = true;
     let open = pass(&ctx, &state, &mut rail, Vec::new());
@@ -131,7 +134,7 @@ fn an_export_of_documents_alone_opens_other_files_and_shows_the_first() {
     assert!(rail.other_open, "the other files are open");
     assert!(drawn.seen.place_of("Other files, 3").is_some());
     let first = document_named(&state, REPORT);
-    let shown = drawn.seen.place_of(&card_name(&first));
+    let shown = drawn.seen.place_starting(&card_name(&first));
     assert!(
         shown.is_some(),
         "its card is in sight: {:?}",
@@ -153,7 +156,7 @@ fn a_document_come_to_be_open_opens_the_other_files_and_they_can_be_closed_again
     let drawn = pass(&ctx, &state, &mut rail, Vec::new());
     assert!(rail.other_open, "opened as the document comes to be shown");
     let pdf = document_named(&state, PDF);
-    assert!(drawn.seen.place_of(&card_name(&pdf)).is_some());
+    assert!(drawn.seen.place_starting(&card_name(&pdf)).is_some());
     // The person may close them again while the same document is shown.
     let heading = drawn.seen.place_of("Other files, 3").expect("drawn");
     let _ = click(&ctx, &state, &mut rail, heading);
@@ -236,7 +239,7 @@ fn a_title_that_holds_the_patients_name_is_hidden_on_the_card_in_its_hover_and_t
     let name = document_card::card_name(&named, &mask);
     assert_eq!(name, "Report, Report on [hidden]");
     assert!(
-        drawn.seen.place_of(&name).is_some(),
+        drawn.seen.place_starting(&name).is_some(),
         "{:?}",
         drawn.seen.names
     );
@@ -261,7 +264,7 @@ fn a_title_that_holds_the_patients_name_is_hidden_on_the_card_in_its_hover_and_t
     let name = document_card::card_name(&named, &mask);
     assert_eq!(name, "Report, Report on Phantom^Test");
     assert!(
-        drawn.seen.place_of(&name).is_some(),
+        drawn.seen.place_starting(&name).is_some(),
         "{:?}",
         drawn.seen.names
     );

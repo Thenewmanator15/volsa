@@ -4,7 +4,7 @@
 use egui::RichText;
 use voxa_dicom::{TagRow, is_patient_identifying};
 
-use super::{floating, theme};
+use super::{access, floating, theme};
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -99,7 +99,9 @@ pub fn show(
             let mut filter = state.tag_filter.clone();
             ui.horizontal(|ui| {
                 ui.label("Search");
-                if ui.text_edit_singleline(&mut filter).changed() {
+                let field = ui.text_edit_singleline(&mut filter);
+                access::call(&field, "Search the tags");
+                if field.changed() {
                     actions.push(Action::SetTagFilter(filter.clone()));
                 }
             });

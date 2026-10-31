@@ -7,7 +7,7 @@
 use egui::{Align, Layout, RichText, Sense, Ui, vec2};
 use voxa_labels::{Pair, Side, Trust, pairs, trust_in_words, volume_in_words};
 
-use super::theme;
+use super::{access, theme};
 use crate::action::Action;
 use crate::labels::{FAINTEST, Labels};
 use crate::parts_table::sides_compared;
@@ -121,6 +121,18 @@ fn sides(pair: &Pair) -> impl Iterator<Item = (&'static str, usize)> + Clone {
         .filter_map(|(mark, part)| Some((mark, part?)))
 }
 
+/// What a screen reader calls the switch of one side of a row, which shows only a letter or
+/// nothing: `Show hippocampus, left`.
+fn switch_name(labels: &Labels, mark: &str, part: usize) -> String {
+    let named = labels.parts.get(part);
+    let name = named.map_or("this part", |part| part.name.as_str());
+    match mark {
+        "L" => format!("Show {name}, left"),
+        "R" => format!("Show {name}, right"),
+        _ => format!("Show {name}"),
+    }
+}
+
 /// What is said of a row when it is pointed at: the volume of each side, and how far the
 /// name can be trusted.
 fn details(labels: &Labels, pair: &Pair) -> String {
@@ -162,10 +174,9 @@ pub fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut 
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             for (mark, part) in parts.iter().rev() {
                 let mut shown = labels.is_shown(*part);
-                if ui
-                    .checkbox(&mut shown, RichText::new(*mark).small())
-                    .changed()
-                {
+                let switch = ui.checkbox(&mut shown, RichText::new(*mark).small());
+                access::call(&switch, switch_name(labels, mark, *part));
+                if switch.changed() {
                     actions.push(Action::PartShow { part: *part, shown });
                 }
             }

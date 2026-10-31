@@ -293,17 +293,37 @@ pub fn button_labelled(
 }
 
 /// As [`button`], with the button itself made by `make` from the action, for a button that is
-/// more than a label: one with its key beside its name, or an icon drawn on it. Gives where
-/// the button was drawn, with the places of its custom atoms, and what it does if it was
-/// clicked; `None` when the action is not offered for the scan shown.
+/// more than a label: one with its key beside its name, or an icon drawn on it. `shows` is
+/// the words the made button writes on itself, for a screen reader to say with the action's
+/// name (see [`spoken`]); empty when the button writes the name itself or only a picture.
+/// Gives where the button was drawn, with the places of its custom atoms, and what it does
+/// if it was clicked; `None` when the action is not offered for the scan shown.
 pub fn button_made<'a>(
     ui: &mut Ui,
     id: &str,
     state: &AppState,
+    shows: &str,
     make: impl FnOnce(&Command) -> Button<'a>,
 ) -> Option<(AtomLayoutResponse, Option<Does>)> {
     let command = find(id)?;
-    draw(ui, command, make(command), state)
+    draw(ui, command, (make(command), shows), state)
+}
+
+/// What a screen reader calls the button of `command` that writes `shows` on itself: the
+/// action's name when that holds the words (whatever their case), so that a person who
+/// speaks the words they can see is understood (WCAG 2.5.3, label in name); otherwise the
+/// words, then the name, as `1, One viewport`. A mark with no letter or digit in it, such as
+/// `◀` or `?`, is a picture and not words anyone speaks, so the name stands alone. The help
+/// and the search say the name alone.
+pub fn spoken(command: &Command, shows: &str) -> Cow<'static, str> {
+    let shows = shows.trim();
+    let words = shows.chars().any(char::is_alphanumeric);
+    let holds = command.name.to_lowercase().contains(&shows.to_lowercase());
+    if !words || holds {
+        Cow::Borrowed(command.name)
+    } else {
+        Cow::Owned(format!("{shows}, {}", command.name))
+    }
 }
 
 /// Draw an action's button with this label.
@@ -318,15 +338,15 @@ fn labelled(
         Some(on) => Button::selectable(on, label),
         None => Button::new(label),
     };
-    draw(ui, command, button, state)?.1
+    draw(ui, command, (button, label), state)?.1
 }
 
-/// Draw an action's button: its hint, why not while it cannot be used, and its name for a
-/// screen reader, whatever the button says.
+/// Draw an action's button, which writes `written` on itself: its hint, why not while it cannot
+/// be used, and its name for a screen reader, whatever the button says.
 fn draw(
     ui: &mut Ui,
     command: &Command,
-    button: Button<'_>,
+    (button, written): (Button<'_>, &str),
     state: &AppState,
 ) -> Option<(AtomLayoutResponse, Option<Does>)> {
     if !offered(command, state) {
@@ -338,9 +358,11 @@ fn draw(
     } else {
         ui.add_enabled_ui(false, |ui| button.atom_ui(ui)).inner
     };
-    // A screen reader says the name, which a short label such as `◀` does not.
+    // A screen reader says the name, which a short label such as `◀` does not, after the
+    // label if the name does not hold it.
+    let said = spoken(command, written);
     ui.ctx()
-        .accesskit_node_builder(shown.response.id, |node| node.set_label(command.name));
+        .accesskit_node_builder(shown.response.id, |node| node.set_label(said));
     shown.response = shown.response.on_hover_text(hint(command));
     if let Some(why) = why_not {
         shown.response = shown.response.on_disabled_hover_text(why);

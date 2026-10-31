@@ -13,14 +13,20 @@ use crate::testing::{COLOUR, FIRST_ECHO, colour_files, id, indexed, two_echoes_f
 /// How wide the strip is drawn.
 const WIDE: f32 = 900.0;
 
+/// What a screen reader calls the button of the action `id`, which writes its label on itself.
+fn spoken(id: &str) -> String {
+    let command = commands::find(id).expect("listed");
+    commands::spoken(command, command.label).into_owned()
+}
+
 /// The names of the four arrangements' buttons, as a screen reader says them.
-fn arrangements() -> [&'static str; 4] {
-    ARRANGEMENTS.map(|(_, id)| commands::find(id).expect("listed").name)
+fn arrangements() -> [String; 4] {
+    ARRANGEMENTS.map(|(_, id)| spoken(id))
 }
 
 /// The names of the viewports' buttons.
-fn viewports() -> [&'static str; 3] {
-    ["layout.one", "layout.two", "layout.four"].map(|id| commands::find(id).expect("listed").name)
+fn viewports() -> [String; 3] {
+    ["layout.one", "layout.two", "layout.four"].map(spoken)
 }
 
 /// Draw the strip along the top of a window for `state`, keeping what it asked for.
@@ -38,7 +44,7 @@ fn seen(state: &AppState) -> Seen {
 }
 
 /// Click each of the strip's buttons named `names` in turn, and gather what was asked for.
-fn clicked(state: &AppState, names: &[&str]) -> Vec<Action> {
+fn clicked(state: &AppState, names: &[String]) -> Vec<Action> {
     let hand = Hand::new(WIDE, 300.0);
     let mut actions = Vec::new();
     for name in names {
@@ -57,8 +63,8 @@ fn the_strip_offers_the_four_arrangements_and_the_viewports_while_the_slices_are
     let seen = seen(&state);
     let [slices, both, planes, scene] = arrangements();
     let [one, two, four] = viewports();
-    let left = |name: &str| seen.bounds_of(name).expect(name).left();
-    let left_to_right = [slices, one, two, four, both, planes, scene].map(left);
+    let left = |name: &String| seen.bounds_of(name).expect(name).left();
+    let left_to_right = [&slices, &one, &two, &four, &both, &planes, &scene].map(left);
     assert!(left_to_right.is_sorted(), "{left_to_right:?}");
     let asked = clicked(&state, &[both, planes, scene, two, four]);
     assert_eq!(
@@ -90,10 +96,10 @@ fn the_viewports_are_offered_only_while_the_slices_are_shown() {
         reduce(&mut state, Action::SetPictures(pictures));
         let names = seen(&state).named().join(", ");
         for name in viewports() {
-            assert_eq!(names.contains(name), offered, "{pictures:?}: {names}");
+            assert_eq!(names.contains(&name), offered, "{pictures:?}: {names}");
         }
         for name in arrangements() {
-            assert!(names.contains(name), "{pictures:?}: {names}");
+            assert!(names.contains(&name), "{pictures:?}: {names}");
         }
     }
 }
@@ -122,7 +128,7 @@ fn an_arrangement_the_scan_cannot_have_is_greyed_and_says_why() {
     }
     let why = (commands::find("pictures.slices").expect("listed").why_not)(&state);
     assert_eq!(why, None, "the slices are always there");
-    assert!(seen(&state).named().contains(&slices));
+    assert!(seen(&state).named().contains(&slices.as_str()));
 }
 
 #[test]

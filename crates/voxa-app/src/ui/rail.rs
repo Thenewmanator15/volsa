@@ -30,6 +30,7 @@ mod document_card;
 mod kept;
 mod rows;
 mod strip;
+mod walk;
 
 pub use document_card::{date_of, title_of};
 pub use kept::RailState;
@@ -124,13 +125,18 @@ pub fn show(
     let toggled = scroll.show_viewport(ui, |ui, sight| {
         ui.set_height(laid.height());
         let (origin, wide) = (ui.max_rect().min, ui.max_rect().width());
-        let mut toggled = false;
+        let (mut toggled, mut holding) = (false, None);
         let first = laid.first_below(sight.min.y);
         let rows = laid.rows.iter().zip(&laid.tops).enumerate().skip(first);
         for (number, (row, top)) in rows.take_while(|(_, (_, top))| **top < sight.max.y) {
             let size = vec2(wide, row.height());
             let rect = Rect::from_min_size(origin + vec2(0.0, *top), size);
-            toggled |= draw(ui, Placed { rect, number }, *row, &from, &mut asks);
+            let found = draw(ui, Placed { rect, number }, *row, &from, &mut asks);
+            toggled |= found.toggled;
+            holding = holding.or(found.keys.then_some(number));
+        }
+        if let Some(number) = holding {
+            walk::walk(ui, number, laid, index, walk::Where { origin, wide });
         }
         toggled
     });
@@ -161,16 +167,25 @@ struct Placed {
     number: usize,
 }
 
-/// Draw one row where it is `placed`; gives whether it was the heading of the other files,
-/// clicked.
+/// What drawing a row found out.
+#[derive(Debug, Clone, Copy, Default)]
+struct Found {
+    /// Whether the row was the heading of the other files, clicked.
+    toggled: bool,
+    /// Whether the row was a card that has the keyboard, or its menu button does.
+    keys: bool,
+}
+
+/// Draw one row where it is `placed`.
 fn draw(
     ui: &mut Ui,
     placed: Placed,
     row: Row,
     from: &Sources<'_>,
     asks: &mut card::Asks<'_>,
-) -> bool {
+) -> Found {
     let rect = placed.rect;
+    let mut found = Found::default();
     match row {
         Row::Person(place) => {
             if let Some(person) = from.people.get(place) {
@@ -182,34 +197,37 @@ fn draw(
                 heading(ui, placed, &study_title(study), &TextStyle::Small);
             }
         }
-        Row::Card { study, series } => scan_card(ui, rect, (study, series), from, asks),
+        Row::Card { study, series } => {
+            found.keys = scan_card(ui, rect, (study, series), from, asks);
+        }
         Row::Document(place) => {
             let at = Rect::from_min_size(rect.min, vec2(rect.width(), card::HEIGHT));
             if let Some(document) = from.index.documents.get(place) {
                 let open = asks.state.document.as_ref();
                 let selected = open.is_some_and(|open| open.entry == document.entry);
-                document_card::show(ui, at, document, selected, asks);
+                found.keys = document_card::show(ui, at, document, selected, asks);
             }
         }
         Row::Unplaced => heading(ui, placed, UNPLACED, &TextStyle::Small),
-        Row::Other(count) => return other_heading(ui, rect, count, from.open),
+        Row::Other(count) => found.toggled = other_heading(ui, rect, count, from.open),
     }
-    false
+    found
 }
 
 /// Draw the card of the series at `(study, series)` of the index in `rect`, selected while the
-/// active viewport shows it and no document is open in its place.
+/// active viewport shows it and no document is open in its place. Gives whether the card has
+/// the keyboard, or its menu button does.
 fn scan_card(
     ui: &mut Ui,
     rect: Rect,
     (study, series): (usize, usize),
     from: &Sources<'_>,
     asks: &mut card::Asks<'_>,
-) {
+) -> bool {
     let all = from.index.studies.get(study);
     let all = all.map(|study| study.series.as_slice());
     let Some((all, info)) = all.and_then(|all| Some((all, all.get(series)?))) else {
-        return;
+        return false;
     };
     let shown = shown_in(asks.state) == Some(&info.id);
     let card = card::Card {
@@ -218,7 +236,7 @@ fn scan_card(
         selected: shown && asks.state.document.is_none(),
     };
     let at = Rect::from_min_size(rect.min, vec2(rect.width(), card::HEIGHT));
-    card::show(ui, at, &card, asks);
+    card::show(ui, at, &card, asks)
 }
 
 /// A heading of the rail along the foot of the room it is `placed` in, cut short to fit, and

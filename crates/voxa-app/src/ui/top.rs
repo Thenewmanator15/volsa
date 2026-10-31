@@ -44,7 +44,7 @@ const TITLE_WANTED: f32 = 160.0;
 /// The least room the study's name is worth showing in; with less, it is left out.
 const TITLE_LEAST: f32 = 48.0;
 /// What the search box says before anything is typed.
-const SEARCH_SAYS: &str = "Find a tool or part";
+pub(super) const SEARCH_SAYS: &str = "Find a tool or part";
 /// The key that opens the search, written in the box.
 const SEARCH_KEY: &str = "Ctrl K";
 /// What a screen reader calls the button of the menu at the right, and what resting the pointer
@@ -170,7 +170,7 @@ fn find_box(ui: &mut Ui, search: &mut Search, width: f32, route: &mut Route<'_>)
             vec2(width, height),
             Layout::left_to_right(Align::Center),
             |ui| {
-                commands::button_made(ui, "search.open", route.state, |_| {
+                commands::button_made(ui, "search.open", route.state, SEARCH_SAYS, |_| {
                     let saying = RichText::new(SEARCH_SAYS).color(quiet);
                     let key = RichText::new(SEARCH_KEY).small().color(quiet);
                     let icon = Atom::custom(magnifier, Vec2::splat(symbols::SIZE));
@@ -218,14 +218,15 @@ fn icon_button<'a>(room: Id) -> Button<'a> {
 
 /// Help, the theme button and the menu, at the right of the line.
 fn icon_buttons(ui: &mut Ui, theme: ThemeChoice, route: &mut Route<'_>) {
-    let made = commands::button_made(ui, "help.keys", route.state, |command| {
+    let shows = commands::find("help.keys").map_or("", |command| command.label);
+    let made = commands::button_made(ui, "help.keys", route.state, shows, |command| {
         Button::new(command.label).min_size(vec2(ICON_BUTTON, 0.0))
     });
     route.take(made.and_then(|(_, does)| does));
     // The button shows the theme now, and does what the choice after it does.
     let room = Id::new("voxa: the symbol on the theme button");
     let next = theme_action(theme.next());
-    let made = commands::button_made(ui, next, route.state, |_| icon_button(room));
+    let made = commands::button_made(ui, next, route.state, "", |_| icon_button(room));
     if let Some((shown, does)) = made {
         let colour = ui.style().interact(&shown.response).fg_stroke.color;
         symbols::paint(

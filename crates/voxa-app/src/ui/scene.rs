@@ -207,6 +207,7 @@ pub fn show(
     actions: &mut Vec<Action>,
 ) {
     let response = ui.interact(area, ui.id().with("scene"), Sense::click_and_drag());
+    response.widget_info(|| captions::widget(state));
     ui.painter().rect_filled(area, 0, Color32::BLACK);
     let size = [area.width(), area.height()];
     let was = state.scene.viewport;

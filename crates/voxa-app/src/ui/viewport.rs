@@ -3,7 +3,7 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, WidgetInfo, WidgetType, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
 use voxa_dicom::Frame;
@@ -18,6 +18,7 @@ use crate::state::{AppState, Layout};
 mod annotate;
 mod colour;
 mod mouse;
+mod said;
 mod tools;
 mod value;
 
@@ -211,6 +212,8 @@ pub fn show(
             ui.id().with(("viewport", at)),
             Sense::click_and_drag(),
         );
+        let kind = WidgetType::Image;
+        response.widget_info(|| WidgetInfo::labeled(kind, true, said::said(state, at)));
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
         let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);

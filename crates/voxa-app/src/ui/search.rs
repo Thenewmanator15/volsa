@@ -269,7 +269,7 @@ impl Search {
             .event_filter(keep);
         let response = ui.add(field);
         ui.ctx()
-            .accesskit_node_builder(response.id, |node| node.set_label("Search"));
+            .accesskit_node_builder(response.id, |node| node.set_label(HINT));
     }
 
     /// Move the choice down by `places`, round the ends; whether it moved.

@@ -5,6 +5,7 @@
 use egui::{Align, Button, Layout, RichText, TextEdit, Ui};
 use voxa_core::Point;
 
+use super::super::access;
 use super::super::commands::{self, Request};
 use super::super::scene::export::said;
 use super::super::theme;
@@ -131,13 +132,17 @@ fn listed(
     ui.horizontal(|ui| {
         // The button is at the right and the name takes what is left of the line.
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            if ui.small_button("Remove").clicked() {
+            let remove = ui.small_button("Remove");
+            // Each row says whose it is, for a screen reader: the buttons all say the same.
+            access::call(&remove, format!("Remove {}", item.label));
+            if remove.clicked() {
                 actions.push(Action::AnnotationRemove(item.id));
             }
             name(ui, item, editing, actions);
         });
     });
     let go = ui.add(Button::new(value).frame(false).truncate());
+    access::call(&go, format!("Go to {}, {value}", item.label));
     let pressed = go.on_hover_text("Go to it").clicked();
     if !detail.is_empty() {
         ui.label(
@@ -199,6 +204,8 @@ fn name(
         .char_limit(MAX_LABEL)
         .id_salt(("annotation name", item.id));
     let field = ui.add(field);
+    // Named by the name it was saved under, which does not change as it is typed over.
+    access::call(&field, format!("Name of {}", item.label));
     if field.changed() || field.has_focus() {
         *editing = Some((item.id, text.clone()));
     }

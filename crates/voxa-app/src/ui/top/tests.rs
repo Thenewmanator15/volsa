@@ -98,9 +98,17 @@ fn named_study() -> AppState {
     state
 }
 
-/// What a screen reader calls the button of the action `id`.
-fn named(id: &str) -> &'static str {
-    commands::find(id).expect("listed").name
+/// What a screen reader calls the button of the action `id` as the bar draws it: the search
+/// box writes its own words on itself, and the items of the Open menu their labels; every other
+/// button is a picture, or writes the action's name.
+fn named(id: &str) -> String {
+    let command = commands::find(id).expect("listed");
+    let shows = match id {
+        "search.open" => SEARCH_SAYS,
+        "open.folder" | "open.file" => command.label,
+        _ => "",
+    };
+    commands::spoken(command, shows).into_owned()
 }
 
 #[test]
@@ -143,11 +151,11 @@ fn the_top_bar_keeps_open_search_and_the_menu_at_640() {
         let laid = bar.settle();
         let screen = Rect::from_min_size(Pos2::ZERO, vec2(size[0], size[1]));
         let wanted = [
-            "Open",
+            "Open".to_owned(),
             named("search.open"),
             named("help.keys"),
             named("theme.light"),
-            MENU,
+            MENU.to_owned(),
         ];
         let places: Vec<Rect> = wanted
             .iter()
@@ -188,8 +196,8 @@ fn the_study_is_named_with_its_date_and_given_up_first_when_the_bar_is_full() {
     // At a half the width the name is left out before the box or any button is.
     let narrow = Bar::new([330.0, 480.0], 1.0, named_study()).settle();
     assert!(!said(&narrow.seen), "{:?}", narrow.seen.words);
-    for name in ["Open", MENU, named("search.open")] {
-        assert!(narrow.seen.place_of(name).is_some(), "{name} is kept");
+    for name in ["Open".to_owned(), MENU.to_owned(), named("search.open")] {
+        assert!(narrow.seen.place_of(&name).is_some(), "{name} is kept");
     }
     // With no export open there is no study to name.
     let none = Bar::new(SMALLEST, 1.0, AppState::default()).settle();
@@ -205,9 +213,9 @@ fn the_open_menu_offers_a_folder_and_a_zip_file_or_dicomdir() {
         let opened = bar.click_named(&laid.seen, "Open");
         assert_eq!(opened.asked, []);
         for wanted in ["open.folder", "open.file"] {
-            assert!(opened.seen.place_of(named(wanted)).is_some(), "{wanted}");
+            assert!(opened.seen.place_of(&named(wanted)).is_some(), "{wanted}");
         }
-        let chosen = bar.click_named(&opened.seen, named(id));
+        let chosen = bar.click_named(&opened.seen, &named(id));
         assert_eq!(chosen.asked, [Request::Open(pick)], "{id}");
     }
     let file = commands::find("open.file").expect("listed");
@@ -221,7 +229,7 @@ fn the_search_box_asks_for_the_search_and_the_results_hang_under_it() {
         let laid = bar.settle();
         let found = laid
             .seen
-            .place_of(named("search.open"))
+            .place_of(&named("search.open"))
             .expect("the search box");
         let words = |wanted: &str| laid.seen.words.iter().any(|(said, _)| said == wanted);
         assert!(
@@ -276,7 +284,7 @@ fn the_theme_button_shows_the_theme_and_goes_round_system_light_dark() {
         let laid = bar.settle();
         // The button is named for what it does: the choice after the one it shows.
         let button = named(theme_action(theme.next()));
-        let clicked = bar.click_named(&laid.seen, button);
+        let clicked = bar.click_named(&laid.seen, &button);
         assert_eq!(clicked.asked.len(), 1, "from {theme:?}");
         chosen.extend(clicked.asked);
     }
@@ -310,7 +318,7 @@ fn the_menu_holds_size_full_screen_the_keys_the_log_and_about() {
             opened.seen.names
         );
         // Each item gives what the list of actions says it does.
-        let done = bar.click_named(&opened.seen, named(id));
+        let done = bar.click_named(&opened.seen, &named(id));
         assert_eq!(done.asked, request.into_iter().collect::<Vec<_>>(), "{id}");
         assert_eq!(
             done.actions,
@@ -323,7 +331,7 @@ fn the_menu_holds_size_full_screen_the_keys_the_log_and_about() {
     let laid = bar.settle();
     let opened = bar.click_named(&laid.seen, MENU);
     for id in ["rail.fold", "tags.show"] {
-        let found = opened.seen.place_of(named(id));
+        let found = opened.seen.place_of(&named(id));
         assert_eq!(found, None, "{id} is in the menu: {:?}", opened.seen.names);
     }
 }
