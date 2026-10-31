@@ -18,6 +18,7 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod describe;
+mod fit;
 mod folder;
 mod onnx;
 #[cfg(any(test, feature = "testkit"))]
@@ -28,5 +29,6 @@ pub use describe::{
     Input, Kind, LabelOutput, Layout, Listed, Moves, Name, NumberOutput, Output, Outside, Over,
     PLUGIN_FORMAT, Scaling, Side, ValueOutput, Voxels, read_description,
 };
+pub use fit::{Wiring, fit};
 pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};
 pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};

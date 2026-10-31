@@ -15,7 +15,8 @@ use sha2::{Digest, Sha256};
 use voxa_models::{Supported, file_sum, is_plain_name};
 
 use crate::{
-    DescribeError, Description, NetworkError, NetworkFacts, read_description, read_network,
+    DescribeError, Description, NetworkError, NetworkFacts, Wiring, fit, read_description,
+    read_network,
 };
 
 #[cfg(test)]
@@ -40,6 +41,8 @@ pub struct Offered {
     pub folder: PathBuf,
     /// What its network takes and gives, as its file says.
     pub network: NetworkFacts,
+    /// How its network is wired to its description.
+    pub wiring: Wiring,
 }
 
 /// Why a folder is not taken as a plugin. Each sentence is fit to be shown; the names some
@@ -79,6 +82,9 @@ pub enum PluginError {
     /// The network file breaks a rule.
     #[error(transparent)]
     Network(#[from] NetworkError),
+    /// The network's inputs or outputs are not what the description says.
+    #[error("{0}")]
+    Fit(&'static str),
 }
 
 /// How large a plugin's files may be, in bytes.
@@ -120,6 +126,7 @@ pub(crate) fn check_with(
     let text = read_limited(&folder.join(DESCRIPTION), MOST_DESCRIPTION)
         .ok_or(PluginError::NoDescription)?;
     let description = read_description(&text)?;
+    description.runnable()?;
     check_network_named(&description)?;
     check_names(&description, limits)?;
     for listed in &description.files {
@@ -142,11 +149,13 @@ pub(crate) fn check_with(
         &description.files,
         supported,
     )?;
+    let wiring = fit(&description, &network)?;
     Ok(Offered {
         description,
         sum: hex(&Sha256::digest(&text)),
         folder: folder.to_owned(),
         network,
+        wiring,
     })
 }
 

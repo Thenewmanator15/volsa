@@ -217,3 +217,28 @@ fn an_offered_folder_says_what_its_network_takes_and_gives() {
     assert_eq!(offered.network.inputs[0].name, "image");
     assert_eq!(offered.network.outputs[0].name, "scores");
 }
+
+#[test]
+fn a_later_kind_is_refused_when_offered() {
+    let mut description = unlisted();
+    description["kind"] = json!("value-map");
+    description["output"] = json!({ "unit": "ms", "range": [0, 3000] });
+    let refused = checked(&description, &[("strip.onnx", &network())]).expect_err("refused");
+    let words = "This version of Voxa cannot run plugins that give a value map yet.";
+    assert_eq!(refused.to_string(), words);
+}
+
+#[test]
+fn an_offered_folder_is_wired_to_its_network() {
+    let offered = checked(&unlisted(), &[("strip.onnx", &network())]).expect("offered");
+    assert_eq!(offered.wiring.output, "scores");
+    assert_eq!(offered.wiring.free.len(), 3);
+}
+
+#[test]
+fn a_network_that_does_not_fit_its_description_is_refused() {
+    let three = conv_network(&image_input(), &[0.0, 1.0, 2.0], &[0.0, 0.0, 0.0]);
+    let refused = checked(&unlisted(), &[("strip.onnx", &three)]).expect_err("refused");
+    let words = "The network's answer is not the size its description gives.";
+    assert_eq!(refused.to_string(), words);
+}
