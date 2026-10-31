@@ -98,7 +98,7 @@ detail (0.6.0: 20.9, halved), body 1.7 ms (0.6.0: 4.3); at 3840 × 2160, 12.0, 1
 | B10 zip against folder, to full detail | stored ≤ 1.2 ×, compressed ≤ 1.5 × | warm 0.96 × and 1.10 ×; cold 1.0 × and 1.1 × | warm 0.9 × | yes, after the last change below |
 | B11 a window frame while uploading, RTX | 16 ms: longest step 11 ms | longest 25 ms (most steps about 11) | longest 32 ms | no for the longest step of a long series |
 | B12 software graphics, resized while loading | none of 20 runs stopped (0.6.0: 3 of 3) | | | yes |
-| B13 budget 512 MiB, CT | in full detail, 488 MiB of its values in memory and none past the budget; own memory 814 MiB in one run (base + budget + 200 is about 812) and 950 MiB in another | | | the volume's count yes; private memory in one run of two |
+| B13 budget 512 MiB, CT | in full detail in 1.5-1.8 s, 488 MiB of its values in memory and none past the budget; own memory 905-927 MiB in three runs (base + budget + 200 is about 812), working set 673-692 MiB | | | the volume's count and the working set yes; private memory about 100 MiB over |
 
 ## What changed on the way, from measuring
 
@@ -116,13 +116,19 @@ detail (0.6.0: 20.9, halved), body 1.7 ms (0.6.0: 4.3); at 3840 × 2160, 12.0, 1
   every slab of the CT at once (1.4 GB with a 512 MiB budget); the preview's slices are now
   decoded on their own and the volume filled slab by slab.
 - **Indexing** a folder of 2,000 slices took 357 ms in the bench before and 183 ms after.
+- **From the final review**: counting what a volume holds no longer takes its slabs' locks, a
+  slab goes to disk still readable, a slice or slab on disk is read from the file without being
+  brought back, and a hand-over interrupted by another series lets the old volume go. With a
+  512 MiB budget the CT then reached full detail in 1.5-1.8 s, where it had taken 2.3-7.7 s
+  while slabs were brought back and put away again during the hand-over.
 
 ## What is left
 
 - B11 for the first and last step of a long series' hand-over, which make the textures and the
   blocks of largest values.
-- B13's private memory when the hand-over brings slabs back faster than they are put away: the
-  window, one slab a frame, gives the worker time that `measure_big` does not.
+- B13's private memory, about 100 MiB past base + budget + 200 MiB while a series past the
+  budget goes to the card: the slab read from the file for each step, its texels and the
+  card's staging, each 32 MiB, on top of the budget. The volume's own count is within it.
 - The headless head and body runs pass B5 only up to the moment the volume is on the card.
 - Smooth planes are not offered for a series the card holds in more than one texture (the
   2,000-slice CT on the RTX, which holds 512 MiB a texture).
