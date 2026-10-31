@@ -15,12 +15,16 @@ const ARM: f32 = 8.0;
 
 /// Write over a slice: what it is in the corners, with the `value` under the pointer if there
 /// is one, and, when the files say where the slice lies, a letter at each edge and a scale bar.
-pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>, value: Option<f32>) {
+/// Says where the corners' writing and the scale bar stand, for what is measured on the slice
+/// to be written clear of them. The corner with the value under the pointer is kept for it
+/// whether or not the pointer is over the slice, so that what is measured does not jump aside
+/// as the pointer comes and goes.
+pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>, value: Option<f32>) -> Vec<Rect> {
     let Some((info, study)) = pane.series() else {
-        return;
+        return Vec::new();
     };
     let Some(viewport) = pane.state.viewports.get(pane.at) else {
-        return;
+        return Vec::new();
     };
     let pen = Pen::over(ui, pane.cell);
     let inside = pane.cell.shrink(pen::INSET);
@@ -37,13 +41,20 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>, value: Option<f32>) {
     for (lines, (at, anchor)) in corners.iter().zip(anchors) {
         pen.write_lines(at, anchor, lines, room);
     }
+    let kept = self::corners(pane, info, study, Some(value.unwrap_or_default()));
+    let mut taken: Vec<Rect> = kept
+        .iter()
+        .zip(anchors)
+        .map(|(lines, (at, anchor))| pen.lines_rect(at, anchor, lines, room))
+        .collect();
     if let Some(placement) = placement {
         let radiological = pane.state.radiological;
         let labels = overlay::orientation_labels(placement, &viewport.view, radiological);
-        pen::letters(&pen, inside, &labels);
-        scale_bar(&pen, pane, info, inside);
+        taken.extend(pen::letters(&pen, inside, &labels));
+        taken.extend(scale_bar(&pen, pane, info, inside));
     }
     mark_position(&pen, pane, info);
+    taken
 }
 
 /// The lines written in the four corners of a viewport. The last line of the bottom left corner
@@ -97,8 +108,9 @@ fn mark_position(pen: &Pen, pane: &Pane<'_>, info: &SeriesInfo) {
     }
 }
 
-/// Draw a bar of a round number of millimetres above the bottom edge of a viewport.
-fn scale_bar(pen: &Pen, pane: &Pane<'_>, info: &SeriesInfo, inside: Rect) {
+/// Draw a bar of a round number of millimetres above the bottom edge of a viewport, if there
+/// is room for one, and say where it stands.
+fn scale_bar(pen: &Pen, pane: &Pane<'_>, info: &SeriesInfo, inside: Rect) -> Option<Rect> {
     // One column of the image spans its spacing in millimetres and this many screen points.
     let size = [pane.cell.width(), pane.cell.height()];
     let aspect = pixel_aspect(pane.state, pane.at);
@@ -109,7 +121,6 @@ fn scale_bar(pen: &Pen, pane: &Pane<'_>, info: &SeriesInfo, inside: Rect) {
     let [between_cols, _, _] = info.spacing_mm;
     let mm_per_point = narrowed(between_cols / (x * x + y * y).sqrt());
     let room = pane.cell.width() * pen::BAR_SHARE;
-    if let Some((length, label)) = overlay::scale_bar(mm_per_point, room) {
-        pen::bar(pen, inside, length, &label);
-    }
+    let (length, label) = overlay::scale_bar(mm_per_point, room)?;
+    Some(pen::bar(pen, inside, length, &label))
 }

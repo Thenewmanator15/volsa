@@ -312,7 +312,7 @@ fn the_value_is_written_in_the_bottom_left_corner_while_the_pointer_is_over_the_
     let state = showing_a_scan_of("CT", None);
     let pane = pane_of(&state);
     let hand = Hand::new(400.0, 400.0);
-    let drawn = |value| hand.settle(&mut |ui| annotate::overlays(ui, &pane, value));
+    let drawn = |value| hand.settle(&mut |ui| drop(annotate::overlays(ui, &pane, value)));
     let with = drawn(Some(-12.0));
     assert!(
         with.words.iter().any(|word| word == "Value -12 HU"),

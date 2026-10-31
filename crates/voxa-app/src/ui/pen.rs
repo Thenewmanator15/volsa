@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use egui::text::{LayoutJob, TextWrapping};
-use egui::{Align, Align2, Color32, FontId, Galley, Pos2, Rect, Stroke, Ui, pos2, vec2};
+use egui::{Align, Align2, Color32, FontId, Galley, Pos2, Rect, Stroke, Ui, Vec2, pos2, vec2};
 
 use super::overlay::EdgeLabels;
 
@@ -38,12 +38,12 @@ impl Pen {
     }
 
     /// Write some words, with a dark copy just behind so they can be read over a bright
-    /// picture.
-    pub fn write(&self, at: Pos2, anchor: Align2, text: &str, font: &FontId) {
+    /// picture, and say where they stand.
+    pub fn write(&self, at: Pos2, anchor: Align2, text: &str, font: &FontId) -> Rect {
         let shadow = at + vec2(1.0, 1.0);
         self.painter
             .text(shadow, anchor, text, font.clone(), Color32::BLACK);
-        self.painter.text(at, anchor, text, font.clone(), INK);
+        self.painter.text(at, anchor, text, font.clone(), INK)
     }
 }
 
@@ -55,20 +55,36 @@ impl Pen {
         self.painter.layout_job(job)
     }
 
-    /// Write lines in a corner of a picture, one beneath another, each cut short if it is
-    /// longer than `width`. `at` is the corner and `anchor` says which corner it is.
-    pub fn write_lines(&self, at: Pos2, anchor: Align2, lines: &[String], width: f32) {
-        let inked: Vec<_> = lines
+    /// Where lines written in a corner of a picture stand together, as [`Pen::write_lines`]
+    /// writes them: `at` is the corner and `anchor` says which corner it is.
+    pub fn lines_rect(&self, at: Pos2, anchor: Align2, lines: &[String], width: f32) -> Rect {
+        let sizes: Vec<Vec2> = lines
             .iter()
-            .map(|line| self.line(line, INK, width))
+            .map(|line| self.line(line, INK, width).size())
             .collect();
-        let height: f32 = inked.iter().map(|words| words.size().y).sum();
-        let mut top = if anchor.y() == Align::Max {
+        let height: f32 = sizes.iter().map(|size| size.y).sum();
+        let widest = sizes.iter().map(|size| size.x).fold(0.0, f32::max);
+        let left = if anchor.x() == Align::Max {
+            at.x - widest
+        } else {
+            at.x
+        };
+        let top = if anchor.y() == Align::Max {
             at.y - height
         } else {
             at.y
         };
-        for (line, words) in lines.iter().zip(inked) {
+        Rect::from_min_size(pos2(left, top), vec2(widest, height))
+    }
+
+    /// Write lines in a corner of a picture, one beneath another, each cut short if it is
+    /// longer than `width`. `at` is the corner and `anchor` says which corner it is. Says
+    /// where the lines stand together.
+    pub fn write_lines(&self, at: Pos2, anchor: Align2, lines: &[String], width: f32) -> Rect {
+        let stand = self.lines_rect(at, anchor, lines, width);
+        let mut top = stand.top();
+        for line in lines {
+            let words = self.line(line, INK, width);
             let size = words.size();
             let left = if anchor.x() == Align::Max {
                 at.x - size.x
@@ -81,40 +97,41 @@ impl Pen {
             self.painter.galley(pos2(left, top), words, INK);
             top += size.y;
         }
+        stand
     }
 
     /// Write one line in a colour of its own from its top left corner `at`, cut short if it
-    /// is longer than `width`, and say where a line beneath it would begin.
-    pub fn write_in(&self, at: Pos2, text: &str, colour: Color32, width: f32) -> Pos2 {
+    /// is longer than `width`, and say where it stands.
+    pub fn write_in(&self, at: Pos2, text: &str, colour: Color32, width: f32) -> Rect {
         let words = self.line(text, colour, width);
-        let beneath = at + vec2(0.0, words.size().y);
+        let stand = Rect::from_min_size(at, words.size());
         let shadow = self.line(text, Color32::BLACK, width);
         self.painter
             .galley(at + vec2(1.0, 1.0), shadow, Color32::BLACK);
         self.painter.galley(at, words, colour);
-        beneath
+        stand
     }
 
     /// Write some words upwards from the bottom left corner `at`, broken into lines no
-    /// longer than `width`, and say how high they stand.
-    pub fn write_wrapped_up(&self, at: Pos2, text: &str, width: f32) -> f32 {
+    /// longer than `width`, and say where they stand.
+    pub fn write_wrapped_up(&self, at: Pos2, text: &str, width: f32) -> Rect {
         let laid_out = |colour| {
             let (text, font) = (text.to_owned(), self.small.clone());
             self.painter.layout(text, font, colour, width)
         };
         let words = laid_out(INK);
-        let high = words.size().y;
-        let top_left = at - vec2(0.0, high);
+        let size = words.size();
+        let top_left = at - vec2(0.0, size.y);
         let shadow = laid_out(Color32::BLACK);
         self.painter
             .galley(top_left + vec2(1.0, 1.0), shadow, Color32::BLACK);
         self.painter.galley(top_left, words, INK);
-        high
+        Rect::from_min_size(top_left, size)
     }
 
     /// Write some words downwards from the top left corner `at`, broken into lines no longer
-    /// than `width`.
-    pub fn write_wrapped(&self, at: Pos2, text: &str, width: f32) {
+    /// than `width`, and say where they stand.
+    pub fn write_wrapped(&self, at: Pos2, text: &str, width: f32) -> Rect {
         let laid_out = |colour| {
             let (text, font) = (text.to_owned(), self.small.clone());
             self.painter.layout(text, font, colour, width)
@@ -124,12 +141,16 @@ impl Pen {
             laid_out(Color32::BLACK),
             Color32::BLACK,
         );
-        self.painter.galley(at, laid_out(INK), INK);
+        let words = laid_out(INK);
+        let stand = Rect::from_min_size(at, words.size());
+        self.painter.galley(at, words, INK);
+        stand
     }
 }
 
-/// Write the letter for each edge of a picture at the middle of that edge.
-pub fn letters(pen: &Pen, inside: Rect, labels: &EdgeLabels) {
+/// Write the letter for each edge of a picture at the middle of that edge, and say where the
+/// four stand.
+pub fn letters(pen: &Pen, inside: Rect, labels: &EdgeLabels) -> [Rect; 4] {
     let edges = [
         (inside.left_center(), Align2::LEFT_CENTER, &labels.left),
         (inside.right_center(), Align2::RIGHT_CENTER, &labels.right),
@@ -140,38 +161,40 @@ pub fn letters(pen: &Pen, inside: Rect, labels: &EdgeLabels) {
             &labels.bottom,
         ),
     ];
-    for (at, anchor, letter) in edges {
-        pen.write(at, anchor, letter, &pen.body);
-    }
+    edges.map(|(at, anchor, letter)| pen.write(at, anchor, letter, &pen.body))
 }
 
-/// Draw a scale bar `length` points long, with its label, above the bottom edge of a picture.
-pub fn bar(pen: &Pen, inside: Rect, length: f32, label: &str) {
+/// Draw a scale bar `length` points long, with its label, above the bottom edge of a picture,
+/// and say where the bar and its label stand.
+pub fn bar(pen: &Pen, inside: Rect, length: f32, label: &str) -> Rect {
     let middle = inside.center_bottom() - vec2(0.0, 28.0);
     let half = vec2(length / 2.0, 0.0);
-    pen.painter
-        .line_segment([middle - half, middle + half], Stroke::new(2.0, INK));
-    pen.write(
+    let line = [middle - half, middle + half];
+    pen.painter.line_segment(line, Stroke::new(2.0, INK));
+    let said = pen.write(
         middle - vec2(0.0, 4.0),
         Align2::CENTER_BOTTOM,
         label,
         &pen.small,
     );
+    said.union(Rect::from_points(&line))
 }
 
 /// Draw a scale bar `length` points long, with its label above it, in the bottom right corner
-/// of a picture: for a picture whose middle is taken up by something else.
-pub fn bar_in_corner(pen: &Pen, inside: Rect, length: f32, label: &str) {
+/// of a picture: for a picture whose middle is taken up by something else. Says where the bar
+/// and its label stand.
+pub fn bar_in_corner(pen: &Pen, inside: Rect, length: f32, label: &str) -> Rect {
     let right = inside.right_bottom() - vec2(0.0, 4.0);
     let left = right - vec2(length, 0.0);
     pen.painter
         .line_segment([left, right], Stroke::new(2.0, INK));
-    pen.write(
+    let said = pen.write(
         right - vec2(0.0, 4.0),
         Align2::RIGHT_BOTTOM,
         label,
         &pen.small,
     );
+    said.union(Rect::from_points(&[left, right]))
 }
 
 #[cfg(test)]

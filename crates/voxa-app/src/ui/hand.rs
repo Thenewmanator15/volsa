@@ -12,6 +12,9 @@ pub struct Seen {
     pub words: Vec<String>,
     /// Where each piece of text was painted, in the same order.
     pub placed: Vec<Rect>,
+    /// Every straight line segment that was painted, from one end to the other, in the order
+    /// it was painted.
+    pub lines: Vec<[Pos2; 2]>,
     /// What a screen reader is told of each widget that has a name, and where it is.
     pub names: Vec<(String, Rect)>,
 }
@@ -20,6 +23,13 @@ impl Seen {
     /// Where the first piece of text that is `text` was painted, if there is one.
     pub fn text_bounds(&self, text: &str) -> Option<Rect> {
         let at = self.words.iter().position(|word| word == text)?;
+        self.placed.get(at).copied()
+    }
+
+    /// Where the last piece of text that is `text` was painted, if there is one: of words
+    /// written over a dark copy of themselves, the ones in ink, which are painted after it.
+    pub fn ink_bounds(&self, text: &str) -> Option<Rect> {
+        let at = self.words.iter().rposition(|word| word == text)?;
         self.placed.get(at).copied()
     }
 
@@ -41,9 +51,11 @@ pub struct Hand {
     size: Vec2,
 }
 
-/// The words written by a shape and the shapes within it, and where they were painted.
+/// The words written by a shape and the shapes within it, where they were painted, and the
+/// straight lines drawn.
 fn words_of(shape: &egui::Shape, into: &mut Seen) {
     match shape {
+        egui::Shape::LineSegment { points, .. } => into.lines.push(*points),
         egui::Shape::Text(text) => {
             into.words.push(text.galley.text().to_owned());
             let at = Rect::from_min_size(text.pos, text.galley.size());

@@ -219,11 +219,12 @@ pub fn show(
         actions.push(Action::SceneResized { viewport: size });
     }
     let picture = view.picture(ui, area, state, volume, render, actions);
+    let mut taken = Vec::new();
     if let Some(picture) = picture {
         let whole_picture = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         ui.painter()
             .image(picture, area, whole_picture, Color32::WHITE);
-        written_over(ui, area, state);
+        taken = written_over(ui, area, state);
     } else {
         let ready = state.scene.status == SceneStatus::Ready;
         let text = status_text(&state.scene).or_else(|| ready.then(|| CANNOT_DRAW.to_owned()));
@@ -236,7 +237,7 @@ pub fn show(
     if state.scene.status == SceneStatus::Ready {
         // Drawn after the scene itself, so a press on a handle takes hold of the handle.
         handles::show(ui, area, state, &mut view.carried, actions);
-        tools::draw(ui, area, state, view.ruler_from);
+        tools::draw(ui, area, state, view.ruler_from, &taken);
     }
     let sources = (volume, labels);
     let twice = pointed(
@@ -308,15 +309,16 @@ fn pointed(
 }
 
 /// Write over the picture: a letter at each edge, a scale bar, and beneath them what the
-/// picture cannot show.
-fn written_over(ui: &Ui, area: Rect, state: &AppState) {
+/// picture cannot show. Says where the scale bar and the words stand, for measurements to be
+/// written clear of them.
+fn written_over(ui: &Ui, area: Rect, state: &AppState) -> Vec<Rect> {
     let scene = &state.scene;
     let pen = Pen::over(ui, area);
     let inside = area.shrink(pen::INSET);
-    pen::letters(&pen, inside, &edge_letters(&scene.camera));
+    let mut taken = pen::letters(&pen, inside, &edge_letters(&scene.camera)).to_vec();
     let mm_per_point = narrowed(scene.camera.mm_per_px);
     if let Some((length, label)) = overlay::scale_bar(mm_per_point, area.width() * pen::BAR_SHARE) {
-        pen::bar(&pen, inside, length, &label);
+        taken.push(pen::bar(&pen, inside, length, &label));
     }
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
@@ -330,7 +332,9 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
     let (down, room) = captions::caption_room(inside.width());
-    pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
+    let words = pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
+    taken.extend((!said.is_empty()).then_some(words));
+    taken
 }
 
 /// What the mouse did over the scene this frame.

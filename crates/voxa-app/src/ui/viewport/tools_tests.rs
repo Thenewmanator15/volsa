@@ -19,14 +19,14 @@ use crate::ui::hand::{Hand, Seen};
 
 /// The viewport's size in these tests: the 4 x 4 slices of the 30-slice series fill it, a
 /// hundred points to a pixel.
-const SIZE: f32 = 400.0;
+pub(super) const SIZE: f32 = 400.0;
 
 /// What a slice holds in these tests: a 4 x 4 slice of 7s.
 static SEVENS: [f32; 16] = [7.0; 16];
 
 /// The 30-slice series shown in the first viewport, its slice decoded, its volume still being
 /// built, with `tool` in hand.
-fn holding(tool: Tool) -> AppState {
+pub(super) fn holding(tool: Tool) -> AppState {
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(three_series()));
     let (viewport, series) = (0, id(THICK_SCAN));
@@ -48,16 +48,16 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 }
 
 /// Where the middle of a pixel of the 30-slice series is in the viewport.
-fn over(col: f32, row: f32) -> Pos2 {
+pub(super) fn over(col: f32, row: f32) -> Pos2 {
     pos2(50.0 + 100.0 * col, 50.0 + 100.0 * row)
 }
 
 /// A viewport as the window keeps it between frames, and what it asked for.
-struct Rig {
+pub(super) struct Rig {
     /// Where the viewport is.
     cell: Rect,
-    drafts: Drafts,
-    actions: Vec<Action>,
+    pub(super) drafts: Drafts,
+    pub(super) actions: Vec<Action>,
     /// How many times a slice's values were read.
     reads: Cell<usize>,
 }
@@ -80,7 +80,13 @@ impl Rig {
     }
 
     /// One frame of viewport `at` of `state`, with these events, as the window draws it.
-    fn frame(&mut self, hand: &Hand, state: &AppState, at: usize, events: Vec<Event>) -> Seen {
+    pub(super) fn frame(
+        &mut self,
+        hand: &Hand,
+        state: &AppState,
+        at: usize,
+        events: Vec<Event>,
+    ) -> Seen {
         let cell = self.cell;
         let (drafts, actions, reads) = (&mut self.drafts, &mut self.actions, &self.reads);
         let read = |_: &SeriesId, _: usize, with: &mut dyn FnMut(SliceValues<'_>)| {
@@ -95,7 +101,7 @@ impl Rig {
             let id = ui.id().with(("viewport", at));
             let response = ui.interact(cell, id, Sense::click_and_drag());
             let pane = super::pane(state, at, cell);
-            actions.extend(tools::measure(ui, &pane, &response, (drafts, &read)));
+            actions.extend(tools::measure(ui, &pane, &response, (drafts, &read), &[]));
         })
     }
 
@@ -110,7 +116,7 @@ impl Rig {
     }
 
     /// A click on viewport `at` at a point.
-    fn click(&mut self, hand: &Hand, state: &AppState, at: usize, on: Pos2) {
+    pub(super) fn click(&mut self, hand: &Hand, state: &AppState, at: usize, on: Pos2) {
         let _ = self.frame(hand, state, at, Vec::new());
         let down = vec![Event::PointerMoved(on), button(on, true)];
         let _ = self.frame(hand, state, at, down);
@@ -118,7 +124,7 @@ impl Rig {
     }
 
     /// What the viewport asked to add, so far.
-    fn added(&self) -> Vec<&Shape> {
+    pub(super) fn added(&self) -> Vec<&Shape> {
         let added = self.actions.iter().filter_map(|action| match action {
             Action::AnnotationAdd(shape) => Some(shape),
             _ => None,

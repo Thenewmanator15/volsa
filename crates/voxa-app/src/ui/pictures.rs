@@ -76,10 +76,8 @@ impl VoxaApp {
                 actions,
             );
         }
-        if let Some(area) = areas.slices {
-            let held = (&mut self.gpus[..], &mut self.drafts);
-            slices(ui, area, (&self.session, held), render, actions);
-        }
+        let held = (&mut self.gpus[..], &mut self.drafts);
+        slices(ui, areas.slices, (&self.session, held), render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
         for request in asked {
             self.ask(ui.ctx(), request);
@@ -131,10 +129,11 @@ impl VoxaApp {
 }
 
 /// Draw the 2D viewports in `area`, reading their slices from the session: whole, to draw
-/// them, and in place, for the value under the pointer and for what is measured on them.
+/// them, and in place, for the value under the pointer and for what is measured on them. With
+/// no area, the arrangement shown has no slices, and what was half drawn on them is given up.
 fn slices(
     ui: &mut egui::Ui,
-    area: egui::Rect,
+    area: Option<egui::Rect>,
     (session, held): (&Session, (&mut [viewport::Gpu], &mut viewport::Drafts)),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,

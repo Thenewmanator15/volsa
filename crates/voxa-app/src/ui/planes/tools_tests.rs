@@ -362,3 +362,31 @@ fn words_beside_an_annotation_keep_clear_of_what_is_written_along_the_top() {
     );
     assert_eq!(label_bottom(140.0, 14.0, 126.0), 140.0);
 }
+
+#[test]
+fn with_a_measuring_tool_in_hand_a_double_click_on_a_panel_does_not_fit_it() {
+    use super::{PlaneInput, handled};
+    use crate::action::Action;
+    use crate::state::AppState;
+    let twice = PlaneInput {
+        double_clicked: true,
+        window_width: 256.0,
+        ..PlaneInput::default()
+    };
+    let kind = PlaneKind::Axial;
+    for (tool, fits) in [
+        (Tool::Navigate, true),
+        (Tool::Ruler, false),
+        (Tool::Angle, false),
+        (Tool::Region, false),
+        (Tool::Marker, false),
+    ] {
+        let state = AppState {
+            tool,
+            ..AppState::default()
+        };
+        let mut drawing = super::tools::Drawing::default();
+        let asked = handled(&state, kind, &twice, (&axial(), None), &mut drawing);
+        assert_eq!(asked.contains(&Action::PlaneFit(kind)), fits, "{tool:?}");
+    }
+}

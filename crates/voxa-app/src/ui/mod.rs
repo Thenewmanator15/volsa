@@ -25,6 +25,7 @@ mod help;
 mod icon;
 mod keys;
 mod labels;
+mod labels_placed;
 mod layout;
 pub(crate) mod lost;
 mod notices;

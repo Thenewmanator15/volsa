@@ -10,7 +10,7 @@ use voxa_volume::Plane;
 
 use super::super::pen::Pen;
 use super::super::planes::{
-    Draft, Pointer, beside, drafted, drawn_through, paint, preview, shown_on,
+    Draft, Mark, Pointer, beside, drafted, drawn_through, paint_all, preview, shown_on,
 };
 use super::super::theme;
 use super::value::screen_to_image;
@@ -133,6 +133,12 @@ impl Drafts {
         }
     }
 
+    /// Give up everything begun on any slice: the slices are not on the screen, and what was
+    /// half drawn on one must not wait there for them to come back.
+    pub fn give_up(&mut self) {
+        *self = Self::default();
+    }
+
     /// Take in what the main button and the pointer did over viewport `at`'s slice this
     /// frame, and give what adds the annotation it finished, if it finished one: a region with
     /// what the slice holds inside it, read by `read` once, as it is finished. A press off the
@@ -229,12 +235,14 @@ fn gather(ui: &Ui, response: &Response, cell: Rect) -> SliceInput {
 
 /// Measure on a viewport's slice: with a tool in hand, in the active viewport, turn what the
 /// mouse did into what adds the annotation it finished, if it finished one; and draw over the
-/// slice the annotations of the scene's series that lie on it, and what is being drawn.
+/// slice the annotations of the scene's series that lie on it, and what is being drawn, their
+/// words clear of the places `taken` by the slice's own writing.
 pub(super) fn measure(
     ui: &Ui,
     pane: &Pane<'_>,
     response: &Response,
     (drafts, read): (&mut Drafts, &ReadSlice<'_>),
+    taken: &[Rect],
 ) -> Option<Action> {
     let on = OnSlice::of(pane)?;
     let state = pane.state;
@@ -245,31 +253,34 @@ pub(super) fn measure(
             drafts.step(pane.at, &on, &input, read)
         })
         .flatten();
-    draw(ui, pane, &on, drafts.so_far(pane.at, &on));
+    draw(ui, pane, &on, (drafts.so_far(pane.at, &on), taken));
     made
 }
 
 /// Draw over the slice the annotations of the scene's series that lie on it, each with its
 /// name and what it measures, and then the one being drawn, with what it would measure if it
-/// were finished now.
-fn draw(ui: &Ui, pane: &Pane<'_>, on: &OnSlice<'_>, so_far: Option<Shape>) {
+/// were finished now. The words are kept clear of the places `taken`.
+fn draw(ui: &Ui, pane: &Pane<'_>, on: &OnSlice<'_>, (so_far, taken): (Option<Shape>, &[Rect])) {
     let state = pane.state;
     let pen = Pen::over(ui, pane.cell);
-    let area = (pane.cell, TOP);
     let placement = Some(&on.at.placement);
     // The list is of the scene's series, in its millimetres: another series has its own.
     let ours = state.scene.series.as_ref() == Some(on.series);
     let half = half_slice(&on.at, &on.plane);
     let items = state.annotations.items.iter().filter(|_| ours);
     let here = |shape: &Shape| shown_on(shape, &on.plane, half);
-    for item in items.filter(|item| item.scale == on.at.scale && here(&item.shape)) {
-        let said = measured(&item.shape, placement, item.scale).shown();
-        let drawn = drawn_through(&item.shape, |at| on.seen(at));
-        paint(&pen, area, &drawn, theme::ACCENT, &beside(item, &said));
-    }
-    if let Some(shape) = so_far {
-        let said = measured(&shape, placement, on.at.scale).shown();
-        let drawn = drawn_through(&shape, |at| on.seen(at));
-        paint(&pen, area, &drawn, theme::WARNING, &said);
-    }
+    let mut marks: Vec<Mark> = items
+        .filter(|item| item.scale == on.at.scale && here(&item.shape))
+        .map(|item| Mark {
+            drawn: drawn_through(&item.shape, |at| on.seen(at)),
+            colour: theme::ACCENT,
+            words: beside(item, &measured(&item.shape, placement, item.scale).shown()),
+        })
+        .collect();
+    marks.extend(so_far.map(|shape| Mark {
+        drawn: drawn_through(&shape, |at| on.seen(at)),
+        colour: theme::WARNING,
+        words: measured(&shape, placement, on.at.scale).shown(),
+    }));
+    paint_all(&pen, (pane.cell, TOP), taken, &marks);
 }

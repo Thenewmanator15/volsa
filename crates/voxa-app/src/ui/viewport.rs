@@ -184,16 +184,22 @@ fn narrowed(value: f64) -> f32 {
 /// Draw the viewports of the current layout into `area`, and turn what the mouse does over
 /// each into actions: what it asks of the viewport, and what it measures on the slice the
 /// active one shows. `held` is what each viewport keeps between frames: what is on the
-/// graphics device, and what is being drawn on its slice.
+/// graphics device, and what is being drawn on its slice. With no `area`, the arrangement
+/// shown has no viewports: nothing is drawn, and what was being drawn on a slice is given up,
+/// not kept for when the slices are shown again.
 pub fn show(
     ui: &mut Ui,
-    area: Rect,
+    area: Option<Rect>,
     state: &AppState,
     slices: &Slices<'_>,
     (gpus, drafts): (&mut [Gpu], &mut Drafts),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) {
+    let Some(area) = area else {
+        drafts.give_up();
+        return;
+    };
     let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
     drafts.keep_up(state, cancel);
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
@@ -214,13 +220,15 @@ pub fn show(
         };
         if drawn {
             let value = value::under_pointer(&pane, slices.value, response.hover_pos());
-            annotate::overlays(ui, &pane, value);
-            actions.extend(tools::measure(ui, &pane, &response, (drafts, slices.read)));
+            let taken = annotate::overlays(ui, &pane, value);
+            let held = (&mut *drafts, slices.read);
+            actions.extend(tools::measure(ui, &pane, &response, held, &taken));
         }
         written_over(ui, &pane, drawn);
         let mut unused = 0.0;
         let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
+        let input = mouse::for_tool(input, state.tool);
         actions.extend(overlay::input_to_actions(at, &input));
     }
 }
@@ -308,6 +316,10 @@ fn slice(
     true
 }
 
+#[cfg(test)]
+mod in_hand_tests;
+#[cfg(test)]
+mod labels_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

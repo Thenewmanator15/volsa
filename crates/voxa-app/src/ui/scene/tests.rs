@@ -249,3 +249,21 @@ fn in_a_narrow_picture_the_words_go_beneath_the_letter_and_take_the_whole_width(
     assert_eq!(wide, 376.0, "a quarter of the window: the whole width");
     assert!(down >= 18.0, "and beneath the letter: {down}");
 }
+
+#[test]
+fn the_pictures_own_writing_is_told_to_the_measurements_that_keep_clear_of_it() {
+    use crate::testing::thick_scan_ready;
+    use crate::ui::hand::Hand;
+    let state = thick_scan_ready();
+    let area = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(600.0, 400.0));
+    let hand = Hand::new(600.0, 400.0);
+    let mut taken = Vec::new();
+    let seen = hand.settle(&mut |ui| taken = written_over(ui, area, &state));
+    // Everything written: the letter at each edge, the scale bar's label, and the words.
+    let covered = |at: Rect| taken.iter().any(|rect| rect.expand(1.5).contains_rect(at));
+    for (words, at) in seen.words.iter().zip(&seen.placed) {
+        assert!(covered(*at), "{words:?} at {at:?} is not told: {taken:?}");
+    }
+    // Four letters, a label and some words, each written twice.
+    assert!(seen.words.len() >= 12, "{:?}", seen.words);
+}
