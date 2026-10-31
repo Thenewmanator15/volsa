@@ -23,6 +23,7 @@ mod finish;
 mod fit;
 mod folder;
 mod grid;
+pub mod helper;
 mod label_map;
 mod onnx;
 mod scaling;

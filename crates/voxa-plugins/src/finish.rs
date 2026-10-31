@@ -12,7 +12,9 @@ use crate::{Gives, LabelOutput, Layout};
 mod tests;
 
 /// Why an answer could not be finished. Each sentence is fit to be shown.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, thiserror::Error, serde::Serialize, serde::Deserialize,
+)]
 pub enum FinishError {
     /// The answer is not of the size or kind its description says.
     #[error("The plugin gave an answer of the wrong size or kind.")]
