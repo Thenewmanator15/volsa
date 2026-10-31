@@ -32,9 +32,10 @@ pub use cards::{
     Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of, unheld,
 };
 pub use model::{
-    KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,
+    KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, file_sum,
+    is_plain_name, read_model,
 };
-pub use network::{Device, Network, RunError, Stop};
+pub use network::{Device, Network, RunError, SUPPORTED, Stop, Supported};
 pub use room::{Cut, Room, Rung, RunsOn, Wanted, asks, needed_gb, needs, rungs, spare_gb, why_not};
 pub use runtime::{Runtime, RuntimeError};
 pub use tensor::{Numbers, Tensor};

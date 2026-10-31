@@ -273,7 +273,7 @@ fn read_list(folder: &Path) -> Result<Vec<u8>, ModelError> {
 
 /// Whether a name is that of a file in the folder itself: not empty, no separator, no `..`,
 /// nothing that would lead out of the folder or to another stream of a file.
-pub(crate) fn is_plain_name(name: &str) -> bool {
+pub fn is_plain_name(name: &str) -> bool {
     !name.is_empty()
         && name != "."
         && !name.contains("..")
@@ -298,6 +298,17 @@ fn check_file(path: &Path, entry: &Entry, limit: u64, role: Role) -> Result<(), 
     } else {
         Err(ModelError::WrongSum(role))
     }
+}
+
+/// The SHA-256 of the first `limit` bytes of a file, in lower-case hex: of the whole file when
+/// it is no longer. It reads a block at a time, so a file of any size is summed in the same
+/// small amount of memory.
+///
+/// # Errors
+///
+/// When the file cannot be opened or read to its end.
+pub fn file_sum(path: &Path, limit: u64) -> io::Result<String> {
+    sum_of(File::open(path)?.take(limit))
 }
 
 /// The SHA-256 of everything `source` gives, in lower-case hex. It reads a block at a time,

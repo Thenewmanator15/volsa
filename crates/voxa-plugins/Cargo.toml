@@ -9,10 +9,20 @@ publish.workspace = true
 
 [dependencies]
 voxa-labels.workspace = true
+voxa-models.workspace = true
 voxa-segment.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+sha2.workspace = true
 thiserror.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[features]
+# Builders of made-up plugin folders, for this crate's tests and for the crates above it.
+testkit = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

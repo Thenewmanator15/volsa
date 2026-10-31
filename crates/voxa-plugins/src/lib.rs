@@ -18,9 +18,13 @@
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
 mod describe;
+mod folder;
+#[cfg(any(test, feature = "testkit"))]
+pub mod testkit;
 
 pub use describe::{
     Accepts, AlignOutput, Contrast, Contrasts, DescribeError, Description, FieldUnit, Fit, Gives,
     Input, Kind, LabelOutput, Layout, Listed, Moves, Name, NumberOutput, Output, Outside, Over,
     PLUGIN_FORMAT, Scaling, Side, ValueOutput, Voxels, read_description,
 };
+pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};

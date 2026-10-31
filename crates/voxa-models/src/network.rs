@@ -112,6 +112,24 @@ impl Stop {
     }
 }
 
+/// The newest ONNX a runtime of this version of Voxa runs: the IR version of a network file and
+/// the version of the standard operators it asks for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Supported {
+    /// The newest IR version.
+    pub ir_version: i64,
+    /// The newest version of the standard operators (the domain `ai.onnx`).
+    pub opset: i64,
+}
+
+/// What ONNX Runtime 1.24 runs: its release notes say it moved to ONNX 1.20.1, which ONNX's
+/// own table of versions (`docs/Versioning.md`) gives as IR version 13 and operators of
+/// version 25. A runtime still refuses, in its own words, an operator it has not got.
+pub const SUPPORTED: Supported = Supported {
+    ir_version: 13,
+    opset: 25,
+};
+
 /// Where a network runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Device {
