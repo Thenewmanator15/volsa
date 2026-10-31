@@ -29,11 +29,12 @@ mod turn;
 
 pub use labeller::Labeller;
 use labeller::{OnRung, ThisComputer};
+pub(in crate::worker) use room::room_of;
 #[cfg(test)]
 use room::{card_named, free_bytes, without_paths};
-use room::{does_not_fit, logged_words, passed_over, place, room_of};
+use room::{does_not_fit, logged_words, passed_over, place};
 use taken::Unclaimed;
-use turn::on_its_own;
+pub(in crate::worker) use turn::on_its_own;
 
 #[cfg(test)]
 #[path = "labelling_full_card_tests.rs"]
@@ -50,6 +51,9 @@ mod lab;
 #[cfg(test)]
 #[path = "labelling_look_tests.rs"]
 mod look_tests;
+#[cfg(test)]
+#[path = "plugins_run_tests.rs"]
+mod plugins_run_tests;
 #[cfg(test)]
 #[path = "labelling_stand_ins.rs"]
 mod stand_ins;
@@ -91,6 +95,11 @@ pub(super) struct Kit {
 }
 
 impl Kit {
+    /// What runs are done with: the runtime and this computer, or stand-ins.
+    pub(in crate::worker) fn labeller(&self) -> &dyn Labeller {
+        self.labeller.as_ref()
+    }
+
     /// What labelling keeps, with runs done with `labeller`, or with the runtime and this
     /// computer when there is none.
     pub(super) fn new(labeller: Option<Arc<dyn Labeller>>) -> Self {

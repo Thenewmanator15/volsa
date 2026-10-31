@@ -197,7 +197,7 @@ impl Workers {
 
 impl Shared {
     /// Say something to the person.
-    fn say(&self, kind: NoticeKind, text: &str, key: &'static str) {
+    pub(super) fn say(&self, kind: NoticeKind, text: &str, key: &'static str) {
         self.report(Action::Post(Notice {
             kind,
             text: text.to_owned(),

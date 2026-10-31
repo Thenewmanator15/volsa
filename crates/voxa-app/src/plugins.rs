@@ -11,10 +11,6 @@ use voxa_plugins::{Accepts, Contrasts, Description, Installed, Offered, Output, 
 mod store;
 mod words;
 
-#[allow(
-    unused_imports,
-    reason = "the workers that use them come with the next commit"
-)]
 pub(crate) use store::{add, folder, list, remove, same_id};
 pub use words::settings_lines;
 
@@ -269,7 +265,10 @@ pub enum PluginEffect {
     /// Check a folder offered.
     Offer(PathBuf),
     /// Add the folder last offered, and measure it.
-    Add,
+    Add {
+        /// The runtime's folder the person chose, if one.
+        runtime: Option<PathBuf>,
+    },
     /// Remove a plugin.
     Remove(String),
     /// Run a plugin.

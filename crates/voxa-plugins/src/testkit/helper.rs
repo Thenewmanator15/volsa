@@ -17,6 +17,10 @@ use crate::{HelperPipes, HelperStarter};
 
 /// A stand-in for the runtime whose network labels what is above a half.
 #[derive(Debug, Clone, Default)]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "the switches of a stand-in for tests"
+)]
 pub struct Threshold {
     /// Set when the helper is stopped; a slow network then answers "stopped".
     pub stopped: Arc<AtomicBool>,
@@ -24,6 +28,12 @@ pub struct Threshold {
     pub slow: bool,
     /// How many blocks have been run.
     pub runs: Arc<Mutex<usize>>,
+    /// Whether the network will not open anywhere.
+    pub refuse: bool,
+    /// Whether the network will not open on a card, for want of room.
+    pub no_room_on_cards: bool,
+    /// Whether the helper dies as it runs a block.
+    pub dies: bool,
 }
 
 impl Opener for Threshold {
@@ -31,10 +41,18 @@ impl Opener for Threshold {
         Ok(())
     }
 
-    fn open(&self, _job: &OpenJob, _stop: &Stop) -> Result<Box<dyn Network>, RunError> {
+    fn open(&self, job: &OpenJob, _stop: &Stop) -> Result<Box<dyn Network>, RunError> {
+        if self.refuse {
+            return Err(RunError::Failed("refused".to_owned()));
+        }
+        if self.no_room_on_cards && matches!(job.device, Where::Card { .. }) {
+            return Err(RunError::NoRoom);
+        }
         let (stopped, slow, runs) = (Arc::clone(&self.stopped), self.slow, Arc::clone(&self.runs));
+        let dies = self.dies;
         Ok(Box::new(Canned::new(move |inputs: &[Tensor]| {
             *runs.lock().expect("runs") += 1;
+            assert!(!dies, "the helper dies, as one might");
             for _ in 0..20 {
                 if stopped.load(Ordering::SeqCst) {
                     return Err(RunError::Stopped);
@@ -103,8 +121,12 @@ impl HelperStarter for InProcessStarter {
         self.caps.lock().expect("caps").push(cap);
         let (mut from_voxa, to_helper) = io::pipe()?;
         let (from_helper, mut to_voxa) = io::pipe()?;
-        let opener = self.opener.clone();
-        let stopped = Arc::clone(&opener.stopped);
+        // Each helper has a stop of its own, as each process would.
+        let stopped = Arc::new(AtomicBool::new(false));
+        let opener = Threshold {
+            stopped: Arc::clone(&stopped),
+            ..self.opener.clone()
+        };
         thread::spawn(move || {
             let _ = serve(&mut from_voxa, &mut to_voxa, &opener);
         });

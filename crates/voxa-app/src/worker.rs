@@ -15,12 +15,15 @@ use voxa_volume::PRESETS;
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
+use batch::{Batch, batches};
 
 mod annotations;
+mod batch;
 mod kept;
 pub(crate) mod labelling;
 mod labels;
 mod opened;
+mod plugins;
 mod post;
 mod tags;
 mod views;
@@ -76,14 +79,10 @@ struct Shared {
     labels: Mutex<Option<Arc<LabelSet>>>,
     label_reads: AtomicU64,
     labelling: labelling::Kit,
+    /// What the plugins' work keeps.
+    plugins: plugins::Kit,
     /// The files of the labels held, and the choices written.
     keeping: kept::Keeping,
-}
-
-/// Some slices to decode from one file: (place in the series, frame within the file).
-struct Batch {
-    entry: String,
-    slices: Vec<(usize, Option<u32>)>,
 }
 
 /// One request for the frames of a series.
@@ -129,6 +128,7 @@ impl Workers {
             labels: Mutex::new(None),
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),
+            plugins: plugins::Kit::default(),
             keeping: kept::Keeping::default(),
         };
         Self {
@@ -179,7 +179,8 @@ impl Workers {
             | Effect::ForgetKept { .. }
             | Effect::SaveLabels { .. }
             | Effect::StoreChoices(_)) => self.kept(kept),
-            Effect::Plugins(_) | Effect::None => {}
+            Effect::Plugins(effect) => self.plugins(effect),
+            Effect::None => {}
         }
     }
 
@@ -361,25 +362,6 @@ impl Shared {
 /// file holds.
 fn shielded(work: impl FnOnce()) -> bool {
     std::panic::catch_unwind(std::panic::AssertUnwindSafe(work)).is_ok()
-}
-
-/// Group slices by the file that holds them, keeping the order they were asked for in: a
-/// file is read and parsed once however many of its frames are wanted.
-fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> {
-    let mut batches: Vec<Batch> = Vec::new();
-    for slice in wanted {
-        let Some(at) = listed.slices.get(slice) else {
-            continue;
-        };
-        match batches.iter_mut().find(|batch| batch.entry == at.entry) {
-            Some(batch) => batch.slices.push((slice, at.frame)),
-            None => batches.push(Batch {
-                entry: at.entry.clone(),
-                slices: vec![(slice, at.frame)],
-            }),
-        }
-    }
-    batches
 }
 
 /// Lock a mutex, carrying on with what it holds even if a thread panicked while holding it.

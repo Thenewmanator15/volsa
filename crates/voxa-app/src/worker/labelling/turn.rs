@@ -19,7 +19,7 @@ pub(super) const THREAD: &str = "voxa-labelling";
 
 /// A run's turn to have networks open. It is given back when it is dropped, however the run
 /// ended, a panic included.
-pub(super) struct Turn<'a>(&'a Kit);
+pub(in crate::worker) struct Turn<'a>(&'a Kit);
 
 impl Drop for Turn<'_> {
     fn drop(&mut self) {
@@ -30,7 +30,7 @@ impl Drop for Turn<'_> {
 
 impl Kit {
     /// The turn, once no other run has it. `None`, at once, when `stop` is set first.
-    pub(super) fn turn(&self, stop: &Stop) -> Option<Turn<'_>> {
+    pub(in crate::worker) fn turn(&self, stop: &Stop) -> Option<Turn<'_>> {
         let mut busy = lock(&self.busy);
         while *busy && !stop.is_set() {
             busy = self
@@ -55,7 +55,7 @@ impl Kit {
 
 /// Do `work` on a thread of its own, so that a panic inside it ends that work and nothing
 /// else. False when the system would not make a thread: the work is not done.
-pub(super) fn on_its_own(work: impl FnOnce() + Send + 'static) -> bool {
+pub(in crate::worker) fn on_its_own(work: impl FnOnce() + Send + 'static) -> bool {
     let named = std::thread::Builder::new().name(THREAD.to_owned());
     named
         .spawn(move || {

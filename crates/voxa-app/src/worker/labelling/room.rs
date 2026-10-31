@@ -27,7 +27,11 @@ const A_PATH: &str = "(a path)";
 /// What the computer has now, as the labeller reads it: the cards, what the system lets this
 /// program use on each and what no program holds of each, the card Voxa draws on found by its
 /// name with what Voxa holds there, and the ordinary memory the system can still give.
-pub(super) fn room_of(labeller: &dyn Labeller, drawing_on: Option<&str>, held: u64) -> Room {
+pub(in crate::worker) fn room_of(
+    labeller: &dyn Labeller,
+    drawing_on: Option<&str>,
+    held: u64,
+) -> Room {
     let cards = labeller.cards();
     let budgets = cards.iter().map(|card| labeller.budget(card.id)).collect();
     let unheld = cards.iter().map(|card| labeller.unheld(card.id)).collect();

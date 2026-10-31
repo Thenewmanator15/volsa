@@ -208,6 +208,9 @@ fn an_offered_folder_shows_its_card_and_add_sends_it_on() {
     reduce(&mut state, plugins(PluginAction::Offered(Ok(card))));
     assert!(state.plugins.busy.is_none() && state.plugins.offered.is_some());
     let effects = reduce(&mut state, plugins(PluginAction::Add));
-    assert_eq!(effects, [Effect::Plugins(PluginEffect::Add)]);
+    assert_eq!(
+        effects,
+        [Effect::Plugins(PluginEffect::Add { runtime: None })]
+    );
     assert!(state.plugins.offered.is_none());
 }

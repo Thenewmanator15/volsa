@@ -50,5 +50,7 @@ pub use measure::{
     own_bytes, places, read_measured, write_measured,
 };
 pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};
-pub use run::{Installed, PluginRunError, Ran, Stage, installed, run_plugin};
+pub use run::{
+    BLOCKS_NOTE, Installed, PluginRunError, Ran, Stage, installed, measuring_job, run_plugin,
+};
 pub use scaling::{Scale, ScaleError, Statistics, gather, outside_value, percentile, voxels_of};

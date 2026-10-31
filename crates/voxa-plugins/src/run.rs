@@ -259,6 +259,17 @@ fn job_of(
     place: Fits,
     runtime: &Path,
 ) -> OpenJob {
+    job_for(plugin, output, prepared.block, place.device, runtime)
+}
+
+/// The job for a plugin's network on a device, its blocks of `block`.
+fn job_for(
+    plugin: &Installed,
+    output: &LabelOutput,
+    block: [usize; 3],
+    device: Device,
+    runtime: &Path,
+) -> OpenJob {
     let description = &plugin.description;
     let listed = description
         .files
@@ -268,13 +279,25 @@ fn job_of(
         runtime: runtime.to_owned(),
         network: plugin.folder.join(&description.network),
         sha256: listed.map(|file| file.sha256.clone()).unwrap_or_default(),
-        device: where_of(place.device),
+        device: where_of(device),
         free: plugin.wiring.free.clone(),
         output: Some(plugin.wiring.output.clone()),
         layout: description.input.layout,
-        block: prepared.block,
+        block,
         finish: output.clone(),
     }
+}
+
+/// The job a plugin is measured with on a device: one block of the size its network is always
+/// given. `None` for a plugin of a kind this version cannot run.
+pub fn measuring_job(plugin: &Installed, device: Device, runtime: &Path) -> Option<OpenJob> {
+    let Output::Labels(output) = &plugin.description.output else {
+        return None;
+    };
+    let block = match plugin.description.input.fit {
+        Fit::Whole(size) | Fit::Blocks { size, .. } => size,
+    };
+    Some(job_for(plugin, output, block, device, runtime))
 }
 
 /// Does `work` with a helper capped at `cap`, ending the helper when `stop` is set and when the

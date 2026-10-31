@@ -56,7 +56,8 @@ fn folder(state: &mut AppState, action: PluginAction) -> Vec<Effect> {
         }
         PluginAction::Add if plugins.offered.take().is_some() => {
             plugins.busy = Some("Adding the plugin and measuring what it needs.".to_owned());
-            return vec![effect(PluginEffect::Add)];
+            let runtime = state.labelling.runtime.clone();
+            return vec![effect(PluginEffect::Add { runtime })];
         }
         PluginAction::Cancel => {
             plugins.offered = None;

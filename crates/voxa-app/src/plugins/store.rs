@@ -3,11 +3,6 @@
 //! whole or not at all: written under another name first, then put in place, then checked
 //! again.
 
-#![allow(
-    dead_code,
-    reason = "the workers that use it come with the next commit"
-)]
-
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
