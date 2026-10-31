@@ -34,6 +34,12 @@ The faults that matter are those where something Voxa is handed makes it do what
   rights: that is how it is meant to work, so name only a folder that holds Microsoft's files.
 - **Anything that sends data off the computer**, or that writes a patient's details where Voxa
   says it does not: the log, the folders where Voxa keeps things, or a saved picture.
+- **The spill file.** Past its memory budget Voxa writes the numbers of a large series' slabs
+  to `cache/spill-<random number>.voxa` in its local folder, opened by Voxa alone and deleted
+  when the series gives way, when Voxa closes and, if a stop left one, at the next start. It
+  holds pixel values and nothing else: no name, no tag. A way to make Voxa leave one behind
+  while it runs no more, write anything else into it, put it anywhere else, or read another
+  program's file in its place counts.
 
 These are not for this form:
 

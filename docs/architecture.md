@@ -23,12 +23,17 @@ coordinates lives below it, where it can be tested without a window.
 1. A `SeriesSource` yields named byte streams from a folder, a zip (read in place, nothing is
    extracted to disk) or the folder beside a `DICOMDIR`. An ordinary zip is opened where its
    end record says its directory is, without searching the whole file for it.
-2. `voxa-dicom` parses headers on a worker and emits an index of studies and series. Of each
-   file it reads only as much as the header needs, never the pixels. The browser fills as
-   results arrive. Entries that are not DICOM are skipped and counted.
+2. `voxa-dicom` parses headers and emits an index of studies and series. Of each file it reads
+   only as much as the header needs, never the pixels. A folder or a zip says its files'
+   names, which are shared out in runs that follow one another, one run a thread with a
+   reader of its own; what each thread read is taken in in name order, so the index and its
+   progress are as if read in turn. The browser fills as results arrive. Entries that are not
+   DICOM are skipped and counted.
 3. Selecting a series queues decoding of its slices on worker threads, nearest slices first.
    Each worker reads through a reader of the source of its own, so a zip or a folder is read
-   by several at once. Decoded frames are cached under a memory budget.
+   by several at once. Decoded frames are cached under the memory budget (below). A slice's
+   three preset windows are worked out when it is shown, not when it is decoded for a
+   volume.
 4. `voxa-render` uploads the current frame once as a single-channel floating-point texture. A
    shader applies window/level, so changing contrast never decodes or uploads again.
 5. The app draws overlays (orientation letters, scale bar, corner text) with `egui` above the GPU
@@ -36,21 +41,37 @@ coordinates lives below it, where it can be tested without a window.
 
 The 3D scene follows the series of the active viewport:
 
-1. A worker decodes every slice of the series, taking those already in the frame cache, and
-   `voxa-volume` stacks them into a `Volume`: the values, and the transform that places each
-   voxel in the patient. The one volume in use is kept in a store shared with the window.
-   A series is decoded once and held once: while its volume is being built the viewport's own
-   request decodes only the slice on show, and once the volume is kept the series' frames
-   leave the cache and the 2D viewport reads its slices out of the volume. A volume that gives
-   way to another, or a build that fails, leaves its slices in the frame cache.
-2. The same worker makes the volume ready for the graphics device: 16-bit values from 0 at the
-   smallest to 1 at the largest, halved first if the device cannot hold it, and hands them
-   to the device itself as a 3D texture: the device and its queue can be used from any
-   thread, and the window, which has only to take the texture up, does not pause to copy
-   bytes. The largest value in each block of voxels, which
-   lets a line of sight step over what is empty, is then worked out by the device itself
-   from that texture, by drawing into the slices of a second, small one; a worker works it
-   out beforehand only for a device that cannot.
+1. A worker, on threads of its own so that a slice a viewport asks for never waits behind
+   it, first checks that the system can still give Voxa what the volume will hold, and
+   otherwise says so in a sentence. It decodes every slice of the series straight into a
+   `HeldVolume` (`voxa-core`): the values as stored, 16-bit whole numbers with one rescale
+   (or 32-bit numbers where whole numbers cannot give them exactly), in slabs of whole slices
+   of up to 32 MiB, and the transform that places each voxel in the patient. For a series of
+   more than 256 slices every eighth slice is decoded first and reduced at once to a small
+   preview, which the window draws, labelled, while the rest are decoded slab by slab. The
+   one volume in use is kept in a store shared with the window. A series is decoded once and
+   held once: while its volume is being built the viewport's own request decodes only the
+   slice on show, and once the volume is kept the series' frames leave the cache and the 2D
+   viewport reads its slices out of the volume. A volume that gives way to another, or a
+   build that fails, leaves its slices in the frame cache.
+   One memory budget (2 GiB, or a quarter of the computer's memory if less, or what
+   `preferences.json` says) covers the volume's values in memory, the frame cache and, on a
+   card that shares the computer's memory, the card's copy. The frame cache has what the
+   volume leaves of it. Past the budget, finished slabs wait in Voxa's spill file (below),
+   the least used first, and come back when read.
+2. The window's own thread, and no other, hands the volume to its graphics device, one slab
+   of 32 MiB a frame, so that the window never pauses long and no other thread uses the
+   device while the window sets itself up. 16-bit whole numbers go as they are stored
+   (`R16Unorm`, a signed one moved up by 32,768), so the shaders' windowing is unchanged;
+   other volumes go as 16-bit floats. A series longer than one texture may be (the card's
+   longest 3D side, or 512 MiB) goes into up to four textures cut along its slices, each
+   ending on the slice the next begins with, and both shaders read them through one function
+   (`slabs.wgsl`); only a series that fits neither is halved, on a worker, and the scene says
+   so. The window's device asks for the card's own limits and, where offered, 16-bit
+   normalised textures, and both devices set memory aside in small blocks. The largest value
+   in each block of voxels, which lets a line of sight step over what is empty, is worked
+   out by the device itself, slab by slab, by drawing into the slices of a second, small
+   texture; it is gathered from each slab as it goes for a device that cannot.
 3. For every pixel a fragment shader builds the line of sight from the camera, clips it to the
    volume's box in texture space (so a tilted stack needs no resampling), steps past the blocks
    with nothing to draw, and walks the rest: adding up lit, windowed values (Surface, VR) or
@@ -225,7 +246,12 @@ saved views and annotations of each study, `choices.json` (what was chosen for l
 model, the cortex areas, where a run goes by the card's name, whether results are kept, and
 the two folders of the model and the runtime, which are its only paths), a `labels` folder
 holding the result of labelling kept for each series, as a label file and a table named by a
-hash of the series, and `voxa.log`. Voxa 0.5.0 and earlier kept all but the log in the
+hash of the series, `voxa.log`, and, only while a volume past the memory budget is open, a
+spill file `cache/spill-<random number>.voxa`: the numbers of that volume's slabs and nothing
+else (no name, no tag, nothing to say whose scan it is), opened by Voxa alone (on Windows no
+other program can open or delete it meanwhile), deleted when its volume gives way and when
+Voxa closes, and, if a stop left one, when Voxa next starts. Voxa 0.5.0 and earlier kept all
+but the log in the
 settings folder; as a newer Voxa starts, `moved.rs` moves what is there into the local folder,
 each file whole and never over a different file of the same name (a result's two files go
 together or not at all), and logs in a sentence what it moved and what it left, by Voxa's own
