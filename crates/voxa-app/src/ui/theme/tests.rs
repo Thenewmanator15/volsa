@@ -33,7 +33,10 @@ fn the_theme_is_dark_with_the_accent_on_selections_and_rounded_corners() {
     apply(&ctx, ThemeChoice::Dark);
     let style = ctx.global_style();
     assert!(style.visuals.dark_mode);
-    assert_eq!(style.visuals.selection.bg_fill, ACCENT);
+    // The accent is on selections as a deeper blue that white text reads on, and on links as is.
+    assert_eq!(style.visuals.selection.bg_fill, Palette::LIGHT.accent);
+    assert_eq!(style.visuals.selection.stroke.color, Color32::WHITE);
+    assert_eq!(style.visuals.hyperlink_color, ACCENT);
     let rounded = egui::CornerRadius::same(ROUNDING);
     assert_eq!(style.visuals.widgets.inactive.corner_radius, rounded);
     assert_eq!(style.visuals.window_corner_radius, rounded);
@@ -298,6 +301,33 @@ fn the_strip_over_the_pictures_is_drawn_dark_and_reads_on_their_ground_in_both_t
         assert!(
             faint.is_empty(),
             "{choice:?} on the pictures' ground: {faint:?}"
+        );
+    }
+}
+
+#[test]
+fn a_focused_field_keeps_an_outline_that_shows_in_each_theme() {
+    // egui outlines the field that has the keyboard in the selection's stroke, and an unfocused
+    // one in nothing. The outline must show against the field and against what it sits on.
+    let at_least = 3.0;
+    for (name, theme) in [("dark", Theme::Dark), ("light", Theme::Light)] {
+        let (palette, visuals) = (Palette::of(theme), visuals(theme));
+        let outline = visuals.selection.stroke.color;
+        let field = visuals.text_edit_bg_color();
+        let on_the_field = contrast(outline, field);
+        assert!(
+            on_the_field >= at_least,
+            "{name}: {on_the_field:.2}:1 on the field"
+        );
+        let on_the_panel = contrast(outline, palette.panel);
+        assert!(
+            on_the_panel >= at_least,
+            "{name}: {on_the_panel:.2}:1 on the panel"
+        );
+        assert_ne!(outline, field, "{name}: it is not the field's own colour");
+        assert_eq!(
+            visuals.widgets.inactive.bg_stroke.width, 0.0,
+            "{name}: none unfocused"
         );
     }
 }

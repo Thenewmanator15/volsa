@@ -40,6 +40,10 @@ pub const CORONAL: Color32 = Color32::from_rgb(110, 190, 90);
 /// [`Palette::quiet_text`].
 pub const QUIET_TEXT: Color32 = Color32::from_rgb(150, 158, 170);
 
+/// What is behind a selection in the dark theme: the light theme's accent, a blue that white
+/// reads on at 6.5 to 1. The dark theme's own accent is too light for white text, and dark text
+/// there would leave a focused field no outline that shows.
+const DARK_SELECTION: Color32 = Palette::LIGHT.accent;
 /// What is behind a selection in the light theme: a tint of the accent that the accent and the
 /// text both read on, since the text of a selection is drawn over it.
 const LIGHT_SELECTION: Color32 = Color32::from_rgb(190, 220, 255);
@@ -107,10 +111,11 @@ fn visuals(theme: Theme) -> Visuals {
     let rounded = CornerRadius::same(ROUNDING);
     let (mut visuals, behind_fields, selection) = match theme {
         Theme::Dark => {
-            // White on the accent is 2.8 to 1; the pictures' ground colour on it is 6.7.
+            // The stroke is the text of what is selected and the outline of a field that has
+            // the keyboard, so it must read on the selection and on a field: white does both.
             let selection = Selection {
-                bg_fill: palette.accent,
-                stroke: Stroke::new(1.0, BACKGROUND),
+                bg_fill: DARK_SELECTION,
+                stroke: Stroke::new(1.0, Color32::WHITE),
             };
             (Visuals::dark(), BACKGROUND, selection)
         }
