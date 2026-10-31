@@ -3,6 +3,7 @@
 
 use egui_wgpu::wgpu::{Backend, Backends};
 
+use super::found::{backends_without_a_window, find_adapter};
 use super::*;
 
 /// Every backend that can be named, and some pairs, for what `WGPU_BACKEND` may have asked for.

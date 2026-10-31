@@ -96,8 +96,8 @@ device and is not for diagnostic use.
 
 ### Fixed
 
-- The tests and the checking tools no longer try OpenGL on Windows. With it, a run of the
-  tests could stop for good on a computer with some NVIDIA drivers. The window is not
+- The tests and the checking tools no longer try OpenGL on Windows. With OpenGL, a run of
+  the tests could stop for good on a computer with some NVIDIA drivers. The window is not
   changed.
 
 ## [0.6.0] - 2026-10-22

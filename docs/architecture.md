@@ -373,13 +373,15 @@ or run on Linux. The tests that run the real networks on the converter's made-up
 ignored and run by `cargo xtask check-models`; `runtime.rs` and `cards.rs`, which cannot run
 without a runtime or a card, are left out of the coverage count.
 
-Drawing is tested on a graphics device with no window (`crates/voxa-render/src/gpu.rs`). Every
-such device comes from one adapter and is started in turn with the others, and on Windows none
-tries OpenGL: a driver's OpenGL side can stop every thread of the program from starting or
-ending once a thread that used it has ended, which stopped a run of the tests now and then.
-Vulkan and DirectX 12 are tried, and DirectX 12 brings WARP, the device in software that a
-computer with no graphics card draws with; `WGPU_BACKEND` names others. The tests of the
-interface that need the kind of device a window has get it from
-`voxa_render::render_state_without_a_window`, and
-`crates/voxa-render/tests/one_instance.rs` fails when any other source file makes a graphics
-instance of its own. The window's own instance is made by eframe, and is not covered.
+Drawing is tested on a graphics device with no window (`crates/voxa-render/src/gpu.rs` and the
+modules beside it). Every such device comes from one adapter (the tests that draw in software use
+a second, of their own) and is started in turn with the others. On Windows none tries OpenGL: a
+driver's OpenGL side can stop every thread of the program from starting or ending once a thread
+that used it has ended, which stopped a run of the tests now and then. Vulkan and DirectX 12 are
+tried, and DirectX 12 brings WARP, the device in software that a computer with no graphics card
+draws with; `WGPU_BACKEND` names others, and is needed on a Windows computer that could draw only
+with OpenGL. The tests of the interface that need the kind of device a window has (egui-wgpu's
+default limits) get it from `voxa_render::render_state_without_a_window`, and
+`crates/voxa-render/tests/one_instance.rs` fails when a source file outside voxa-render's `gpu`
+modules makes a graphics instance of its own, whether by wgpu's constructors or by egui-wgpu's
+builder. The window's own instance is made by eframe, and is not covered.

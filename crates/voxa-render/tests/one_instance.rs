@@ -5,18 +5,45 @@
 
 use std::path::{Path, PathBuf};
 
-/// The one file that makes a graphics instance for a device with no window, from the workspace's
-/// folder.
-const THE_ONE: &str = "crates/voxa-render/src/gpu.rs";
+/// Where a graphics instance may be made, as paths from the workspace's folder: the file that
+/// starts devices with no window, and the folder of modules it is split into, so that splitting
+/// it further does not trip this check. A path ending in a slash is a folder.
+const ALLOWED: [&str; 2] = [
+    "crates/voxa-render/src/gpu.rs",
+    "crates/voxa-render/src/gpu/",
+];
 
-/// What makes a graphics instance, written in pieces so that this file does not hold it.
-fn needles() -> Vec<String> {
+/// The ways a graphics instance is made, each as what to look for and a line that makes one
+/// that way. Written in pieces so that this file does not hold them.
+fn ways() -> Vec<(String, String)> {
+    let way = |needle: &[&str], line: &[&str]| (needle.concat(), line.concat());
     vec![
-        ["Instance", "::new("].concat(),
-        ["Instance", "::default("].concat(),
-        [".new_", "instance("].concat(),
-        ["new_instance_with_", "webgpu_detection("].concat(),
+        way(
+            &["Instance", "::new("],
+            &["let i = wgpu::Instance", "::new(options);"],
+        ),
+        way(
+            &["Instance", "::default("],
+            &["let i = wgpu::Instance", "::default();"],
+        ),
+        // egui-wgpu's own builder: the usual spelling is a call on a setup, after a name.
+        way(
+            &[".new_", "instance("],
+            &["let i = config.wgpu_setup", ".new_", "instance().await;"],
+        ),
+        way(
+            &["new_instance_with_", "webgpu_detection("],
+            &[
+                "let i = wgpu::util::new_instance_with_",
+                "webgpu_detection(d).await;",
+            ],
+        ),
     ]
+}
+
+/// What makes a graphics instance, see [`ways`].
+fn needles() -> Vec<String> {
+    ways().into_iter().map(|(needle, _)| needle).collect()
 }
 
 /// The workspace's folder: two above this crate's.
@@ -46,11 +73,25 @@ fn sources(root: &Path) -> Vec<PathBuf> {
     found
 }
 
-/// Whether `text` makes an instance with `needle`, not as the end of a longer name.
+/// Whether `text` makes an instance with `needle`. A needle that starts like a name must not be
+/// the end of a longer one (`AnInstance`); one that starts with a dot is a call on something
+/// before it, and what comes before it is that thing's name.
 fn holds(text: &str, needle: &str) -> bool {
+    let starts_a_name = needle.starts_with(|c: char| c.is_alphanumeric() || c == '_');
     text.match_indices(needle).any(|(at, _)| {
         let before = text.get(..at).and_then(|head| head.chars().next_back());
-        !before.is_some_and(|c| c.is_alphanumeric() || c == '_')
+        !starts_a_name || !before.is_some_and(|c| c.is_alphanumeric() || c == '_')
+    })
+}
+
+/// Whether a graphics instance may be made in the file at `path`, see [`ALLOWED`].
+fn is_allowed(path: &str) -> bool {
+    ALLOWED.iter().any(|allowed| {
+        if allowed.ends_with('/') {
+            path.starts_with(allowed)
+        } else {
+            path == *allowed
+        }
     })
 }
 
@@ -77,20 +118,37 @@ fn only_the_shared_headless_device_makes_a_graphics_instance() {
         }
     }
     making.sort();
+    let (allowed, strays): (Vec<_>, Vec<_>) = making.into_iter().partition(|path| is_allowed(path));
     assert_eq!(
-        making,
-        [THE_ONE],
+        strays,
+        Vec::<String>::new(),
         "a graphics instance is made only where devices with no window are started (and \
          without OpenGL on Windows): use `voxa_render::render_state_without_a_window` or \
          `HeadlessScene` instead"
     );
+    // Where it is allowed must still be where it is made, or the allowance has gone stale.
+    assert!(
+        !allowed.is_empty(),
+        "no allowed file makes an instance any more: {ALLOWED:?}"
+    );
 }
 
 #[test]
-fn the_guard_sees_what_it_guards_against() {
-    // A guard that finds nothing anywhere would pass for the wrong reason.
-    let made = ["let i = wgpu::Instance", "::new(options);"].concat();
-    assert!(needles().iter().any(|needle| holds(&made, needle)));
-    let named = ["let i = AnInstance", "::new(options);"].concat();
-    assert!(!needles().iter().any(|needle| holds(&named, needle)));
+fn the_guard_sees_every_way_of_making_an_instance_and_not_the_names_that_only_end_alike() {
+    // A guard that finds nothing anywhere would pass for the wrong reason, and a needle that
+    // can never match its own usual spelling is a hole in it.
+    for (needle, line) in ways() {
+        assert!(
+            holds(&line, &needle),
+            "`{line}` is not caught by `{needle}`"
+        );
+    }
+    let other_names = [
+        ["let i = AnInstance", "::new(options);"].concat(),
+        ["let i = renew_instance_with_", "webgpu_detection(d);"].concat(),
+    ];
+    for line in other_names {
+        let caught = needles().iter().any(|needle| holds(&line, needle));
+        assert!(!caught, "`{line}` is the end of another name");
+    }
 }
