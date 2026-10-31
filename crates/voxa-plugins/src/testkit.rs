@@ -47,3 +47,45 @@ pub fn plugin_folder(description: &Value, files: &[(&str, &[u8])]) -> TempDir {
     fs::write(folder.path().join("plugin.json"), text).expect("plugin.json written");
     folder
 }
+
+/// The description of a made-up plugin for other crates' tests: the design's example, with a
+/// whole box of 8 x 8 x 8, the patient's own axes, the brightness as stored, and no files, for
+/// [`example_folder`] to list.
+pub fn example() -> Value {
+    json!({
+        "format": 1,
+        "kind": "label-map",
+        "id": "example.skull-strip",
+        "name": "Example skull strip",
+        "version": "1.0",
+        "made_by": "An example lab",
+        "source": "https://example.org/skull-strip",
+        "licence": "MIT",
+        "about": "Marks the brain inside the skull on an MRI scan of the head.",
+        "limits": ["Trained on adult heads only."],
+        "network": "strip.onnx",
+        "accepts": { "modality": ["MR"], "contrast": ["T1"], "body_part": "head" },
+        "input": {
+            "spacing_mm": [1, 1, 1],
+            "axes": "LPS",
+            "layout": "channels-first",
+            "fit": { "whole": [8, 8, 8], "outside": "lowest" },
+            "scaling": { "kind": "none" }
+        },
+        "output": {
+            "gives": "scores",
+            "channels": [0, 1],
+            "keep_largest_piece": false,
+            "names": [{ "id": 1, "name": "Bright", "side": "midline", "group": "Parts" }]
+        }
+    })
+}
+
+/// A folder holding the example plugin of this `version`: its description and a network of one
+/// convolution that labels what is above a half.
+pub fn example_folder(version: &str) -> TempDir {
+    let mut description = example();
+    description["version"] = json!(version);
+    let network = onnx::conv_network(&onnx::image_input(), &[0.0, 1.0], &[0.0, -0.5]);
+    plugin_folder(&description, &[("strip.onnx", &network)])
+}

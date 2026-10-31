@@ -123,6 +123,8 @@ pub enum Effect {
     },
     /// Keep what the person has chosen for labelling, for the next run of Voxa.
     StoreChoices(Choices),
+    /// Something about the plugins the person added.
+    Plugins(crate::plugins::PluginEffect),
     /// Nothing to do.
     None,
 }

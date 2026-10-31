@@ -113,13 +113,14 @@ fn start(state: &mut AppState, held: u64) -> Vec<Effect> {
     let (Some(series), Some(wanted), Ok(())) = (series, wanted(state), can_label(state)) else {
         return Vec::new();
     };
-    // What was said of the run before is old news now.
+    // What was said of the run before is old news now. A plugin's run gives way.
     super::post(state, LABELLING, None);
+    let plugin = super::plugins::stop(state);
     let labelling = &mut state.labelling;
     labelling.running = Some(Stage::Preparing);
     labelling.on = Some(series.clone());
     labelling.runs += 1;
-    vec![Effect::LabelScan {
+    let scan = Effect::LabelScan {
         run: labelling.runs,
         series,
         wanted,
@@ -127,7 +128,8 @@ fn start(state: &mut AppState, held: u64) -> Vec<Effect> {
         held,
         keep: labelling.keep,
         drawing_on: labelling.drawing_on.clone(),
-    }]
+    };
+    plugin.into_iter().chain([scan]).collect()
 }
 
 /// Whether the run numbered `run` is the one on: news of any other is old news.

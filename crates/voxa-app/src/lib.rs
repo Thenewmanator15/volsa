@@ -28,6 +28,7 @@ mod measurements;
 mod moved;
 mod parts_table;
 mod planes;
+mod plugins;
 mod prefs;
 mod reducer;
 mod said;
@@ -58,6 +59,10 @@ pub use labels::{
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
 pub use planes::{ColumnShows, PlanePanel, Planes};
+pub use plugins::{
+    ADD_ACTION, OfferCard, PluginAction, PluginEffect, PluginEntry, Plugins, Running, ToolEntry,
+    Warning, settings_lines, tool_entries,
+};
 pub use reducer::reduce;
 pub use said::{Outcome, WINDOWED, outcome, tell};
 pub use scene::{MainPanel, Scene, SceneStatus};

@@ -383,4 +383,6 @@ pub enum Action {
     },
     /// Something about labelling the scan with Voxa's own networks.
     Labelling(LabellingAction),
+    /// Something about the plugins the person added.
+    Plugins(crate::plugins::PluginAction),
 }

@@ -37,6 +37,7 @@ winresource.workspace = true
 voxa-dicom = { workspace = true, features = ["testkit"] }
 voxa-labels = { workspace = true, features = ["testkit"] }
 voxa-models = { workspace = true, features = ["testkit"] }
+voxa-plugins = { workspace = true, features = ["testkit"] }
 tempfile.workspace = true
 zip.workspace = true
 criterion.workspace = true

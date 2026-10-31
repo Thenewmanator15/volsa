@@ -176,6 +176,8 @@ pub struct AppState {
     pub labels: Labels,
     /// Labelling a scan with Voxa's own networks: what can be done, what is chosen, what runs.
     pub labelling: Labelling,
+    /// The plugins the person added, and the run of one.
+    pub plugins: Box<crate::plugins::Plugins>,
 }
 
 impl Default for AppState {
@@ -199,6 +201,7 @@ impl Default for AppState {
             tool: Tool::default(),
             labels: Labels::default(),
             labelling: Labelling::default(),
+            plugins: Box::default(),
         }
     }
 }

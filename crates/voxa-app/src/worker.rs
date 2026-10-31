@@ -179,7 +179,7 @@ impl Workers {
             | Effect::ForgetKept { .. }
             | Effect::SaveLabels { .. }
             | Effect::StoreChoices(_)) => self.kept(kept),
-            Effect::None => {}
+            Effect::Plugins(_) | Effect::None => {}
         }
     }
 

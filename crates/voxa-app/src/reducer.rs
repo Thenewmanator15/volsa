@@ -16,6 +16,7 @@ mod labelling;
 mod labels;
 mod link;
 mod planes;
+mod plugins;
 mod scene;
 mod viewport;
 mod views;
@@ -111,6 +112,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             annotations::reduce(state, about_annotations)
         }
         Action::Labelling(about_labelling) => labelling::reduce(state, about_labelling),
+        Action::Plugins(about_plugins) => plugins::reduce(state, about_plugins),
         about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
@@ -123,8 +125,12 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
             // Labels, and a run of labelling, belong to a study of the export that is being left.
             let labelling = state.labelling.running.is_some();
             let labelled = state.labels.status != crate::labels::LabelsStatus::None;
+            let plugin = plugins::stop(state);
             *state = emptied(state);
-            let stopped = labelling.then_some(Effect::StopLabelling);
+            let stopped = labelling
+                .then_some(Effect::StopLabelling)
+                .into_iter()
+                .chain(plugin);
             let dropped = labelled.then_some(Effect::DropLabels);
             return stopped
                 .into_iter()
@@ -317,6 +323,8 @@ mod labels_tests;
 mod link_tests;
 #[cfg(test)]
 mod planes_tests;
+#[cfg(test)]
+mod plugins_tests;
 #[cfg(test)]
 mod scene_camera_tests;
 #[cfg(test)]
