@@ -46,7 +46,7 @@ const COVERED_CRATES: [&str; 7] = [
 /// neither is there when the gate runs. The paths are written with either slash.
 const NOT_COUNTED: [(&str, &str); 1] = [(
     "voxa-models",
-    r"voxa-models[/\\]src[/\\](runtime|cards)\.rs$",
+    r"voxa-models[/\\]src[/\\](runtime|cards)(\.rs|[/\\]opened\.rs)$",
 )];
 
 /// What the gate has cargo test: every crate's tests, each test program run to its end

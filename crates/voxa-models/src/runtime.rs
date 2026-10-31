@@ -6,22 +6,24 @@
 
 use std::panic::{self, AssertUnwindSafe};
 use std::path::{self, Path, PathBuf};
-use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Mutex, PoisonError};
-use std::thread;
 use std::time::Duration;
 
 use ort::environment::Environment;
-use ort::session::SessionOutputs;
+use ort::session::Session;
 use ort::session::builder::SessionBuilder;
-use ort::session::{OutputSelector, RunOptions, Session, SessionInputValue, SessionInputs};
-use ort::value::{DynValue, Outlet, TensorElementType, ValueType};
+use ort::value::ValueType;
 
 use crate::cards::CardId;
 #[cfg(windows)]
 use crate::cards::place_now;
-use crate::network::{Device, Network, RunError, SIDES, Stop, bytes_of, each_alone, not_loaded};
-use crate::tensor::{Numbers, Tensor, copied};
+use crate::network::{
+    Device, Network, RunError, SIDES, Stop, bytes_named, each_alone, not_loaded, overrides,
+    width_of,
+};
+
+mod opened;
+use opened::Opened;
 
 /// The file that holds the runtime, by the name this system gives such a file.
 pub(crate) const LIBRARY: &str = if cfg!(windows) {
@@ -39,9 +41,6 @@ const LOOK_EVERY: Duration = Duration::from_millis(50);
 /// The library this program holds, once it holds one: a program can hold only one, for as
 /// long as it lives.
 static HELD: Mutex<Option<PathBuf>> = Mutex::new(None);
-
-/// A tensor in the runtime's hands, ready to be an input.
-type Feed = SessionInputValue<'static>;
 
 /// Why the runtime could not be had from a folder. Each sentence is fit to be shown.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -137,7 +136,28 @@ impl Runtime {
         sizes: [usize; 3],
         stop: &Stop,
     ) -> Result<Box<dyn Network>, RunError> {
-        self.open_with(file, device, sizes, stop, MOST_FETCHED)
+        let free = sides_named(sizes);
+        self.open_with(file, device, &free, None, stop, MOST_FETCHED)
+    }
+
+    /// Opens the network in `file` on `device` as [`Runtime::open`] does, its free sides fixed
+    /// by the names in `free`, each to its size: any network, whatever it calls its sides. With
+    /// `output` named, only that output is fetched, by a run that asks for it alone, and it is
+    /// the whole answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Runtime::open`], and [`RunError::Failed`] when `output` is not one of the
+    /// network's.
+    pub fn open_named(
+        &self,
+        file: &Path,
+        device: Device,
+        free: &[(String, usize)],
+        output: Option<&str>,
+        stop: &Stop,
+    ) -> Result<Box<dyn Network>, RunError> {
+        self.open_with(file, device, free, output, stop, MOST_FETCHED)
     }
 
     /// [`Runtime::open`] with the most that one run may fetch from a card given, so that a
@@ -150,19 +170,37 @@ impl Runtime {
         &self,
         file: &Path,
         device: Device,
-        sizes: [usize; 3],
+        free: &[(String, usize)],
+        output: Option<&str>,
         stop: &Stop,
         most: u64,
     ) -> Result<Box<dyn Network>, RunError> {
         if stop.is_set() {
             return Err(RunError::Stopped);
         }
-        let session = guarded(|| session(file, device, sizes))?;
-        let outputs = session.outputs().iter().map(Outlet::name);
+        let fixed = overrides(free)?;
+        let session = guarded(|| session(file, device, &fixed))?;
+        let names: Vec<String> = session
+            .outputs()
+            .iter()
+            .map(|out| out.name().to_owned())
+            .collect();
+        let (outputs, alone) = match output {
+            Some(only) if names.iter().any(|name| name == only) => (vec![only.to_owned()], true),
+            Some(_) => return Err(failed("the network has no output of the name given")),
+            None => {
+                let sizes: Vec<(String, u64)> = free
+                    .iter()
+                    .map(|(name, size)| (name.clone(), *size as u64))
+                    .collect();
+                let alone = each_alone(device, names.len(), fetched(&session, &sizes), most);
+                (names, alone)
+            }
+        };
         Ok(Box::new(Opened {
-            alone: each_alone(device, outputs.len(), fetched(&session, sizes), most),
+            alone,
             inputs: session.inputs().len(),
-            outputs: outputs.map(str::to_owned).collect(),
+            outputs,
             session,
             stop: stop.clone(),
         }))
@@ -208,13 +246,21 @@ fn failed(why: &str) -> RunError {
     RunError::Failed(why.to_owned())
 }
 
+/// The three sides of `SynthSeg`'s networks, by the names their files give them.
+pub(crate) fn sides_named(sizes: [usize; 3]) -> Vec<(String, usize)> {
+    SIDES
+        .into_iter()
+        .zip(sizes)
+        .map(|(name, size)| (name.to_owned(), size))
+        .collect()
+}
+
 /// Makes the runtime's session for a network file: the sizes told by name and, on a card,
 /// DirectML with its rules.
-fn session(file: &Path, device: Device, sizes: [usize; 3]) -> Result<Session, RunError> {
+fn session(file: &Path, device: Device, fixed: &[(String, i64)]) -> Result<Session, RunError> {
     let mut builder = said(Session::builder())?;
-    for (name, size) in SIDES.into_iter().zip(sizes) {
-        let size = i64::try_from(size).map_err(|_| failed("a side of the input is too long"))?;
-        builder = said(builder.with_dimension_override(name, size))?;
+    for (name, size) in fixed {
+        builder = said(builder.with_dimension_override(name, *size))?;
     }
     let mut builder = match device {
         Device::Card(card) => on_card(builder, card)?,
@@ -252,15 +298,10 @@ fn on_card(_builder: SessionBuilder, _card: CardId) -> Result<SessionBuilder, Ru
 
 /// How many bytes the outputs of a network hold together, for an input of these sizes.
 /// `None` when that cannot be known before a run.
-fn fetched(session: &Session, sizes: [usize; 3]) -> Option<u64> {
-    let sizes = sizes.map(|side| side as u64);
+fn fetched(session: &Session, sizes: &[(String, u64)]) -> Option<u64> {
     session.outputs().iter().try_fold(0_u64, |total, output| {
         let kind = output.dtype();
-        let width = match kind.tensor_type()? {
-            TensorElementType::Float32 => 4,
-            TensorElementType::Uint8 => 1,
-            _ => return None,
-        };
+        let width = width_of(kind.tensor_type()?)?;
         let ValueType::Tensor {
             dimension_symbols: names,
             ..
@@ -268,128 +309,6 @@ fn fetched(session: &Session, sizes: [usize; 3]) -> Option<u64> {
         else {
             return None;
         };
-        total.checked_add(bytes_of(width, kind.tensor_shape()?, names, sizes)?)
+        total.checked_add(bytes_named(width, kind.tensor_shape()?, names, sizes)?)
     })
-}
-
-/// A network file opened by the runtime on one device.
-struct Opened {
-    session: Session,
-    /// How many inputs the network takes.
-    inputs: usize,
-    /// The names of its outputs, in its own order.
-    outputs: Vec<String>,
-    /// Whether each output is fetched by a run of its own.
-    alone: bool,
-    stop: Stop,
-}
-
-impl Network for Opened {
-    fn run(&mut self, inputs: Vec<Tensor>) -> Result<Vec<Tensor>, RunError> {
-        if self.stop.is_set() {
-            return Err(RunError::Stopped);
-        }
-        match guarded(|| self.answer(inputs)) {
-            // A run the runtime ended because it was told to fails in the runtime's own
-            // words. What happened is that it was stopped.
-            Err(_) if self.stop.is_set() => Err(RunError::Stopped),
-            outcome => outcome,
-        }
-    }
-}
-
-impl Opened {
-    fn answer(&mut self, inputs: Vec<Tensor>) -> Result<Vec<Tensor>, RunError> {
-        if inputs.len() != self.inputs {
-            let (takes, given) = (self.inputs, inputs.len());
-            let why = format!("inputs the network takes: {takes}; inputs given: {given}");
-            return Err(RunError::Failed(why));
-        }
-        let feeds: Vec<Feed> = inputs.into_iter().map(feed).collect::<Result<_, _>>()?;
-        if self.alone {
-            return self.one_by_one(&feeds);
-        }
-        // One run that fetches every output, while another thread looks at the stop.
-        let options = said(RunOptions::new())?;
-        let got = said(watched(&mut self.session, &feeds, &options, &self.stop))?;
-        let names = self.outputs.iter();
-        names.map(|name| tensor(got.get(name))).collect()
-    }
-
-    /// A run for each output that asks for that output alone. `ort` lets no other thread
-    /// reach such a run, so the stop is looked at between them and not during one.
-    fn one_by_one(&mut self, feeds: &[Feed]) -> Result<Vec<Tensor>, RunError> {
-        let mut answer = Vec::with_capacity(self.outputs.len());
-        for name in &self.outputs {
-            if self.stop.is_set() {
-                return Err(RunError::Stopped);
-            }
-            let only = OutputSelector::no_default().with(name.as_str());
-            let only = said(RunOptions::new())?.with_outputs(only);
-            let feeds = SessionInputs::ValueSlice::<0>(feeds);
-            let got = said(self.session.run_with_options(feeds, &only))?;
-            answer.push(tensor(got.get(name))?);
-        }
-        Ok(answer)
-    }
-}
-
-/// One run under `options`, while another thread looks at `stop` and tells the runtime to
-/// end the run once it is set.
-fn watched<'r>(
-    session: &'r mut Session,
-    feeds: &[Feed],
-    options: &'r RunOptions,
-    stop: &Stop,
-) -> ort::Result<SessionOutputs<'r>> {
-    thread::scope(move |scope| {
-        let (done, wait) = mpsc::channel::<()>();
-        let watch = move || {
-            while wait.recv_timeout(LOOK_EVERY) == Err(RecvTimeoutError::Timeout) {
-                if stop.is_set() {
-                    // If the runtime will not be told, the run ends in its own time.
-                    let _ = options.terminate();
-                    return;
-                }
-            }
-        };
-        // Without a watcher the run still goes on; it only cannot be ended early.
-        let _ = thread::Builder::new().spawn_scoped(scope, watch);
-        let outcome = session.run_with_options(SessionInputs::ValueSlice::<0>(feeds), options);
-        drop(done);
-        outcome
-    })
-}
-
-/// Hands a tensor to the runtime. Its numbers are not copied.
-fn feed(tensor: Tensor) -> Result<Feed, RunError> {
-    if !tensor.is_whole() {
-        return Err(failed("an input is not as long as its shape says"));
-    }
-    let Tensor { shape, numbers } = tensor;
-    said(match numbers {
-        Numbers::F32(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
-        Numbers::U8(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
-        Numbers::I32(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
-        Numbers::I64(numbers) => ort::value::Tensor::from_array((shape, numbers)).map(Feed::from),
-    })
-}
-
-/// Copies an output out of the runtime's own memory.
-fn tensor(value: Option<&DynValue>) -> Result<Tensor, RunError> {
-    let value = value.ok_or_else(|| failed("the network left out one of its outputs"))?;
-    let (shape, numbers) = match value.dtype().tensor_type() {
-        Some(TensorElementType::Float32) => {
-            let (shape, numbers) = said(value.try_extract_tensor::<f32>())?;
-            (shape, Numbers::F32(copied(numbers)?))
-        }
-        Some(TensorElementType::Uint8) => {
-            let (shape, numbers) = said(value.try_extract_tensor::<u8>())?;
-            (shape, Numbers::U8(copied(numbers)?))
-        }
-        _ => return Err(failed("an output of a kind Voxa does not read")),
-    };
-    let shape: Result<_, _> = shape.iter().map(|&side| usize::try_from(side)).collect();
-    let shape = shape.map_err(|_| failed("an output with a side below zero"))?;
-    Ok(Tensor { shape, numbers })
 }

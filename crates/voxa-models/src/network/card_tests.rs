@@ -149,7 +149,8 @@ fn a_card_gives_the_processors_answer_however_it_is_fetched() {
         let device = Device::Card(card.id);
         let (one_run, two_runs) = on_that_card(&card, || {
             let together = runtime.open(standard, device, [side; 3], &stop);
-            let alone = runtime.open_with(standard, device, [side; 3], &stop, 0);
+            let sides = crate::runtime::sides_named([side; 3]);
+            let alone = runtime.open_with(standard, device, &sides, None, &stop, 0);
             let (mut together, mut alone) = (together.expect("it opens"), alone.expect("it opens"));
             let one_run = together.run(vec![image.clone()]).expect("one run for both");
             (

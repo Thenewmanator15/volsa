@@ -183,16 +183,33 @@ pub(crate) fn wants_visual_cpp(error: &(dyn std::error::Error + 'static)) -> boo
 /// file gives it, a side left free is below zero and goes by a name in `names`. Such a side
 /// is known when its name is one of the three the `sizes` are told by; `None` when one is
 /// not, or the count is too large.
+#[cfg(test)]
 pub(crate) fn bytes_of(
     width: u64,
     shape: &[i64],
     names: &[String],
     sizes: [u64; 3],
 ) -> Option<u64> {
+    let free: Vec<(String, u64)> = SIDES
+        .iter()
+        .zip(sizes)
+        .map(|(name, size)| ((*name).to_owned(), size))
+        .collect();
+    bytes_named(width, shape, names, &free)
+}
+
+/// [`bytes_of`] with the free sides told by any names: each in `free` with its size.
+pub(crate) fn bytes_named(
+    width: u64,
+    shape: &[i64],
+    names: &[String],
+    free: &[(String, u64)],
+) -> Option<u64> {
     let told = |place: usize| {
         let name = names.get(place)?;
-        let which = SIDES.iter().position(|side| side == name)?;
-        sizes.get(which).copied()
+        free.iter()
+            .find(|(free, _)| free == name)
+            .map(|(_, size)| *size)
     };
     let mut bytes = width;
     for (place, &side) in shape.iter().enumerate() {
@@ -200,6 +217,32 @@ pub(crate) fn bytes_of(
         bytes = bytes.checked_mul(side)?;
     }
     Some(bytes)
+}
+
+/// How many bytes a number of this kind takes; `None` for a kind Voxa does not read.
+pub(crate) fn width_of(kind: ort::value::TensorElementType) -> Option<u64> {
+    use ort::value::TensorElementType::{Float32, Int32, Int64, Uint8};
+    match kind {
+        Float32 | Int32 => Some(4),
+        Uint8 => Some(1),
+        Int64 => Some(8),
+        _ => None,
+    }
+}
+
+/// The sizes a network's free sides are fixed to, by name, as the runtime takes them.
+///
+/// # Errors
+///
+/// [`RunError::Failed`] for a size too large for the runtime.
+pub(crate) fn overrides(free: &[(String, usize)]) -> Result<Vec<(String, i64)>, RunError> {
+    free.iter()
+        .map(|(name, size)| {
+            let size = i64::try_from(*size)
+                .map_err(|_| RunError::Failed("a side of the input is too long".to_owned()))?;
+            Ok((name.clone(), size))
+        })
+        .collect()
 }
 
 /// Whether each output is fetched by a run of its own: on a card, when there is more than
