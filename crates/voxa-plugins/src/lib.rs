@@ -25,6 +25,7 @@ mod folder;
 mod grid;
 pub mod helper;
 mod label_map;
+mod measure;
 mod onnx;
 mod scaling;
 #[cfg(any(test, feature = "testkit"))]
@@ -41,5 +42,9 @@ pub use fit::{Wiring, fit};
 pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};
 pub use grid::{Grid, Region, label_grid, overhang_mm, sample};
 pub use label_map::LabelMap;
+pub use measure::{
+    CardFigures, Fits, HelperPipes, HelperStarter, MEASURED, Measured, ProcessStarter, measure,
+    own_bytes, places, read_measured, write_measured,
+};
 pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};
 pub use scaling::{Scale, ScaleError, Statistics, gather, outside_value, percentile, voxels_of};
