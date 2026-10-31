@@ -7,11 +7,13 @@ use egui::{Align, Layout, Rect, RichText, ScrollArea, Sense, Ui, UiBuilder, vec2
 use voxa_labels::{Pair, Side, Trust, pairs, trust_in_words, volume_in_words};
 use voxa_render::Overlay;
 
+use super::plugins::plugin_section;
 use super::theme;
 use crate::action::Action;
 use crate::labels::{FAINTEST, Labels, LabelsStatus, NamesFrom, on_this_series};
 use crate::parts_table::sides_compared;
 use crate::planes::grid;
+use crate::plugins::tool_entries;
 use crate::state::AppState;
 
 pub mod labelling;
@@ -44,6 +46,8 @@ pub enum Asked {
     SaveCsv,
     /// Something the labelling strip needs chosen: a folder, or where to save the labels.
     Labelling(labelling::Wants),
+    /// To add a plugin, from a folder.
+    AddPlugin,
 }
 
 /// What the list keeps between frames.
@@ -110,6 +114,9 @@ pub fn contents(
     actions: &mut Vec<Action>,
 ) -> Option<Asked> {
     let strip = labelling::strip(ui, state, held, actions).map(Asked::Labelling);
+    let (entries, busy) = (tool_entries(&state.plugins), state.plugins.busy.as_deref());
+    let add = plugin_section(ui, &entries, busy, held, actions).then_some(Asked::AddPlugin);
+    let strip = strip.or(add);
     let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
     let open = |ui: &mut Ui| {
         let can = grid(state).is_some();

@@ -2,7 +2,9 @@
 //! part set against each other. Both say only what the label file and its table held:
 //! nothing of the scan, and nothing Voxa worked out but a difference between two numbers.
 
-use voxa_labels::{Side, Trust, difference_percent, pairs, trust_in_words, volume_in_words};
+use voxa_labels::{
+    Side, Trust, added_in_words, difference_percent, pairs, trust_in_words, volume_in_words,
+};
 
 use crate::csv::{field, not_a_formula};
 use crate::labels::Labels;
@@ -23,6 +25,7 @@ pub const NOISE: &str =
 /// another program made them.
 fn model_of(labels: &Labels) -> String {
     match &labels.made {
+        Some(made) if made.added.is_some() => format!("added by you: {}", made.model),
         Some(made) if !made.model.is_empty() => made.model.clone(),
         Some(_) => "not said".to_owned(),
         None => MADE_ELSEWHERE.to_owned(),
@@ -48,9 +51,25 @@ fn check_of(labels: &Labels) -> &'static str {
 /// copied, sorted or filtered: `model`, which model made the labels; `model_check`, whether
 /// the model's own check of them failed; and `notice`, which holds `notice`, the sentence
 /// that this is not for diagnostic use. A name that a spreadsheet would take for a formula is
-/// written with an apostrophe before it.
+/// written with an apostrophe before it. Labels that a plugin the person added made have, before
+/// the column names, a line for the banner that says so and a line for each of their notes, and
+/// their `model` column says `added by you:` before the plugin's name.
 pub fn parts_csv(labels: &Labels, notice: &str) -> String {
-    let mut table = format!("{HEADER}\r\n");
+    let mut table = String::new();
+    // Labels a plugin the person added made carry its banner and their notes, the stamp
+    // first, as lines of one field each before the table.
+    if let Some((made, added)) = labels
+        .made
+        .as_ref()
+        .and_then(|made| made.added.as_ref().map(|added| (made, added)))
+    {
+        for line in std::iter::once(&added_in_words(added)).chain(&made.notes) {
+            table.push_str(&field(&not_a_formula(line)));
+            table.push_str("\r\n");
+        }
+    }
+    table.push_str(HEADER);
+    table.push_str("\r\n");
     let model = field(&not_a_formula(&model_of(labels)));
     let notice = field(&not_a_formula(notice));
     let about = format!("{model},{},{notice}", check_of(labels));
@@ -213,6 +232,39 @@ mod tests {
         assert_eq!(
             PARTS_NAME, "voxa-parts",
             "the name offered says nothing of the scan"
+        );
+    }
+
+    #[test]
+    fn the_csv_starts_with_the_banner_and_the_stamp() {
+        let added = voxa_labels::Added {
+            name: "Strip".to_owned(),
+            version: "1.2".to_owned(),
+            made_by: "A lab".to_owned(),
+            source: "https://example.org/strip".to_owned(),
+            licence: "MIT".to_owned(),
+            ..voxa_labels::Added::default()
+        };
+        let stamp = "Contrast not confirmed: the scan's description does not say.";
+        let mut labels = labels();
+        labels.made = Some(voxa_labels::Made {
+            model: "Strip 1.2".to_owned(),
+            notes: vec![stamp.to_owned(), "Run in blocks.".to_owned()],
+            added: Some(added.clone()),
+            ..voxa_labels::Made::default()
+        });
+        let table = parts_csv(&labels, NOTICE);
+        let lines: Vec<&str> = table.split("\r\n").collect();
+        let banner = field(&voxa_labels::added_in_words(&added));
+        assert_eq!(
+            lines[..4],
+            [banner.as_str(), stamp, "Run in blocks.", HEADER]
+        );
+        let model = "added by you: Strip 1.2";
+        assert!(
+            lines[4].ends_with(&format!(",{model},not given,{NOTICE}")),
+            "{}",
+            lines[4]
         );
     }
 

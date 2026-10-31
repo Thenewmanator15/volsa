@@ -6,6 +6,7 @@ use std::time::Instant;
 
 use crate::action::Action;
 use crate::labelling::LabellingAction;
+use crate::plugins::PluginAction;
 use crate::session::Session;
 use crate::state::VIEWPORTS;
 
@@ -28,6 +29,7 @@ mod parts;
 mod pen;
 mod pictures;
 mod planes;
+mod plugins;
 mod remembered;
 mod saving;
 mod scene;
@@ -103,8 +105,11 @@ impl VoxaApp {
     }
 
     /// Tell labelling the name of the graphics card the window draws on, if it draws on one,
-    /// and look on a worker at whether this computer can label a scan.
+    /// and look on a worker at whether this computer can label a scan, and at the plugins the
+    /// person added. A picture that asks for made-up plugins is given those, and makes no look.
     fn look_for_labelling(&mut self, render: Option<&egui_wgpu::RenderState>) {
+        let plugins = capture::made_up_plugins().unwrap_or(PluginAction::Look);
+        self.dispatch(Action::Plugins(plugins));
         if let Some(render) = render {
             // A run on the card Voxa draws on leaves room for what Voxa holds there.
             let drawing_on = render.adapter.get_info().name;
@@ -320,6 +325,8 @@ impl eframe::App for VoxaApp {
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
         let state = self.session.state();
+        let plugins = capture::plugins_shown(&state.plugins);
+        actions.extend(plugins::windows(ui.ctx(), plugins));
         let save = self.measure.show(ui.ctx(), state, &mut actions);
         let saved = save.and_then(|kind| measure::save(kind, state));
         actions.extend(saved.map(Action::Post));

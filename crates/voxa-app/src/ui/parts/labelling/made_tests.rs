@@ -86,3 +86,36 @@ fn a_check_that_failed_is_said_before_who_made_the_labels() {
     let named = at(&lines, |line| line.starts_with("Names from"));
     assert!(named < failed, "{said}");
 }
+
+/// A plugin the person added, as labels it made say it.
+fn added() -> voxa_labels::Added {
+    voxa_labels::Added {
+        id: "example.strip".to_owned(),
+        name: "Made-up strip".to_owned(),
+        version: "1.2".to_owned(),
+        made_by: "A made-up lab".to_owned(),
+        source: "https://example.org/made-up-model".to_owned(),
+        licence: "MIT".to_owned(),
+        limits: vec!["Made for adults.".to_owned()],
+        sum: String::new(),
+    }
+}
+
+#[test]
+fn labels_a_plugin_made_say_it_was_added_by_the_person_then_where_and_when_it_ran() {
+    let mut made = by_voxa();
+    made.added = Some(added());
+    let banner = voxa_labels::added_in_words(&added());
+    let said = made_in_words(&made);
+    assert_eq!(said, format!("{banner} Run on Made-up card A, 2099-01-02."));
+    assert!(!said.contains("made by Voxa"), "{said}");
+    let mut state = made_by_voxa(None);
+    if let Some(open) = state.labels.made.as_mut() {
+        open.added = Some(added());
+    }
+    let written = written(&state);
+    let lines = lines_of(&written);
+    let first = at(&lines, |line| line == said);
+    let note = at(&lines, |line| line == "A first made-up note.");
+    assert!(first < note, "the banner, then the notes: {written}");
+}

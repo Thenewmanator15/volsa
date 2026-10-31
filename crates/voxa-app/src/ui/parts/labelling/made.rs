@@ -2,7 +2,7 @@
 //! the plane views say of the solids and outlines drawn from them.
 
 use egui::{RichText, Ui};
-use voxa_labels::{Made, Verdict, verdict_in_words};
+use voxa_labels::{Made, Verdict, added_in_words, verdict_in_words};
 
 use super::super::super::theme;
 use super::{Wants, quiet};
@@ -32,14 +32,40 @@ fn how_made(made: &Made) -> String {
     how
 }
 
-/// What the list says of labels that Voxa made, in place of "made by another program".
-pub fn made_in_words(made: &Made) -> String {
-    format!("Labels {}. {NOT_FOR_DIAGNOSIS}", how_made(made))
+/// Where and when a plugin the person added ran, with whatever of it is known, as a sentence;
+/// empty when neither was written down.
+fn where_it_ran(made: &Made) -> String {
+    let known: Vec<&str> = [made.device.as_str(), made.when.as_str()]
+        .into_iter()
+        .filter(|part| !part.is_empty())
+        .collect();
+    if known.is_empty() {
+        return String::new();
+    }
+    format!(" Run on {}.", known.join(", "))
 }
 
-/// What the scene says of the solids drawn from labels that Voxa made.
+/// What the list says of labels that Voxa made, in place of "made by another program". Labels
+/// that a plugin the person added made say that first, as the banner every result of one
+/// carries, and then where and when it ran.
+pub fn made_in_words(made: &Made) -> String {
+    match &made.added {
+        Some(added) => format!("{}{}", added_in_words(added), where_it_ran(made)),
+        None => format!("Labels {}. {NOT_FOR_DIAGNOSIS}", how_made(made)),
+    }
+}
+
+/// What the scene says of the solids drawn from labels that Voxa made, or that a plugin the
+/// person added made.
 pub fn solids_in_words(made: &Made) -> String {
-    format!("Solids are labels {}. {NOT_FOR_DIAGNOSIS}", how_made(made))
+    match &made.added {
+        Some(added) => format!(
+            "Solids are labels added by you, not part of Voxa: {} {}. {NOT_FOR_DIAGNOSIS}",
+            added.name.trim(),
+            added.version.trim()
+        ),
+        None => format!("Solids are labels {}. {NOT_FOR_DIAGNOSIS}", how_made(made)),
+    }
 }
 
 /// The labelling model's own check, in words, in the colour of how it went.

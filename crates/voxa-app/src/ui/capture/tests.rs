@@ -286,3 +286,21 @@ fn a_picture_does_not_wait_for_a_run_that_this_computer_cannot_make() {
     );
     assert_eq!(Run::Not.patience(usual), usual);
 }
+
+#[test]
+fn a_picture_can_ask_for_a_made_up_plugin_its_card_and_its_warning() {
+    assert_eq!(super::plugins::asked("vr,parts"), None);
+    let listed = super::plugins::asked("plugins,parts").expect("made-up plugins");
+    assert_eq!(listed.entries.len(), 1);
+    assert!(listed.offered.is_none() && listed.warning.is_none());
+    let card = super::plugins::asked("plugin-card").expect("made-up plugins");
+    assert!(card.offered.is_some() && card.warning.is_none());
+    let warned = super::plugins::asked("plugin-warning").expect("made-up plugins");
+    let warning = warned.warning.expect("a warning");
+    assert!(warned.offered.is_none());
+    assert_eq!(
+        warning.stamp,
+        "Run after a warning: this plugin expects T1-weighted; this scan's description says \
+         T2-weighted."
+    );
+}

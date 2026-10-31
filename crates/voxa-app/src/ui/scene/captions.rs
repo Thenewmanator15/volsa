@@ -225,6 +225,24 @@ mod tests {
     }
 
     #[test]
+    fn the_scene_says_solids_a_plugin_made_were_added_by_you() {
+        let (mut state, _) = crate::testing::labelled_head();
+        let added = voxa_labels::Added {
+            name: "Made-up strip".to_owned(),
+            version: "1.2".to_owned(),
+            ..voxa_labels::Added::default()
+        };
+        state.labels.made = Some(voxa_labels::Made {
+            device: "Made-up card A".to_owned(),
+            added: Some(added),
+            ..voxa_labels::Made::default()
+        });
+        let said = "Solids are labels added by you, not part of Voxa: Made-up strip 1.2. Not \
+                    for diagnostic use.";
+        assert_eq!(solids(&state), said);
+    }
+
+    #[test]
     fn thick_slices_are_said_to_be_interpolated_between() {
         let said = "Slices are 7.5 mm apart, so detail between them is interpolated, not measured.";
         assert_eq!(captions([0.7, 0.7, 7.5], 0), [said]);

@@ -28,16 +28,18 @@ use labelling::Run;
 
 mod labelling;
 mod measured;
+mod plugins;
 
 pub use labelling::made_up_look;
 pub use measured::sample_annotations;
+pub use plugins::{made_up_look as made_up_plugins, shown as plugins_shown};
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
 /// windows `tags`, `keys` and `about`, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `plugins` for a made-up plugin added (with `parts`), `plugin-card` for the card a made-up folder offered is shown on, `plugin-warning` for the warning before a run of it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.

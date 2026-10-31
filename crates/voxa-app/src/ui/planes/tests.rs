@@ -295,3 +295,23 @@ fn the_curve_is_asked_for_only_while_smoothing_is_wanted() {
     assert_eq!(view.smooth(None, Some(&volume), None, take), nothing);
     assert_eq!(asked.get(), 2, "looked for each frame until it is there");
 }
+
+#[test]
+fn the_planes_say_labels_a_plugin_made_were_added_by_you() {
+    let mut state = crate::state::AppState::default();
+    assert_eq!(super::parts::labels_note(&state), "Labels: made elsewhere");
+    let added = voxa_labels::Added {
+        name: "Made-up strip".to_owned(),
+        ..voxa_labels::Added::default()
+    };
+    state.labels.made = Some(voxa_labels::Made::default());
+    assert_eq!(super::parts::labels_note(&state), "Labels: made by Voxa");
+    state.labels.made = Some(voxa_labels::Made {
+        added: Some(added),
+        ..voxa_labels::Made::default()
+    });
+    assert_eq!(
+        super::parts::labels_note(&state),
+        "Labels: added by you, not part of Voxa"
+    );
+}

@@ -16,9 +16,14 @@ pub const LABELS_NOTE: &str = "Labels: made elsewhere";
 /// What it says of labels that Voxa made.
 pub const LABELS_NOTE_BY_VOXA: &str = "Labels: made by Voxa";
 
-/// What a panel that draws labels says of them: that another program made them, or that Voxa did.
+/// What it says of labels that a plugin the person added made.
+pub const LABELS_NOTE_ADDED: &str = "Labels: added by you, not part of Voxa";
+
+/// What a panel that draws labels says of them: that another program made them, that Voxa
+/// did, or that a plugin the person added did.
 pub fn labels_note(state: &AppState) -> &'static str {
-    match state.labels.made {
+    match &state.labels.made {
+        Some(made) if made.added.is_some() => LABELS_NOTE_ADDED,
         Some(_) => LABELS_NOTE_BY_VOXA,
         None => LABELS_NOTE,
     }

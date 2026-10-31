@@ -266,7 +266,7 @@ fn clicking_down_the_list_finds_everything_it_offers() {
         !actions.contains(&Action::SetOverlay(Overlay::Outline)),
         "the one in use"
     );
-    assert_eq!(asked, [Asked::OpenNames, Asked::SaveCsv]);
+    assert_eq!(asked, [Asked::AddPlugin, Asked::OpenNames, Asked::SaveCsv]);
 }
 
 #[test]
@@ -320,11 +320,14 @@ fn the_list_says_what_the_labels_are_where_their_names_came_from_and_the_models_
 fn with_no_labels_the_tab_says_what_they_are_and_offers_to_open_some() {
     let state = thick_scan_ready();
     let (actions, asked) = sweep(&state);
-    assert_eq!((actions, asked), (vec![], vec![Asked::OpenLabels]));
+    assert_eq!(
+        (actions, asked),
+        (vec![], vec![Asked::AddPlugin, Asked::OpenLabels])
+    );
     assert!(written(&state).contains("by Voxa, when it labels the scan, or by another program"));
     // With no volume there is nothing to put labels on.
     let (actions, asked) = sweep(&AppState::default());
-    assert_eq!((actions, asked), (vec![], vec![]));
+    assert_eq!((actions, asked), (vec![], vec![Asked::AddPlugin]));
 }
 
 #[test]
@@ -342,7 +345,11 @@ fn while_labels_are_read_and_when_they_fail_the_tab_says_so() {
     );
     assert!(written(&state).contains("This is not a NIfTI file."));
     let (_, asked) = sweep(&state);
-    assert_eq!(asked, [Asked::OpenLabels], "and another can be tried");
+    assert_eq!(
+        asked,
+        [Asked::AddPlugin, Asked::OpenLabels],
+        "and another can be tried"
+    );
 }
 
 #[test]
@@ -351,5 +358,19 @@ fn labels_of_another_study_are_said_to_be_and_can_be_closed() {
     state.labels.study = Some(voxa_core::StudyId("another".to_owned()));
     assert!(written(&state).contains("another study"));
     let (actions, asked) = sweep(&state);
-    assert_eq!((actions, asked), (vec![Action::CloseLabels], vec![]));
+    assert_eq!(
+        (actions, asked),
+        (vec![Action::CloseLabels], vec![Asked::AddPlugin])
+    );
+}
+
+#[test]
+fn plugins_added_leave_room_for_opening_labels_in_a_short_tab() {
+    let mut state = thick_scan_ready();
+    let why = "This plugin's files have changed since it was added. Remove it and add it again.";
+    state.plugins.entries = (1..=6)
+        .map(|n| crate::plugins::PluginEntry::broken(&format!("folder-{n}"), why.to_owned()))
+        .collect();
+    let (_, asked) = sweep(&state);
+    assert!(asked.contains(&Asked::OpenLabels), "{asked:?}");
 }
