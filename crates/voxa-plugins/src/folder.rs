@@ -14,7 +14,9 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use voxa_models::{Supported, file_sum, is_plain_name};
 
-use crate::{DescribeError, Description, read_description};
+use crate::{
+    DescribeError, Description, NetworkError, NetworkFacts, read_description, read_network,
+};
 
 #[cfg(test)]
 mod tests;
@@ -36,6 +38,8 @@ pub struct Offered {
     pub sum: String,
     /// Where the folder is.
     pub folder: PathBuf,
+    /// What its network takes and gives, as its file says.
+    pub network: NetworkFacts,
 }
 
 /// Why a folder is not taken as a plugin. Each sentence is fit to be shown; the names some
@@ -72,6 +76,9 @@ pub enum PluginError {
     /// A file is over 2 GiB, or all of them together are over 4 GiB.
     #[error("The plugin's files are larger than Voxa takes: 2 GiB a file, 4 GiB together.")]
     TooLarge,
+    /// The network file breaks a rule.
+    #[error(transparent)]
+    Network(#[from] NetworkError),
 }
 
 /// How large a plugin's files may be, in bytes.
@@ -91,8 +98,8 @@ impl Limits {
     };
 }
 
-/// Checks the folder offered as a plugin, where it is: its description, then every file the
-/// description lists. `supported` is what the runtime runs, for the network's check.
+/// Checks the folder offered as a plugin, where it is: its description, every file the
+/// description lists, then the network file's structure. `supported` is what the runtime runs.
 ///
 /// # Errors
 ///
@@ -104,7 +111,7 @@ pub fn check_folder(folder: &Path, supported: Supported) -> Result<Offered, Plug
 /// [`check_folder`] with the limits given, so that a test can pass them with small files.
 pub(crate) fn check_with(
     folder: &Path,
-    _supported: Supported,
+    supported: Supported,
     limits: Limits,
 ) -> Result<Offered, PluginError> {
     if !folder.is_dir() {
@@ -130,10 +137,16 @@ pub(crate) fn check_with(
             return Err(PluginError::WrongSum(listed.name.clone()));
         }
     }
+    let network = read_network(
+        &folder.join(&description.network),
+        &description.files,
+        supported,
+    )?;
     Ok(Offered {
         description,
         sum: hex(&Sha256::digest(&text)),
         folder: folder.to_owned(),
+        network,
     })
 }
 

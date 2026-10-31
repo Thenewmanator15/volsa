@@ -19,6 +19,7 @@
 
 mod describe;
 mod folder;
+mod onnx;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
@@ -28,3 +29,4 @@ pub use describe::{
     PLUGIN_FORMAT, Scaling, Side, ValueOutput, Voxels, read_description,
 };
 pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};
+pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};

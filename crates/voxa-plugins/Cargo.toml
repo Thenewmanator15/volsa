@@ -22,6 +22,7 @@ tempfile = { workspace = true, optional = true }
 testkit = ["dep:tempfile"]
 
 [dev-dependencies]
+proptest.workspace = true
 tempfile.workspace = true
 
 [lints]
