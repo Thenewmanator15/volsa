@@ -9,6 +9,14 @@ use crate::pictures::Pictures;
 /// How high the strip above the pictures is, in points.
 pub const STRIP: f32 = 24.0;
 
+/// The middle of the window, where the pictures are: on the background, with the gap between
+/// viewports around them.
+pub fn middle() -> egui::Frame {
+    egui::Frame::NONE
+        .fill(super::theme::BACKGROUND)
+        .inner_margin(viewport::GAP)
+}
+
 /// A part of `ui` for the middle of the window: all the room that is left but `wide` points
 /// along the right, which a panel drawn after it takes. The Tab key goes through what is drawn
 /// in the order it is drawn, so drawing the middle before the panel at its right puts the
