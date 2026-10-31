@@ -214,3 +214,42 @@ fn an_offered_folder_shows_its_card_and_add_sends_it_on() {
     );
     assert!(state.plugins.offered.is_none());
 }
+
+#[test]
+fn opening_another_folder_keeps_the_plugins_added_and_the_look_at_them() {
+    let mut state = AppState::default();
+    let asked = reduce(&mut state, plugins(PluginAction::Look));
+    let Some(Effect::Plugins(PluginEffect::Look { look })) = asked.first().cloned() else {
+        panic!("a look: {asked:?}");
+    };
+    // Voxa started with a folder: it is opened before the look's answer comes.
+    reduce(&mut state, Action::OpenPath(PathBuf::from("an export")));
+    let folder = example_folder("1.0");
+    let offered = voxa_plugins::check_folder(folder.path(), SUPPORTED).expect("offered");
+    let entry = PluginEntry::of_offered(&offered, "the processor");
+    let entries = vec![entry];
+    let looked = PluginAction::Looked {
+        look,
+        entries: entries.clone(),
+    };
+    reduce(&mut state, plugins(looked));
+    assert_eq!(state.plugins.entries, entries, "the look's answer is taken");
+    reduce(
+        &mut state,
+        Action::OpenPath(PathBuf::from("another export")),
+    );
+    assert_eq!(state.plugins.entries, entries, "and kept");
+}
+
+#[test]
+fn opening_another_folder_drops_a_warning_about_the_scan_left() {
+    let mut state = ready("MR", "T2 axial");
+    run(&mut state);
+    assert!(state.plugins.warning.is_some(), "warned");
+    reduce(
+        &mut state,
+        Action::OpenPath(PathBuf::from("another export")),
+    );
+    assert_eq!(state.plugins.warning, None);
+    assert_eq!(state.plugins.running, None);
+}

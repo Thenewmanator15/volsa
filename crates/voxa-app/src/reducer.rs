@@ -203,6 +203,7 @@ fn emptied(state: &AppState) -> AppState {
         },
         labels: labels::emptied(&state.labels),
         labelling: labelling::emptied(&state.labelling),
+        plugins: plugins::emptied(&state.plugins),
         ..AppState::default()
     }
 }

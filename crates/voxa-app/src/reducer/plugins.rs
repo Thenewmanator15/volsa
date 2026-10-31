@@ -244,3 +244,15 @@ fn kept(state: &mut AppState, id: String, show: bool) -> Vec<Effect> {
     };
     vec![effect(asked)]
 }
+
+/// What of the plugins outlives the export left as another is opened: the plugins added, a
+/// folder offered or a plugin asked about, what the workers are doing for them, and the counts
+/// of looks and runs, so that the answer to a look asked for before is still taken. A warning
+/// about the scan left goes, and the run, which was stopped.
+pub(super) fn emptied(plugins: &Plugins) -> Box<Plugins> {
+    Box::new(Plugins {
+        warning: None,
+        running: None,
+        ..plugins.clone()
+    })
+}
