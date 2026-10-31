@@ -102,8 +102,13 @@ fn measure(path: &Path, draw: bool, started: Instant) -> Result<(), String> {
     gpu.upload_held(&card).map_err(|why| why.to_string())?;
     gpu.settle();
     drop(card);
+    // Windows counts what a texture holds in the program's own memory, even on a card with
+    // memory of its own; said here so that it can be told apart from what Voxa holds.
+    let card_mib = (dims.iter().map(|&side| u64::from(side)).product::<u64>() * 2) >> 20;
+    let step_ms = gpu.longest_upload_step().as_secs_f64() * 1000.0;
     let said = format!(
-        "{dims:?} on the device, halved {halved} times; {:.0} ms to hand over",
+        "{dims:?} on the device, halved {halved} times; {:.0} ms to hand over, longest step \
+         {step_ms:.1} ms; card {card_mib} MiB",
         ms(placing)
     );
     step(started, "on device", &said);

@@ -1,5 +1,6 @@
-//! A volume on the graphics device: its values as a 3D texture, reduced if it has to be, and
-//! beside it the largest value in each block of voxels, for stepping over empty space.
+//! A volume on the graphics device: its values as a 3D texture, or up to four cut along its
+//! slices, reduced if it has to be, and beside them the largest value in each block of
+//! voxels, for stepping over empty space.
 
 use std::borrow::Cow;
 
@@ -10,6 +11,12 @@ use voxa_volume::halved;
 use crate::on_device::{BlocksMaker, largest_in_blocks};
 pub(crate) use crate::prepared::BLOCK;
 use crate::prepared::Prepared;
+use crate::upload::SlabPlan;
+
+/// The shaders' function that reads a value from a volume held in one texture or several.
+const SLABS: &str = include_str!("slabs.wgsl");
+/// The bindings of the textures after the first, which the shaders' own binding 1 holds.
+const MORE_SLABS: [u32; 3] = [10, 11, 12];
 
 /// The most bytes of slices handed to the device in one piece.
 const SLAB_BYTES: usize = 16 << 20;
@@ -18,11 +25,15 @@ const BYTES_PER_VOXEL: u32 = 2;
 /// A volume as the graphics device holds it, and what is needed to find a point of the
 /// patient in it and to turn a stored value back into the scan's own.
 pub(crate) struct Placed {
-    /// The two textures themselves, kept so that their memory can be given back at once.
-    values: wgpu::Texture,
+    /// The textures themselves, kept so that their memory can be given back at once.
+    values: Vec<wgpu::Texture>,
     largest: wgpu::Texture,
-    /// The values as the shader reads them; the texture lasts as long as this does.
-    pub(crate) view: wgpu::TextureView,
+    /// The values as the shaders read them, one view a texture: the first, the whole volume
+    /// when it is held in one, and any after it. The textures last as long as these do.
+    view: wgpu::TextureView,
+    more: Vec<wgpu::TextureView>,
+    /// How the volume is cut into those textures along its slices.
+    pub(crate) plan: SlabPlan,
     /// The largest value in each block of [`BLOCK`] voxels a side and in the blocks touching
     /// it, stored as the values are.
     pub(crate) maxima: wgpu::TextureView,
@@ -81,7 +92,10 @@ impl Placed {
         };
         let view = values.create_view(&wgpu::TextureViewDescriptor::default());
         let largest = match (&ready.maxima, blocks) {
-            (None, Some(blocks)) => blocks.make((device, queue), &view, ready.blocks),
+            (None, Some(blocks)) => {
+                let whole = (std::slice::from_ref(&view), ready.dims[2]);
+                blocks.make((device, queue), whole, ready.blocks)
+            }
             (worked_out, _) => {
                 let largest = texture(device, "voxa volume block maxima", ready.blocks, halves);
                 let here = || largest_in_blocks(&ready.halves, ready.dims);
@@ -97,9 +111,11 @@ impl Placed {
         }
         Some(Self {
             view,
+            more: Vec::new(),
             maxima: largest.create_view(&wgpu::TextureViewDescriptor::default()),
-            values,
+            values: vec![values],
             largest,
+            plan: SlabPlan::whole(ready.dims[2]),
             dims: ready.dims,
             patient_to_voxel: ready.patient_to_voxel,
             finest_mm: ready.finest_mm,
@@ -110,27 +126,32 @@ impl Placed {
 }
 
 impl Placed {
-    /// A volume already on the device: its values texture with its view and its blocks of
-    /// largest values, its size, its place in the patient with the smallest distance between
-    /// its voxels, and how a texel turns back into a value.
+    /// A volume already on the device: its values textures, cut as `plan` says, with their
+    /// views, and its blocks of largest values; its size, its place in the patient with the
+    /// smallest distance between its voxels, and how a texel turns back into a value. `None`
+    /// with no textures.
     pub(crate) fn from_parts(
-        (values, view, largest): (wgpu::Texture, wgpu::TextureView, wgpu::Texture),
-        dims: [u32; 3],
+        (values, views, largest): (Vec<wgpu::Texture>, Vec<wgpu::TextureView>, wgpu::Texture),
+        (plan, dims): (SlabPlan, [u32; 3]),
         (patient_to_voxel, finest_mm): (Affine<Patient, Voxel>, f64),
         (smallest, span): (f32, f32),
-    ) -> Self {
+    ) -> Option<Self> {
         let maxima = largest.create_view(&wgpu::TextureViewDescriptor::default());
-        Self {
+        let mut views = views.into_iter();
+        let view = views.next()?;
+        Some(Self {
             values,
             largest,
             view,
+            more: views.collect(),
+            plan,
             maxima,
             dims,
             patient_to_voxel,
             finest_mm,
             smallest,
             span,
-        }
+        })
     }
 
     /// The texture that holds the largest value in each block, for reading it back.
@@ -138,13 +159,58 @@ impl Placed {
     pub(crate) fn largest(&self) -> &wgpu::Texture {
         &self.largest
     }
+
+    /// The first texture of values as a shader reads it: the whole volume when it is held in
+    /// one.
+    pub(crate) fn view(&self) -> &wgpu::TextureView {
+        &self.view
+    }
+
+    /// The textures after the first, bound where the shaders' `slabs.wgsl` reads them; the
+    /// first stands in for those a volume does not have.
+    pub(crate) fn more_slabs(&self) -> [wgpu::BindGroupEntry<'_>; 3] {
+        MORE_SLABS.map(|binding| {
+            let after_the_first = (binding - MORE_SLABS[0]) as usize;
+            let view = self.more.get(after_the_first).unwrap_or(&self.view);
+            wgpu::BindGroupEntry {
+                binding,
+                resource: wgpu::BindingResource::TextureView(view),
+            }
+        })
+    }
+}
+
+/// The bindings of the textures after the first, for a shader's layout.
+pub(crate) fn more_slabs_layout() -> [wgpu::BindGroupLayoutEntry; 3] {
+    MORE_SLABS.map(|binding| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D3,
+            multisampled: false,
+        },
+        count: None,
+    })
+}
+
+/// A shader that reads a volume, made with the function that reads it from its slabs.
+pub(crate) fn shader_reading_slabs(
+    device: &wgpu::Device,
+    label: &str,
+    source: &str,
+) -> wgpu::ShaderModule {
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(label),
+        source: wgpu::ShaderSource::Wgsl(format!("{SLABS}\n{source}").into()),
+    })
 }
 
 impl Drop for Placed {
     /// Give the device its memory back now. Left to itself the device frees a texture some
     /// time later, and a second large volume put there in the meantime may not fit.
     fn drop(&mut self) {
-        self.values.destroy();
+        self.values.iter().for_each(wgpu::Texture::destroy);
         self.largest.destroy();
     }
 }

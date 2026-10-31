@@ -16,7 +16,7 @@ function MedF([double[]]$xs) {
 }
 $groups = Get-ChildItem $R -Filter "$Prefix-*.out.txt" | Group-Object { $_.BaseName -replace '-\d+\.out$', '' }
 foreach ($g in $groups | Sort-Object Name) {
-  $first = @(); $vol = @(); $dev = @(); $peak = @(); $vr = @(); $vr4 = @(); $mip = @(); $dims = ''
+  $first = @(); $vol = @(); $open = @(); $own = @(); $peak = @(); $vr = @(); $vr4 = @(); $mip = @(); $stepMs = @(); $dims = ''
   foreach ($f in $g.Group) {
     $t = Get-Content $f.FullName -Raw
     if ($t -match 'first slice\s+(\d+) ms after') { $first += [double]$Matches[1] }
@@ -25,12 +25,21 @@ foreach ($g in $groups | Sort-Object Name) {
     if ($t -match 'Vr 1280x800: ([\d.]+) ms') { $vr += [double]$Matches[1] }
     if ($t -match 'Vr 3840x2160: ([\d.]+) ms') { $vr4 += [double]$Matches[1] }
     if ($t -match 'Mip 1280x800: ([\d.]+) ms') { $mip += [double]$Matches[1] }
+    if ($t -match 'longest step ([\d.]+) ms') { $stepMs += [double]$Matches[1] }
     $sum = Get-Content ($f.FullName -replace '\.out\.txt$', '.summary.txt') -Raw
     if ($sum -match 'peak private (\d+) MiB') { $peak += [double]$Matches[1] }
+    # Windows counts the card's copy in the program's memory; 'own' is the peak without it,
+    # and 'open' the same up to the volume being on the card, before any picture is drawn.
+    if ($t -match '(\d+) ms  on device .* card (\d+) MiB') {
+      $at = [double]$Matches[1]; $onCard = [double]$Matches[2]
+      $own += $peak[-1] - $onCard
+      $samples = Import-Csv ($f.FullName -replace '\.out\.txt$', '.samples.csv')
+      $upTo = ($samples | Where-Object { [double]$_.t -le $at + 40 } | Measure-Object -Property priv -Maximum).Maximum
+      $open += [math]::Round($upTo / 1MB) - $onCard
+    }
   }
-  '{0,-26} first {1,-16} volume {2,-18} peak {3,-20} VR {4,-18} VR4K {5,-18} MIP {6,-16} {7}' -f $g.Name, (Med $first), (Med $vol), (Med $peak), (MedF $vr), (MedF $vr4), (MedF $mip), $dims
+  '{0,-24} first {1,-12} volume {2,-14} peak {3,-14} own {4,-14} open {5,-14} VR {6,-12} VR4K {7,-12} MIP {8,-12} step {9,-10} {10}' -f $g.Name, (Med $first), (Med $vol), (Med $peak), (Med $own), (Med $open), (MedF $vr), (MedF $vr4), (MedF $mip), (MedF $stepMs), $dims
 }
-$apps = Get-ChildItem $R -Filter "app$Prefix-*.summary.txt", "app-*.summary.txt" -ErrorAction SilentlyContinue
 $apps = Get-ChildItem $R | Where-Object { $_.Name -like "app$Prefix-*.summary.txt" -or ($Prefix -eq 'base' -and $_.Name -like 'app-*-rtx-1.summary.txt') }
 foreach ($g in $apps | Group-Object { $_.BaseName -replace '-\d+\.summary$', '' -replace "^app$Prefix-", 'app-' -replace '^app-', 'app-' } | Sort-Object Name) {
   $peak = @(); $wall = @()

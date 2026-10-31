@@ -11,6 +11,10 @@ use crate::plane_view::PlaneView;
 use crate::smoothed::SmoothedTexture;
 use crate::volume_params::{MIN_WINDOW, texture_rows};
 use crate::volume_pipeline::VolumePipeline;
+use crate::volume_texture::{Placed, shader_reading_slabs};
+
+mod layout;
+use layout::bindings;
 
 /// What the shader needs besides the volume; the layout matches `View` in `plane.wgsl`.
 #[repr(C)]
@@ -29,6 +33,8 @@ struct Params {
     label_w: [f32; 4],
     label_grid: [f32; 4],
     label_how: [f32; 4],
+    slabs: [f32; 4],
+    depths: [f32; 4],
 }
 
 /// The volume a plane is drawn from now.
@@ -46,6 +52,8 @@ struct Shown {
     /// The scan value stored as 0, and the span from it to the one stored as 1.
     smallest: f32,
     span: f32,
+    /// How the volume is cut into textures, as the shader is told it.
+    slabs: ([f32; 4], [f32; 4]),
 }
 
 /// Draws one plane through a volume. Each panel has its own, as each has its own plane.
@@ -69,7 +77,7 @@ pub struct PlanePipeline {
 impl PlanePipeline {
     /// Build the pipeline for drawing into a target of the given format.
     pub fn new(device: &wgpu::Device, target: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("plane.wgsl"));
+        let shader = shader_reading_slabs(device, "voxa plane", include_str!("plane.wgsl"));
         let layout = bindings(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("voxa plane"),
@@ -159,8 +167,8 @@ impl PlanePipeline {
             return;
         }
         // With no curve the shader is still given something to read there, and does not.
-        let coefficients = curve.map_or(&placed.view, SmoothedTexture::view);
-        let bind_group = self.bound(device, &placed.view, coefficients);
+        let coefficients = curve.map_or(placed.view(), SmoothedTexture::view);
+        let bind_group = self.bound(device, placed, coefficients);
         self.shown = Some(Shown {
             bind_group,
             upload,
@@ -170,6 +178,7 @@ impl PlanePipeline {
             rows: texture_rows(placed),
             smallest: placed.smallest,
             span: placed.span,
+            slabs: placed.plan.uniforms(),
         });
     }
 
@@ -178,7 +187,7 @@ impl PlanePipeline {
     fn bound(
         &self,
         device: &wgpu::Device,
-        volume: &wgpu::TextureView,
+        volume: &Placed,
         coefficients: &wgpu::TextureView,
     ) -> wgpu::BindGroup {
         let (no_parts, no_looks) = &self.no_labels;
@@ -188,7 +197,7 @@ impl PlanePipeline {
         let view = wgpu::BindingResource::TextureView;
         let resources = [
             self.params.as_entire_binding(),
-            view(volume),
+            view(volume.view()),
             wgpu::BindingResource::Sampler(&self.blended),
             view(coefficients),
             wgpu::BindingResource::Sampler(&self.mirrored),
@@ -198,6 +207,7 @@ impl PlanePipeline {
         let entries: Vec<wgpu::BindGroupEntry> = (0..)
             .zip(resources)
             .map(|(binding, resource)| wgpu::BindGroupEntry { binding, resource })
+            .chain(volume.more_slabs())
             .collect();
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("voxa plane"),
@@ -262,6 +272,7 @@ impl PlanePipeline {
         let [cols, rows, slices] = shown.dims;
         let smooth = if shown.curve.is_some() { 1.0 } else { 0.0 };
         let [label_u, label_v, label_w, label_grid, label_how] = self.label_params(shown);
+        let (slabs, depths) = shown.slabs;
         let params = Params {
             across: per_pixel(view.plane.across),
             down: per_pixel(view.plane.down),
@@ -276,6 +287,8 @@ impl PlanePipeline {
             label_w,
             label_grid,
             label_how,
+            slabs,
+            depths,
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
     }
@@ -329,51 +342,6 @@ fn sampler(device: &wgpu::Device, beyond: wgpu::AddressMode) -> wgpu::Sampler {
         mag_filter: wgpu::FilterMode::Linear,
         min_filter: wgpu::FilterMode::Linear,
         ..Default::default()
-    })
-}
-
-/// What the shader is given: the parameters, the volume as a texture and the way values
-/// between its voxels are blended, the curve through it and the way that is read, then the
-/// part at every label voxel and the table of how each part looks.
-fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty,
-        count: None,
-    };
-    let parameters = wgpu::BindingType::Buffer {
-        ty: wgpu::BufferBindingType::Uniform,
-        has_dynamic_offset: false,
-        min_binding_size: None,
-    };
-    let volume = wgpu::BindingType::Texture {
-        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-        view_dimension: wgpu::TextureViewDimension::D3,
-        multisampled: false,
-    };
-    let blended = wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering);
-    let parts = wgpu::BindingType::Texture {
-        sample_type: wgpu::TextureSampleType::Uint,
-        view_dimension: wgpu::TextureViewDimension::D3,
-        multisampled: false,
-    };
-    let looks = wgpu::BindingType::Texture {
-        sample_type: wgpu::TextureSampleType::Float { filterable: true },
-        view_dimension: wgpu::TextureViewDimension::D2,
-        multisampled: false,
-    };
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("voxa plane"),
-        entries: &[
-            entry(0, parameters),
-            entry(1, volume),
-            entry(2, blended),
-            entry(3, volume),
-            entry(4, blended),
-            entry(5, parts),
-            entry(6, looks),
-        ],
     })
 }
 

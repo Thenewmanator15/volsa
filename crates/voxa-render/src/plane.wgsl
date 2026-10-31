@@ -29,6 +29,9 @@ struct View {
     label_grid: vec4<f32>,
     // The number of the part selected (0 for none), and how far the inside is tinted.
     label_how: vec4<f32>,
+    // How the volume is cut into textures, as `value_in_slabs` in slabs.wgsl reads it.
+    slabs: vec4<f32>,
+    depths: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> shown: View;
@@ -150,7 +153,7 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     );
     // The value is read everywhere, as a texture must be, and thrown away outside the
     // volume: there the picture is black, not the nearest voxel carried on.
-    var value = textureSampleLevel(values, blended, at, 0.0).r;
+    var value = value_in_slabs(at, shown.slabs, shown.depths);
     if shown.grid.w > 0.5 {
         value = smoothed(at);
     }

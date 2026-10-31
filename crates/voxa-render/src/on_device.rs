@@ -3,6 +3,8 @@
 //! here uses only what every graphics device with compute shaders is bound to have, and each
 //! maker is `None` on a device that cannot do its work, which is then left to the processor.
 
+use std::ops::Range;
+
 use egui_wgpu::wgpu;
 
 mod blocks;
@@ -135,13 +137,15 @@ impl IntoSlices {
         Self { pipeline, layout }
     }
 
-    /// Draw into every one of the `slices` of `into`, reading from `from`.
+    /// Draw into each of the `slices` of `into`, reading from `from`. The shader is told
+    /// each slice counted from the first drawn into, so that `from` may hold only the part
+    /// of a volume those slices are worked out from.
     fn draw(
         &self,
         (device, queue): (&wgpu::Device, &wgpu::Queue),
         from: &wgpu::TextureView,
         into: &wgpu::Texture,
-        slices: u32,
+        slices: Range<u32>,
     ) {
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("voxa into slices"),
@@ -152,12 +156,12 @@ impl IntoSlices {
             }],
         });
         let view = into.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut slice = 0;
-        while slice < slices {
+        let (mut slice, first) = (slices.start, slices.start);
+        while slice < slices.end {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("voxa into slices"),
             });
-            for slice in slice..(slice + SLICES_AT_ONCE).min(slices) {
+            for slice in slice..(slice + SLICES_AT_ONCE).min(slices.end) {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("voxa into a slice"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -177,7 +181,7 @@ impl IntoSlices {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_bind_group(0, &bind_group, &[]);
                 // The slice is the instance, which is how the fragment shader is told it.
-                pass.draw(0..3, slice..slice + 1);
+                pass.draw(0..3, slice - first..slice - first + 1);
             }
             queue.submit(Some(encoder.finish()));
             slice += SLICES_AT_ONCE;

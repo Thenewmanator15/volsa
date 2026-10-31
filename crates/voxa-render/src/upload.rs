@@ -6,14 +6,15 @@
 use egui_wgpu::wgpu;
 use half::f16;
 use voxa_core::{HeldVolume, SlabRaw, Stored};
-use voxa_volume::halvings_needed;
 
 use crate::prepared::as_half;
 
 mod paced;
+mod slabs;
 
 pub(crate) use paced::Upload;
 pub use paced::UploadState;
+pub(crate) use slabs::SlabPlan;
 
 /// The most bytes handed to the device in one frame.
 pub const UPLOAD_BYTES_A_FRAME: u64 = 64 << 20;
@@ -34,6 +35,8 @@ pub struct CardRoom {
     /// Whether the device holds 16-bit normalised numbers, so that a volume of 16-bit whole
     /// numbers is held exactly as stored.
     pub norm16: bool,
+    /// The most bytes one texture of a volume may take; a longer series is held in several.
+    pub texture_bytes: u64,
 }
 
 impl Default for CardRoom {
@@ -43,6 +46,7 @@ impl Default for CardRoom {
             longest_side: 2048,
             most_bytes: None,
             norm16: false,
+            texture_bytes: MAX_TEXTURE_BYTES,
         }
     }
 }
@@ -56,16 +60,25 @@ impl CardRoom {
             norm16: device
                 .features()
                 .contains(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM),
+            texture_bytes: MAX_TEXTURE_BYTES,
         }
     }
 
     /// How many times a volume of `dims` must be halved, each way, for the device to hold
-    /// it: 0 when it fits one texture, within the room the device has, as it is.
+    /// it: 0 when it fits, in up to four textures, within the room the device has.
     pub fn halvings(&self, dims: [u32; 3]) -> u32 {
-        let most = self
-            .most_bytes
-            .map_or(MAX_TEXTURE_BYTES, |most| most.min(MAX_TEXTURE_BYTES));
-        halvings_needed(dims, self.longest_side, most)
+        let (mut dims, mut halvings) = (dims, 0);
+        while SlabPlan::for_volume(dims, self).is_none() && dims.iter().any(|side| *side > 1) {
+            dims = dims.map(|side| side.div_ceil(2));
+            halvings += 1;
+        }
+        halvings
+    }
+
+    /// How many textures the device holds a volume of `dims` in; `None` when it cannot hold
+    /// it without halving it.
+    pub fn textures(&self, dims: [u32; 3]) -> Option<usize> {
+        SlabPlan::for_volume(dims, self).map(|plan| plan.count())
     }
 
     /// The format a volume held as `stored` takes on the device.

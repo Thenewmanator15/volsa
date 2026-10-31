@@ -1,6 +1,7 @@
 //! Drawing a volume without a window, for tests and exported pictures.
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use egui_wgpu::wgpu;
 use voxa_core::{HeldVolume, Volume};
@@ -17,7 +18,7 @@ use crate::prepared::Prepared;
 use crate::scene::SceneParams;
 use crate::slice_pipeline::RenderError;
 use crate::smoothed::{Smoothed, SmoothedTexture};
-use crate::upload::{CardRoom, UploadState};
+use crate::upload::{CardRoom, UPLOAD_BYTES_A_FRAME, UploadState};
 use crate::volume_pipeline::VolumePipeline;
 
 /// A graphics device with no window, holding one [`VolumePipeline`].
@@ -31,6 +32,9 @@ pub struct HeadlessScene {
     overlay: Overlay,
     /// The curve planes are drawn from, when they are drawn smooth.
     curve: Option<SmoothedTexture>,
+    /// The longest step of the last held volume handed over, the wait for the device left
+    /// out: what a window's frame gives to it.
+    longest_step: Duration,
 }
 
 impl HeadlessScene {
@@ -68,6 +72,7 @@ impl HeadlessScene {
             labels: None,
             overlay: Overlay::default(),
             curve: None,
+            longest_step: Duration::ZERO,
         }
     }
 
@@ -116,6 +121,16 @@ impl HeadlessScene {
     /// [`RenderError::NoRoom`] when the device has no room for it, and
     /// [`RenderError::DeviceLost`] when the device has stopped answering.
     pub fn upload_held(&mut self, held: &Arc<HeldVolume>) -> Result<u32, RenderError> {
+        let room = CardRoom::of(&self.gpu.device, None);
+        self.upload_held_in(held, room)
+    }
+
+    /// As [`HeadlessScene::upload_held`], on a device with only `room`.
+    pub(crate) fn upload_held_in(
+        &mut self,
+        held: &Arc<HeldVolume>,
+        room: CardRoom,
+    ) -> Result<u32, RenderError> {
         self.curve = None;
         self.plane.smooth(None);
         self.label(None);
@@ -123,12 +138,23 @@ impl HeadlessScene {
             return Err(RenderError::DeviceLost);
         }
         let (device, queue) = (&self.gpu.device, &self.gpu.queue);
-        let room = CardRoom::of(device, None);
         self.pipeline.start_upload(device, Arc::clone(held), room)?;
-        match self.pipeline.continue_upload(device, queue, u64::MAX) {
-            UploadState::Done => Ok(0),
-            UploadState::Failed(why) => Err(why),
-            UploadState::Idle | UploadState::Going { .. } => Err(RenderError::NoRoom),
+        self.longest_step = Duration::ZERO;
+        loop {
+            let began = Instant::now();
+            let state = self
+                .pipeline
+                .continue_upload(device, queue, UPLOAD_BYTES_A_FRAME);
+            self.longest_step = self.longest_step.max(began.elapsed());
+            match state {
+                UploadState::Done => return Ok(0),
+                UploadState::Failed(why) => return Err(why),
+                UploadState::Idle => return Err(RenderError::NoRoom),
+                UploadState::Going { .. } => {
+                    // As a window's frames do: what was handed over is done with before more.
+                    let _ = crate::lost::poll(device, wgpu::PollType::wait_indefinitely());
+                }
+            }
         }
     }
 
@@ -235,6 +261,12 @@ impl HeadlessScene {
         format!("{} ({:?})", info.name, info.backend)
     }
 
+    /// How long the longest step of the last held volume handed over took on this thread,
+    /// waiting for the device left out: what a window's frame gives to handing it over.
+    pub fn longest_upload_step(&self) -> Duration {
+        self.longest_step
+    }
+
     /// Wait until the device has done everything handed to it so far. Work handed to a
     /// graphics device is done some time afterwards; this is for timing it.
     pub fn settle(&self) {
@@ -311,6 +343,8 @@ mod parts_tests;
 mod plane_tests;
 #[cfg(test)]
 mod skip_tests;
+#[cfg(test)]
+mod slab_tests;
 #[cfg(test)]
 mod smooth_tests;
 #[cfg(test)]

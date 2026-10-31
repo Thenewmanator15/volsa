@@ -2,16 +2,17 @@
 //! thread that draws: begun by [`VolumePipeline::start_upload`], carried on by
 //! [`VolumePipeline::continue_upload`] until the volume is there to draw.
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use egui_wgpu::wgpu;
-use voxa_core::{Grid, HeldVolume};
+use voxa_core::{Grid, HeldVolume, SlabRaw};
 
-use super::{CardRoom, Mapping, as_block_value, mapping, texels};
+use super::{CardRoom, Mapping, SlabPlan, as_block_value, mapping, texels};
 use crate::lost;
 use crate::on_device::{BlockMaxima, BlocksMaker};
 use crate::slice_pipeline::RenderError;
-use crate::volume_pipeline::{VolumePipeline, too_long};
+use crate::volume_pipeline::VolumePipeline;
 use crate::volume_texture::{BLOCK, Placed, texture, write};
 
 /// How far handing a volume to the device has got.
@@ -35,26 +36,27 @@ pub enum UploadState {
 /// A volume being handed to the device.
 pub(crate) struct Upload {
     held: Arc<HeldVolume>,
-    /// The texture its values go into; given up if the volume never gets there.
-    values: Option<wgpu::Texture>,
+    /// The textures its values go into, cut along its slices as `plan` says; given up if
+    /// the volume never gets there.
+    values: Vec<wgpu::Texture>,
+    plan: SlabPlan,
     format: wgpu::TextureFormat,
     mapping: Mapping,
     /// The next slab to hand over.
     next: usize,
     done: u64,
     of: u64,
-    /// The texels of the slab in hand, kept between slabs so as not to be made again.
+    /// The texels of the slab in hand, where they are not the values as held, kept between
+    /// slabs so as not to be made again.
     scratch: Vec<u16>,
     /// The largest texel in each block, gathered here for a device that cannot.
     blocks: Option<BlockMaxima>,
 }
 
 impl Drop for Upload {
-    /// A texture never drawn from is given back to the device at once.
+    /// Textures never drawn from are given back to the device at once.
     fn drop(&mut self) {
-        if let Some(values) = self.values.take() {
-            values.destroy();
-        }
+        self.values.drain(..).for_each(|values| values.destroy());
     }
 }
 
@@ -65,8 +67,8 @@ impl VolumePipeline {
     ///
     /// # Errors
     ///
-    /// [`RenderError::NoRoom`] when a side is longer than the device allows, or the device
-    /// has no room for the texture.
+    /// [`RenderError::NoRoom`] when a slice is wider or taller than the device allows, the
+    /// series is too long for four textures, or the device has no room for them.
     pub fn start_upload(
         &mut self,
         device: &wgpu::Device,
@@ -76,19 +78,13 @@ impl VolumePipeline {
         self.upload = None;
         self.uploaded = None;
         let dims = held.dims();
-        let longest = room
-            .longest_side
-            .min(device.limits().max_texture_dimension_3d);
-        if too_long(dims, longest) {
-            return Err(RenderError::NoRoom);
-        }
+        let room = CardRoom {
+            longest_side: (room.longest_side).min(device.limits().max_texture_dimension_3d),
+            ..room
+        };
+        let plan = SlabPlan::for_volume(dims, &room).ok_or(RenderError::NoRoom)?;
         let format = room.format(held.stored());
-        let scope = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
-        let values = texture(device, "voxa volume values", dims, format);
-        if pollster::block_on(scope.pop()).is_some() {
-            values.destroy();
-            return Err(RenderError::NoRoom);
-        }
+        let values = textures(device, (&plan, dims), format).ok_or(RenderError::NoRoom)?;
         let of = dims.into_iter().map(u64::from).product::<u64>() * 2;
         let blocks = self
             .blocks_maker(device)
@@ -97,7 +93,8 @@ impl VolumePipeline {
         self.upload = Some(Upload {
             mapping: mapping(&held, format),
             held,
-            values: Some(values),
+            values,
+            plan,
             format,
             next: 0,
             done: 0,
@@ -160,22 +157,27 @@ impl Upload {
         let slab = self.next;
         self.next += 1;
         let slices = self.held.slab_slices(slab);
-        let (held, scratch) = (&self.held, &mut self.scratch);
+        let (held, scratch, blocks) = (&self.held, &mut self.scratch, &mut self.blocks);
         let to = (self.format, self.mapping);
-        if held
-            .with_slab(slab, |raw| texels(raw, held, to, scratch))
-            .is_none()
-        {
-            // A slab never put is left as the texture starts: nought.
-            return 0;
-        }
-        if let Some(values) = &self.values {
-            write_slices(queue, values, held.dims(), slices.start, scratch);
-        }
-        if let Some(blocks) = &mut self.blocks {
-            blocks.add(slices.start, scratch);
-        }
-        let bytes = scratch.len() as u64 * 2;
+        let as_stored = to.0 == wgpu::TextureFormat::R16Unorm;
+        let into = (self.values.as_slice(), &self.plan);
+        let handed = held.with_slab(slab, |raw| {
+            // Unsigned values are handed over as they are held, with no copy made.
+            let numbers: &[u16] = match raw {
+                SlabRaw::Unsigned(numbers) if as_stored => numbers,
+                _ => {
+                    texels(raw, held, to, scratch);
+                    scratch
+                }
+            };
+            hand_texels(queue, into, held.dims(), slices.clone(), numbers);
+            if let Some(blocks) = blocks {
+                blocks.add(slices.start, numbers);
+            }
+            numbers.len() as u64 * 2
+        });
+        // A slab never put is left as the textures start: nought.
+        let bytes = handed.unwrap_or(0);
         self.done += bytes;
         bytes
     }
@@ -187,12 +189,18 @@ impl Upload {
         (device, queue): (&wgpu::Device, &wgpu::Queue),
         maker: Option<&BlocksMaker>,
     ) -> Option<Placed> {
-        let values = self.values.take()?;
-        let view = values.create_view(&wgpu::TextureViewDescriptor::default());
+        let values = std::mem::take(&mut self.values);
+        if values.is_empty() {
+            return None;
+        }
+        let views: Vec<wgpu::TextureView> = values
+            .iter()
+            .map(|values| values.create_view(&wgpu::TextureViewDescriptor::default()))
+            .collect();
         let dims = self.held.dims();
         let blocks = dims.map(|count| count.div_ceil(BLOCK));
         let largest = match (maker, self.blocks.take()) {
-            (Some(maker), _) => maker.make((device, queue), &view, blocks),
+            (Some(maker), _) => maker.make((device, queue), (&views, self.plan.step), blocks),
             (None, gathered) => {
                 let format = self.format;
                 let maxima: Vec<u16> = gathered
@@ -213,12 +221,56 @@ impl Upload {
             .into_iter()
             .fold(f64::INFINITY, f64::min);
         let to_voxel = self.held.patient_to_voxel();
-        Some(Placed::from_parts(
-            (values, view, largest),
-            dims,
+        Placed::from_parts(
+            (values, views, largest),
+            (self.plan.clone(), dims),
             (to_voxel, finest_mm),
             self.mapping,
-        ))
+        )
+    }
+}
+
+/// The textures of a volume of `dims` cut as `plan` says, in `format`. `None`, with any made
+/// given back, when the device has no room for them.
+fn textures(
+    device: &wgpu::Device,
+    (plan, [cols, rows, _]): (&SlabPlan, [u32; 3]),
+    format: wgpu::TextureFormat,
+) -> Option<Vec<wgpu::Texture>> {
+    let scope = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+    let made: Vec<wgpu::Texture> = plan
+        .depths
+        .iter()
+        .map(|&depth| texture(device, "voxa volume values", [cols, rows, depth], format))
+        .collect();
+    if pollster::block_on(scope.pop()).is_some() {
+        made.iter().for_each(wgpu::Texture::destroy);
+        return None;
+    }
+    Some(made)
+}
+
+/// Write whole slices of texels of a volume of `dims`, the first of them its slice
+/// `slices.start`, into each of its textures, cut as `plan` says, that holds any of them.
+fn hand_texels(
+    queue: &wgpu::Queue,
+    (values, plan): (&[wgpu::Texture], &SlabPlan),
+    dims: [u32; 3],
+    slices: Range<u32>,
+    texels: &[u16],
+) {
+    let in_a_slice = dims[0] as usize * dims[1] as usize;
+    for (slab, texture) in values.iter().enumerate() {
+        let holds = plan.slices(slab);
+        let (first, end) = (slices.start.max(holds.start), slices.end.min(holds.end));
+        if first >= end {
+            continue;
+        }
+        let from = (first - slices.start) as usize * in_a_slice;
+        let to = (end - slices.start) as usize * in_a_slice;
+        if let Some(part) = texels.get(from..to) {
+            write_slices(queue, texture, dims, first - holds.start, part);
+        }
     }
 }
 

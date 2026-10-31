@@ -71,6 +71,14 @@ impl Workers {
             .for_card(&series)
             .map_or_else(|| Arc::clone(&volume), |(copy, _)| copy);
         drop(store);
+        // A series the device holds in several textures gets no curve: the curve is one
+        // texture, and would take as much room again.
+        let room = *lock(&self.shared.card_room);
+        if room.textures(card.dims()) != Some(1) {
+            let why = crate::planes::too_long_to_smooth();
+            self.shared.report(Action::Post(why));
+            return;
+        }
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             shielded(|| {

@@ -24,13 +24,15 @@ impl BlocksMaker {
         })
     }
 
-    /// The largest value in each block of the volume whose values `values` reads, for a
+    /// The largest value in each block of the volume whose values `slabs` read, for a
     /// volume of `blocks` blocks each way: a texture the volume's shader reads beside the
-    /// values themselves. The work is done by the device after this returns.
+    /// values themselves. The volume may be cut along its slices into several textures, each
+    /// starting `step` slices after the last (a whole number of blocks). The work is done by
+    /// the device after this returns.
     pub(crate) fn make(
         &self,
         (device, queue): (&wgpu::Device, &wgpu::Queue),
-        values: &wgpu::TextureView,
+        (slabs, step): (&[wgpu::TextureView], u32),
         blocks: [u32; 3],
     ) -> wgpu::Texture {
         let drawn_and_read = wgpu::TextureUsages::RENDER_ATTACHMENT
@@ -45,7 +47,16 @@ impl BlocksMaker {
             HALVES,
             drawn_and_read,
         );
-        self.within.draw((device, queue), values, &own, slices);
+        let per_slab = step / crate::prepared::BLOCK;
+        for (slab, values) in (0..).zip(slabs) {
+            let first = slab * per_slab;
+            let last = if (slab as usize) + 1 < slabs.len() {
+                first + per_slab
+            } else {
+                slices
+            };
+            self.within.draw((device, queue), values, &own, first..last);
+        }
         let largest = texture(
             device,
             "voxa volume block maxima",
@@ -55,7 +66,7 @@ impl BlocksMaker {
         );
         let own_view = own.create_view(&wgpu::TextureViewDescriptor::default());
         self.about
-            .draw((device, queue), &own_view, &largest, slices);
+            .draw((device, queue), &own_view, &largest, 0..slices);
         // Given back once the device has drawn from it, not before.
         own.destroy();
         largest

@@ -11,6 +11,20 @@ use crate::slice_pipeline::RenderError;
 /// the grey read back is the grey the shader wrote.
 pub(crate) const TARGET: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
+/// How a device of `kind` is asked to set its memory aside. A graphics card's in blocks of a
+/// few megabytes, each large texture or buffer in exactly its own size: wgpu's default sets
+/// aside 128 MiB of the card's memory and 64 MiB of the computer's for the first small thing
+/// made, and a block of 256 MiB for a 150 MiB volume, and Windows counts all of it as the
+/// program's. Voxa holds a few large things, which the smaller blocks suit. Windows' software
+/// graphics keep wgpu's default: with the small blocks, starting it beside a card's device
+/// now and then never finished.
+pub fn memory_hints(kind: wgpu::DeviceType) -> wgpu::MemoryHints {
+    if kind == wgpu::DeviceType::Cpu {
+        wgpu::MemoryHints::Performance
+    } else {
+        wgpu::MemoryHints::MemoryUsage
+    }
+}
 
 /// Devices started without a window all come from one adapter (the tests' software one
 /// aside), and start one at a time. A run of the tests on many threads, each looking for an
@@ -118,6 +132,7 @@ impl Gpu {
             required_limits: adapter.limits(),
             // Volumes of 16-bit whole numbers are held exactly as stored where it can.
             required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
+            memory_hints: memory_hints(adapter.get_info().device_type),
             ..Default::default()
         };
         let (device, queue) = pollster::block_on(adapter.request_device(&wanted))
@@ -281,7 +296,13 @@ fn unpadded(bytes: &[u8], row_bytes: usize, padded_row: usize, rows: usize) -> V
 /// outside, to try more than one graphics device on a machine: `WGPU_BACKEND` and
 /// `WGPU_POWER_PREF`.
 fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
-    let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+    let mut from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
+    if cfg!(windows) && in_software == [true] {
+        // Windows' software graphics is a DirectX 12 adapter. Looking for it on every kind
+        // of graphics woke the card's other drivers while it was drawing for another device,
+        // and now and then that never finished.
+        from_outside.backends = wgpu::Backends::DX12;
+    }
     let instance = wgpu::Instance::new(from_outside);
     let adapter = |force_fallback_adapter| {
         let wanted = wgpu::RequestAdapterOptions {

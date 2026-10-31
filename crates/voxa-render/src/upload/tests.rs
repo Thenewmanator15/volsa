@@ -12,19 +12,20 @@ fn held(stored: Stored, rescale: Rescale) -> HeldVolume {
 }
 
 #[test]
-fn card_room_halves_until_one_texture_holds_the_series() {
+fn card_room_halves_only_when_four_slabs_and_its_room_cannot_hold_the_series() {
     let ct = [512, 512, 2000];
     let short = CardRoom::default();
-    assert_eq!(short.halvings(ct), 1, "1,000 MiB is past one texture");
-    let long = CardRoom {
-        longest_side: 16384,
-        ..CardRoom::default()
-    };
-    assert_eq!(long.halvings(ct), 1, "still past 512 MiB");
-    assert_eq!(long.halvings([512, 512, 300]), 0);
+    assert_eq!(short.halvings(ct), 0, "two slabs hold it in full");
+    assert_eq!(short.textures(ct), Some(2));
+    assert_eq!(
+        short.halvings([512, 512, 5000]),
+        1,
+        "five slabs would be needed"
+    );
+    assert_eq!(short.textures([512, 512, 5000]), None);
     let small = CardRoom {
         most_bytes: Some(64 << 20),
-        ..long
+        ..short
     };
     assert_eq!(
         small.halvings([512, 512, 300]),

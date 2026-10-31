@@ -5,7 +5,7 @@ use voxa_core::{Affine, Patient, Point, SeriesId, Voxel};
 use voxa_volume::{Plane, PlaneKind, plane_of, position_on_slice};
 
 use crate::scene::{MainPanel, SceneStatus};
-use crate::state::AppState;
+use crate::state::{AppState, Notice, NoticeKind};
 
 /// How one plane's panel is zoomed and moved.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -85,6 +85,17 @@ impl Planes {
             PlaneKind::Coronal => coronal,
             PlaneKind::Sagittal => sagittal,
         }
+    }
+}
+
+/// Why the planes are not drawn smooth for a series too long for the graphics device to hold
+/// in one piece: the curve they would be drawn from takes as much room again.
+pub fn too_long_to_smooth() -> Notice {
+    Notice {
+        kind: NoticeKind::Warning,
+        text: "Smooth planes need more memory than this series leaves.".to_owned(),
+        details: Vec::new(),
+        key: Some("smoothing"),
     }
 }
 

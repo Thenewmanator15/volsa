@@ -15,7 +15,7 @@ use crate::slice_pipeline::RenderError;
 use crate::smoothed::SmoothedTexture;
 use crate::upload::Upload;
 use crate::volume_params::{Params, shader_params};
-use crate::volume_texture::{Placed, placed_by_halving};
+use crate::volume_texture::{Placed, more_slabs_layout, placed_by_halving, shader_reading_slabs};
 
 /// The format of a picture read back with [`VolumePipeline::picture`]: 8-bit red, green, blue
 /// and alpha, with no gamma curve, so the grey read back is the grey the shader wrote.
@@ -51,7 +51,7 @@ pub struct VolumePipeline {
 impl VolumePipeline {
     /// Build the pipeline for drawing into a target of the given format.
     pub fn new(device: &wgpu::Device, target: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("volume.wgsl"));
+        let shader = shader_reading_slabs(device, "voxa volume", include_str!("volume.wgsl"));
         let layout = bindings(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("voxa volume"),
@@ -180,6 +180,7 @@ impl VolumePipeline {
 
     /// Draw from a volume already on the graphics device, in place of any shown before.
     pub(crate) fn show(&mut self, device: &wgpu::Device, placed: Placed) {
+        let [one, two, three] = placed.more_slabs();
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("voxa volume"),
             layout: &self.layout,
@@ -190,7 +191,7 @@ impl VolumePipeline {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&placed.view),
+                    resource: wgpu::BindingResource::TextureView(placed.view()),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -200,6 +201,9 @@ impl VolumePipeline {
                     binding: 3,
                     resource: wgpu::BindingResource::TextureView(&placed.maxima),
                 },
+                one,
+                two,
+                three,
             ],
         });
         self.uploaded = Some(Uploaded { placed, bind_group });
@@ -227,18 +231,22 @@ impl VolumePipeline {
     }
 
     /// The curve through the volume on the device now, worked out by the device itself.
-    /// `None` with no volume there, on a device that cannot, and when it has no room.
+    /// `None` with no volume there, on a device that cannot, when it has no room, and for a
+    /// volume held in more than one texture, whose curve would be as large as it again.
     pub fn curve_on_device(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
     ) -> Option<SmoothedTexture> {
         let (placed, _) = self.placed()?;
+        if placed.plan.count() > 1 {
+            return None;
+        }
         let maker = self
             .curves
             .get_or_init(|| CurveMaker::new(device))
             .as_ref()?;
-        maker.make((device, queue), &placed.view, placed.dims)
+        maker.make((device, queue), placed.view(), placed.dims)
     }
 
     /// The volume on the graphics device now, and which upload it is.
@@ -250,6 +258,13 @@ impl VolumePipeline {
     /// Whether a volume has been uploaded.
     pub fn has_volume(&self) -> bool {
         self.uploaded.is_some()
+    }
+
+    /// Whether the volume on the device is held in more than one texture, too long for one:
+    /// no curve is made through such a volume, since it would take as much room again.
+    pub fn held_in_slabs(&self) -> bool {
+        self.placed()
+            .is_some_and(|(placed, _)| placed.plan.count() > 1)
     }
 
     /// Set what the next picture is drawn from. `viewport` is the width and height, in
@@ -322,6 +337,7 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         multisampled: false,
     };
     let blended = wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering);
+    let [one, two, three] = more_slabs_layout();
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("voxa volume"),
         entries: &[
@@ -329,6 +345,9 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
             entry(1, volume),
             entry(2, blended),
             entry(3, volume),
+            one,
+            two,
+            three,
         ],
     })
 }

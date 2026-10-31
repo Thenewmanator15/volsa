@@ -27,7 +27,7 @@ pub(crate) fn ask_for_what_volumes_need(options: &mut egui_wgpu::WgpuConfigurati
 }
 
 /// What is asked of a device on `adapter`: what egui asks for, with the card's own limits
-/// for volumes and its 16-bit normalised textures.
+/// for volumes, its 16-bit normalised textures, and memory set aside in small blocks.
 fn descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
     let base = if adapter.get_info().backend == wgpu::Backend::Gl {
         wgpu::Limits::downlevel_webgl2_defaults()
@@ -38,6 +38,7 @@ fn descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
         label: Some("egui wgpu device"),
         required_limits: limits(&base, &adapter.limits()),
         required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
+        memory_hints: voxa_render::memory_hints(adapter.get_info().device_type),
         ..Default::default()
     }
 }

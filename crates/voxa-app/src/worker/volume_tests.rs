@@ -301,3 +301,30 @@ fn no_curve_is_worked_out_for_a_series_whose_volume_is_not_the_one_kept() {
     assert!(bench.is_quiet());
     assert!(lock(&bench.volumes).take_smoothed(&id(FINE_SCAN)).is_none());
 }
+
+#[test]
+fn no_curve_is_worked_out_for_a_volume_the_card_holds_in_slabs() {
+    let bench = Bench::with_budget(1 << 20);
+    // Slices of 4 x 4 at 2 bytes, and room for 9 of them in a texture: 30 go into four.
+    let room = voxa_render::CardRoom {
+        texture_bytes: 9 * 32,
+        ..voxa_render::CardRoom::default()
+    };
+    bench.workers.set_card_room(room);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    bench.drain();
+    let series = id(THICK_SCAN);
+    let ask = Effect::BuildSmooth {
+        series: series.clone(),
+    };
+    bench.workers.run(ask, Some(&index));
+    assert_eq!(
+        bench.next(),
+        Action::Post(crate::planes::too_long_to_smooth())
+    );
+    assert!(bench.is_quiet(), "and no curve follows");
+    assert!(lock(&bench.volumes).take_smoothed(&series).is_none());
+}

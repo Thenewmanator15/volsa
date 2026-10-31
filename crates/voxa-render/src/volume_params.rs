@@ -51,6 +51,8 @@ pub(crate) struct Params {
     planes: [f32; 4],
     grid: [f32; 4],
     ramp: [f32; 4],
+    slabs: [f32; 4],
+    depths: [f32; 4],
 }
 
 /// The numbers the shader draws one picture from.
@@ -81,6 +83,7 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
     let [wide, high] = viewport;
     let black = (scene.window.low() - placed.smallest) / placed.span;
     let black_to_white = (scene.window.width / placed.span).max(MIN_WINDOW);
+    let (slabs, depths) = placed.plan.uniforms();
     Params {
         across,
         along,
@@ -97,6 +100,8 @@ pub(crate) fn shader_params(placed: &Placed, scene: &SceneParams, viewport: [f32
         sheet: sheet.unwrap_or_default(),
         planes: [cuts_used, flag(sheet.is_some()), flag(skipping), 0.0],
         grid: [cols as f32, rows as f32, slices as f32, 0.0].map(|count| count / BLOCK as f32),
+        slabs,
+        depths,
     }
 }
 
