@@ -68,7 +68,7 @@ fn a_faulted_series_has_a_mark_and_no_warning_words_in_the_list() {
     let state = export(vec![("MADE-UP-1", "Made^Up", all.to_vec())]);
     let (ctx, mut rail) = (seen::context(1.0), RailState::default());
     let drawn = pass(&ctx, &state, &mut rail, Vec::new());
-    let marks = drawn.seen.places_starting(card::HAS_A_PROBLEM);
+    let marks = drawn.seen.places_starting(card::NOT_SHOWN_IN_FULL);
     let marks_on = |info: &SeriesInfo| {
         let card = card_at(&drawn.seen, info);
         let bang = words_in(&drawn.seen, card)

@@ -58,7 +58,7 @@ fn a_card_says_its_name_and_whether_it_is_selected() {
         [
             "Axial scan, 30 slices · 5 mm, selected",
             "Axial scan, 64 slices · 5 mm",
-            "Axial scan, 3 slices · 5 mm, has a problem",
+            "Axial scan, 3 slices · 5 mm, cannot be shown in full",
         ]
     );
     // Showing another series moves the word.
@@ -71,8 +71,8 @@ fn a_card_says_its_name_and_whether_it_is_selected() {
         cards(&told, &window),
         [
             "Axial scan, 30 slices · 5 mm",
-            "Axial scan, 64 slices · 5 mm, selected, has a problem",
-            "Axial scan, 3 slices · 5 mm, has a problem",
+            "Axial scan, 64 slices · 5 mm, selected, cannot be shown in full",
+            "Axial scan, 3 slices · 5 mm, cannot be shown in full",
         ]
     );
     // The mark on the picture does not say it a second time, and the button of each card's
@@ -80,7 +80,7 @@ fn a_card_says_its_name_and_whether_it_is_selected() {
     let marks = told
         .nodes
         .iter()
-        .filter(|node| node.name == "has a problem");
+        .filter(|node| node.name == "cannot be shown in full");
     assert!(marks.clone().count() > 0 && marks.into_iter().all(|mark| mark.hidden));
     let more: Vec<&str> = told.nodes.iter().map(|node| node.name.as_str()).collect();
     assert!(more.contains(&"More for Axial scan, 3 slices · 5 mm"));

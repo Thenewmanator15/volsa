@@ -30,8 +30,9 @@ pub(super) const PADDING: f32 = 8.0;
 pub(super) const DOTS: f32 = 22.0;
 /// The side of the mark of a series that cannot be shown in full.
 const MARK: f32 = 16.0;
-/// What a screen reader calls the mark of a series that cannot be shown in full.
-pub const HAS_A_PROBLEM: &str = "has a problem";
+/// What a screen reader calls the mark of a series that cannot be shown in full. It is said after
+/// the series' name, so it says what Voxa can do with the series and nothing of the body in it.
+pub const NOT_SHOWN_IN_FULL: &str = "cannot be shown in full";
 /// The item of a card's menu that shows its series in the active viewport.
 pub const SHOW_HERE: &str = "Show in the selected view";
 
@@ -63,8 +64,8 @@ pub fn name_of(info: &SeriesInfo) -> String {
 }
 
 /// What a screen reader says of a card called `name` (see [`name_of`]): the name, then
-/// ", selected" while it is the one shown and ", has a problem" while something stops the
-/// series being shown in full.
+/// ", selected" while it is the one shown and ", cannot be shown in full" while something stops
+/// the series being shown in full.
 pub fn said(name: &str, selected: bool, problem: bool) -> String {
     let mut said = name.to_owned();
     if selected {
@@ -72,7 +73,7 @@ pub fn said(name: &str, selected: bool, problem: bool) -> String {
     }
     if problem {
         said.push_str(", ");
-        said.push_str(HAS_A_PROBLEM);
+        said.push_str(NOT_SHOWN_IN_FULL);
     }
     said
 }
@@ -251,7 +252,7 @@ pub(super) fn words(
 }
 
 /// The mark on the picture of a series that cannot be shown in full: an amber `!`. A screen
-/// reader hears [`HAS_A_PROBLEM`] at the end of the card's name and not from the mark. The
+/// reader hears [`NOT_SHOWN_IN_FULL`] at the end of the card's name and not from the mark. The
 /// card's hover text says what the problem is.
 fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
     if !info.kind().is_fault() {
@@ -260,7 +261,7 @@ fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
     let corner = picture.right_top() + vec2(-MARK - 2.0, 2.0);
     let rect = Rect::from_min_size(corner, vec2(MARK, MARK));
     let response = ui.interact(rect, card.with("mark"), Sense::hover());
-    response.widget_info(|| WidgetInfo::labeled(WidgetType::Image, true, HAS_A_PROBLEM));
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::Image, true, NOT_SHOWN_IN_FULL));
     // The card's own name ends with the same words: said twice, they would only repeat.
     ui.ctx()
         .accesskit_node_builder(response.id, egui::accesskit::Node::set_hidden);

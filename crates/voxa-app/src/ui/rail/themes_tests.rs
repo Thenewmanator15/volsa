@@ -10,7 +10,7 @@ use crate::ui::seen;
 use crate::ui::theme::{self, ThemeChoice};
 
 /// What a pass of the rail drew in `choice`, with the pointer resting on a card as well as one
-/// card the one shown: the two people of an export, one of whose scans has a problem.
+/// card the one shown: the two people of an export, one of whose scans cannot be shown in full.
 fn drawn_in(choice: ThemeChoice) -> (theme::Palette, seen::Seen) {
     let clean = series(1, "MR", "made-up t2 ax", 30);
     let faulty = faulted(2, "made-up flair", unreadable());
