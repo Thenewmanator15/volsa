@@ -29,6 +29,9 @@ mod notes;
 pub use notes::BLOCKS_NOTE;
 use notes::notes;
 
+/// The most blocks a scan is cut into: a description may ask for blocks so small and close
+/// that a large scan would need millions, which no one could wait for.
+pub const MOST_BLOCKS: usize = 10_000;
 /// How often a run looks at its stop.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
@@ -92,6 +95,12 @@ pub enum PluginRunError {
     /// The plugin is of a kind this version cannot run.
     #[error(transparent)]
     Describe(DescribeError),
+    /// The scan would be cut into more blocks than Voxa runs: how many.
+    #[error(
+        "This plugin would cut this scan into {0} blocks, more than the {most} Voxa runs.",
+        most = MOST_BLOCKS
+    )]
+    TooManyBlocks(usize),
 }
 
 impl From<HelperError> for PluginRunError {
@@ -157,6 +166,10 @@ fn prepare(volume: &Volume, input: &Input) -> Result<Prepared, PluginRunError> {
                 size,
                 step,
             };
+            let count = plan.count();
+            if count > MOST_BLOCKS {
+                return Err(PluginRunError::TooManyBlocks(count));
+            }
             (grid.whole(), Some(plan), size)
         }
     };

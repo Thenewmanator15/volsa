@@ -138,7 +138,8 @@ scan.
   the last block of each row laid against the far end, as nnU-Net lays its blocks. Each voxel
   takes its label from the block whose centre is nearest to it, the earlier block when two are
   as near. nnU-Net instead adds the blocks' scores with a Gaussian weight, so near the edges
-  between blocks the two can differ; a result made in blocks says so.
+  between blocks the two can differ; a result made in blocks says so. A scan that the blocks
+  would cut into more than 10 000 is refused with a sentence.
 - `outside`: `"lowest"`, the scan's lowest value before scaling (so a CT is surrounded by air),
   or `"zero"`, 0 after scaling.
 

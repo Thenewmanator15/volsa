@@ -202,3 +202,28 @@ fn a_plugin_whose_folder_name_is_not_its_sum_is_not_installed() {
     let words = "This plugin's files have changed since it was added. Remove it and add it again.";
     assert_eq!(refused.to_string(), words);
 }
+
+#[test]
+fn a_scan_cut_into_more_blocks_than_voxa_runs_is_refused_before_any_is_made() {
+    let fit = json!({ "blocks": { "size": [2, 2, 2], "step": [1, 1, 1] }, "outside": "zero" });
+    let (plugin, _folder) = plugin(fit);
+    let large = volume_of([40, 40, 40], |_, _, _| 0.5);
+    let refused = run_plugin(
+        &plugin,
+        &large,
+        processor(),
+        Path::new("runtime"),
+        &InProcessStarter::default(),
+        &Stop::new(),
+        &mut |_| {},
+    )
+    .expect_err("refused");
+    assert!(
+        matches!(refused, PluginRunError::TooManyBlocks(59_319)),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refused.to_string(),
+        "This plugin would cut this scan into 59319 blocks, more than the 10000 Voxa runs."
+    );
+}
