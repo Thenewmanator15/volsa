@@ -29,7 +29,8 @@ mod tensor;
 pub mod testkit;
 
 pub use cards::{
-    Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of, unheld,
+    Card, CardId, CardKind, FreeMemory, budget, cards, free_memory, in_use, place_of, total_memory,
+    unheld,
 };
 pub use model::{
     KIND_SYNTHSEG, Lists, MODEL_FORMAT, Model, ModelError, ModelSide, Role, Structure, read_model,

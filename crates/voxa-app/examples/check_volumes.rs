@@ -17,7 +17,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use voxa_app::{Action, NoticeKind, SUGGESTED_NAME, SceneStatus, Session, gif, png};
-use voxa_core::{SeriesId, WindowLevel};
+use voxa_core::{Grid, SeriesId, WindowLevel};
 use voxa_render::{CutPlane, HeadlessScene, Look, SceneParams, SlicePlane, turntable};
 
 /// The size of the pictures drawn: a large viewport.
@@ -128,6 +128,7 @@ fn check(path: &Path, pictures: &Path) -> Result<(), String> {
     until(&mut session, ready)?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     gpu.upload(&volume).map_err(said)?;
     session.dispatch(Action::SceneResized {
@@ -204,6 +205,7 @@ fn draw(
 ) -> Result<String, String> {
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     // The window is chosen from the slice shown, which arrives a moment after the volume.
     let chosen = |session: &Session| {
@@ -260,6 +262,7 @@ fn timed_from_opening(
     until(&mut session, ready)?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     gpu.upload(&volume).map_err(said)?;
     gpu.render(&scene_of(&session, Look::Surface), PICTURE)
@@ -294,6 +297,7 @@ fn extras(
         .ok_or("The series has no placement.")?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     let plain = scene_of(session, Look::Surface);
     // Turned, and fitted again so that the whole of it is still in the picture.

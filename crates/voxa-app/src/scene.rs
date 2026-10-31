@@ -50,6 +50,10 @@ pub enum SceneStatus {
 /// The 3D scene. It shows the series of the active viewport, and starts afresh whenever that
 /// changes.
 #[derive(Debug, Clone, PartialEq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each says one thing of the scene on its own; no two make a state together"
+)]
 pub struct Scene {
     /// The series shown, if any.
     pub series: Option<SeriesId>,
@@ -77,6 +81,10 @@ pub struct Scene {
     /// True while the scene waits for another volume of the series it was showing: the
     /// camera is then left where it is when that volume arrives.
     pub keeps_view: bool,
+    /// True while a preview of the volume being built is there to draw.
+    pub preview: bool,
+    /// Whether the 3D scene is wanted at all: while it is not, no volume is built for it.
+    pub wanted: bool,
 }
 
 impl Scene {
@@ -99,6 +107,8 @@ impl Default for Scene {
             cuts: Vec::new(),
             slice_shown: false,
             keeps_view: false,
+            preview: false,
+            wanted: true,
         }
     }
 }

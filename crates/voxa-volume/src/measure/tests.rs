@@ -1,6 +1,6 @@
 use std::f64::consts::PI;
 
-use voxa_core::Point;
+use voxa_core::{Point, Volume};
 
 use super::*;
 use crate::plane::{PlaneKind, plane_of};

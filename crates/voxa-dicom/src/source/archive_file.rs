@@ -2,16 +2,20 @@
 
 use std::fs::File;
 use std::io::{self, Read, Seek, SeekFrom};
+use std::path::Path;
 use std::sync::Arc;
 
 /// How much is read at once for a smaller read, so that the many small reads of a zip's
-/// directory do not each go to the file.
-const READ_AHEAD: usize = 8 * 1024;
+/// directory, and of a compressed entry as it is inflated, do not each go to the disk.
+const READ_AHEAD: usize = 64 * 1024;
 
-/// An open file read at a position of its own. Clones share the open file but not the
-/// position, so each can be read on its own thread without moving the others.
+/// An open file read at a position of its own. A clone has its own position and, where the
+/// file was opened by its path, its own handle of the file: Windows takes the reads made
+/// through one handle in turn, which is quick from the file cache and slow from the disk.
 pub(super) struct ArchiveFile {
     file: Arc<File>,
+    /// Where the file is, for a clone to open it again.
+    path: Option<Arc<Path>>,
     /// Where the next read starts.
     at: u64,
     /// Bytes read ahead, which start at `ahead_at` in the file.
@@ -23,6 +27,7 @@ impl ArchiveFile {
     pub(super) fn new(file: File) -> Self {
         Self {
             file: Arc::new(file),
+            path: None,
             at: 0,
             ahead: Vec::new(),
             ahead_at: 0,
@@ -36,10 +41,23 @@ impl ArchiveFile {
     }
 }
 
+impl ArchiveFile {
+    /// The file at `path`, whose clones each open it again.
+    pub(super) fn open(path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            path: Some(Arc::from(path)),
+            ..Self::new(File::open(path)?)
+        })
+    }
+}
+
 impl Clone for ArchiveFile {
     fn clone(&self) -> Self {
+        // A handle of its own where the file can be opened again; the same one where not.
+        let own = self.path.as_deref().and_then(|path| File::open(path).ok());
         Self {
-            file: Arc::clone(&self.file),
+            file: own.map_or_else(|| Arc::clone(&self.file), Arc::new),
+            path: self.path.clone(),
             at: self.at,
             ahead: Vec::new(),
             ahead_at: 0,

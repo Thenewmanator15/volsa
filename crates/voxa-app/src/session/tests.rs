@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 use super::*;
+use voxa_core::Grid;
 use voxa_render::{Camera, NamedView};
 
 use crate::scene::{Scene, SceneStatus};
@@ -365,9 +366,8 @@ fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
         let key = (id(FINE_SCAN), slice);
         session.state().windows.contains_key(&key)
     };
-    until(&mut session, |session| {
-        (0..64).all(|slice| has_its_windows(session, slice))
-    });
+    // Windows are worked out for the slice shown, the middle one, and no other.
+    until(&mut session, |session| has_its_windows(session, 32));
     let in_the_cache = |slice: &usize| {
         let cache = session.cache().lock().expect("no worker panicked");
         cache.contains(&series, *slice)
@@ -380,7 +380,7 @@ fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
             .cached(&series, slice as usize)
             .expect("read from the volume");
         assert_eq!((frame.rows, frame.cols, frame.values.len()), (8, 8, 64));
-        assert_eq!(Some(frame.values[9]), volume.get(1, 1, slice));
+        assert_eq!(Some(frame.values[9]), volume.value(1, 1, slice));
     }
     assert!(
         session.cached(&series, 64).is_none(),

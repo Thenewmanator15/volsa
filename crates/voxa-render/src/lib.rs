@@ -32,6 +32,7 @@ mod smoothed;
 #[cfg(test)]
 mod testing;
 mod timing;
+mod upload;
 mod vector;
 mod view;
 mod volume_params;
@@ -41,6 +42,7 @@ mod volume_texture;
 pub use camera::{
     Camera, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView, ORBIT_DEGREES_PER_PX, turntable,
 };
+pub use gpu::memory_hints;
 pub use handle::{Handle, cut_handle, drag_to_mm, on_screen, slice_drag_to_scroll, slice_outline};
 pub use labels::{FILL, LabelsOnDevice, Overlay, PartLook};
 pub use lost::DeviceWatch;
@@ -56,5 +58,6 @@ pub use section::{box_section, position_cross};
 pub use slice_pipeline::{RenderError, SlicePipeline};
 pub use smoothed::{Smoothed, SmoothedTexture};
 pub use timing::timed_submit;
+pub use upload::{CardRoom, UPLOAD_BYTES_A_FRAME, UploadState, card_mapping};
 pub use view::{MAX_ZOOM, MIN_ZOOM, ViewTransform};
 pub use volume_pipeline::{PICTURE_FORMAT, VolumePipeline};

@@ -113,7 +113,7 @@ impl CurveMaker {
             }
         }
         self.copy
-            .draw((device, queue), &work_view, &coefficients, slices);
+            .draw((device, queue), &work_view, &coefficients, 0..slices);
         // Given back once the device has drawn from it, not before.
         work.destroy();
         if pollster::block_on(room.pop()).is_some() {

@@ -1,6 +1,6 @@
 //! Building volumes on the workers: every slice decoded, stacked, and kept in the store.
 
-use voxa_core::Volume;
+use voxa_core::{Grid, HeldVolume};
 use voxa_dicom::testkit::{SliceOptions, classic_slice};
 
 use super::tests::{Bench, folder_of};
@@ -42,7 +42,7 @@ pub(super) fn until_the_volume_ends(bench: &Bench) -> Vec<Action> {
     }
 }
 
-pub(super) fn stored(bench: &Bench, series: &str) -> Option<Arc<Volume>> {
+pub(super) fn stored(bench: &Bench, series: &str) -> Option<Arc<HeldVolume>> {
     bench
         .volumes
         .lock()
@@ -61,7 +61,7 @@ fn a_volume_is_built_from_every_slice_and_kept_in_the_store() {
     let volume = stored(&bench, THICK_SCAN).expect("the volume is kept");
     assert_eq!(volume.dims(), [4, 4, 30]);
     assert_eq!(
-        volume.get(1, 0, 29),
+        volume.value(1, 0, 29),
         Some(465.0),
         "the second value of the last slice"
     );
@@ -123,7 +123,7 @@ fn slices_already_decoded_are_taken_from_the_cache() {
         "{reports:?}"
     );
     assert_eq!(
-        stored(&bench, THICK_SCAN).and_then(|volume| volume.get(0, 0, 2)),
+        stored(&bench, THICK_SCAN).and_then(|volume| volume.value(0, 0, 2)),
         Some(32.0)
     );
 }
@@ -235,41 +235,29 @@ fn the_workers_carry_on_after_a_task_panics_and_still_build_a_volume() {
 }
 
 #[test]
-fn a_built_volume_is_also_made_ready_for_the_graphics_device() {
+fn a_volume_the_card_cannot_hold_whole_is_halved_for_it_and_kept_whole() {
     let bench = Bench::with_budget(1 << 20);
     let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
     let index = bench.index(folder.path()).expect("indexes");
-    build(&bench, &index, THICK_SCAN);
-    until_the_volume_ends(&bench);
-    let take = || {
-        let mut store = bench.volumes.lock().expect("no worker panicked");
-        store.take_prepared(&id(THICK_SCAN))
+    // A card that can hold no more than two voxels a side.
+    let tiny = voxa_render::CardRoom {
+        longest_side: 2,
+        ..voxa_render::CardRoom::default()
     };
-    let ready = take().expect("made ready on the worker");
-    assert_eq!((ready.dims(), ready.halved()), ([4, 4, 30], 0));
-    assert!(take().is_none(), "it is handed over once");
-    assert!(
-        stored(&bench, THICK_SCAN).is_some(),
-        "the volume itself stays"
-    );
-}
-
-#[test]
-fn a_volume_is_made_ready_for_the_device_the_window_has() {
-    let bench = Bench::with_budget(1 << 20);
-    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
-    let index = bench.index(folder.path()).expect("indexes");
-    // A device that can hold no more than two voxels a side.
-    bench.workers.set_volume_side(2);
+    bench.workers.set_card_room(tiny);
     build(&bench, &index, THICK_SCAN);
     until_the_volume_ends(&bench);
-    let mut store = bench.volumes.lock().expect("no worker panicked");
-    let ready = store.take_prepared(&id(THICK_SCAN)).expect("made ready");
-    assert_eq!((ready.dims(), ready.halved()), ([1, 1, 2], 4));
+    let store = bench.volumes.lock().expect("no worker panicked");
+    let (copy, halved) = store
+        .for_card(&id(THICK_SCAN))
+        .expect("halved for the card");
+    assert_eq!((copy.dims(), halved), ([1, 1, 2], 4));
     assert!(
-        store.take_prepared(&id(FINE_SCAN)).is_none(),
+        store.for_card(&id(FINE_SCAN)).is_none(),
         "nor is it another series'"
     );
+    let whole = store.get(&id(THICK_SCAN)).expect("the volume itself stays");
+    assert_eq!(whole.dims(), [4, 4, 30]);
 }
 
 #[test]
@@ -312,4 +300,49 @@ fn no_curve_is_worked_out_for_a_series_whose_volume_is_not_the_one_kept() {
     bench.workers.run(ask(FINE_SCAN), Some(&index));
     assert!(bench.is_quiet());
     assert!(lock(&bench.volumes).take_smoothed(&id(FINE_SCAN)).is_none());
+}
+
+#[test]
+fn no_curve_is_worked_out_for_a_volume_the_card_holds_in_slabs() {
+    let bench = Bench::with_budget(1 << 20);
+    // Slices of 4 x 4 at 2 bytes, and room for 9 of them in a texture: 30 go into four.
+    let room = voxa_render::CardRoom {
+        texture_bytes: 9 * 32,
+        ..voxa_render::CardRoom::default()
+    };
+    bench.workers.set_card_room(room);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    bench.drain();
+    let series = id(THICK_SCAN);
+    let ask = Effect::BuildSmooth {
+        series: series.clone(),
+    };
+    bench.workers.run(ask, Some(&index));
+    assert_eq!(
+        bench.next(),
+        Action::Post(crate::planes::too_long_to_smooth())
+    );
+    assert!(bench.is_quiet(), "and no curve follows");
+    assert!(lock(&bench.volumes).take_smoothed(&series).is_none());
+}
+
+#[test]
+fn a_kept_volume_leaves_the_frame_cache_what_the_budget_has_over() {
+    let budget = 256 << 20;
+    let bench = Bench::with_budget(budget);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    let held = stored(&bench, THICK_SCAN).expect("kept").bytes_held();
+    assert!(held > 0);
+    assert_eq!(lock(&bench.cache).budget(), budget - held);
+    assert_eq!(
+        bench.workers.over_budget(),
+        0,
+        "a small series is within it"
+    );
 }

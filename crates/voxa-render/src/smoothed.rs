@@ -30,11 +30,23 @@ impl Smoothed {
     /// as [`Prepared::of`](crate::Prepared::of) halves it for the same `max_side` and
     /// `max_bytes`. This reads every value several times over and is not quick.
     pub fn of(volume: &Volume, max_side: u32, max_bytes: u64) -> Self {
+        Self::mapped(volume, (max_side, max_bytes), None)
+    }
+
+    /// As [`Smoothed::of`], with coefficients stored as the device holds the volume's own
+    /// values: `mapping` is the value a stored 0 stands for and the span to the one a stored 1
+    /// stands for, as [`card_mapping`](crate::card_mapping) gives it; with none, the volume's
+    /// own smallest and largest values, as [`Smoothed::of`] stores them.
+    pub fn mapped(
+        volume: &Volume,
+        (max_side, max_bytes): (u32, u64),
+        mapping: Option<(f32, f32)>,
+    ) -> Self {
         let mut shown = Cow::Borrowed(volume);
         for _ in 0..halvings_needed(volume.dims(), max_side, max_bytes) {
             shown = Cow::Owned(halved(&shown));
         }
-        let (smallest, span) = stored_range(&shown);
+        let (smallest, span) = mapping.unwrap_or_else(|| stored_range(&shown));
         let stored = |coefficient: f32| {
             let part = (coefficient - smallest) / span;
             f16::from_f32(if part.is_finite() { part } else { 0.0 }).to_bits()

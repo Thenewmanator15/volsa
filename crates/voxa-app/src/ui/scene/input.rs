@@ -1,8 +1,10 @@
 //! What the mouse asks of the 3D scene.
 
+use egui::{PointerButton, Rect, Ui};
 use voxa_core::{Patient, Point};
 
 use super::super::overlay::{WINDOW_PER_PIXEL, ZOOM_PER_NOTCH};
+use super::super::viewport;
 use crate::action::Action;
 
 /// What the mouse did over the scene since the last frame.
@@ -74,6 +76,39 @@ pub fn scene_input_to_actions(active: usize, input: &SceneInput) -> Vec<Action> 
         actions.push(Action::SceneCentre(point));
     }
     actions
+}
+
+/// What the mouse did over the scene this frame.
+pub(super) fn gather(
+    ui: &Ui,
+    response: &egui::Response,
+    area: Rect,
+    pointed_at: Option<Point<Patient>>,
+    part_notch: &mut f32,
+) -> SceneInput {
+    let dragged = response.drag_delta();
+    let dragged_with = |button| {
+        if response.dragged_by(button) {
+            [dragged.x, dragged.y]
+        } else {
+            [0.0; 2]
+        }
+    };
+    let mut input = SceneInput {
+        left_drag: dragged_with(PointerButton::Primary),
+        middle_drag: dragged_with(PointerButton::Middle),
+        right_drag: dragged_with(PointerButton::Secondary),
+        shift: ui.input(|i| i.modifiers.shift),
+        pressed: response.is_pointer_button_down_on() && ui.input(|i| i.pointer.any_pressed()),
+        double_clicked_surface: pointed_at,
+        ..SceneInput::default()
+    };
+    if let Some(at) = response.hover_pos() {
+        let from_middle = at - area.center();
+        input.pointer = [from_middle.x, from_middle.y];
+        (input.wheel, _) = viewport::wheel_turned(ui, part_notch);
+    }
+    input
 }
 
 #[cfg(test)]

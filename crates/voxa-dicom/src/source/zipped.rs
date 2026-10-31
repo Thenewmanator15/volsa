@@ -1,6 +1,5 @@
 //! The files inside a zip archive, read straight from the archive.
 
-use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::Path;
 use std::sync::Arc;
@@ -23,7 +22,7 @@ pub(super) struct ZipSource {
 
 impl ZipSource {
     pub(super) fn open(path: &Path) -> Result<Self, VoxaError> {
-        let (mut archive, _) = open_archive(File::open(path)?).map_err(archive_error)?;
+        let (mut archive, _) = open_archive(ArchiveFile::open(path)?).map_err(archive_error)?;
         let mut files = Vec::new();
         for at in 0..archive.len() {
             let entry = archive.by_index_raw(at).map_err(archive_error)?;
@@ -42,6 +41,19 @@ impl ZipSource {
     fn read_at(&mut self, at: usize) -> Result<Vec<u8>, VoxaError> {
         let mut entry = self.archive.by_index(at).map_err(archive_error)?;
         read_limited(&mut entry, MAX_ENTRY_BYTES)
+    }
+
+    /// Hand the entry at `at` to `visit` as `name`, refused first if it is too large to be
+    /// read whole.
+    fn visit_one(
+        &mut self,
+        name: &str,
+        at: usize,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        let mut entry = self.archive.by_index(at).map_err(archive_error)?;
+        within_limit(entry.size(), MAX_ENTRY_BYTES)?;
+        visit(name, &mut entry)
     }
 }
 
@@ -69,8 +81,7 @@ const END_SEARCHED: u64 = 64 * 1024 + 1024;
 /// and only there; and when the record it reads is the only one near the file's end, what it
 /// finds is what its search would have found. Any other file, such as one with data before the
 /// archive or with a second end record near its end, is searched as before.
-fn open_archive(file: File) -> ZipResult<(ZipArchive<ArchiveFile>, Opening)> {
-    let reader = ArchiveFile::new(file);
+fn open_archive(reader: ArchiveFile) -> ZipResult<(ZipArchive<ArchiveFile>, Opening)> {
     if one_end_record(&mut reader.clone()) {
         let at_the_start = Config {
             archive_offset: ArchiveOffset::Known(0),
@@ -141,10 +152,30 @@ impl SeriesSource for ZipSource {
         &mut self,
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
     ) -> Result<(), VoxaError> {
-        for (name, at) in self.files.iter() {
-            let mut entry = self.archive.by_index(*at).map_err(archive_error)?;
-            within_limit(entry.size(), MAX_ENTRY_BYTES)?;
-            visit(name, &mut entry)?;
+        let files = Arc::clone(&self.files);
+        for (name, at) in files.iter() {
+            self.visit_one(name, *at, visit)?;
+        }
+        Ok(())
+    }
+
+    fn names(&mut self) -> Option<Vec<String>> {
+        Some(self.files.iter().map(|(name, _)| name.clone()).collect())
+    }
+
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        let files = Arc::clone(&self.files);
+        for name in names {
+            let found = files.binary_search_by(|(known, _)| known.as_str().cmp(name));
+            let (name, at) = found
+                .ok()
+                .and_then(|i| files.get(i))
+                .ok_or_else(|| VoxaError::MissingEntry(name.clone()))?;
+            self.visit_one(name, *at, visit)?;
         }
         Ok(())
     }

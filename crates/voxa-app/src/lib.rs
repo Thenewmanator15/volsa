@@ -15,9 +15,12 @@
 mod action;
 mod annotations;
 mod args;
+mod budget;
 mod cache;
+mod card;
 mod choices;
 mod csv;
+mod device;
 mod effect;
 mod export;
 mod kept_labels;
@@ -34,6 +37,7 @@ mod said;
 mod scene;
 mod session;
 mod settings;
+mod spill;
 mod state;
 #[cfg(test)]
 mod testing;

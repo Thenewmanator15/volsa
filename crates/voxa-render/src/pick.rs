@@ -1,6 +1,6 @@
 //! Finding the point of a volume a person is pointing at in a picture of it.
 
-use voxa_core::{Patient, Point, Volume, WindowLevel};
+use voxa_core::{Grid, Patient, Point, WindowLevel};
 use voxa_labels::{LabelSet, first_part};
 use voxa_volume::{Ray, first_hit};
 
@@ -22,7 +22,7 @@ pub fn surface_threshold(window: WindowLevel) -> f32 {
 /// shows tissue, or the slice drawn in the scene, whichever comes first. `None` where the
 /// picture shows nothing.
 pub fn pick(
-    volume: &Volume,
+    volume: &(impl Grid + ?Sized),
     scene: &SceneParams,
     viewport: [f32; 2],
     at: [f32; 2],
@@ -114,6 +114,7 @@ mod tests {
     use crate::camera::NamedView;
     use crate::scene::{CutPlane, Look, SlicePlane};
     use crate::testing::{ball, scene_of};
+    use voxa_core::Volume;
 
     const PICTURE: [f32; 2] = [96.0, 96.0];
     const MIDDLE: [f32; 2] = [48.0, 48.0];

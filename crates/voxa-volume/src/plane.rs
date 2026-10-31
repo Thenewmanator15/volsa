@@ -1,7 +1,7 @@
 //! The flat pictures a volume is looked at in: its axial, coronal and sagittal planes through
 //! a point, where they lie in the patient, and what they hold.
 
-use voxa_core::{Affine, Patient, Point, Volume, Voxel};
+use voxa_core::{Affine, Grid, Patient, Point, Voxel};
 
 use crate::sample::sample;
 
@@ -261,7 +261,12 @@ pub fn position_on_slice(
 /// The values of a volume on a plane: a picture of `size` (width, height) whose pixels are
 /// `mm_per_px` apart, its middle at the plane's centre, row by row from the top. Each value
 /// is blended from the eight voxels round its point; outside the volume it is not a number.
-pub fn reslice(volume: &Volume, plane: &Plane, size: [u32; 2], mm_per_px: f64) -> Vec<f32> {
+pub fn reslice(
+    volume: &(impl Grid + ?Sized),
+    plane: &Plane,
+    size: [u32; 2],
+    mm_per_px: f64,
+) -> Vec<f32> {
     let [wide, high] = size;
     let from_middle = |at: u32, of: u32| (f64::from(at) + 0.5 - f64::from(of) / 2.0) * mm_per_px;
     let pixels = (0..high).flat_map(|row| (0..wide).map(move |col| (col, row)));

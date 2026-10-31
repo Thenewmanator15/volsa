@@ -1,5 +1,6 @@
-//! A volume on the graphics device: its values as a 3D texture, reduced if it has to be, and
-//! beside it the largest value in each block of voxels, for stepping over empty space.
+//! A volume on the graphics device: its values as a 3D texture, or up to four cut along its
+//! slices, reduced if it has to be, and beside them the largest value in each block of
+//! voxels, for stepping over empty space.
 
 use std::borrow::Cow;
 
@@ -10,6 +11,12 @@ use voxa_volume::halved;
 use crate::on_device::{BlocksMaker, largest_in_blocks};
 pub(crate) use crate::prepared::BLOCK;
 use crate::prepared::Prepared;
+use crate::upload::SlabPlan;
+
+/// The shaders' function that reads a value from a volume held in one texture or several.
+const SLABS: &str = include_str!("slabs.wgsl");
+/// The bindings of the textures after the first, which the shaders' own binding 1 holds.
+const MORE_SLABS: [u32; 3] = [10, 11, 12];
 
 /// The most bytes of slices handed to the device in one piece.
 const SLAB_BYTES: usize = 16 << 20;
@@ -18,11 +25,15 @@ const BYTES_PER_VOXEL: u32 = 2;
 /// A volume as the graphics device holds it, and what is needed to find a point of the
 /// patient in it and to turn a stored value back into the scan's own.
 pub(crate) struct Placed {
-    /// The two textures themselves, kept so that their memory can be given back at once.
-    values: wgpu::Texture,
+    /// The textures themselves, kept so that their memory can be given back at once.
+    values: Vec<wgpu::Texture>,
     largest: wgpu::Texture,
-    /// The values as the shader reads them; the texture lasts as long as this does.
-    pub(crate) view: wgpu::TextureView,
+    /// The values as the shaders read them, one view a texture: the first, the whole volume
+    /// when it is held in one, and any after it. The textures last as long as these do.
+    view: wgpu::TextureView,
+    more: Vec<wgpu::TextureView>,
+    /// How the volume is cut into those textures along its slices.
+    pub(crate) plan: SlabPlan,
     /// The largest value in each block of [`BLOCK`] voxels a side and in the blocks touching
     /// it, stored as the values are.
     pub(crate) maxima: wgpu::TextureView,
@@ -81,7 +92,10 @@ impl Placed {
         };
         let view = values.create_view(&wgpu::TextureViewDescriptor::default());
         let largest = match (&ready.maxima, blocks) {
-            (None, Some(blocks)) => blocks.make((device, queue), &view, ready.blocks),
+            (None, Some(blocks)) => {
+                let whole = (std::slice::from_ref(&view), ready.dims[2]);
+                blocks.make((device, queue), whole, ready.blocks)
+            }
             (worked_out, _) => {
                 let largest = texture(device, "voxa volume block maxima", ready.blocks, halves);
                 let here = || largest_in_blocks(&ready.halves, ready.dims);
@@ -97,9 +111,11 @@ impl Placed {
         }
         Some(Self {
             view,
+            more: Vec::new(),
             maxima: largest.create_view(&wgpu::TextureViewDescriptor::default()),
-            values,
+            values: vec![values],
             largest,
+            plan: SlabPlan::whole(ready.dims[2]),
             dims: ready.dims,
             patient_to_voxel: ready.patient_to_voxel,
             finest_mm: ready.finest_mm,
@@ -110,18 +126,91 @@ impl Placed {
 }
 
 impl Placed {
+    /// A volume already on the device: its values textures, cut as `plan` says, with their
+    /// views, and its blocks of largest values; its size, its place in the patient with the
+    /// smallest distance between its voxels, and how a texel turns back into a value. `None`
+    /// with no textures.
+    pub(crate) fn from_parts(
+        (values, views, largest): (Vec<wgpu::Texture>, Vec<wgpu::TextureView>, wgpu::Texture),
+        (plan, dims): (SlabPlan, [u32; 3]),
+        (patient_to_voxel, finest_mm): (Affine<Patient, Voxel>, f64),
+        (smallest, span): (f32, f32),
+    ) -> Option<Self> {
+        let maxima = largest.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut views = views.into_iter();
+        let view = views.next()?;
+        Some(Self {
+            values,
+            largest,
+            view,
+            more: views.collect(),
+            plan,
+            maxima,
+            dims,
+            patient_to_voxel,
+            finest_mm,
+            smallest,
+            span,
+        })
+    }
+
     /// The texture that holds the largest value in each block, for reading it back.
     #[cfg(test)]
     pub(crate) fn largest(&self) -> &wgpu::Texture {
         &self.largest
     }
+
+    /// The first texture of values as a shader reads it: the whole volume when it is held in
+    /// one.
+    pub(crate) fn view(&self) -> &wgpu::TextureView {
+        &self.view
+    }
+
+    /// The textures after the first, bound where the shaders' `slabs.wgsl` reads them; the
+    /// first stands in for those a volume does not have.
+    pub(crate) fn more_slabs(&self) -> [wgpu::BindGroupEntry<'_>; 3] {
+        MORE_SLABS.map(|binding| {
+            let after_the_first = (binding - MORE_SLABS[0]) as usize;
+            let view = self.more.get(after_the_first).unwrap_or(&self.view);
+            wgpu::BindGroupEntry {
+                binding,
+                resource: wgpu::BindingResource::TextureView(view),
+            }
+        })
+    }
+}
+
+/// The bindings of the textures after the first, for a shader's layout.
+pub(crate) fn more_slabs_layout() -> [wgpu::BindGroupLayoutEntry; 3] {
+    MORE_SLABS.map(|binding| wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture {
+            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+            view_dimension: wgpu::TextureViewDimension::D3,
+            multisampled: false,
+        },
+        count: None,
+    })
+}
+
+/// A shader that reads a volume, made with the function that reads it from its slabs.
+pub(crate) fn shader_reading_slabs(
+    device: &wgpu::Device,
+    label: &str,
+    source: &str,
+) -> wgpu::ShaderModule {
+    device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some(label),
+        source: wgpu::ShaderSource::Wgsl(format!("{SLABS}\n{source}").into()),
+    })
 }
 
 impl Drop for Placed {
     /// Give the device its memory back now. Left to itself the device frees a texture some
     /// time later, and a second large volume put there in the meantime may not fit.
     fn drop(&mut self) {
-        self.values.destroy();
+        self.values.iter().for_each(wgpu::Texture::destroy);
         self.largest.destroy();
     }
 }
@@ -264,123 +353,4 @@ pub(crate) fn placed_by_halving<T>(
 #[cfg(test)]
 mod slab_tests;
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::prepared::{as_halves, with_neighbours};
-
-    /// 16-bit floating-point 0, a half and 1, as stored.
-    const ZERO: u16 = 0x0000;
-    const HALF: u16 = 0x3800;
-    const ONE: u16 = 0x3C00;
-
-    fn row_of(values: &[f32]) -> Volume {
-        let count = u32::try_from(values.len()).expect("a few");
-        Volume::new([count, 1, 1], values.to_vec(), Affine::identity()).expect("adds up")
-    }
-
-    fn cube(side: u32) -> Volume {
-        let values = vec![0.0; (side * side * side) as usize];
-        Volume::new([side; 3], values, Affine::identity()).expect("adds up")
-    }
-
-    #[test]
-    fn values_are_stored_from_zero_at_the_smallest_to_one_at_the_largest() {
-        let (stored, smallest, span) = as_halves(&row_of(&[10.0, 20.0, 30.0, -10.0]));
-        assert_eq!(
-            stored,
-            [HALF, 0x3A00, ONE, ZERO],
-            "a half, three quarters, one, nought"
-        );
-        assert_eq!((smallest, span), (-10.0, 40.0));
-    }
-
-    #[test]
-    fn values_that_are_not_numbers_are_stored_at_an_end() {
-        let odd = [0.0, 10.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY];
-        let (stored, smallest, span) = as_halves(&row_of(&odd));
-        assert_eq!(stored, [ZERO, ONE, ZERO, ONE, ZERO]);
-        assert_eq!(
-            (smallest, span),
-            (0.0, 10.0),
-            "the range is that of the numbers alone"
-        );
-    }
-
-    #[test]
-    fn a_volume_of_one_value_or_of_no_numbers_is_stored_as_zeros() {
-        assert_eq!(
-            as_halves(&row_of(&[5.0, 5.0])),
-            (vec![ZERO, ZERO], 5.0, 1.0)
-        );
-        assert_eq!(
-            as_halves(&row_of(&[f32::NAN, f32::NAN])),
-            (vec![ZERO, ZERO], 0.0, 1.0)
-        );
-    }
-
-    #[test]
-    fn a_block_takes_in_the_largest_value_of_the_blocks_around_it() {
-        assert_eq!(
-            with_neighbours(&[0.0, 0.0, 5.0, 0.0, 0.0], [5, 1, 1]),
-            [0.0, 5.0, 5.0, 5.0, 0.0]
-        );
-        // A spot in one corner of 3 x 3 x 2 blocks reaches the 2 x 2 x 2 blocks about it.
-        let mut spot = vec![0.0; 18];
-        spot[0] = 7.0;
-        let spread = with_neighbours(&spot, [3, 3, 2]);
-        let reached: Vec<usize> = (0..18).filter(|at| spread[*at] > 0.0).collect();
-        assert_eq!(reached, [0, 1, 3, 4, 9, 10, 12, 13]);
-    }
-
-    #[test]
-    fn spreading_does_not_run_on_from_the_end_of_one_row_into_the_next() {
-        // 3 columns by 2 rows: the spot begins the second row, next in memory to the end of
-        // the first.
-        let spread = with_neighbours(&[0.0, 0.0, 0.0, 5.0, 0.0, 0.0], [3, 2, 1]);
-        assert_eq!(spread, [5.0, 5.0, 0.0, 5.0, 5.0, 0.0]);
-        let lone = with_neighbours(&[f32::NEG_INFINITY, 2.0], [2, 1, 1]);
-        assert_eq!(
-            lone,
-            [2.0, 2.0],
-            "a block of no numbers takes its neighbour's"
-        );
-    }
-
-    #[test]
-    fn a_volume_is_halved_as_often_as_asked_before_it_is_placed() {
-        let whole = placed_by_halving(&cube(8), 0, |shown| Some(shown.dims()));
-        assert_eq!(whole, Some(([8, 8, 8], 0)));
-        let twice = placed_by_halving(&cube(8), 2, |shown| Some(shown.dims()));
-        assert_eq!(twice, Some(([2, 2, 2], 2)));
-    }
-
-    #[test]
-    fn a_volume_there_is_no_room_for_is_halved_until_there_is() {
-        let room_for = |side: u32| {
-            move |shown: &Volume| {
-                shown
-                    .dims()
-                    .into_iter()
-                    .all(|count| count <= side)
-                    .then_some(())
-            }
-        };
-        assert_eq!(placed_by_halving(&cube(8), 0, room_for(2)), Some(((), 2)));
-        assert_eq!(placed_by_halving(&cube(8), 1, room_for(4)), Some(((), 1)));
-        assert_eq!(
-            placed_by_halving(&cube(8), 0, room_for(1)),
-            Some(((), 3)),
-            "one voxel"
-        );
-    }
-
-    #[test]
-    fn with_no_room_even_for_one_voxel_nothing_is_placed() {
-        let mut tries = 0;
-        let placed = placed_by_halving(&cube(8), 0, |_| {
-            tries += 1;
-            None::<()>
-        });
-        assert_eq!((placed, tries), (None, 4), "at 8, 4, 2 and 1 voxels a side");
-    }
-}
+mod tests;

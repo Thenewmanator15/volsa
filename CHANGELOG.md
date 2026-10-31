@@ -6,6 +6,42 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- One memory budget for decoded scans: 2 GiB, or a quarter of the computer's memory if that
+  is less, set by hand in `preferences.json` as `memory_mib` (256 to 65,536). Past it, the
+  slabs of a large series wait in a file of Voxa's own in its local folder, which only Voxa
+  can open and which is deleted when the series is closed, when Voxa closes, and at the next
+  start after a stop. If the file cannot be made, Voxa says so and keeps the series in memory.
+- Before building a 3D view Voxa checks that the system can still give it the memory it needs,
+  and says so in a sentence when it cannot, in place of running out.
+
+### Changed
+
+- Very large scans open faster and in less memory. A series is decoded straight into one
+  copy of its values as stored, at 16 bits where the files are (0.6.0 held two 32-bit copies
+  and every decoded slice beside them): the made-up 2,000-slice CT peaked at 4.7 GB in 0.6.0
+  and peaks at about 2.3 GB now, of which 1 GB is the graphics card's copy of the volume, which
+  Windows also counts as Voxa's. It is in 3D in full detail in about 1.5 s (0.6.0: 2.9 s,
+  halved), and a series of more than 256 slices shows a labelled preview in 3D within about
+  half a second while the rest is decoded.
+- Zips open as fast as folders when they are not in the file cache: each reader of a zip
+  reads through a handle of its own (the made-up CT's compressed zip decoded in 9 s cold,
+  now in 1.2 s).
+- The 3D view shows long series in full detail. A series longer than the graphics card's
+  largest 3D side is held in up to four textures; the 2,000-slice CT is no longer halved on
+  any card. Smooth planes are not offered for such a series: the curve would need as much
+  memory again, and the planes say so.
+- The window hands a volume to its graphics card itself, a slab each frame, and says so
+  while it does. With Windows' software graphics, resizing the window while a scan loaded
+  could stop Voxa; it no longer does.
+- Indexing reads files' headers on several threads: about twice as fast for a folder of
+  2,000 files.
+- A picture read back from the graphics card is copied a row at a time, not a byte at a
+  time.
+- A slice's preset windows are worked out when it is shown, not for every slice decoded for
+  a volume.
+
 ### Security
 
 - A damaged or crafted DICOM file whose sequences nest very deeply no longer stops Voxa. The

@@ -47,8 +47,6 @@ mod volumes;
 pub use browser::thumbnail;
 pub use start::run;
 
-/// Decoded slices kept in memory: one gibibyte of pixel values.
-const CACHE_BYTES: usize = 1 << 30;
 /// Thumbnails are made at twice their size on screen, to stay sharp on dense displays.
 const THUMBNAIL_PIXELS: u32 = 128;
 
@@ -88,18 +86,17 @@ pub struct VoxaApp {
 }
 
 impl VoxaApp {
-    /// Tell the workers what the window's graphics device is like, and give it to them.
+    /// Tell the workers what the window's graphics device is like. They are never given the
+    /// device itself: only this thread hands it work, so that no other does while the
+    /// window sets itself up.
     fn tell_the_workers_of(&self, render: &egui_wgpu::RenderState) {
         let workers = self.session.workers();
-        // Volumes are made ready on the workers to fit this device.
-        workers.set_volume_side(render.device.limits().max_texture_dimension_3d);
+        // A volume this device cannot hold whole is halved for it on a worker.
+        workers.set_card_room(self.scene.card_room());
         // What this device works out itself is not worked out on a worker first.
         let pipeline = self.scene.volume_pipeline();
-        let blocks = pipeline.is_some_and(|pipeline| pipeline.makes_blocks(&render.device));
         let curves = pipeline.is_some_and(|pipeline| pipeline.makes_curves(&render.device));
-        workers.leave_to_the_device(blocks, curves);
-        // And a volume is handed to the device by the worker that made it ready.
-        workers.give_device(render.device.clone(), render.queue.clone());
+        workers.leave_to_the_device(curves);
     }
 
     /// Tell labelling the name of the graphics card the window draws on, if it draws on one,
@@ -145,6 +142,8 @@ impl VoxaApp {
         let (settings, local) = capture::folders(capture.is_some());
         let prefs = crate::prefs::Kept::new(settings);
         let arranged = prefs.remembered().arrangement();
+        let set = crate::budget::asked().or(prefs.remembered().memory_mib);
+        let budget = crate::budget::bytes_for(set, voxa_models::total_memory());
         creation.egui_ctx.set_zoom_factor(arranged.interface_size);
         // A picture is of a window the size it asks for, not one fitted to this screen,
         // unless it asks to see the fitting.
@@ -153,7 +152,7 @@ impl VoxaApp {
         let mut app = Self {
             screen: screen::Screen::new(arranged, fitted, hidden),
             kept: prefs,
-            session: Session::new(from_workers, reports, CACHE_BYTES, local),
+            session: Session::new(from_workers, reports, budget, local),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),

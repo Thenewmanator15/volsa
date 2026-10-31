@@ -3,41 +3,45 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError, Weak};
 
 use voxa_core::SeriesId;
-use voxa_dicom::{Frame, Index, IndexedSeries, SeriesSource, index, open_source};
+use voxa_dicom::{Index, IndexedSeries, SeriesSource, index, open_source};
 use voxa_labels::LabelSet;
-use voxa_volume::PRESETS;
+use voxa_render::CardRoom;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
 use crate::volume_store::VolumeStore;
 
 mod annotations;
+mod frames;
+mod held;
 mod kept;
 pub(crate) mod labelling;
 mod labels;
+mod memory;
 mod opened;
 mod pool;
 mod post;
+mod preview;
+mod shown;
 mod tags;
 mod views;
 mod volume;
 
 pub use labels::{MAX_LABEL_FILE_BYTES, NAMES_NOT_READ, table_beside};
 
-/// The longest side of a volume taken to fit a graphics device until the window says what
-/// its own allows: what every device made for the desktop can hold.
-const DEFAULT_VOLUME_SIDE: u32 = 2048;
-
 /// Runs the work [`reduce`](crate::reduce) asks for on background threads and reports back
 /// with further [`Action`]s. What they write to the log never holds what a file contains.
 pub struct Workers {
     /// The threads the work runs on; the shared pool of the process when none could be made.
     pool: Option<rayon::ThreadPool>,
+    /// The threads volumes are built on, apart, so that a slice a viewport asks for is never
+    /// left waiting behind the many slices of a volume.
+    builds: Option<rayon::ThreadPool>,
     shared: Arc<Shared>,
 }
 
@@ -45,6 +49,19 @@ pub struct Workers {
 struct Shared {
     reports: Sender<Action>,
     cache: Arc<Mutex<FrameCache>>,
+    /// The memory budget for decoded values: what the frame cache was given at the start.
+    budget: usize,
+    /// The most bytes in one slab of a volume built.
+    slab_bytes: AtomicUsize,
+    /// Whether it has been said that the volume being built could not be put on disk.
+    told_no_room: AtomicBool,
+    /// Held while a slab is being put on disk: one at a time, each copy of a slab made to be
+    /// written being memory too.
+    putting_away: Mutex<()>,
+    /// How much more memory the system can give Voxa now; tests put a stand-in here.
+    free_memory: Mutex<memory::FreeMemorySource>,
+    /// These very workers, for what is done later on another thread.
+    me: Weak<Shared>,
     /// The source that is open, once it has been indexed.
     source: Mutex<Option<Box<dyn SeriesSource>>>,
     /// How many sources have been opened. Work begun for an earlier one stops.
@@ -58,8 +75,9 @@ struct Shared {
     volumes: Arc<Mutex<VolumeStore>>,
     /// How many volumes have been asked for. One being built for an earlier request stops.
     builds: AtomicU64,
-    /// The longest side, in voxels, of a volume the window's graphics device can hold.
-    volume_side: AtomicU32,
+    /// What the window's graphics device can hold of a volume, and how. Until the window
+    /// says, what every device made for the desktop can.
+    card_room: Mutex<CardRoom>,
     /// What the window's graphics device does itself, and so is not done here first.
     device_does: volume::DeviceDoes,
     /// The series whose volume is being built. Its slices are decoded for the volume.
@@ -108,9 +126,20 @@ impl Workers {
         settings: Option<PathBuf>,
         labeller: Option<Arc<dyn labelling::Labeller>>,
     ) -> Self {
-        let shared = Shared {
+        let budget = lock(&cache).budget();
+        if let Some(local) = &settings {
+            // Slabs a Voxa that stopped left on disk.
+            crate::spill::clear_leftovers(local);
+        }
+        let shared = Arc::new_cyclic(|me| Shared {
             reports,
             cache,
+            budget,
+            slab_bytes: AtomicUsize::new(held::SLAB_BYTES),
+            told_no_room: AtomicBool::new(false),
+            putting_away: Mutex::new(()),
+            free_memory: Mutex::new(Box::new(voxa_models::free_memory)),
+            me: me.clone(),
             source: Mutex::new(None),
             opened: AtomicU64::new(0),
             kept: opened::Opened::default(),
@@ -118,7 +147,7 @@ impl Workers {
             requests: AtomicU64::new(0),
             volumes,
             builds: AtomicU64::new(0),
-            volume_side: AtomicU32::new(DEFAULT_VOLUME_SIDE),
+            card_room: Mutex::new(CardRoom::default()),
             device_does: volume::DeviceDoes::default(),
             wanted_volume: Mutex::new(None),
             settings,
@@ -130,10 +159,12 @@ impl Workers {
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),
             keeping: kept::Keeping::default(),
-        };
+        });
+        // Every thread that opens files has the stack a reader of DICOM files is given.
         Self {
             pool: pool::reading("voxa-worker"),
-            shared: Arc::new(shared),
+            builds: pool::reading("voxa-build"),
+            shared,
         }
     }
 
@@ -192,6 +223,7 @@ impl Workers {
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         lock(&self.shared.volumes).clear();
+        self.shared.share_the_budget();
         *lock(&self.shared.wanted_volume) = None;
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
@@ -210,9 +242,9 @@ impl Workers {
     fn request_frames(&self, listed: &IndexedSeries, around: usize, at_most: usize) {
         let shared = &self.shared;
         let series = listed.info.id.clone();
-        // A series with a volume has its slices read from that. One whose volume is being
-        // built is decoded there, once; here only the slice shown is, so it is seen at once.
-        if lock(&shared.volumes).holds(&series) {
+        // A held series' slices and windows come from its volume. One whose volume is being
+        // built is decoded there once; here only the slice shown.
+        if self.say_windows(&series, around) {
             return;
         }
         let building = lock(&shared.wanted_volume).as_ref() == Some(&series);
@@ -268,6 +300,16 @@ impl Workers {
             None => rayon::spawn(work),
         }
     }
+
+    /// Run the building of a volume on its own threads, the work it shares out with it.
+    fn spawn_build(&self, work: impl FnOnce() + Send + 'static) {
+        match &self.builds {
+            Some(builds) => builds.spawn(move || {
+                shielded(work);
+            }),
+            None => self.spawn(work),
+        }
+    }
 }
 
 impl Shared {
@@ -296,57 +338,6 @@ impl Shared {
             Ok((_, found)) => self.report(Action::IndexFailed(post::nothing_found(path, &found))),
             Err(error) => self.could_not_open(&error),
         }
-    }
-
-    /// Decode the slices of one batch, in order, unless the request has been overtaken.
-    fn decode(&self, batch: &Batch, request: &Request) {
-        if !self.still_wanted(request) {
-            return;
-        }
-        let Some(file) = self.file_of(batch, request) else {
-            return;
-        };
-        for (slice, frame) in &batch.slices {
-            if !self.still_wanted(request) {
-                return;
-            }
-            let decoded = match &file {
-                Ok(file) => file.decode(*frame).map_err(|error| error.to_string()),
-                Err(error) => Err(error.clone()),
-            };
-            self.deliver(request, *slice, decoded);
-        }
-    }
-
-    /// Hold a decoded slice for the viewport and announce it, or announce that it failed.
-    fn deliver(&self, request: &Request, slice: usize, decoded: Result<Frame, String>) {
-        let series = request.series.clone();
-        let report = match decoded {
-            Ok(frame) => {
-                let windows = PRESETS.map(|preset| preset.window(&frame.values));
-                let frame = Arc::new(frame);
-                if !self.hold(&series, slice, frame, request.around, request.opened) {
-                    return;
-                }
-                Action::FrameReady {
-                    series,
-                    slice,
-                    windows,
-                }
-            }
-            Err(reason) => Action::FrameFailed {
-                series,
-                slice,
-                reason,
-            },
-        };
-        self.report(report);
-    }
-
-    /// Whether a request is still the newest for its series, in the source still open.
-    fn still_wanted(&self, request: &Request) -> bool {
-        self.opened.load(Ordering::SeqCst) == request.opened
-            && lock(&self.newest).get(&request.series) == Some(&request.number)
     }
 
     fn report(&self, action: Action) {

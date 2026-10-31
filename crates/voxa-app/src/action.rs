@@ -236,6 +236,16 @@ pub enum Action {
         /// Slices in the series.
         of: usize,
     },
+    /// A preview of a long series' volume, made from some of its slices, is in the volume
+    /// store, to be drawn while the rest are decoded.
+    PreviewReady {
+        /// The series it is of.
+        series: SeriesId,
+        /// The eight outer corners of the series in the patient.
+        corners: [Point<Patient>; 8],
+    },
+    /// Whether the 3D scene is wanted: while it is not, no volume is built for it.
+    SceneWanted(bool),
     /// A volume has been built and is in the volume store.
     VolumeReady {
         /// The series it was built from.

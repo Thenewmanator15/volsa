@@ -5,10 +5,10 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{Grid, HeldVolume, SeriesId};
 use voxa_dicom::Frame;
 use voxa_labels::LabelSet;
-use voxa_render::{Prepared, Smoothed};
+use voxa_render::Smoothed;
 
 use crate::action::{Action, Effect};
 use crate::cache::FrameCache;
@@ -40,10 +40,11 @@ impl Session {
     pub fn new(
         to_reports: Sender<Action>,
         reports: Receiver<Action>,
-        cache_bytes: usize,
+        budget_bytes: usize,
         settings: Option<PathBuf>,
     ) -> Self {
-        let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
+        // The frame cache has the whole budget until a volume is kept.
+        let cache = Arc::new(Mutex::new(FrameCache::new(budget_bytes)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
         let (kept, built) = (Arc::clone(&cache), Arc::clone(&volumes));
         let mut state = AppState::default();
@@ -83,9 +84,18 @@ impl Session {
         let cached = cache.get(series, slice);
         drop(cache);
         cached.or_else(|| {
+            // A viewport still waiting for its automatic window is not given the slice yet:
+            // it would be drawn once in a window chosen for nothing. Its window comes with
+            // the slice it asked for, a moment after the volume is kept.
+            let waiting = self.state.viewports.iter().any(|shown| {
+                shown.series.as_ref() == Some(series) && shown.slice == slice && shown.wl_pending
+            });
+            if waiting {
+                return None;
+            }
             let volume = self.volume(series)?;
             let [cols, rows, _] = volume.dims();
-            let values = volume.slice_values(u32::try_from(slice).ok()?)?.to_vec();
+            let values = volume.slice_values(u32::try_from(slice).ok()?)?;
             let colour = None;
             Some(Arc::new(Frame {
                 rows,
@@ -97,20 +107,30 @@ impl Session {
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
-    pub fn volume(&self, series: &SeriesId) -> Option<Arc<Volume>> {
+    pub fn volume(&self, series: &SeriesId) -> Option<Arc<HeldVolume>> {
         self.volumes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .get(series)
     }
 
-    /// Take what a worker made ready for the graphics device of a series' volume, if it is
-    /// there to take. It is handed over once.
-    pub fn take_prepared(&self, series: &SeriesId) -> Option<Prepared> {
+    /// What the graphics device is to hold of a series' volume, and how many times it was
+    /// halved to fit: the volume itself, or a copy halved by a worker when the device cannot
+    /// hold it whole. `None` when the series' volume is not the one kept.
+    pub fn for_card(&self, series: &SeriesId) -> Option<(Arc<HeldVolume>, u32)> {
+        let store = self.volumes.lock().unwrap_or_else(PoisonError::into_inner);
+        store
+            .for_card(series)
+            .or_else(|| store.get(series).map(|volume| (volume, 0)))
+    }
+
+    /// Take the preview a worker made of a series' volume while it builds, if it is there
+    /// to take. It is handed over once.
+    pub fn take_preview(&self, series: &SeriesId) -> Option<voxa_core::Volume> {
         self.volumes
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
-            .take_prepared(series)
+            .take_preview(series)
     }
 
     /// Take the curve a worker made through a series' volume, for planes drawn smooth, if
@@ -169,5 +189,7 @@ mod annotation_tests;
 mod kept_tests;
 #[cfg(test)]
 mod lost_tests;
+#[cfg(test)]
+mod shown_tests;
 #[cfg(test)]
 mod tests;

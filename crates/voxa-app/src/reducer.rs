@@ -102,6 +102,8 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::CutRemove { .. }
         | Action::ShowSliceInScene(_)
         | Action::VolumeProgress { .. }
+        | Action::PreviewReady { .. }
+        | Action::SceneWanted(_)
         | Action::VolumeReady { .. }
         | Action::VolumeFailed { .. } => scene::reduce(state, action),
         Action::Views(about_views) => views::reduce(state, about_views),
@@ -342,6 +344,8 @@ mod link_tests;
 mod planes_tests;
 #[cfg(test)]
 mod scene_camera_tests;
+#[cfg(test)]
+mod scene_preview_tests;
 #[cfg(test)]
 mod scene_tests;
 #[cfg(test)]

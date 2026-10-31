@@ -1,6 +1,6 @@
 //! Decoded slices kept in memory, within a budget.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
 use voxa_core::SeriesId;
@@ -12,6 +12,9 @@ pub struct FrameCache {
     budget: usize,
     bytes: usize,
     frames: HashMap<SeriesId, BTreeMap<usize, Arc<Frame>>>,
+    /// The slices held that were put by without their windows being said: those of a
+    /// volume that gave way or failed. Their windows are said when they are shown.
+    unannounced: HashSet<(SeriesId, usize)>,
 }
 
 impl FrameCache {
@@ -21,6 +24,7 @@ impl FrameCache {
             budget: budget_bytes,
             bytes: 0,
             frames: HashMap::new(),
+            unannounced: HashSet::new(),
         }
     }
 
@@ -32,6 +36,34 @@ impl FrameCache {
     /// The pixel values held now, in bytes.
     pub fn bytes(&self) -> usize {
         self.bytes
+    }
+
+    /// Hold no more than `budget_bytes` from now on, letting slices go until the cache is
+    /// within it: a whole series at a time, the one with the fewest slices held first.
+    pub fn set_budget(&mut self, budget_bytes: usize) {
+        self.budget = budget_bytes;
+        while self.bytes > self.budget {
+            let fewest = self
+                .frames
+                .iter()
+                .min_by_key(|(_, slices)| slices.len())
+                .map(|(series, _)| series.clone());
+            let Some(series) = fewest else {
+                break;
+            };
+            let slices = self.frames.get_mut(&series);
+            let last = slices
+                .as_ref()
+                .and_then(|slices| slices.keys().next_back().copied());
+            let gone = slices
+                .zip(last)
+                .and_then(|(slices, last)| slices.remove(&last));
+            self.bytes -= gone.as_deref().map_or(0, size_of);
+            self.frames.retain(|_, slices| !slices.is_empty());
+        }
+        let frames = &self.frames;
+        self.unannounced
+            .retain(|(series, slice)| frames.get(series).is_some_and(|it| it.contains_key(slice)));
     }
 
     /// A slice, if it is held.
@@ -55,11 +87,13 @@ impl FrameCache {
             .map(|frame| size_of(frame))
             .sum();
         self.bytes -= freed;
+        self.unannounced.retain(|(of, _)| of != series);
     }
 
     /// Forget every slice.
     pub fn clear(&mut self) {
         self.frames.clear();
+        self.unannounced.clear();
         self.bytes = 0;
     }
 
@@ -84,8 +118,33 @@ impl FrameCache {
                 .get_mut(&from)
                 .and_then(|slices| slices.remove(&gone));
             self.bytes -= dropped.as_deref().map_or(0, size_of);
+            self.unannounced.remove(&(from, gone));
         }
         self.frames.retain(|_, slices| !slices.is_empty());
+        self.unannounced.remove(&(series.clone(), slice));
+    }
+
+    /// Hold a slice, as [`FrameCache::insert`] does, whose windows have not been said: it is
+    /// given once by [`FrameCache::take_unannounced`], so that they are said when it is shown.
+    pub fn insert_unannounced(
+        &mut self,
+        series: &SeriesId,
+        slice: usize,
+        frame: Arc<Frame>,
+        keep_near: usize,
+    ) {
+        self.insert(series, slice, frame, keep_near);
+        if self.contains(series, slice) {
+            self.unannounced.insert((series.clone(), slice));
+        }
+    }
+
+    /// A slice held whose windows have not been said, once: after this they count as said.
+    pub fn take_unannounced(&mut self, series: &SeriesId, slice: usize) -> Option<Arc<Frame>> {
+        let key = (series.clone(), slice);
+        self.unannounced
+            .remove(&key)
+            .then(|| self.get(series, slice))?
     }
 
     /// The slice to drop next: any but the newest, another series' before this one's, then the
@@ -132,6 +191,42 @@ mod tests {
         slices
             .filter(|slice| cache.get(&id(series), *slice).is_some())
             .collect()
+    }
+
+    #[test]
+    fn a_frame_put_by_unannounced_is_given_once_to_be_announced() {
+        let mut cache = FrameCache::new(10 * ONE);
+        cache.insert(&id("a"), 0, frame(1.0), 0);
+        cache.insert_unannounced(&id("a"), 1, frame(2.0), 0);
+        assert!(
+            cache.take_unannounced(&id("a"), 0).is_none(),
+            "said already"
+        );
+        let first = cache
+            .take_unannounced(&id("a"), 1)
+            .map(|frame| frame.values[0]);
+        assert_eq!(first, Some(2.0));
+        assert!(cache.take_unannounced(&id("a"), 1).is_none(), "once only");
+        assert!(cache.contains(&id("a"), 1), "and it is still held");
+        cache.insert_unannounced(&id("a"), 2, frame(3.0), 0);
+        cache.forget(&id("a"));
+        cache.insert(&id("a"), 2, frame(3.0), 0);
+        assert!(
+            cache.take_unannounced(&id("a"), 2).is_none(),
+            "a frame forgotten and put back as said is not unannounced"
+        );
+    }
+
+    #[test]
+    fn a_lower_budget_lets_slices_go_until_the_cache_is_within_it() {
+        let mut cache = FrameCache::new(10 * ONE);
+        for slice in 0..10 {
+            cache.insert(&id("a"), slice, frame(0.0), 0);
+        }
+        cache.set_budget(4 * ONE);
+        assert_eq!((cache.bytes(), cache.budget()), (4 * ONE, 4 * ONE));
+        cache.set_budget(20 * ONE);
+        assert_eq!(cache.bytes(), 4 * ONE, "a higher one takes nothing back");
     }
 
     #[test]

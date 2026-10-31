@@ -5,10 +5,10 @@ use std::sync::{Arc, Weak};
 use std::time::Duration;
 
 use egui_wgpu::{RenderState, wgpu};
-use voxa_core::Volume;
+use voxa_core::{Grid, HeldVolume, Volume};
 use voxa_render::{
-    LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, Prepared, RenderError, SceneParams,
-    VolumePipeline, timed_submit,
+    CardRoom, LabelsOnDevice, Look, PICTURE_FORMAT, PartsPipeline, RenderError, SceneParams,
+    UPLOAD_BYTES_A_FRAME, UploadState, VolumePipeline, timed_submit,
 };
 
 use super::pace::{TIME_EVERY, TIMING_TRIES};
@@ -54,9 +54,14 @@ pub struct SceneGpu {
     labels: u64,
     picture: Option<Picture>,
     /// The volume the device was last given, so it is given once and not every frame.
-    given: Weak<Volume>,
+    given: Weak<HeldVolume>,
     drawn: Option<Drawn>,
     timing: Timing,
+    /// How often the volume being handed over was halved to fit.
+    halved: u32,
+    /// A preview of the series being built, drawn until its volume is on the device, and
+    /// made only when there is one.
+    preview: Option<VolumePipeline>,
 }
 
 impl SceneGpu {
@@ -70,17 +75,69 @@ impl SceneGpu {
             given: Weak::new(),
             drawn: None,
             timing: Timing::default(),
+            halved: 0,
+            preview: None,
         }
     }
 
     /// Whether this volume is the one the graphics device was last given.
-    pub fn holds(&self, volume: &Arc<Volume>) -> bool {
+    pub fn holds(&self, volume: &Arc<HeldVolume>) -> bool {
         Weak::ptr_eq(&self.given, &Arc::downgrade(volume))
     }
 
-    /// Whether there is a volume on the graphics device to draw.
+    /// Whether there is a volume on the graphics device to draw, or a preview of one.
     pub fn has_volume(&self) -> bool {
-        self.pipeline.has_volume()
+        self.pipeline.has_volume() || self.has_preview()
+    }
+
+    fn has_preview(&self) -> bool {
+        self.preview
+            .as_ref()
+            .is_some_and(VolumePipeline::has_volume)
+    }
+
+    /// Whether a volume is on its way to the graphics device.
+    pub fn is_uploading(&self) -> bool {
+        self.pipeline.is_uploading()
+    }
+
+    /// Draw a preview of the series being built: the one `offered`, if a new one is, or the
+    /// one given before. Whether there is one to draw.
+    pub fn preview(&mut self, render: &RenderState, offered: Option<Volume>) -> bool {
+        if let Some(preview) = offered {
+            let device = &render.device;
+            let pipeline = self
+                .preview
+                .get_or_insert_with(|| VolumePipeline::new(device, FORMAT));
+            if pipeline.upload(device, &render.queue, &preview).is_ok() {
+                self.drawn = None;
+            }
+        }
+        self.has_preview()
+    }
+
+    /// Give up a volume on its way to the device, and the volume itself with it: its series
+    /// is no longer the one shown.
+    pub fn give_up_upload(&mut self) {
+        if self.pipeline.is_uploading() {
+            self.pipeline.give_up_upload();
+            self.given = Weak::new();
+        }
+    }
+
+    /// Give up the preview, if there is one.
+    pub fn drop_preview(&mut self) {
+        if self.preview.take().is_some() {
+            self.drawn = None;
+        }
+    }
+
+    /// What is drawn: the preview while there is one, and the volume otherwise.
+    fn shown(&self) -> &VolumePipeline {
+        self.preview
+            .as_ref()
+            .filter(|preview| preview.has_volume())
+            .unwrap_or(&self.pipeline)
     }
 
     /// The pipeline that holds the volume.
@@ -100,28 +157,57 @@ impl SceneGpu {
         params.look == Look::Parts && self.parts.has_labels()
     }
 
-    /// Put a volume on the graphics device, unless it is the one already given. `ready` is
-    /// the volume as a worker made it ready, if it did: handing that over is quick. Without
-    /// it, or if it does not fit this device, the volume is made ready here. Says how many
-    /// times it was halved to fit when it was put there now. If the device has no room for
-    /// it at all, nothing is left there to draw, and it is not tried again.
+    /// Hand a volume to the graphics device, a slab a frame, unless it is the one given
+    /// already. `card` is what the device is to hold of it, the volume or a copy halved to
+    /// fit, with how often it was halved, and what the device can hold. Asks for another
+    /// frame while the volume is on its way, and says how many times it was halved once the
+    /// whole of it is there. A volume the device has no room for as it is is put there
+    /// halved as often as it takes, here and now; if there is no room for it at all,
+    /// nothing is left there to draw, and it is not tried again.
     pub fn hold(
         &mut self,
         render: &RenderState,
-        volume: &Arc<Volume>,
-        ready: Option<Prepared>,
+        volume: &Arc<HeldVolume>,
+        (card, room): (Option<(Arc<HeldVolume>, u32)>, CardRoom),
+        ctx: &egui::Context,
     ) -> Option<u32> {
-        if self.holds(volume) {
-            return None;
-        }
         let (device, queue) = (&render.device, &render.queue);
-        let quick =
-            ready.and_then(|ready| self.pipeline.upload_prepared(device, queue, &ready).ok());
-        let halved = quick.or_else(|| self.pipeline.upload(device, queue, volume).ok());
-        self.given = Arc::downgrade(volume);
-        self.drawn = None;
-        self.timing = Timing::default();
-        halved
+        if !self.holds(volume) {
+            let (held, halved) = card.unwrap_or_else(|| (Arc::clone(volume), 0));
+            self.given = Arc::downgrade(volume);
+            self.drawn = None;
+            self.timing = Timing::default();
+            self.halved = halved;
+            if self.pipeline.start_upload(device, held, room).is_err() {
+                return self.halved_here(render, volume);
+            }
+        }
+        match self
+            .pipeline
+            .continue_upload(device, queue, UPLOAD_BYTES_A_FRAME)
+        {
+            UploadState::Going { .. } => {
+                ctx.request_repaint();
+                None
+            }
+            UploadState::Done => {
+                // The volume itself is drawn from now on.
+                self.preview = None;
+                self.drawn = None;
+                Some(self.halved)
+            }
+            UploadState::Failed(RenderError::NoRoom) => self.halved_here(render, volume),
+            UploadState::Failed(_) | UploadState::Idle => None,
+        }
+    }
+
+    /// Put a volume on the device halved as often as it takes, from its values made here:
+    /// what is done only when the device turned down what it was offered.
+    fn halved_here(&mut self, render: &RenderState, volume: &Arc<HeldVolume>) -> Option<u32> {
+        let values = volume.to_volume(0..volume.dims()[2])?;
+        self.pipeline
+            .upload(&render.device, &render.queue, &values)
+            .ok()
     }
 
     /// Draw the scene into a picture of its own, `pixels` wide and high, and give it back as
@@ -195,6 +281,8 @@ impl SceneGpu {
             let as_parts = self.as_parts(params);
             if as_parts {
                 self.parts.set_params(&render.queue, params, viewport);
+            } else if let Some(preview) = self.preview.as_mut().filter(|it| it.has_volume()) {
+                preview.set_params(&render.queue, params, viewport);
             } else {
                 self.pipeline.set_params(&render.queue, params, viewport);
             }
@@ -305,7 +393,7 @@ impl SceneGpu {
         if as_parts {
             self.parts.draw(&mut pass);
         } else {
-            self.pipeline.draw(&mut pass);
+            self.shown().draw(&mut pass);
         }
     }
 }

@@ -45,7 +45,7 @@ impl FilledMaker {
             | wgpu::TextureUsages::COPY_SRC;
         let filled = texture(device, "voxa label blocks", blocks, HALVES, drawn_and_read);
         let [_, _, slices] = blocks;
-        self.any.draw((device, queue), parts, &filled, slices);
+        self.any.draw((device, queue), parts, &filled, 0..slices);
         filled
     }
 }

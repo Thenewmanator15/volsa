@@ -37,6 +37,9 @@ struct Scene {
     // of the window up from black. Below the first nothing is drawn: in a scan the air is
     // never quite empty, and what is in it must not be taken for tissue.
     ramp: vec4<f32>,
+    // How the volume is cut into textures, as `value_in_slabs` in slabs.wgsl reads it.
+    slabs: vec4<f32>,
+    depths: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> scene: Scene;
@@ -113,7 +116,7 @@ fn solidity(value: f32) -> f32 {
 }
 
 fn value_at(at: vec3<f32>) -> f32 {
-    return textureSampleLevel(values, blended, at, 0.0).r;
+    return value_in_slabs(at, scene.slabs, scene.depths);
 }
 
 // Which way, in the patient, the values rise fastest at a point of the texture, and how

@@ -27,7 +27,7 @@ use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
 use voxa_app::{Action, NoticeKind, SceneStatus, Session};
-use voxa_core::{SeriesId, Volume};
+use voxa_core::{Grid, SeriesId, Volume};
 use voxa_labels::label_set;
 use voxa_models::{
     Cut, Device, FreeMemory, Model, Network, Role, Room, RunError, Rung, RunsOn, Runtime, Stop,
@@ -139,7 +139,11 @@ fn largest(session: &mut Session, export: &Path) -> Result<Scan, String> {
     }
     let (_, id) = most.ok_or("No series of the export has a 3D view.")?;
     show(session, &id)?;
-    let volume = session.volume(&id).ok_or("The volume is not kept.")?;
+    let volume = session
+        .volume(&id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
+        .map(Arc::new)
+        .ok_or("The volume is not kept.")?;
     let listed = session.state().series(&id);
     let spacing_mm = listed
         .map(|one| one.info.spacing_mm)

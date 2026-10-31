@@ -58,7 +58,7 @@ fn made_up_zip(finish: impl FnOnce(&mut ZipWriter<Cursor<Vec<u8>>>)) -> Vec<u8> 
 fn opened_as_the_search_opens(bytes: &[u8]) -> Opening {
     let mut file = tempfile::tempfile().expect("a temporary file");
     file.write_all(bytes).expect("written");
-    let (mut archive, opening) = open_archive(file).expect("opens");
+    let (mut archive, opening) = open_archive(ArchiveFile::new(file)).expect("opens");
     let mut searched = ZipArchive::new(Cursor::new(bytes.to_vec())).expect("the search opens it");
     assert_eq!(summary(&mut archive), summary(&mut searched));
     opening

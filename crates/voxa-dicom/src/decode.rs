@@ -14,6 +14,9 @@ use crate::source::SeriesSource;
 
 mod colour;
 mod declared;
+mod stored;
+
+pub use stored::{StoredFrame, StoredSamples};
 
 use declared::Declared;
 
@@ -184,5 +187,7 @@ mod colour_tests;
 mod compressed_tests;
 #[cfg(test)]
 mod declared_tests;
+#[cfg(test)]
+mod stored_tests;
 #[cfg(test)]
 mod tests;

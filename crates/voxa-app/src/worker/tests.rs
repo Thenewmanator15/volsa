@@ -11,6 +11,7 @@ use voxa_volume::PRESETS;
 
 use super::*;
 use crate::testing::{THICK_SCAN, id, series_files, slice_options};
+use voxa_dicom::Frame;
 
 /// Bytes held by one decoded 4 × 4 frame.
 pub(super) const ONE: usize = 64;
@@ -22,16 +23,22 @@ const QUIET: Duration = Duration::from_millis(400);
 pub(super) struct Bench {
     pub(super) workers: Workers,
     reports: Receiver<Action>,
-    cache: Arc<Mutex<FrameCache>>,
+    pub(super) cache: Arc<Mutex<FrameCache>>,
     pub(super) volumes: Arc<Mutex<VolumeStore>>,
 }
 
 impl Bench {
     pub(super) fn with_budget(budget: usize) -> Self {
+        Self::keeping_in(budget, None)
+    }
+
+    /// Workers with a memory budget of `budget` that keep what they keep in `local`.
+    pub(super) fn keeping_in(budget: usize, local: Option<&Path>) -> Self {
         let (sender, reports) = channel();
         let cache = Arc::new(Mutex::new(FrameCache::new(budget)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
-        let workers = Workers::new(sender, Arc::clone(&cache), Arc::clone(&volumes), None, None);
+        let (kept, local) = (Arc::clone(&cache), local.map(Path::to_owned));
+        let workers = Workers::new(sender, kept, Arc::clone(&volumes), local, None);
         Self {
             workers,
             reports,
