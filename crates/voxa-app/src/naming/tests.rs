@@ -324,14 +324,14 @@ fn a_body_part_written_as_one_code_is_spelled_out() {
         ("TSPINE", "Thoracic spine"),
         ("LSPINE", "Lumbar spine"),
         ("SSPINE", "Sacrum"),
-        ("CTSPINE", "Cervical and thoracic spine"),
-        ("TLSPINE", "Thoracic and lumbar spine"),
-        ("LSSPINE", "Lumbar spine and sacrum"),
+        ("CTSPINE", "Cervico-thoracic spine"),
+        ("TLSPINE", "Thoraco-lumbar spine"),
+        ("LSSPINE", "Lumbo-sacral spine"),
         ("HEADNECK", "Head and neck"),
         ("CHESTABDOMEN", "Chest and abdomen"),
         ("ABDOMENPELVIS", "Abdomen and pelvis"),
         ("CHESTABDPELVIS", "Chest, abdomen and pelvis"),
-        ("WHOLEBODY", "Whole body"),
+        ("WHOLEBODY", "Entire body"),
     ];
     for (written, said) in spelled {
         assert_eq!(named(written), format!("{said}, T2, axial"), "{written}");

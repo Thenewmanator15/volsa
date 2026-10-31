@@ -46,21 +46,21 @@ pub(super) const PLANES: &[(&str, Facing)] = &[
 ];
 
 /// The defined terms of Body Part Examined that run words together (DICOM PS3.16, Annex L), each
-/// with the words it is spelled out as. Each key is in upper case. Any other term is said as it
-/// is written, in sentence case.
+/// with the words it is spelled out as, which are PS3.16's own Code Meaning where it gives one.
+/// Each key is in upper case. Any other term is said as it is written, in sentence case.
 pub(super) const BODY_PARTS: &[(&str, &str)] = &[
     ("CSPINE", "Cervical spine"),
     ("TSPINE", "Thoracic spine"),
     ("LSPINE", "Lumbar spine"),
     ("SSPINE", "Sacrum"),
-    ("CTSPINE", "Cervical and thoracic spine"),
-    ("TLSPINE", "Thoracic and lumbar spine"),
-    ("LSSPINE", "Lumbar spine and sacrum"),
+    ("CTSPINE", "Cervico-thoracic spine"),
+    ("TLSPINE", "Thoraco-lumbar spine"),
+    ("LSSPINE", "Lumbo-sacral spine"),
     ("HEADNECK", "Head and neck"),
     ("CHESTABDOMEN", "Chest and abdomen"),
     ("ABDOMENPELVIS", "Abdomen and pelvis"),
     ("CHESTABDPELVIS", "Chest, abdomen and pelvis"),
-    ("WHOLEBODY", "Whole body"),
+    ("WHOLEBODY", "Entire body"),
 ];
 
 /// What a plain name says for each modality other than MR, keyed by the modality's DICOM
