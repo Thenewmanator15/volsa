@@ -152,10 +152,11 @@ fn face(
 /// A card's ground: raised while the pointer is on it, and outlined when it is the one shown.
 pub(super) fn ground(painter: &Painter, rect: Rect, lit: bool, selected: bool) {
     let rounded = CornerRadius::same(theme::ROUNDING);
-    let fill = if lit { theme::RAISED } else { theme::PANEL };
+    let palette = theme::palette(painter.ctx());
+    let fill = if lit { palette.raised } else { palette.panel };
     painter.rect_filled(rect, rounded, fill);
     if selected {
-        let outline = Stroke::new(1.5, theme::ACCENT);
+        let outline = Stroke::new(1.5, palette.accent);
         painter.rect_stroke(rect, rounded, outline, StrokeKind::Inside);
     }
 }
@@ -211,7 +212,13 @@ pub(super) fn words(
         ui.visuals().text_color(),
         ends[1],
     );
-    line(45.0, facts, small, theme::QUIET_TEXT, ends[1]);
+    line(
+        45.0,
+        facts,
+        small,
+        theme::palette(ui.ctx()).quiet_text,
+        ends[1],
+    );
 }
 
 /// The mark on the picture of a series that cannot be shown in full: an amber `!`, which a
@@ -226,7 +233,8 @@ fn mark(ui: &mut Ui, picture: Rect, info: &SeriesInfo, card: Id) {
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Image, true, HAS_A_PROBLEM));
     if ui.is_rect_visible(rect) {
         let painter = ui.painter();
-        painter.rect_filled(rect, CornerRadius::same(3), theme::PANEL);
+        // Over the picture, which is dark whatever the theme: a chip of the picture's own ground.
+        painter.rect_filled(rect, CornerRadius::same(3), theme::BACKGROUND);
         let font = FontId::proportional(13.0);
         painter.text(
             rect.center(),

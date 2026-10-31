@@ -38,7 +38,7 @@ fn words_of(shape: &egui::Shape, clip: Rect, into: &mut Vec<(String, Rect, Rect)
 /// A window drawn with Voxa's look.
 pub(super) fn window() -> Context {
     let ctx = Context::default();
-    theme::apply(&ctx);
+    theme::apply(&ctx, theme::ThemeChoice::Dark);
     ctx
 }
 

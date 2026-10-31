@@ -80,7 +80,7 @@ impl Hand {
     /// A window `wide` by `high` points, with Voxa's look and a screen reader listening.
     pub fn new(wide: f32, high: f32) -> Self {
         let ctx = Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         ctx.enable_accesskit();
         Self {
             ctx,

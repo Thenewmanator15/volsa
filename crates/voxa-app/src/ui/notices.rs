@@ -41,10 +41,11 @@ mod tests;
 
 /// How a kind of notice is drawn: its symbol and its colour. Something to look at, and a
 /// fault, are both amber.
-fn look(kind: NoticeKind) -> (Symbol, egui::Color32) {
+fn look(ctx: &Context, kind: NoticeKind) -> (Symbol, egui::Color32) {
+    let palette = theme::palette(ctx);
     match kind {
-        NoticeKind::Info => (Symbol::Info, theme::QUIET_TEXT),
-        NoticeKind::Warning | NoticeKind::Error => (Symbol::Warning, theme::WARNING),
+        NoticeKind::Info => (Symbol::Info, palette.quiet_text),
+        NoticeKind::Warning | NoticeKind::Error => (Symbol::Warning, palette.warning),
     }
 }
 
@@ -61,7 +62,7 @@ pub fn show(
 ) -> Response {
     let disclaimer = RichText::new(theme::DISCLAIMER)
         .small()
-        .color(theme::QUIET_TEXT);
+        .color(theme::palette(ui.ctx()).quiet_text);
     let top = ui.max_rect().top();
     let Some(newest) = notices.last() else {
         *open = false;
@@ -117,7 +118,7 @@ fn beside(ui: &Ui, notice: &Notice, count: usize) -> bool {
 /// newest notice cut short to fit, and how many there are. Gives the button.
 fn notice_area(ui: &mut Ui, notices: &[Notice], newest: &Notice) -> Response {
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        let (symbol, colour) = look(newest.kind);
+        let (symbol, colour) = look(ui.ctx(), newest.kind);
         let room = Id::new("voxa: the icon of the newest notice");
         let words = RichText::new(&newest.text).small().color(colour);
         let icon = Atom::custom(room, Vec2::splat(ICON));
@@ -193,7 +194,7 @@ fn list(
 /// One notice in the list: its icon, its words in full, what more there is to say, and the
 /// button that dismisses it.
 fn row(ui: &mut Ui, place: usize, notice: &Notice, actions: &mut Vec<Action>) {
-    let (symbol, colour) = look(notice.kind);
+    let (symbol, colour) = look(ui.ctx(), notice.kind);
     let dismiss = wide(ui, DISMISS, TextStyle::Button) + 2.0 * ui.spacing().button_padding.x + 2.0;
     let gap = ui.spacing().item_spacing.x;
     let words = (ui.available_width() - ICON - dismiss - 2.0 * gap).max(40.0);
@@ -204,7 +205,9 @@ fn row(ui: &mut Ui, place: usize, notice: &Notice, actions: &mut Vec<Action>) {
             ui.set_width(words);
             ui.add(egui::Label::new(RichText::new(&notice.text).color(colour)).wrap());
             for detail in &notice.details {
-                let said = RichText::new(detail).small().color(theme::QUIET_TEXT);
+                let said = RichText::new(detail)
+                    .small()
+                    .color(theme::palette(ui.ctx()).quiet_text);
                 ui.add(egui::Label::new(said).wrap());
             }
         });

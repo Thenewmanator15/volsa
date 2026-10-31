@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 use voxa_core::{SeriesId, Volume};
 
 use super::VoxaApp;
+use super::theme::ThemeChoice;
 use super::viewport::Gpu;
 use crate::action::Action;
 use crate::labels::LabelsStatus;
@@ -40,7 +41,7 @@ pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// `slice`, `planes` or `quad` for the three planes with the 3D view, `3d` for the 3D view
 /// alone and `slices3d` for the slices beside it (with none of these, the slices alone, as
 /// Voxa opens), `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the rail of scans folded however wide the window is, `other` for the other files open in the rail, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the rail of scans folded however wide the window is, `other` for the other files open in the rail, `light` for the light theme in place of the dark one, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
@@ -104,6 +105,24 @@ pub fn wants(word: &str) -> bool {
 /// The size the interface is drawn at for a picture that asks for one.
 pub fn zoom() -> Option<f32> {
     zoom_from(&std::env::var(ZOOM_VARIABLE).ok()?)
+}
+
+/// The theme a window is drawn in as it opens, when `wanted` is what a picture is asked to hold:
+/// a picture is drawn in light if it asks for `light` and otherwise in dark, whatever the system
+/// is set to, so that it is the same wherever it is made. A window that is not a picture is
+/// drawn in `remembered`.
+pub fn theme_for(wanted: &str, capturing: bool, remembered: ThemeChoice) -> ThemeChoice {
+    match (capturing, asks_for(wanted, "light")) {
+        (false, _) => remembered,
+        (true, true) => ThemeChoice::Light,
+        (true, false) => ThemeChoice::Dark,
+    }
+}
+
+/// The theme the window is drawn in as it opens: see [`theme_for`].
+pub fn theme(capturing: bool, remembered: ThemeChoice) -> ThemeChoice {
+    let wanted = std::env::var(SHOW_VARIABLE).unwrap_or_default();
+    theme_for(&wanted, capturing, remembered)
 }
 
 /// Whether a picture is of the 3D scene at rest or while it moves.

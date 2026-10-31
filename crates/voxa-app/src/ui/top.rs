@@ -151,7 +151,7 @@ fn study(ui: &mut Ui, state: &AppState, width: f32) {
             let named = study_shown(state).filter(|_| width >= TITLE_LEAST);
             if let Some(study) = named {
                 let title = study_title(study);
-                let words = RichText::new(&title).color(theme::QUIET_TEXT);
+                let words = RichText::new(&title).color(theme::palette(ui.ctx()).quiet_text);
                 ui.add(egui::Label::new(words).truncate())
                     .on_hover_text(title);
             }
@@ -164,14 +164,15 @@ fn find_box(ui: &mut Ui, search: &mut Search, width: f32, route: &mut Route<'_>)
     let height = ui.spacing().interact_size.y;
     let magnifier = Id::new("voxa: the magnifier in the search box");
     let fill = ui.visuals().extreme_bg_color;
+    let quiet = theme::palette(ui.ctx()).quiet_text;
     let drawn = ui
         .allocate_ui_with_layout(
             vec2(width, height),
             Layout::left_to_right(Align::Center),
             |ui| {
                 commands::button_made(ui, "search.open", route.state, |_| {
-                    let saying = RichText::new(SEARCH_SAYS).color(theme::QUIET_TEXT);
-                    let key = RichText::new(SEARCH_KEY).small().color(theme::QUIET_TEXT);
+                    let saying = RichText::new(SEARCH_SAYS).color(quiet);
+                    let key = RichText::new(SEARCH_KEY).small().color(quiet);
                     let icon = Atom::custom(magnifier, Vec2::splat(symbols::SIZE));
                     Button::new((icon, saying.atom_shrink(true)))
                         .right_text(key)

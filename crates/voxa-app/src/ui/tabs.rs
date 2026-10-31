@@ -18,6 +18,8 @@ mod labels;
 pub(super) mod made_up;
 mod measure;
 mod scene;
+#[cfg(test)]
+mod themes_tests;
 mod tools;
 mod view;
 
@@ -58,7 +60,11 @@ pub fn show(
 /// The small heading above a group of controls in a tab.
 fn section(ui: &mut Ui, title: &str) {
     ui.add_space(6.0);
-    ui.label(RichText::new(title).small().color(theme::QUIET_TEXT));
+    ui.label(
+        RichText::new(title)
+            .small()
+            .color(theme::palette(ui.ctx()).quiet_text),
+    );
 }
 
 /// A row of controls that goes onto the next line, whole, when the panel is too narrow for it.

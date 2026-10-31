@@ -10,11 +10,12 @@ use crate::ui::{commands, theme};
 
 /// Draw the title of a group of results.
 pub fn heading(ui: &mut Ui, heading: Heading) {
+    let palette = theme::palette(ui.ctx());
     ui.label(
         RichText::new(heading.title())
             .small()
             .strong()
-            .color(theme::QUIET_TEXT),
+            .color(palette.quiet_text),
     );
 }
 
@@ -42,9 +43,10 @@ pub fn row(ui: &mut Ui, entry: &Entry, state: &AppState, chosen: bool) -> Respon
         _ => None,
     };
     let why_not = command.and_then(|command| run::unavailable(command, state));
+    let palette = theme::palette(ui.ctx());
     let mut job = LayoutJob::default();
     let colour = if why_not.is_some() {
-        theme::QUIET_TEXT
+        palette.quiet_text
     } else {
         ui.visuals().text_color()
     };
@@ -52,20 +54,20 @@ pub fn row(ui: &mut Ui, entry: &Entry, state: &AppState, chosen: bool) -> Respon
     job.append(&entry.name, 0.0, name);
     if let Some(line) = beneath(entry, state, why_not.as_deref()) {
         let small = TextStyle::Small.resolve(ui.style());
-        let format = TextFormat::simple(small, theme::QUIET_TEXT);
+        let format = TextFormat::simple(small, palette.quiet_text);
         job.append(&format!("\n{line}"), 0.0, format);
     }
     let mut button = Button::new(job)
         .wrap()
         .min_size(vec2(ui.available_width(), 0.0))
         .frame_when_inactive(chosen)
-        .fill(theme::RAISED)
-        .stroke(Stroke::new(if chosen { 1.0 } else { 0.0 }, theme::ACCENT));
+        .fill(palette.raised)
+        .stroke(Stroke::new(if chosen { 1.0 } else { 0.0 }, palette.accent));
     if let Some(key) = command.and_then(|command| command.key) {
         button = button.right_text(
             RichText::new(key.shown)
                 .monospace()
-                .color(theme::QUIET_TEXT),
+                .color(palette.quiet_text),
         );
     }
     let response = ui.add(button);

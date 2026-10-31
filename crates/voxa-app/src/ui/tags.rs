@@ -105,11 +105,15 @@ pub fn show(
             });
             if !state.show_patient {
                 let note = hidden_note(listing.as_deref().unwrap_or_default());
-                ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+                ui.label(
+                    RichText::new(note)
+                        .small()
+                        .color(theme::palette(ui.ctx()).quiet_text),
+                );
             }
             match listing {
                 Err(why) => {
-                    ui.label(RichText::new(why).color(theme::WARNING));
+                    ui.label(RichText::new(why).color(theme::palette(ui.ctx()).warning));
                 }
                 Ok(rows) if rows.is_empty() => {
                     ui.label("Show a series to see the tags of the file behind the slice.");
@@ -134,7 +138,11 @@ fn table(ui: &mut egui::Ui, shown: &[ShownTag<'_>]) {
                     for tag in shown {
                         ui.label(RichText::new(tag.tag).monospace());
                         ui.label(tag.keyword);
-                        ui.label(RichText::new(tag.vr).monospace().color(theme::QUIET_TEXT));
+                        ui.label(
+                            RichText::new(tag.vr)
+                                .monospace()
+                                .color(theme::palette(ui.ctx()).quiet_text),
+                        );
                         ui.label(tag.value);
                         ui.end_row();
                     }

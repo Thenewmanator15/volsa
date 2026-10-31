@@ -9,7 +9,7 @@ use egui::style::ScrollStyle;
 
 /// Give the scroll areas made in `ui` from now on bars of their own that are always drawn
 /// when there is more than can be seen, a little wider than egui's and with the handle in
-/// the colour of the words, to stand out against the dark.
+/// the colour of the words, to stand out against the panel, in either theme.
 pub fn solid_bars(ui: &mut egui::Ui) {
     ui.spacing_mut().scroll = ScrollStyle {
         bar_width: 8.0,

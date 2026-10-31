@@ -327,3 +327,27 @@ fn the_menu_holds_size_full_screen_the_keys_the_log_and_about() {
         assert_eq!(found, None, "{id} is in the menu: {:?}", opened.seen.names);
     }
 }
+
+#[test]
+fn the_bar_and_its_menu_read_in_both_themes() {
+    for choice in [ThemeChoice::Dark, ThemeChoice::Light] {
+        let mut bar = Bar::new(SMALLEST, 1.0, named_study());
+        bar.ctx = seen::context_in(1.0, choice);
+        let palette = theme::palette(&bar.ctx);
+        let laid = bar.settle();
+        let said = |(said, _): &(String, Rect)| said == STUDY;
+        assert!(laid.seen.words.iter().any(said), "{choice:?}: the study");
+        let opened = bar.click_named(&laid.seen, MENU);
+        assert!(opened.seen.place_starting("Interface size").is_some());
+        for seen in [&laid.seen, &opened.seen] {
+            // The words of the bar are on the panel, or in the box of the search, whose ground
+            // is that of a field.
+            let field = bar.ctx.global_style().visuals.extreme_bg_color;
+            for ground in [palette.panel, palette.raised, field] {
+                let faint = seen.hard_to_read_on(ground, &[]);
+                assert!(faint.is_empty(), "{choice:?} on {ground:?}: {faint:?}");
+            }
+        }
+        assert!(laid.seen.drew(palette.panel), "{choice:?}: the bar");
+    }
+}

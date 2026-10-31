@@ -65,7 +65,7 @@ pub fn column(
 ) -> (Rect, Vec<Request>) {
     let margin = if open { 8 } else { 4 };
     let frame = Frame::NONE
-        .fill(theme::PANEL)
+        .fill(theme::palette(ui.ctx()).panel)
         .inner_margin(Margin::same(margin));
     let side = egui::Panel::left("rail")
         .exact_size(wide)
@@ -95,14 +95,16 @@ pub fn show(
 ) -> Vec<Request> {
     let mut requests = Vec::new();
     let Some(index) = &state.index else {
-        ui.label(RichText::new(NOTHING_OPEN).color(theme::QUIET_TEXT));
+        ui.label(RichText::new(NOTHING_OPEN).color(theme::palette(ui.ctx()).quiet_text));
         return requests;
     };
     rail.follow(state);
     let open = rail.other_open;
     let laid = rail.laid(index, state);
     if laid.people.len() > 1 {
-        ui.label(RichText::new(people_said(laid.people.len())).color(theme::WARNING));
+        ui.label(
+            RichText::new(people_said(laid.people.len())).color(theme::palette(ui.ctx()).warning),
+        );
         ui.add_space(4.0);
     }
     let mut asks = card::Asks {
@@ -282,7 +284,13 @@ fn other_heading(ui: &mut Ui, rect: Rect, count: usize, open: bool) -> bool {
         let counted = count.to_string();
         let counted_at = pos2(place.right() - 8.0, place.center().y);
         let align = egui::Align2::RIGHT_CENTER;
-        let drawn = painter.text(counted_at, align, &counted, font.clone(), theme::QUIET_TEXT);
+        let drawn = painter.text(
+            counted_at,
+            align,
+            &counted,
+            font.clone(),
+            theme::palette(ui.ctx()).quiet_text,
+        );
         let high = ui.text_style_height(&TextStyle::Body);
         let words_at = pos2(place.left() + 22.0, place.center().y - high / 2.0);
         let strong = ui.visuals().strong_text_color();
@@ -306,5 +314,7 @@ mod documents_tests;
 mod open_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod themes_tests;
 #[cfg(test)]
 mod whose_tests;

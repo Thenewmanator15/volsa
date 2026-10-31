@@ -3,9 +3,10 @@
 //! the clicks that find a button by its name.
 
 use egui::epaint::ColorMode;
+use egui::epaint::text::ByteRangeExt as _;
 use egui::{Color32, Context, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, Shape, vec2};
 
-use super::theme;
+use super::theme::{self, ThemeChoice};
 
 /// What one pass drew.
 #[derive(Default)]
@@ -16,6 +17,8 @@ pub struct Seen {
     pub names: Vec<(String, Rect)>,
     /// The colour of every piece of text, line, fill and outline drawn.
     pub colours: Vec<Color32>,
+    /// The colour of every piece of text drawn, with the text.
+    pub inks: Vec<(String, Color32)>,
     /// Each picture drawn from a texture, by its texture, with where it is.
     pub images: Vec<(egui::TextureId, Rect)>,
     /// What was drawn of each piece of text cut short to fit, with the ellipsis that ends it.
@@ -45,13 +48,45 @@ impl Seen {
             .map(|(_, rect)| *rect)
             .collect()
     }
+
+    /// Whether the pass drew something in this colour, give or take a shade, however much of it
+    /// showed through: a window that is fading in is drawn part transparent.
+    pub fn drew(&self, colour: Color32) -> bool {
+        let [red, green, blue, _] = colour.to_srgba_unmultiplied();
+        let near = |a: u8, b: u8| a.abs_diff(b) <= 2;
+        self.colours.iter().any(|drawn| {
+            let [r, g, b, alpha] = drawn.to_srgba_unmultiplied();
+            alpha > 16 && near(r, red) && near(g, green) && near(b, blue)
+        })
+    }
+
+    /// The text drawn in a colour that is too faint for text on `ground`, by the WCAG contrast
+    /// level AA asks of text: 4.5 to 1. `except` are words drawn on a ground of their own. A
+    /// window that is fading in draws its text part transparent; it is judged by its colour
+    /// once it has faded in.
+    pub fn hard_to_read_on(&self, ground: Color32, except: &[&str]) -> Vec<(String, Color32)> {
+        let opaque = |ink: Color32| {
+            let [red, green, blue, _] = ink.to_srgba_unmultiplied();
+            Color32::from_rgb(red, green, blue)
+        };
+        let faint = self.inks.iter().filter(|(said, ink)| {
+            !except.contains(&said.as_str()) && theme::contrast(opaque(*ink), ground) < 4.5
+        });
+        faint.cloned().collect()
+    }
 }
 
-/// A context drawn in Voxa's look at this interface size, with a screen reader's account of
-/// every pass.
+/// A context drawn in Voxa's dark look at this interface size, with a screen reader's account
+/// of every pass.
 pub fn context(zoom: f32) -> Context {
+    context_in(zoom, ThemeChoice::Dark)
+}
+
+/// A context drawn in this theme at this interface size, with a screen reader's account of
+/// every pass.
+pub fn context_in(zoom: f32, choice: ThemeChoice) -> Context {
     let ctx = Context::default();
-    theme::apply(&ctx);
+    theme::apply(&ctx, choice);
     ctx.options_mut(|options| options.zoom_factor = zoom);
     ctx.enable_accesskit();
     ctx
@@ -122,7 +157,10 @@ fn take_in(shape: &Shape, seen: &mut Seen) {
                 } else {
                     own
                 };
-                seen.colours.push(text.override_text_color.unwrap_or(drawn));
+                let ink = text.override_text_color.unwrap_or(drawn);
+                seen.colours.push(ink);
+                let words = section.byte_range.slice(text.galley.text()).to_owned();
+                seen.inks.push((words, ink));
             }
         }
         Shape::Vec(shapes) => shapes.iter().for_each(|shape| take_in(shape, seen)),

@@ -1,7 +1,8 @@
 //! What Voxa remembers between runs of how the person had it set: the window's size, the size
 //! of the interface, how wide the series list and the tab panel are, which tab is open and
-//! whether the panel is folded, how many viewports, and three switches. Nothing about
-//! any scan, and nothing that says which scans were opened.
+//! whether the panel is folded, whether the window is light, dark or as the system is set,
+//! how many viewports, and three switches. Nothing about any scan, and nothing that says which
+//! scans were opened.
 
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
@@ -31,6 +32,10 @@ pub const PANEL_SHARE: f32 = COLUMN_SHARE * (1.0 - LIST_SHARE);
 pub const PANEL_MOST_SHARE: f32 = 0.4;
 /// The tab the panel opens on when none is remembered, by the name it is kept under.
 pub const FIRST_TAB: &str = "View";
+/// The theme the window starts in, by the name it is kept under: the system's.
+pub const START_THEME: &str = "system";
+/// The themes a remembered one is held between, by the names they are kept under.
+pub const THEMES: [&str; 3] = [START_THEME, "light", "dark"];
 
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -63,11 +68,14 @@ pub struct Prefs {
     pub linked: bool,
     /// How labels are drawn over the planes: `off`, `outline` or `filled`.
     pub overlay: String,
+    /// The theme the window is drawn in: `system`, `light` or `dark`. A name that is not one of
+    /// these is the system's.
+    pub theme: String,
 }
 
 /// How the window itself is set out, which the state does not hold: its size, the size of
-/// the interface, how wide the person dragged the series list and the tab panel, and which tab
-/// is open.
+/// the interface, how wide the person dragged the series list and the tab panel, which tab
+/// is open, and which theme it is drawn in.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Arrangement {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
@@ -83,6 +91,8 @@ pub struct Arrangement {
     pub panel_folded: bool,
     /// The tab last open, by the name it is kept under.
     pub tab: String,
+    /// The theme the window is drawn in, by the name it is kept under.
+    pub theme: String,
 }
 
 impl Default for Arrangement {
@@ -94,6 +104,7 @@ impl Default for Arrangement {
             panel_share: None,
             panel_folded: false,
             tab: FIRST_TAB.to_owned(),
+            theme: START_THEME.to_owned(),
         }
     }
 }
@@ -143,6 +154,7 @@ impl Prefs {
             panel_share: arrangement.panel_share,
             panel_folded: arrangement.panel_folded,
             tab: arrangement.tab,
+            theme: arrangement.theme,
             viewports,
             radiological: state.radiological,
             linked: state.planes.linked,
@@ -159,6 +171,7 @@ impl Prefs {
             panel_share: self.panel_share,
             panel_folded: self.panel_folded,
             tab: self.tab.clone(),
+            theme: self.theme.clone(),
         }
     }
 
@@ -211,6 +224,9 @@ impl Prefs {
         }
         if overlay_of(&self.overlay).is_none() {
             self.overlay = start.overlay;
+        }
+        if !THEMES.contains(&self.theme.as_str()) {
+            self.theme = start.theme;
         }
         self
     }

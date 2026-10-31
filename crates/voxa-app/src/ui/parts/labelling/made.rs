@@ -45,9 +45,9 @@ pub fn solids_in_words(made: &Made) -> String {
 /// The labelling model's own check, in words, in the colour of how it went.
 pub fn verdict_line(ui: &mut Ui, verdict: &Verdict) {
     let colour = if verdict.passed {
-        theme::QUIET_TEXT
+        theme::palette(ui.ctx()).quiet_text
     } else {
-        theme::WARNING
+        theme::palette(ui.ctx()).warning
     };
     let words = RichText::new(verdict_in_words(verdict)).small();
     ui.label(words.color(colour));
@@ -60,9 +60,9 @@ pub fn made_by(ui: &mut Ui, verdict: Option<&Verdict>, made: &Made) {
     if let Some(verdict) = verdict {
         verdict_line(ui, verdict);
     }
-    ui.label(quiet(&made_in_words(made)));
+    ui.label(quiet(ui, &made_in_words(made)));
     for note in &made.notes {
-        ui.label(quiet(note));
+        ui.label(quiet(ui, note));
     }
 }
 

@@ -4,6 +4,7 @@ use egui::{Id, Pos2, Rect};
 
 use super::*;
 use crate::ui::seen::{self, Seen, click_at, is_red, key};
+use crate::ui::theme::ThemeChoice;
 
 /// A notice of this kind and these words.
 fn notice(kind: NoticeKind, text: &str) -> Notice {
@@ -137,7 +138,16 @@ fn three() -> Vec<Notice> {
 /// The line with these notices and its list open, after the passes the list needs to appear:
 /// the context, what was drawn last and the actions it gave.
 fn opened(notices: &[Notice], size: [f32; 2]) -> (Context, Seen, Vec<Action>) {
-    let ctx = seen::context(1.0);
+    opened_in(ThemeChoice::Dark, notices, size)
+}
+
+/// [`opened`], in a window drawn in this theme.
+fn opened_in(
+    choice: ThemeChoice,
+    notices: &[Notice],
+    size: [f32; 2],
+) -> (Context, Seen, Vec<Action>) {
+    let ctx = seen::context_in(1.0, choice);
     let mut open = true;
     let mut actions = Vec::new();
     let mut last = Seen::default();
@@ -255,14 +265,33 @@ fn no_notice_is_drawn_red() {
             "{kind:?} listed"
         );
     }
-    // An error is drawn as something to look at: the same amber as a warning.
-    let drawn_in = |kind| look(kind).1;
-    assert_eq!(drawn_in(NoticeKind::Error), theme::WARNING);
-    assert_eq!(drawn_in(NoticeKind::Warning), theme::WARNING);
-    assert_ne!(drawn_in(NoticeKind::Info), theme::WARNING);
+    // An error is drawn as something to look at: the same amber as a warning, in each theme.
+    for choice in [ThemeChoice::Dark, ThemeChoice::Light] {
+        let ctx = seen::context_in(1.0, choice);
+        let amber = theme::palette(&ctx).warning;
+        let drawn_in = |kind| look(&ctx, kind).1;
+        assert_eq!(drawn_in(NoticeKind::Error), amber, "{choice:?}");
+        assert_eq!(drawn_in(NoticeKind::Warning), amber, "{choice:?}");
+        assert_ne!(drawn_in(NoticeKind::Info), amber, "{choice:?}");
+        assert!(!is_red(amber), "{choice:?}");
+    }
     // And the test itself knows red when it sees it.
     assert!(is_red(egui::Color32::from_rgb(220, 40, 40)));
-    assert!(!is_red(theme::WARNING));
+}
+
+#[test]
+fn the_line_and_its_list_read_in_both_themes() {
+    for choice in [ThemeChoice::Dark, ThemeChoice::Light] {
+        let (ctx, listed, _) = opened_in(choice, &three(), [900.0, 600.0]);
+        let palette = theme::palette(&ctx);
+        assert!(listed.words.len() > 6, "the line and the list are drawn");
+        // The list is a window of the theme's panel colour.
+        assert!(listed.drew(palette.panel), "{choice:?}");
+        for ground in [palette.panel, palette.raised] {
+            let faint = listed.hard_to_read_on(ground, &[]);
+            assert!(faint.is_empty(), "{choice:?} on {ground:?}: {faint:?}");
+        }
+    }
 }
 
 #[test]

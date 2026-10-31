@@ -336,3 +336,19 @@ fn a_picture_can_ask_for_an_arrangement_of_the_pictures() {
         assert_eq!(pose(word), [], "{word} is set at once, not as a pose");
     }
 }
+
+#[test]
+fn a_picture_is_dark_unless_it_asks_for_the_light_theme() {
+    use crate::ui::theme::ThemeChoice::{Dark, Light, System};
+    // A picture is the same wherever it is made, so the system's choice is not followed.
+    assert_eq!(theme_for("", true, System), Dark);
+    assert_eq!(theme_for("keys,about", true, System), Dark);
+    assert_eq!(theme_for("light", true, System), Light);
+    assert_eq!(theme_for("about, light", true, Dark), Light);
+    assert_eq!(theme_for("lighter", true, System), Dark, "whole words");
+    // A window that is not a picture is drawn as the person left it, whatever the words say.
+    assert_eq!(theme_for("light", false, Dark), Dark);
+    assert_eq!(theme_for("", false, System), System);
+    assert_eq!(theme_for("", false, Light), Light);
+    assert_eq!(theme_for("", false, Dark), Dark);
+}

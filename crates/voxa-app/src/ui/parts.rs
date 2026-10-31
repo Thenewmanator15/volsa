@@ -171,7 +171,11 @@ pub fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut 
             }
             if first.trust != Trust::Model {
                 let word = trust_in_words(&first.trust);
-                ui.label(RichText::new(word).small().color(theme::QUIET_TEXT));
+                ui.label(
+                    RichText::new(word)
+                        .small()
+                        .color(theme::palette(ui.ctx()).quiet_text),
+                );
             }
             if wide {
                 let volumes = parts.iter().filter_map(|(_, part)| labels.parts.get(*part));
@@ -179,7 +183,7 @@ pub fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut 
                 ui.label(
                     RichText::new(volumes.join(" | "))
                         .small()
-                        .color(theme::QUIET_TEXT),
+                        .color(theme::palette(ui.ctx()).quiet_text),
                 );
             }
             // What is left of the line is the name's, cut short if it is longer.
@@ -225,7 +229,11 @@ pub fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Actio
         }
     });
     if let Some(against) = sides_compared(labels, part) {
-        ui.label(RichText::new(against).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(against)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
 }
 

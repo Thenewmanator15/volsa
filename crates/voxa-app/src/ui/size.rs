@@ -44,7 +44,11 @@ pub fn menu(ui: &mut Ui, state: &AppState) -> Option<f32> {
         }
         ui.separator();
         let keys = "Ctrl+= larger, Ctrl+- smaller, Ctrl+0 usual";
-        ui.label(RichText::new(keys).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(keys)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     });
     menu.response.on_hover_text(SIZE_SAYS);
     chosen

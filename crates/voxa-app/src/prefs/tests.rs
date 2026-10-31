@@ -16,6 +16,7 @@ fn arranged() -> Arrangement {
         panel_share: Some(0.3),
         panel_folded: true,
         tab: "Scene".to_owned(),
+        theme: "light".to_owned(),
     }
 }
 
@@ -28,6 +29,7 @@ fn changed() -> Prefs {
         panel_share: Some(0.3),
         panel_folded: true,
         tab: "Scene".to_owned(),
+        theme: "light".to_owned(),
         viewports: 4,
         radiological: false,
         linked: false,
@@ -268,4 +270,57 @@ fn patient_details_start_off_and_are_not_remembered() {
         reduce(&mut fresh, action);
     }
     assert!(!fresh.show_patient);
+}
+
+#[test]
+fn the_theme_starts_as_the_systems() {
+    assert_eq!(Prefs::default().theme, "system");
+    assert_eq!(Arrangement::default().theme, "system");
+    // A file from a Voxa that kept no theme: as Voxa starts, which follows the system.
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    std::fs::write(folder.path().join(FILE), r#"{"viewports": 2}"#).expect("writes");
+    assert_eq!(load(folder.path()).theme, "system");
+}
+
+#[test]
+fn the_theme_choice_is_remembered() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    for word in ["system", "light", "dark"] {
+        let chosen = Prefs {
+            theme: word.to_owned(),
+            ..Prefs::default()
+        };
+        save(folder.path(), &chosen).expect("saves");
+        let read = load(folder.path());
+        assert_eq!(read.theme, word);
+        assert_eq!(read.arrangement().theme, word);
+    }
+    // Read off the window as it is, and put back into it.
+    let state = AppState::default();
+    let now = Prefs::of(
+        &state,
+        Arrangement {
+            theme: "dark".to_owned(),
+            ..Arrangement::default()
+        },
+    );
+    assert_eq!(now.theme, "dark");
+    // And written only when it changes, like the rest.
+    let fresh = tempfile::tempdir().expect("a temporary folder");
+    let mut kept = Kept::new(Some(fresh.path().to_owned()));
+    assert!(kept.keep(&now), "a new choice is written");
+    assert!(!kept.keep(&now.clone()), "and not again");
+    assert_eq!(load(fresh.path()).theme, "dark");
+}
+
+#[test]
+fn a_theme_that_is_not_one_voxa_has_is_the_systems() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    for nonsense in [r#""sepia""#, r#""""#, r#""Dark""#, r#""light ""#] {
+        let text = format!(r#"{{"theme": {nonsense}, "viewports": 2}}"#);
+        std::fs::write(folder.path().join(FILE), text).expect("writes");
+        let read = load(folder.path());
+        assert_eq!(read.theme, "system", "{nonsense}");
+        assert_eq!(read.viewports, 2, "the rest is kept: {nonsense}");
+    }
 }

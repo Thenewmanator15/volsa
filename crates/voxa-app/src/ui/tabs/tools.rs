@@ -25,7 +25,11 @@ const NONE_ADDED: &str =
 
 /// A line of quiet words.
 fn quiet(ui: &mut Ui, text: &str) {
-    ui.label(RichText::new(text).small().color(theme::QUIET_TEXT));
+    ui.label(
+        RichText::new(text)
+            .small()
+            .color(theme::palette(ui.ctx()).quiet_text),
+    );
 }
 
 /// A line of the entry of a tool, if there are words to put on it.
@@ -38,10 +42,11 @@ fn line(ui: &mut Ui, what: &str, words: &str) {
 /// What is said of a tool's files: whether they passed their check. A check that was not
 /// passed is the colour of what to look at.
 fn files_checked(ui: &mut Ui, checked: Option<bool>) {
+    let palette = theme::palette(ui.ctx());
     let (words, colour) = match checked {
-        Some(true) => ("Its files passed their check.", theme::QUIET_TEXT),
-        Some(false) => ("Its files did not pass their check.", theme::WARNING),
-        None => ("Its files have not been checked.", theme::QUIET_TEXT),
+        Some(true) => ("Its files passed their check.", palette.quiet_text),
+        Some(false) => ("Its files did not pass their check.", palette.warning),
+        None => ("Its files have not been checked.", palette.quiet_text),
     };
     ui.label(RichText::new(words).small().color(colour));
 }

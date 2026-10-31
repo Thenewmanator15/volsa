@@ -164,15 +164,23 @@ fn contents(ui: &mut egui::Ui) {
     ui.label(
         RichText::new(theme::DISCLAIMER)
             .strong()
-            .color(theme::WARNING),
+            .color(theme::palette(ui.ctx()).warning),
     );
     ui.add_space(8.0);
     for line in LICENCES {
-        ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(line)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
     if let Some(log) = crate::log::path() {
         ui.add_space(8.0);
-        ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(LOG_SAYS)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
         ui.horizontal(|ui| {
             let path = log.display().to_string();
             ui.label(RichText::new(&path).small().monospace());
@@ -235,7 +243,7 @@ mod tests {
     fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect, egui::Rect) {
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         ctx.enable_accesskit();
         let (mut scrolled, mut bar, mut button) = (None, false, None);
         for _ in 0..3 {
@@ -293,7 +301,7 @@ mod tests {
         // The smallest window, with the interface drawn at 150%.
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(427.0, 320.0));
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         let mut open = true;
         for _ in 0..3 {
             let input = egui::RawInput {

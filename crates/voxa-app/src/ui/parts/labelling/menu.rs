@@ -71,7 +71,11 @@ fn send(actions: &mut Vec<Action>, action: LabellingAction) {
 
 /// A line over a group of entries.
 fn heading(ui: &mut Ui, text: &str) {
-    ui.label(RichText::new(text).small().color(theme::QUIET_TEXT));
+    ui.label(
+        RichText::new(text)
+            .small()
+            .color(theme::palette(ui.ctx()).quiet_text),
+    );
 }
 
 /// Which model: left to Voxa, or one of the two.

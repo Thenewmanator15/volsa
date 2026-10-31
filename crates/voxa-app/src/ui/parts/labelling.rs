@@ -57,7 +57,7 @@ pub fn strip(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Re
             if none_open {
                 ready(ui, state, actions, &mut asked);
             } else if kept.is_none() {
-                ui.label(quiet(OPEN_ALREADY));
+                ui.label(quiet(ui, OPEN_ALREADY));
             }
             if let Some(when) = kept {
                 keeping(ui, state, when, actions, &mut asked);
@@ -68,8 +68,9 @@ pub fn strip(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Re
 }
 
 /// The words for a quiet line.
-fn quiet(text: &str) -> RichText {
-    RichText::new(text).small().color(theme::QUIET_TEXT)
+fn quiet(ui: &Ui, text: &str) -> RichText {
+    let quiet = theme::palette(ui.ctx()).quiet_text;
+    RichText::new(text).small().color(quiet)
 }
 
 /// The window is asked to choose what the strip wants chosen.
@@ -104,7 +105,7 @@ fn running(ui: &mut Ui, stage: Stage, actions: &mut Vec<Action>) {
             actions.push(Action::Labelling(LabellingAction::StopLabelling));
         }
     });
-    ui.label(quiet(SLOW));
+    ui.label(quiet(ui, SLOW));
 }
 
 /// No run is on and no labels are open: the button, from the list of actions, the menu beside
@@ -117,7 +118,10 @@ fn ready(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
         }
         asked.extend(choose(menu::options(ui, &state.labelling, actions)));
     });
-    ui.label(quiet(&can.err().unwrap_or_else(|| what_will_run(state))));
+    ui.label(quiet(
+        ui,
+        &can.err().unwrap_or_else(|| what_will_run(state)),
+    ));
 }
 
 /// A result is kept for the series: when it was made, and the ways to show, make and delete it.

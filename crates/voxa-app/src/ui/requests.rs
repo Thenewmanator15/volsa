@@ -60,8 +60,7 @@ impl VoxaApp {
             // Made once the frame has its graphics device in hand.
             Request::LabelScan => self.label_asked = true,
             Request::Search => self.search.open(),
-            // Chosen here; drawn in once the window can be drawn in more than one theme.
-            Request::Theme(choice) => self.bars.theme = choice,
+            Request::Theme(choice) => self.bars.choose(ctx, choice),
             Request::SaveDocumentPdf(entry) => {
                 // Written only where the person chooses, and nothing is written if they do not.
                 if let Some(to) = document::choose_pdf() {

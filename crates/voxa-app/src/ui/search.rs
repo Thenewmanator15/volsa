@@ -36,6 +36,8 @@ mod run_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
+mod themes_tests;
+#[cfg(test)]
 mod view_tests;
 
 /// The box's own name, which it keeps its place under.
@@ -285,11 +287,11 @@ impl Search {
     /// the chosen result into view.
     fn list(&self, ui: &mut Ui, state: &AppState, tallest: f32, follow: bool) -> Option<Target> {
         if self.query.trim().is_empty() {
-            ui.label(RichText::new(BEFORE_TYPING).color(theme::QUIET_TEXT));
+            ui.label(RichText::new(BEFORE_TYPING).color(theme::palette(ui.ctx()).quiet_text));
             return None;
         }
         if self.results.is_empty() {
-            ui.label(RichText::new(NO_MATCH).color(theme::QUIET_TEXT));
+            ui.label(RichText::new(NO_MATCH).color(theme::palette(ui.ctx()).quiet_text));
             return None;
         }
         let mut clicked = None;

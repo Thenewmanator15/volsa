@@ -178,7 +178,7 @@ pub fn show(
 ) -> Shown {
     let margin = if panel.folded { 4 } else { 8 };
     let frame = Frame::NONE
-        .fill(theme::PANEL)
+        .fill(theme::palette(ui.ctx()).panel)
         .inner_margin(Margin::same(margin));
     let side = egui::Panel::right("tab panel")
         .exact_size(wide)

@@ -356,9 +356,10 @@ so that one display can show what another would: on a display of 1440 by 900 poi
 at 100% would, and `0.375` with `3840x2090` as a 4K one would. `VOXA_CAPTURE_SERIES` names the
 series to show by words from its description. `VOXA_CAPTURE_SHOW` names what else to have in
 the picture, separated by commas: `stepped` shows the next volume of a series that holds
-several, `keys` the list of keys, `nolist` hides the list of series, and `fitted` fits the
-window to the screen as Voxa does when it starts, in place of the size asked for. A picture's
-window is otherwise the size asked for, or 1440 by 900 points.
+several, `keys` the list of keys, `nolist` hides the list of series, `light` draws the window
+in the light theme, in place of the dark one every picture is otherwise made in, and `fitted`
+fits the window to the screen as Voxa does when it starts, in place of the size asked for. A
+picture's window is otherwise the size asked for, or 1440 by 900 points.
 
 The ball has no brain in it, so there is nothing for the labelling model to find. For something
 with a brain's shape that is nobody's, the model folder's `check` folder holds a made-up head,

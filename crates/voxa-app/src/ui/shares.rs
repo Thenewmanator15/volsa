@@ -40,9 +40,9 @@ pub fn divider(ui: &Ui, id: Id, x: f32, along: Rangef) -> f32 {
     if held || response.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
         let colour = if held {
-            theme::ACCENT
+            theme::palette(ui.ctx()).accent
         } else {
-            theme::QUIET_TEXT
+            theme::palette(ui.ctx()).quiet_text
         };
         let painter = ui.ctx().layer_painter(LayerId::new(Order::Foreground, id));
         painter.vline(x, along, Stroke::new(2.0, colour));

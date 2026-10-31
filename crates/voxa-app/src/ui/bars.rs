@@ -6,7 +6,7 @@
 
 use super::commands::Request;
 use super::search::Search;
-use super::theme::ThemeChoice;
+use super::theme::{self, ThemeChoice};
 use super::{notices, top};
 use crate::action::Action;
 use crate::state::AppState;
@@ -18,6 +18,17 @@ pub struct Kept {
     pub theme: ThemeChoice,
     /// Whether the list of notices above the bottom line is open.
     pub notices_open: bool,
+}
+
+impl Kept {
+    /// Draw the window in the theme `choice` from now on: its colours are set in `ctx`, and the
+    /// pass that is running, which began in the theme before, is drawn again in the new one
+    /// before any of it is shown.
+    pub fn choose(&mut self, ctx: &egui::Context, choice: ThemeChoice) {
+        self.theme = choice;
+        theme::apply(ctx, choice);
+        ctx.request_discard("the theme changed");
+    }
 }
 
 /// Lay out the line along the bottom of the window and the bar across its top, in that order,

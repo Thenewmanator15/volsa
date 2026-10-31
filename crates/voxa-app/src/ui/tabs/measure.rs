@@ -64,7 +64,7 @@ pub fn show(
 ) -> Vec<Request> {
     let mut asked = Vec::new();
     if let Some(why) = why_not_measurable(state) {
-        ui.label(RichText::new(why).color(theme::QUIET_TEXT));
+        ui.label(RichText::new(why).color(theme::palette(ui.ctx()).quiet_text));
     }
     section(ui, "Tools");
     tools(ui, state, actions, &mut asked);
@@ -75,11 +75,15 @@ pub fn show(
     });
     section(ui, "On this series");
     if let Some(note) = plain_stack_note(state) {
-        ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(note)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
     let list = &state.annotations;
     if list.items.is_empty() {
-        ui.label(RichText::new(NOTHING_MEASURED).color(theme::QUIET_TEXT));
+        ui.label(RichText::new(NOTHING_MEASURED).color(theme::palette(ui.ctx()).quiet_text));
     }
     let at = scene_placement(state);
     let placement = at.map(|at| at.placement);
@@ -136,7 +140,11 @@ fn listed(
     let go = ui.add(Button::new(value).frame(false).truncate());
     let pressed = go.on_hover_text("Go to it").clicked();
     if !detail.is_empty() {
-        ui.label(RichText::new(detail).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(detail)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
     pressed
 }

@@ -72,7 +72,7 @@ pub fn show(
 ) -> Vec<Request> {
     let mut asked = Vec::new();
     ui.painter()
-        .rect_filled(area, theme::ROUNDING, theme::PANEL);
+        .rect_filled(area, theme::ROUNDING, theme::palette(ui.ctx()).panel);
     let held = state.index.as_ref().map(|index| &index.documents);
     let document = held.and_then(|all| all.iter().find(|one| one.entry == open.entry));
     let inside = Margin::same(MARGIN);
@@ -111,7 +111,9 @@ fn header(
             ui.label(RichText::new(kind_words(&document.kind)).heading().strong());
             let mask = Mask::for_document(state, document);
             let words = format!("{} · {}", title_of(document, &mask), date_of(document));
-            let quiet = RichText::new(words).small().color(theme::QUIET_TEXT);
+            let quiet = RichText::new(words)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text);
             ui.add(Label::new(quiet).truncate());
         });
         ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
@@ -131,15 +133,15 @@ fn header(
 fn report(ui: &mut Ui, open: &OpenDocument, of: (&IndexedDocument, &AppState), kept: &mut Kept) {
     match &open.report {
         None => {
-            ui.label(RichText::new(READING).color(theme::QUIET_TEXT));
+            ui.label(RichText::new(READING).color(theme::palette(ui.ctx()).quiet_text));
         }
         Some(Err(why)) => {
-            ui.label(RichText::new(why).color(theme::WARNING));
+            ui.label(RichText::new(why).color(theme::palette(ui.ctx()).warning));
         }
         Some(Ok(report)) => {
             ui.label(RichText::new(HEADING).strong());
             if report.cut_short {
-                ui.label(RichText::new(CUT_SHORT).color(theme::WARNING));
+                ui.label(RichText::new(CUT_SHORT).color(theme::palette(ui.ctx()).warning));
             }
             ui.add_space(6.0);
             let (document, state) = of;

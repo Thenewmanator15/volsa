@@ -44,7 +44,11 @@ fn row(ui: &mut Ui, labels: &Labels, group: &Group, actions: &mut Vec<Action>) -
                 actions.push(Action::GroupShow { group, shown: !all });
             }
             let count = count_in_words(parts_in(group));
-            ui.label(RichText::new(count).small().color(theme::QUIET_TEXT));
+            ui.label(
+                RichText::new(count)
+                    .small()
+                    .color(theme::palette(ui.ctx()).quiet_text),
+            );
             // What is left of the line is the name's, cut short if it is longer.
             ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
                 let button = egui::Button::new(RichText::new(name).small());

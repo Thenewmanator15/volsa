@@ -32,8 +32,9 @@ const LABEL_IN_TOOLS: &str = "Label this scan in the Tools tab.";
 const WIDE: f32 = 300.0;
 
 /// The words for a quiet line.
-fn quiet(text: &str) -> RichText {
-    RichText::new(text).small().color(theme::QUIET_TEXT)
+fn quiet(ui: &Ui, text: &str) -> RichText {
+    let quiet = theme::palette(ui.ctx()).quiet_text;
+    RichText::new(text).small().color(quiet)
 }
 
 /// A part of the tab that scrolls, and takes the height that is left.
@@ -75,18 +76,18 @@ fn without_labels(
 ) {
     match status {
         LabelsStatus::None => {
-            ui.label(quiet(WHAT_LABELS_ARE));
+            ui.label(quiet(ui, WHAT_LABELS_ARE));
             ways_to_get_some(ui, state, actions, asked);
         }
         LabelsStatus::Reading => {
             ui.label("Reading the labels…");
         }
         LabelsStatus::Failed(why) => {
-            ui.label(RichText::new(why).color(theme::WARNING));
+            ui.label(RichText::new(why).color(theme::palette(ui.ctx()).warning));
             ways_to_get_some(ui, state, actions, asked);
         }
         LabelsStatus::Ready => {
-            ui.label(quiet(OTHER_STUDY));
+            ui.label(quiet(ui, OTHER_STUDY));
             if ui.button("Close").clicked() {
                 actions.push(Action::CloseLabels);
             }
@@ -103,7 +104,7 @@ fn ways_to_get_some(
 ) {
     offer(ui, "labels.open", state, None, actions, asked);
     row(ui, |ui| {
-        ui.label(quiet(LABEL_IN_TOOLS));
+        ui.label(quiet(ui, LABEL_IN_TOOLS));
         offer(ui, "tab.tools", state, None, actions, asked);
     });
 }
@@ -148,7 +149,10 @@ fn groups(ui: &mut Ui, labels: &Labels, view: &mut PartsView, actions: &mut Vec<
     let wide = ui.available_width() >= WIDE;
     let found = parts::rows(labels, &view.search);
     if found.is_empty() {
-        ui.label(RichText::new("No part has that in its name.").color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new("No part has that in its name.")
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
     for group in found {
         let mut all = all_shown(labels, &group);
@@ -183,14 +187,17 @@ fn about(ui: &mut Ui, labels: &Labels) -> Vec<Request> {
     match &labels.made {
         Some(made) => labelling::made_by(ui, labels.verdict.as_ref(), made),
         None => {
-            ui.label(quiet(MADE_ELSEWHERE));
+            ui.label(quiet(ui, MADE_ELSEWHERE));
         }
     }
-    ui.label(quiet(match labels.names_from {
-        NamesFrom::Table => NAMED,
-        NamesFrom::Model => NAMED_BY_THE_MODEL,
-        NamesFrom::Nothing => NOT_NAMED,
-    }));
+    ui.label(quiet(
+        ui,
+        match labels.names_from {
+            NamesFrom::Table => NAMED,
+            NamesFrom::Model => NAMED_BY_THE_MODEL,
+            NamesFrom::Nothing => NOT_NAMED,
+        },
+    ));
     if let Some(verdict) = labels.verdict.as_ref().filter(|_| labels.made.is_none()) {
         labelling::verdict_line(ui, verdict);
     }
@@ -225,7 +232,11 @@ fn switches(ui: &mut Ui, labels: &Labels, actions: &mut Vec<Action>) -> Vec<Requ
         }
     });
     ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("On planes").small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new("On planes")
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
         let ways = [
             (Overlay::Off, "Off", "No labels over the plane views"),
             (Overlay::Outline, "Outline", "A line round each part"),

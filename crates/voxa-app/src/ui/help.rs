@@ -100,8 +100,9 @@ fn listed() -> impl Iterator<Item = (&'static str, &'static str)> {
 }
 
 /// A key or mouse action, as the reference names it.
-fn key(input: &str) -> RichText {
-    RichText::new(input).monospace().color(theme::ACCENT)
+fn key(ui: &egui::Ui, input: &str) -> RichText {
+    let accent = theme::palette(ui.ctx()).accent;
+    RichText::new(input).monospace().color(accent)
 }
 
 /// Each key with what it does beside it, in two columns.
@@ -111,7 +112,7 @@ fn side_by_side(ui: &mut egui::Ui) {
         .spacing([24.0, 6.0])
         .show(ui, |ui| {
             for (input, does) in listed() {
-                ui.label(key(input));
+                ui.label(key(ui, input));
                 ui.add(egui::Label::new(does).wrap());
                 ui.end_row();
             }
@@ -125,7 +126,7 @@ fn run_on(ui: &mut egui::Ui) {
     let colour = ui.visuals().text_color();
     for (input, does) in listed() {
         let mut line = egui::text::LayoutJob::default();
-        let named = egui::TextFormat::simple(keys.clone(), theme::ACCENT);
+        let named = egui::TextFormat::simple(keys.clone(), theme::palette(ui.ctx()).accent);
         line.append(input, 0.0, named);
         line.append(does, 12.0, egui::TextFormat::simple(words.clone(), colour));
         ui.add(egui::Label::new(line).wrap());
@@ -144,7 +145,7 @@ pub fn drawn_words(width: f32, height: f32) -> Vec<String> {
         }
     }
     let ctx = egui::Context::default();
-    theme::apply(&ctx);
+    theme::apply(&ctx, theme::ThemeChoice::Dark);
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
     let mut words = Vec::new();
     for _ in 0..2 {
@@ -234,7 +235,7 @@ mod tests {
     /// reference is.
     fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect) {
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
         let mut open = true;
         let (mut scrolled, mut bar) = (None, false);

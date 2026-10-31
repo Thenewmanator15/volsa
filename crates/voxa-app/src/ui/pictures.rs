@@ -9,13 +9,34 @@ use voxa_core::Volume;
 use voxa_labels::LabelSet;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, document, labels, layout, planes, scene, strip, viewport};
+use super::{VoxaApp, document, labels, layout, planes, scene, strip, theme, viewport};
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::session::Session;
 use crate::state::AppState;
 
 impl VoxaApp {
+    /// Show the document that is open, if one is, in place of the strip and the pictures, and
+    /// give up the slices' room on the graphics device. Whether there was one.
+    fn show_document(
+        &mut self,
+        ui: &mut egui::Ui,
+        whole: egui::Rect,
+        render: Option<&RenderState>,
+        actions: &mut Vec<Action>,
+    ) -> bool {
+        let state = self.session.state();
+        let Some(open) = &state.document else {
+            return false;
+        };
+        let asked = document::show(ui, whole, state, open, &mut self.document_view, actions);
+        self.give_up_the_slices(ui, whole, render, actions);
+        for request in asked {
+            self.ask(ui.ctx(), request);
+        }
+        true
+    }
+
     /// Draw the strip and, beneath it, the pictures of the arrangement shown in what is left of
     /// the window. The 3D scene is drawn only when the arrangement has it; without it, its
     /// volume is put on the graphics card all the same. The volume becomes ready either way, as
@@ -26,16 +47,12 @@ impl VoxaApp {
         render: Option<&RenderState>,
         actions: &mut Vec<Action>,
     ) {
-        let state = self.session.state();
         let whole = ui.available_rect_before_wrap();
-        if let Some(open) = &state.document {
-            let asked = document::show(ui, whole, state, open, &mut self.document_view, actions);
-            self.give_up_the_slices(ui, whole, render, actions);
-            for request in asked {
-                self.ask(ui.ctx(), request);
-            }
+        if self.show_document(ui, whole, render, actions) {
             return;
         }
+        theme::on_the_pictures_ground(ui);
+        let state = self.session.state();
         let (along, rest) = layout::strip_and_pictures(whole);
         let asked = strip::show(ui, along, state, actions);
         // A scan with no 3D view has its slices alone: they are all there is.

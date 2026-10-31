@@ -154,7 +154,6 @@ impl VoxaApp {
         initial: Option<PathBuf>,
         labels: Option<PathBuf>,
     ) -> Self {
-        theme::apply(&creation.egui_ctx);
         let (from_workers, reports) = relay(creation.egui_ctx.clone());
         let render = creation.wgpu_render_state.as_ref();
         crate::log::device(render);
@@ -164,6 +163,8 @@ impl VoxaApp {
         let (settings, local) = capture::folders(capture.is_some());
         let prefs = crate::prefs::Kept::new(settings);
         let arranged = prefs.remembered().arrangement();
+        let choice = remembered::opening_theme(&arranged, capture.is_some());
+        theme::apply(&creation.egui_ctx, choice);
         creation.egui_ctx.set_zoom_factor(arranged.interface_size);
         // A picture is of a window the size it asks for, not one fitted to this screen,
         // unless it asks to see the fitting.
@@ -182,7 +183,10 @@ impl VoxaApp {
             about_open: false,
             help_open: false,
             tags: tags::Panel::default(),
-            bars: bars::Kept::default(),
+            bars: bars::Kept {
+                theme: choice,
+                ..bars::Kept::default()
+            },
             document_view: document::Kept::default(),
             search: search::Search::default(),
             tabs: tabs::Kept::default(),

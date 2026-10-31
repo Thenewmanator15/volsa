@@ -56,6 +56,7 @@ pub fn show(ui: &mut Ui, rect: Rect, state: &AppState, actions: &mut Vec<Action>
     }
     if let Some(said) = where_you_are(state) {
         strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
+            // The strip lies on the pictures' ground, which is dark in both themes.
             let words = RichText::new(said).small().color(theme::QUIET_TEXT);
             ui.add(Label::new(words).truncate());
         });
