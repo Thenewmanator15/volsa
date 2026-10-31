@@ -72,6 +72,11 @@ pub(super) fn pass(ctx: &Context, state: &AppState, events: Vec<Event>) -> Drawn
     pass_with(ctx, state, &mut Kept::default(), events)
 }
 
+/// What a screen reader calls the button that closes the document.
+fn closing() -> &'static str {
+    commands::find("document.close").expect("listed").name
+}
+
 fn click(ctx: &Context, state: &AppState, name: &str) -> Drawn {
     let drawn = pass(ctx, state, Vec::new());
     let at = drawn.seen.place_of(name).expect("a button of that name");
@@ -315,7 +320,7 @@ fn each_kind_offers_the_tags_of_its_file_and_a_way_to_close() {
         let of = TagsOf::Entry(entry.to_owned());
         assert_eq!(asked.asked, [Request::Tags(of)], "{entry}");
         assert_eq!(asked.actions, []);
-        let closed = click(&ctx, &state, CLOSE);
+        let closed = click(&ctx, &state, closing());
         assert_eq!(closed.actions, [Action::CloseDocument], "{entry}");
         assert_eq!(closed.asked, []);
     }

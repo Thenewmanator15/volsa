@@ -165,7 +165,8 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
             "2 files are not scans or documents Voxa lists"
         )
     );
-    assert_eq!(notice.details, index.skipped);
+    // Each by its last part alone: the folders it lies in can be named for the patient.
+    assert_eq!(notice.details, ["readme.txt", "report.pdf"]);
 
     index.skipped.truncate(1);
     reduce(&mut state, Action::IndexProgress(index.clone()));
@@ -179,6 +180,22 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
     index.skipped.clear();
     reduce(&mut state, Action::IndexProgress(index));
     assert_eq!(state.notices, Vec::new());
+}
+
+#[test]
+fn a_skipped_file_is_named_by_its_last_part_whatever_the_folders_it_lies_in_are_called() {
+    let mut index = three_series();
+    index.skipped = vec![
+        "MADE^PATIENT_0042/STUDY/SERIES/notes.txt".to_owned(),
+        "MADE^PATIENT_0042\\labels\\table.json".to_owned(),
+        "plain.bin".to_owned(),
+        "folder/".to_owned(),
+    ];
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(index));
+    let details = &state.notices[0].details;
+    assert_eq!(*details, ["notes.txt", "table.json", "plain.bin", "folder"]);
+    assert!(details.iter().all(|detail| !detail.contains("MADE")));
 }
 
 #[test]

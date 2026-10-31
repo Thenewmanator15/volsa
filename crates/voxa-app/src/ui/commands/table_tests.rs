@@ -4,8 +4,11 @@
 use voxa_render::MAX_CUTS;
 use voxa_volume::PRESETS;
 
+use super::super::keys::Held;
 use super::super::size::{SIZES, percent};
+use super::table::no_3d_view as pictures_no_3d_view;
 use super::*;
+use crate::scene::SceneStatus;
 
 /// The size an entry asks for, if it asks for one.
 fn size_of(command: &Command) -> Option<f32> {
@@ -77,7 +80,14 @@ fn an_action_that_cannot_be_used_says_why_in_a_sentence() {
         why("scene.save.picture").as_deref(),
         Some("There is no 3D view to save yet.")
     );
-    assert!(why("volume.before").is_some_and(|said| said.contains("several volumes")));
+    // A scan shown that is not one of several says so; with nothing shown, there is no scan.
+    let shown = crate::testing::thick_scan_ready();
+    let volumes = (find("volume.before").expect("listed").why_not)(&shown);
+    assert!(volumes.is_some_and(|said| said.contains("several volumes")));
+    assert_eq!(
+        why("volume.before").as_deref(),
+        Some("Open a scan to see it here.")
+    );
     assert_eq!(why("layout.two"), None);
 }
 
@@ -104,7 +114,19 @@ fn states_that_give_reasons() -> Vec<AppState> {
         state
     };
     let echoes = || [three_series_files(), two_echoes_files()].concat();
+    let mut covered = thick_scan_ready();
+    covered.document = Some(crate::state::OpenDocument {
+        entry: "DOCS/D0001".to_owned(),
+        report: None,
+    });
+    let mut running = thick_scan_ready();
+    running.labelling.running = Some(voxa_segment::Stage::Preparing);
+    let mut kept = thick_scan_ready();
+    kept.labelling.kept = Some("2099-01-02".to_owned());
     vec![
+        covered,
+        running,
+        kept,
         AppState::default(),
         thick_scan_ready(),
         cut,
@@ -129,6 +151,12 @@ fn every_reason_an_action_cannot_be_used_ends_with_a_full_stop() {
     }
     // The states reach the reasons that were without a stop.
     for reached in [
+        "Open a scan to see it here.",
+        "A document is open: close it to see the pictures.",
+        "No labelling is running.",
+        "No labels are kept for this series.",
+        "No labels are open on this series.",
+        "There are no notices.",
         "There is nothing to take back.",
         "There is nothing to do again.",
         "Three cuts at most.",
@@ -217,5 +245,135 @@ fn a_ct_window_is_greyed_with_a_reason_for_a_ct_whose_values_are_not_in_hu() {
     for state in [&unspecified, &named] {
         let why = (brain.why_not)(state).expect("greyed");
         assert!(why.contains("not in Hounsfield units"), "{why}");
+    }
+}
+
+/// The ids of the controls and keys of the pictures: they act on the picture of the viewport
+/// the keys act on, which is not there to be acted on without a scan or under a document.
+const PICTURE_CONTROLS: [&str; 13] = [
+    "view.flip_across",
+    "view.flip_down",
+    "view.turn",
+    "view.fit",
+    "slice.play",
+    "slice.before",
+    "slice.after",
+    "slice.ten_back",
+    "slice.ten_on",
+    "slice.first",
+    "slice.last",
+    "window.auto",
+    "volume.before",
+];
+
+#[test]
+fn the_controls_of_the_pictures_say_why_they_do_nothing_with_no_scan_or_under_a_document() {
+    let why = |id: &str, state: &AppState| (find(id).expect("listed").why_not)(state);
+    let nothing = AppState::default();
+    for id in PICTURE_CONTROLS {
+        let said = why(id, &nothing);
+        // A scan of several volumes says it is not one when asked about the volumes.
+        let first = said.as_deref().unwrap_or_default();
+        assert_eq!(first, "Open a scan to see it here.", "{id}");
+    }
+    // Under a document the pictures are out of sight, and so are the layouts they are in.
+    let mut covered = crate::testing::thick_scan_ready();
+    covered.document = Some(crate::state::OpenDocument {
+        entry: "DOCS/D0001".to_owned(),
+        report: None,
+    });
+    let closed = "A document is open: close it to see the pictures.";
+    for id in PICTURE_CONTROLS
+        .into_iter()
+        .chain(["layout.one", "layout.two", "layout.four"])
+    {
+        assert_eq!(why(id, &covered).as_deref(), Some(closed), "{id}");
+    }
+    // With a scan shown and nothing over it they work, as they always have.
+    let shown = crate::testing::thick_scan_ready();
+    for id in PICTURE_CONTROLS
+        .into_iter()
+        .filter(|id| !id.starts_with("volume"))
+    {
+        assert_eq!(why(id, &shown), None, "{id}");
+    }
+    // And so do their keys: they do nothing while the control is greyed.
+    let keyed = |state: &AppState| crate::ui::keys::pressed(egui::Key::H, Held::default(), state);
+    assert!(keyed(&nothing).is_none() && keyed(&covered).is_none());
+    assert!(keyed(&shown).is_some());
+}
+
+#[test]
+fn the_looks_and_sides_of_the_scene_say_why_when_the_scan_has_no_3d_view() {
+    let colour = states_that_give_reasons()
+        .pop()
+        .expect("the picture in colour is last");
+    let ids = [
+        "scene.look.surface",
+        "scene.look.vr",
+        "scene.look.mip",
+        "scene.look.parts",
+        "scene.side.anterior",
+        "scene.side.posterior",
+        "scene.side.left",
+        "scene.side.right",
+        "scene.side.superior",
+        "scene.side.inferior",
+        "scene.cut",
+        "scene.slice",
+    ];
+    for id in ids {
+        let said = (find(id).expect("listed").why_not)(&colour);
+        let said = said.expect(id);
+        assert!(said.starts_with("This scan has no 3D view"), "{id}: {said}");
+    }
+    // Where there is one, they can be used.
+    let ready = crate::testing::thick_scan_ready();
+    for id in ["scene.look.surface", "scene.side.left", "scene.slice"] {
+        assert_eq!((find(id).expect("listed").why_not)(&ready), None, "{id}");
+    }
+}
+
+#[test]
+fn a_scan_with_no_3d_view_whose_first_reason_is_blank_says_the_first_reason_that_is_not() {
+    let mut state = AppState::default();
+    state.scene.status = SceneStatus::Unavailable(vec![
+        String::new(),
+        "  ".to_owned(),
+        "It is a picture".to_owned(),
+    ]);
+    let said = pictures_no_3d_view(&state).expect("a reason");
+    assert_eq!(said, "This scan has no 3D view: it is a picture.");
+    state.scene.status = SceneStatus::Unavailable(vec![String::new()]);
+    let said = pictures_no_3d_view(&state).expect("a reason");
+    assert_eq!(said, "This scan has no 3D view.");
+}
+
+#[test]
+fn the_labelling_entries_say_what_they_do_and_their_texts_match_what_they_are_made_from() {
+    // The hover text of the automatic model says how thick is thick, as the model's own rule does.
+    let automatic = find("tools.model.automatic").expect("listed");
+    let thick = format!("{}", voxa_segment::THICK_MM);
+    assert!(
+        automatic.explains.contains(&format!("{thick} mm")),
+        "{}",
+        automatic.explains
+    );
+    for (id, wanted) in [
+        ("tools.label.stop", Some("No labelling is running.")),
+        (
+            "tools.label.show_kept",
+            Some("No labels are kept for this series."),
+        ),
+        (
+            "tools.label.delete_kept",
+            Some("No labels are kept for this series."),
+        ),
+        ("tools.label.cortex", None),
+        ("tools.label.keep", None),
+        ("tools.model.robust", None),
+    ] {
+        let said = (find(id).expect("listed").why_not)(&AppState::default());
+        assert_eq!(said.as_deref(), wanted, "{id}");
     }
 }

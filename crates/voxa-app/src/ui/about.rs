@@ -7,8 +7,9 @@ use std::sync::LazyLock;
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
+use super::commands::{self, Request};
 use super::{floating, scrolled, theme};
-use crate::state::{Notice, NoticeKind};
+use crate::state::{AppState, Notice, NoticeKind};
 
 /// What is said about licences and credits, a line each.
 pub const LICENCES: [&str; 7] = [
@@ -126,8 +127,14 @@ pub(super) fn id() -> egui::Id {
 /// Show the About window while `open` is true; closing it sets `open` to false. In a window
 /// too short to hold it all, its text scrolls, with the bar in sight, and the button that opens
 /// the notices stays below it. The notices window is shown here too, for as long as it is
-/// open. Gives what egui said of the text, while the window is shown.
-pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
+/// open. What the buttons of the window ask of the window go onto `asked`. Gives what egui said
+/// of the text, while the window is shown.
+pub fn show_in(
+    ctx: &egui::Context,
+    state: &AppState,
+    open: &mut bool,
+    asked: &mut Vec<Request>,
+) -> Option<ScrollAreaOutput<()>> {
     let room = floating::area(ctx).height();
     let window = egui::Window::new("About Voxa");
     let about = floating::over(window, ctx)
@@ -139,10 +146,8 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
         .show(ctx, |ui| {
             scrolled::solid_bars(ui);
             let most = (room - 2.0 * AROUND - BUTTON_ROOM).max(AROUND);
-            let text = scrolled::up_and_down(most).show(ui, contents);
-            if ui.small_button("Licences and notices…").clicked() {
-                open_notices(ui.ctx());
-            }
+            let text = scrolled::up_and_down(most).show(ui, |ui| contents(ui, state, asked));
+            commands::offer_small(ui, "about.notices", state, None, (&mut Vec::new(), asked));
             text
         });
     let id = notices_open();
@@ -154,9 +159,22 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
     about.and_then(|window| window.inner)
 }
 
+/// [`show_in`] for a window with nothing open, whose buttons ask nothing: what the tests of the
+/// window's look draw.
+#[cfg(test)]
+pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
+    let mut asked = Vec::new();
+    let shown = show_in(ctx, &AppState::default(), open, &mut asked);
+    // What the window does when its button asks for the notices.
+    if asked.contains(&Request::Licences) {
+        open_notices(ctx);
+    }
+    shown
+}
+
 /// What the About window says: what Voxa is, its version, the disclaimer, its licences and
 /// credits, and where its log is.
-fn contents(ui: &mut egui::Ui) {
+fn contents(ui: &mut egui::Ui, state: &AppState, asked: &mut Vec<Request>) {
     ui.heading("Voxa");
     ui.label(format!("Version {VERSION}"));
     ui.label("A viewer for MRI and CT scans.");
@@ -185,9 +203,7 @@ fn contents(ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
             let path = log.display().to_string();
             ui.label(RichText::new(&path).small().monospace());
-            if ui.small_button("Copy").clicked() {
-                ui.ctx().copy_text(path);
-            }
+            commands::offer_small(ui, "log.copy", state, None, (&mut Vec::new(), asked));
         });
     }
 }
@@ -224,7 +240,7 @@ mod tests {
     use crate::ui::scrolled::{Scrolled, bar_drawn};
 
     /// The name of the button in the About window that opens the notices.
-    const BUTTON: &str = "Licences and notices…";
+    const BUTTON: &str = "Licences and notices…, Show the licences and notices";
 
     #[test]
     fn the_window_shows_and_can_be_left_open() {

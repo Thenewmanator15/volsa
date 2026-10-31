@@ -33,26 +33,35 @@ impl Kept {
 
 /// Lay out the line along the bottom of the window and the bar across its top, in that order,
 /// and leave the rest of the window to what is added after. `search` is told where the bar's
-/// search box is; `kept` says which theme the window is drawn in and whether the list of
-/// notices is open, and is changed by the bars. Gives what the bar was asked for, and the disclaimer as it
-/// was laid out.
+/// search box is; `kept` says which theme the window is drawn in. Gives what the bar was asked
+/// for, and where the line put the disclaimer and the room for the notice area, which
+/// [`notices`] draws once the rest of the window is, so that the Tab key reaches it last.
 pub fn show(
     ui: &mut egui::Ui,
     state: &AppState,
     search: &mut Search,
     kept: &mut Kept,
     actions: &mut Vec<Action>,
-) -> (Vec<Request>, egui::Response) {
-    let Kept {
-        theme,
-        notices_open,
-    } = kept;
-    let notices = &state.notices;
-    let line = egui::Panel::bottom("notice line")
-        .show(ui, |ui| notices::show(ui, notices, notices_open, actions));
+) -> (Vec<Request>, notices::Line) {
+    let line = egui::Panel::bottom("notice line").show(ui, |ui| notices::place(ui, state));
+    let theme = kept.theme;
     let bar =
-        egui::Panel::top("top bar").show(ui, |ui| top::show(ui, state, search, *theme, actions));
+        egui::Panel::top("top bar").show(ui, |ui| top::show(ui, state, search, theme, actions));
     (bar.inner, line.inner)
+}
+
+/// Draw the notice area in the room the line made for it, and the list of notices while it is
+/// open. Called once everything else in the window is drawn: egui's Tab key goes through the
+/// widgets in the order they are made, and the notices are last (R38). Gives what the area was
+/// asked for.
+pub fn draw_notices(
+    ui: &mut egui::Ui,
+    state: &AppState,
+    line: &notices::Line,
+    kept: &mut Kept,
+    actions: &mut Vec<Action>,
+) -> Vec<Request> {
+    notices::draw(ui, state, line, &mut kept.notices_open, actions)
 }
 
 #[cfg(test)]

@@ -290,10 +290,20 @@ fn a_folded_rail_is_a_strip_that_opens_it() {
         strip.height() > rect.height() / 2.0,
         "the strip is one tall button: {strip:?}"
     );
+    // Its arrow, and the word for what it holds, which a stack of cards alone does not say.
+    let label = commands::find("rail.fold").expect("listed").label;
     assert!(
-        seen.words.iter().all(|(word, _)| word == "»"),
+        seen.words
+            .iter()
+            .all(|(word, _)| word == "»" || word == label),
         "{:?}",
         seen.words
+    );
+    let word = seen.words.iter().find(|(word, _)| word == label);
+    let word = word.expect("the strip says Scans").1;
+    assert!(
+        word.width() <= STRIP && rect.contains_rect(word),
+        "{word:?} in {rect:?}"
     );
     let [press, release] = click_at(strip.center() + egui::vec2(0.0, 100.0));
     let _ = fold(press);

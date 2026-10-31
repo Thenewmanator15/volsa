@@ -2,15 +2,12 @@
 //! reads as a verdict on a person's body. The topics are held to it, to the facts of the
 //! window they describe, and to the risk register.
 
-use voxa_segment::Stage;
-
 use super::topics::Topic;
+use super::wording_sources::{other_sentences, stages, states};
 use super::{MOUSE, TOPICS};
-use crate::state::AppState;
-use crate::testing::{labelled_head, showing_a_scan_of, thick_scan_ready};
+use crate::measuring;
 use crate::ui::theme::DISCLAIMER;
-use crate::ui::{about, commands, document, parts, tabs};
-use crate::{labels, measuring};
+use crate::ui::{commands, parts, tabs};
 
 /// The words no text may hold, whole and whatever their case: a verdict, a measure of one, or
 /// a name for what one finds.
@@ -113,53 +110,24 @@ fn texts() -> Vec<(String, String)> {
             &parts::labelling::stage_in_words(stage),
         );
     }
+    // The model's own check, in the plain words the Labels tab says it in.
+    let low = vec![("shell".to_owned(), 0.52), ("general csf".to_owned(), 0.6)];
+    for (passed, low) in [
+        (true, Vec::new()),
+        (false, low.clone()),
+        (false, Vec::new()),
+    ] {
+        let verdict = voxa_labels::Verdict {
+            passed,
+            fail_below: 0.65,
+            low,
+        };
+        add(
+            "the model's check",
+            &parts::labelling::verdict_in_plain_words(&verdict),
+        );
+    }
     texts
-}
-
-/// States to ask each action why it cannot be used in: nothing open, a scan with its 3D view
-/// ready, labels open on it, and a CT scan whose values are not in Hounsfield units.
-fn states() -> Vec<AppState> {
-    vec![
-        AppState::default(),
-        thick_scan_ready(),
-        labelled_head().0,
-        showing_a_scan_of("CT", Some("OTHER")),
-    ]
-}
-
-/// The stages a labelling run is in.
-fn stages() -> [Stage; 6] {
-    [
-        Stage::Preparing,
-        Stage::Finding { step: 1, of: 2 },
-        Stage::Finding { step: 3, of: 3 },
-        Stage::Cortex,
-        Stage::Checking,
-        Stage::Tidying,
-    ]
-}
-
-/// The sentences the measuring, the labels, the reports and the windows keep in constants.
-fn other_sentences() -> Vec<&'static str> {
-    vec![
-        DISCLAIMER,
-        about::INTENDED_USE,
-        measuring::NO_SCALE,
-        measuring::NO_ONE_SCALE,
-        measuring::NOT_SHOWN,
-        measuring::IN_COLOUR,
-        measuring::PLAIN_STACK,
-        labels::NOWHERE_NEAR,
-        labels::NOTHING_TO_LABEL,
-        labels::LABELS_WAIT,
-        parts::WHAT_LABELS_ARE,
-        parts::MADE_ELSEWHERE,
-        parts::NO_VOLUME,
-        document::HEADING,
-        document::CUT_SHORT,
-        document::IS_A_PDF,
-        document::CANNOT_SHOW,
-    ]
 }
 
 #[test]
@@ -294,7 +262,7 @@ fn the_labels_topic_says_who_makes_labels_and_that_a_passed_check_proves_nothing
         fail_below: 0.5,
         low: Vec::new(),
     };
-    let screen = voxa_labels::verdict_in_words(&check);
+    let screen = crate::ui::parts::labelling::verdict_in_plain_words(&check);
     assert!(
         screen.contains("the model's opinion of its own work"),
         "{screen}"

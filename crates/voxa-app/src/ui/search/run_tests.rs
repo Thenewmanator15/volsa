@@ -199,3 +199,43 @@ fn labelling_is_found_by_search_and_runs_as_the_button_does() {
         matches!(actions.as_slice(), [Action::Post(notice)] if notice.text.contains("cannot label"))
     );
 }
+
+#[test]
+fn work_thrown_away_is_asked_about_when_run_from_the_search_as_from_its_button() {
+    use crate::ui::commands::Confirm;
+    use crate::ui::tabs::made_up::named;
+    // Labels open, and a result kept for the series.
+    let mut state = named();
+    state.labelling.kept = Some("2099-01-02".to_owned());
+    for (id, confirm) in [
+        ("labels.close", Confirm::CloseLabels),
+        ("tools.label.delete_kept", Confirm::DeleteKept),
+    ] {
+        let (actions, asked) = ran(&Target::Command(id), &state);
+        assert_eq!(actions, [], "{id} does nothing until it is answered");
+        assert_eq!(asked, Some(Request::Confirm(confirm)), "{id}");
+    }
+    // Where there is nothing to throw away, it says so instead, as any action does.
+    let (actions, asked) = ran(&Target::Command("labels.close"), &thick_scan_ready());
+    assert_eq!(asked, None);
+    assert!(
+        matches!(actions.as_slice(), [Action::Post(_)]),
+        "{actions:?}"
+    );
+}
+
+#[test]
+fn the_tags_of_a_search_are_those_of_the_document_while_one_is_open() {
+    use crate::state::OpenDocument;
+    use crate::ui::commands::TagsOf;
+    let mut state = thick_scan_ready();
+    let (_, asked) = ran(&Target::Command("tags.show"), &state);
+    assert_eq!(asked, Some(Request::Tags(TagsOf::Shown)));
+    state.document = Some(OpenDocument {
+        entry: "DOCS/D0001".to_owned(),
+        report: None,
+    });
+    let (_, asked) = ran(&Target::Command("tags.show"), &state);
+    let document = TagsOf::Entry("DOCS/D0001".to_owned());
+    assert_eq!(asked, Some(Request::Tags(document)));
+}

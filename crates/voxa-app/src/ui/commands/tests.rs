@@ -123,7 +123,6 @@ fn what_0_6_0_gave() -> Vec<(Key, Held, Gives)> {
         (Key::F11, NONE, ask(Request::FullScreen)),
         (Key::Questionmark, NONE, ask(Request::Help(None))),
         (Key::Questionmark, SHIFT, ask(Request::Help(None))),
-        (Key::Slash, SHIFT, ask(Request::Help(None))),
     ]
 }
 
@@ -312,9 +311,9 @@ fn a_hint_is_the_name_and_key_then_what_explains_it() {
     assert_eq!(hint_of("layout.one"), "One viewport (1)");
     assert_eq!(hint_of("open.folder"), "Open a folder of DICOM files");
     assert_eq!(
-        hint_of("measure.show"),
-        "Show the measurements (M)\n\
-         Rulers, angles, regions and markers, and the list of them"
+        hint_of("tab.measure"),
+        "Show the Measure tab (M)\n\
+         Rulers, angles, regions and markers, and the list of what has been measured"
     );
 }
 
@@ -351,9 +350,14 @@ fn ctrl_k_and_a_slash_open_the_search_and_nothing_else_does() {
         None,
         "K alone is not a key of Voxa's"
     );
-    // A question mark is Shift with slash on some keyboards, and shows the keys instead.
+    // On a keyboard where a slash needs Shift it is still a slash: it searches, it does not show
+    // the keys. A question mark, which egui reports as a key of its own, shows them.
     assert_eq!(
         on(Key::Slash, SHIFT, &state),
+        Some(Gives::Ask(Request::Search))
+    );
+    assert_eq!(
+        on(Key::Questionmark, NONE, &state),
         Some(Gives::Ask(Request::Help(None)))
     );
     let command = find("search.open").expect("listed");
@@ -369,13 +373,14 @@ fn the_panel_is_folded_by_a_key_as_the_series_list_is_and_each_tab_is_shown_by_i
         Some(Gives::Ask(Request::FoldPanel))
     );
     assert_eq!(on(Key::P, CTRL, &state), None);
+    // M shows the Measure tab, as it always has; no other tab has a key of its own.
     for tab in Tab::ALL {
         let command = find(tab.command()).expect("listed");
-        assert_eq!(
-            command.key, None,
-            "{}: a tab has no key of its own",
-            command.id
-        );
+        let key = command.key.map(|key| key.shown);
+        let wanted = (tab == Tab::Measure).then_some("M");
+        assert_eq!(key, wanted, "{}", command.id);
         assert_eq!(command.place, Place::Panel);
     }
+    let measure = on(Key::M, NONE, &state);
+    assert_eq!(measure, Some(Gives::Ask(Request::ShowTab(Tab::Measure))));
 }

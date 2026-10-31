@@ -83,13 +83,6 @@ impl Mask {
     /// The mask for any text that may name a patient but is no report, such as the name or path
     /// of a file in the export (see [`Mask::apply`]): while `show_patient` is false, the name and
     /// identifier of everyone whose studies the export holds.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "for the masking of the file names and paths the window shows, which uses it next"
-        )
-    )]
     pub fn of_everyone(index: &Index, show_patient: bool) -> Self {
         if show_patient {
             return Self::off();
@@ -104,13 +97,6 @@ impl Mask {
 
     /// [`Mask::of_everyone`] for the export open in `state`; one that leaves everything as
     /// written when none is open.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "for the masking of the file names and paths the window shows, which uses it next"
-        )
-    )]
     pub fn for_export(state: &AppState) -> Self {
         match &state.index {
             Some(index) => Self::of_everyone(index, state.show_patient),

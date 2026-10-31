@@ -44,7 +44,8 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
         };
         let mut output = ctx.run_ui(input, |ui| {
             let mut actions = Vec::new();
-            let (_, disclaimer) = show(ui, &state, &mut search, &mut kept, &mut actions);
+            let (_, line) = show(ui, &state, &mut search, &mut kept, &mut actions);
+            let disclaimer = line.disclaimer;
             let pictures = egui::CentralPanel::default().show(ui, |ui| {
                 ui.allocate_space(ui.available_size());
             });

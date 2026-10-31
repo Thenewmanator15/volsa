@@ -1,24 +1,33 @@
-//! The Views menu on the scene's line of the bar: save the scene as it is, and go back to a
-//! view saved before.
+//! The Views menu in the 3D tab: save the scene as it is, and go back to a view saved before.
 
 use egui::Ui;
 
 use crate::action::Action;
 use crate::state::AppState;
-use crate::ui::{access, commands};
+use crate::ui::access;
+use crate::ui::commands::{self, Confirm, Request, menus};
 use crate::views::ViewsAction;
 
 /// The menu itself, closed until it is pressed.
-pub fn menu(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
-    let button = ui.menu_button("Views", |ui| contents(ui, state, actions));
-    button
-        .response
-        .on_hover_text("Save the scene as it is now, and go back to a saved view");
+pub fn menu(
+    ui: &mut Ui,
+    state: &AppState,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
+    let views = &menus::VIEWS;
+    commands::menu_button(ui, views, views.label, |ui| {
+        contents(ui, state, (actions, asked));
+    });
 }
 
 /// What the menu holds: a name to type and a button that saves the scene under it, then each
-/// saved view, oldest first, with a button that forgets it.
-pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+/// saved view, oldest first, with a button that forgets it, once the person has said they mean
+/// it.
+pub fn contents(
+    ui: &mut Ui,
+    state: &AppState,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
     // What has been typed so far is kept by the interface between frames.
     let typed = egui::Id::new("voxa: the name of a view being saved");
     let mut name = ui
@@ -51,7 +60,8 @@ pub fn contents(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
             let delete = ui.small_button("Delete");
             access::call(&delete, format!("Delete {}", view.name));
             if delete.on_hover_text("Forget this view").clicked() {
-                actions.push(Action::Views(ViewsAction::Delete(at)));
+                asked.push(Request::Confirm(Confirm::DeleteView(at)));
+                ui.close();
             }
         });
     }
@@ -67,22 +77,29 @@ mod tests {
     use crate::views::SavedView;
 
     /// Click all over what the menu holds and gather everything that was asked for, once
-    /// each, in the order met going down.
-    fn sweep(state: &AppState) -> Vec<Action> {
+    /// each, in the order met going down: the changes of state, and what is asked of the window.
+    fn sweep(state: &AppState) -> (Vec<Action>, Vec<Request>) {
         let ctx = egui::Context::default();
-        let mut asked = Vec::new();
+        let (mut asked, mut wanted) = (Vec::new(), Vec::new());
         let mut pass = |events: Vec<Event>| {
-            let mut actions = Vec::new();
+            let (mut actions, mut requests) = (Vec::new(), Vec::new());
             let input = RawInput {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| contents(ui, state, &mut actions));
+            let mut output = ctx.run_ui(input, |ui| {
+                contents(ui, state, (&mut actions, &mut requests));
+            });
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
             for action in actions {
                 if !asked.contains(&action) {
                     asked.push(action);
+                }
+            }
+            for request in requests {
+                if !wanted.contains(&request) {
+                    wanted.push(request);
                 }
             }
         };
@@ -100,7 +117,7 @@ mod tests {
                 pass(vec![button(false)]);
             }
         }
-        asked
+        (asked, wanted)
     }
 
     fn with_views(names: &[&str]) -> AppState {
@@ -114,29 +131,28 @@ mod tests {
 
     #[test]
     fn the_menu_saves_the_scene_and_offers_each_saved_view_with_a_way_to_forget_it() {
-        let asked = sweep(&with_views(&["Front", "Ear"]));
+        let (asked, wanted) = sweep(&with_views(&["Front", "Ear"]));
         let expected = [
             Action::Views(ViewsAction::Save {
                 name: String::new(),
             }),
             Action::Views(ViewsAction::Apply(0)),
-            Action::Views(ViewsAction::Delete(0)),
             Action::Views(ViewsAction::Apply(1)),
-            Action::Views(ViewsAction::Delete(1)),
         ];
         assert_eq!(asked, expected);
+        // A view is forgotten only once the person has said they mean it.
+        let forget = |at| Request::Confirm(Confirm::DeleteView(at));
+        assert_eq!(wanted, [forget(0), forget(1)]);
     }
 
     #[test]
     fn with_no_volume_there_is_nothing_to_save_and_with_no_views_nothing_to_go_to() {
         let mut state = with_views(&[]);
-        assert_eq!(
-            sweep(&state),
-            [Action::Views(ViewsAction::Save {
-                name: String::new()
-            })]
-        );
+        let save = Action::Views(ViewsAction::Save {
+            name: String::new(),
+        });
+        assert_eq!(sweep(&state), (vec![save], vec![]));
         state.scene.status = SceneStatus::Building { done: 1, of: 9 };
-        assert_eq!(sweep(&state), []);
+        assert_eq!(sweep(&state), (vec![], vec![]));
     }
 }

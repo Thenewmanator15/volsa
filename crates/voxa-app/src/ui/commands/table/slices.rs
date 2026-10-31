@@ -5,7 +5,7 @@
 use egui::Key;
 
 use super::super::{Command, Does, Place, Tab, Why};
-use super::{PLAIN, alone};
+use super::{PLAIN, alone, covered_by_a_document, no_picture};
 use crate::action::Action;
 use crate::annotations::Tool;
 use crate::state::{AppState, Layout};
@@ -16,6 +16,9 @@ const PAGE: i32 = 10;
 /// Why the volume before or after cannot be shown: no scan of several volumes is shown, or
 /// the one shown is already the first or the last of them.
 fn volume_at_end(state: &AppState, last: bool) -> Option<Why> {
+    if let Some(why) = no_picture(state) {
+        return Some(why);
+    }
     let set = state
         .viewports
         .get(state.active)
@@ -45,6 +48,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["flip", "mirror", "horizontal"],
         key: Some(alone(Key::H, "H")),
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| {
             let viewport = state.active;
             let horizontal = true;
@@ -62,6 +66,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["flip", "mirror", "vertical", "upside down"],
         key: Some(alone(Key::V, "V")),
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| {
             let viewport = state.active;
             let horizontal = false;
@@ -79,6 +84,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["rotate", "turn", "clockwise"],
         key: Some(alone(Key::R, "R")),
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| {
             let viewport = state.active;
             Some(Action::Rotate { viewport })
@@ -92,6 +98,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["fit", "zoom", "reset", "whole"],
         key: Some(alone(Key::F, "F")),
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| {
             let viewport = state.active;
             Some(Action::Fit { viewport })
@@ -105,6 +112,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["layout", "single", "one"],
         key: Some(alone(Key::Num1, "1")),
         place: Place::Strip,
+        why_not: covered_by_a_document,
         does: Does::Act(|_| Some(Action::SetLayout(Layout::One))),
         ..PLAIN
     },
@@ -115,6 +123,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["layout", "side by side", "compare", "two"],
         key: Some(alone(Key::Num2, "2")),
         place: Place::Strip,
+        why_not: covered_by_a_document,
         does: Does::Act(|_| Some(Action::SetLayout(Layout::TwoAcross))),
         ..PLAIN
     },
@@ -125,6 +134,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["layout", "grid", "quad", "four"],
         key: Some(alone(Key::Num4, "4")),
         place: Place::Strip,
+        why_not: covered_by_a_document,
         does: Does::Act(|_| Some(Action::SetLayout(Layout::TwoByTwo))),
         ..PLAIN
     },
@@ -135,6 +145,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["cine", "play", "pause", "movie", "animate"],
         key: Some(alone(Key::Space, "Space")),
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| {
             let viewport = state.active;
             Some(Action::CineToggle { viewport })
@@ -147,6 +158,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Slice before",
         words: &["previous", "back", "up", "scroll"],
         key: Some(alone(Key::ArrowUp, "Up")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(scroll(state, -1))),
         ..PLAIN
     },
@@ -156,6 +168,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Slice after",
         words: &["next", "forward", "down", "scroll"],
         key: Some(alone(Key::ArrowDown, "Down")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(scroll(state, 1))),
         ..PLAIN
     },
@@ -165,6 +178,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Ten back",
         words: &["page", "skip", "previous"],
         key: Some(alone(Key::PageUp, "Page Up")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(scroll(state, -PAGE))),
         ..PLAIN
     },
@@ -174,6 +188,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Ten on",
         words: &["page", "skip", "next"],
         key: Some(alone(Key::PageDown, "Page Down")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(scroll(state, PAGE))),
         ..PLAIN
     },
@@ -183,6 +198,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "First slice",
         words: &["start", "beginning", "top"],
         key: Some(alone(Key::Home, "Home")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(go_to(state, 0))),
         ..PLAIN
     },
@@ -193,6 +209,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Last slice",
         words: &["end", "bottom", "final"],
         key: Some(alone(Key::End, "End")),
+        why_not: no_picture,
         does: Does::Act(|state| Some(go_to(state, usize::MAX))),
         ..PLAIN
     },

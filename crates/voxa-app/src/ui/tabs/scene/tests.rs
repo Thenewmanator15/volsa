@@ -166,3 +166,19 @@ fn the_tab_says_so_at_its_top_when_the_arrangement_shows_no_3d_view() {
     }
     assert_eq!(NO_3D_VIEW, "Choose 3D, Planes or Slices + 3D to see this.");
 }
+
+#[test]
+fn a_scan_with_no_3d_view_says_so_at_the_top_of_the_tab_in_the_scans_own_words() {
+    let hand = Hand::new(320.0, 700.0);
+    let mut state = AppState::default();
+    state.scene.status = crate::scene::SceneStatus::Unavailable(vec!["It is a picture".to_owned()]);
+    let words = hand
+        .settle(&mut |ui| {
+            let _ = show(ui, &state, &mut Vec::new());
+        })
+        .words;
+    let said = "This scan has no 3D view: it is a picture.";
+    assert_eq!(words.first().map(String::as_str), Some(said), "{words:?}");
+    // Not the sentence that tells a person to choose an arrangement it does not have.
+    assert!(!words.iter().any(|word| word == NO_3D_VIEW), "{words:?}");
+}

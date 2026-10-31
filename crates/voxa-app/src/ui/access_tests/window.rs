@@ -10,11 +10,14 @@ use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::state::AppState;
 use crate::ui::browser::Thumbnails;
+use crate::ui::commands::{Confirm, Request};
 use crate::ui::document;
 use crate::ui::panel::{self, PanelState};
 use crate::ui::rail::{self, RailState};
 use crate::ui::search::Search;
-use crate::ui::{bars, keys, layout, planes, scene, seen, strip, tabs, viewport};
+use crate::ui::{
+    about, bars, confirm, keys, layout, planes, scene, seen, strip, tabs, viewport, welcome,
+};
 
 /// How wide the window is in these passes, in points.
 pub const SIZE: [f32; 2] = [1400.0, 900.0];
@@ -138,6 +141,10 @@ pub struct Window {
     planes: planes::PlanesView,
     scene: scene::SceneView,
     documents: document::Kept,
+    /// Whether the About window is open.
+    pub about: bool,
+    /// The question asked before work is thrown away, if one is.
+    pub confirming: Option<Confirm>,
     /// Where the rail was drawn in the last pass.
     pub rail_at: Rect,
 }
@@ -156,6 +163,8 @@ impl Window {
             planes: planes::PlanesView::new(None),
             scene: scene::SceneView::new(None),
             documents: document::Kept::default(),
+            about: false,
+            confirming: None,
             rail_at: Rect::NOTHING,
         }
     }
@@ -176,7 +185,7 @@ impl Window {
         let (mut rail_at, mut asked) = (Rect::NOTHING, Vec::new());
         let told = pass(&ctx, SIZE, events, &mut |ui| {
             let mut actions = Vec::new();
-            let _ = bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
+            let (_, line) = bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
             let thumbnails = Thumbnails::default();
             let rail = rail::column(
                 ui,
@@ -197,6 +206,18 @@ impl Window {
                 |ui: &mut Ui, tab| tabs::show(ui, tab, state, &mut self.kept, &mut Vec::new());
             let _ = panel::show(ui, &mut self.panel, state, PANEL, tab);
             actions.extend(keys::answered(ui.ctx(), state).0);
+            // The notices are last, as `VoxaApp` draws them, so that Tab reaches them last.
+            let mut wanted = bars::draw_notices(ui, state, &line, &mut self.bars, &mut actions);
+            // What the window does when the notice area asks for the list.
+            if wanted.contains(&Request::ShowNotices) {
+                self.bars.notices_open = true;
+            }
+            if self.about {
+                about::show_in(ui.ctx(), state, &mut self.about, &mut wanted);
+            }
+            actions.extend(confirm::show(ui.ctx(), state, &mut self.confirming));
+            crate::ui::typing::note_the_pass(ui.ctx());
+            let _: Vec<Request> = wanted;
             asked = actions;
         });
         self.rail_at = rail_at;
@@ -216,6 +237,22 @@ impl Window {
         self.told(state)
     }
 
+    /// Click the button a screen reader calls `name`, as a pointer does, and draw the passes that
+    /// follow it: a menu it opens is open in what is told. `None` when no node has that name.
+    pub fn click_named(&mut self, state: &AppState, name: &str) -> Option<Told> {
+        let told = self.told(state);
+        let at = told.called(name)?.at?.center();
+        let button = |pressed| Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        let _ = self.pass(state, vec![Event::PointerMoved(at), button(true)]);
+        let _ = self.pass(state, vec![button(false)]);
+        Some(self.told(state))
+    }
+
     /// Press `key` with nothing held, let go, and draw the passes that follow it. Gives the
     /// changes of state the press asked for.
     pub fn press(&mut self, state: &AppState, key: Key) -> (Told, Vec<Action>) {
@@ -233,6 +270,10 @@ impl Window {
     /// The middle: a document if one is open, else the strip and the pictures.
     fn middle(&mut self, ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         let whole = ui.available_rect_before_wrap();
+        if welcome::is_empty(state) {
+            let _ = welcome::show(ui, whole, state, actions);
+            return;
+        }
         if let Some(open) = &state.document {
             let _ = document::show(ui, whole, state, open, &mut self.documents, actions);
             return;

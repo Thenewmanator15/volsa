@@ -264,3 +264,29 @@ fn every_tab_has_an_action_that_shows_it() {
         Some(Request::FoldPanel)
     );
 }
+
+#[test]
+fn the_icons_of_a_folded_panel_fit_in_a_window_as_short_as_the_smallest_at_twice_the_size() {
+    // 640 by 480 with the interface at twice its size is 320 by 240 points, of which the bars
+    // above and below take some: the strip has about 180 to hold its fold button and five icons.
+    let mut panel = PanelState {
+        folded: true,
+        ..PanelState::default()
+    };
+    let (state, mut drew) = (AppState::default(), Drew::new());
+    let short = 180.0;
+    let hand = Hand::new(WIDE, short);
+    let seen = hand.settle(&mut draws(&mut panel, &state, &mut drew));
+    let mut names: Vec<&str> = Tab::ALL
+        .iter()
+        .map(|tab| commands::find(tab.command()).expect("listed").name)
+        .collect();
+    names.push("Show or hide the tab panel");
+    for name in names {
+        let bounds = seen.bounds_of(name).expect("named");
+        assert!(
+            bounds.bottom() <= short && bounds.height() >= 20.0,
+            "{name}: {bounds:?} runs past the bottom of {short}"
+        );
+    }
+}

@@ -38,7 +38,7 @@ fn a_picture_in_colour_says_nothing_of_a_window() {
         "it is shown in its own colours"
     );
     let grey = corner_text(&study(), &series(), 0, Some(1.0), wl, false);
-    assert_eq!(grey[3], ["W 1  L 0"]);
+    assert_eq!(grey[3], ["W 1.00  L 0"], "three figures that matter");
 }
 
 #[test]

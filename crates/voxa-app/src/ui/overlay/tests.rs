@@ -335,3 +335,29 @@ fn presses_drags_and_double_clicks_each_do_their_one_thing() {
     ];
     assert_eq!(input_to_actions(3, &everything), expected);
 }
+
+#[test]
+fn a_width_or_a_level_is_written_to_the_figures_that_matter() {
+    // No decimals from 100, one from 10, and below that three figures.
+    for (value, written) in [
+        (590.97, "591"),
+        (315.6, "316"),
+        (100.0, "100"),
+        (99.96, "100.0"),
+        (12.34, "12.3"),
+        (10.0, "10.0"),
+        (5.234, "5.23"),
+        (0.5234, "0.523"),
+        (0.052_34, "0.0523"),
+        (0.0, "0"),
+        (-600.0, "-600"),
+        (-0.5234, "-0.523"),
+    ] {
+        assert_eq!(window_number(value), written, "{value}");
+    }
+    assert_eq!(window_number(f32::NAN), "");
+    assert_eq!(window_number(f32::INFINITY), "");
+    // A map of small values is not written as W 0.
+    let tiny = 0.000_000_1;
+    assert_eq!(window_number(tiny), "0.000000");
+}

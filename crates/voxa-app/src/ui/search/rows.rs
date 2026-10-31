@@ -19,11 +19,14 @@ pub fn heading(ui: &mut Ui, heading: Heading) {
     );
 }
 
-/// The line beneath a result's name, if it has one: why an action cannot be used now, a part's
-/// group, a scan's own description.
+/// The line beneath a result's name, if it has one: why an action cannot be used now, or else
+/// where it lives; a part's group; a scan's own description.
 fn beneath(entry: &Entry, state: &AppState, why_not: Option<&str>) -> Option<String> {
     let text = match &entry.target {
-        Target::Command(_) => why_not.map(str::to_owned),
+        Target::Command(id) => why_not.map(str::to_owned).or_else(|| {
+            let command = commands::find(id)?;
+            command.place.said().map(str::to_owned)
+        }),
         Target::Part(_) => entry.words.first().cloned(),
         Target::Scan(id) => {
             let listed = state.series(id)?;

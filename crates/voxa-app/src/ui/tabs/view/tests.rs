@@ -285,12 +285,15 @@ fn a_basic_scan_offers_auto() {
 }
 
 #[test]
-fn with_no_scan_shown_only_auto_is_offered() {
-    let auto = Action::ApplyPreset {
-        viewport: 0,
-        preset: 0,
-    };
-    assert_eq!(brightness_asked(&AppState::default()), [auto]);
+fn with_no_scan_shown_only_auto_is_offered_and_it_is_greyed_with_its_reason() {
+    // Offered, so that it can be found and says why it does nothing; a click does nothing.
+    assert_eq!(brightness_asked(&AppState::default()), []);
+    let words = words_of(&AppState::default());
+    assert!(words.iter().any(|word| word == "Auto"), "{words:?}");
+    assert!(
+        !words.iter().any(|word| word == "Soft" || word == "Brain"),
+        "{words:?}"
+    );
 }
 
 #[test]
@@ -328,4 +331,51 @@ fn the_fine_tune_fields_say_hu_when_the_values_are_in_hounsfield_units() {
         let wanted = if hu { 2 } else { 0 };
         assert_eq!(said, wanted, "{modality} {rescale:?}: {words:?}");
     }
+}
+
+#[test]
+fn the_window_and_level_are_written_as_the_corner_of_the_picture_writes_them() {
+    let mut state = showing_a_scan_of("MR", None);
+    state.viewports[0].wl = WindowLevel::new(315.6, 590.97);
+    let words = words_of(&state);
+    // The same figures as `W 591  L 316` in the corner of the picture, not 590.97 and 315.60.
+    for wanted in ["591", "316"] {
+        assert!(
+            words.iter().any(|word| word == wanted),
+            "{wanted}: {words:?}"
+        );
+    }
+    assert!(
+        !words.iter().any(|word| word.contains("590.97")),
+        "{words:?}"
+    );
+    let corner = crate::ui::overlay::window_number(state.viewports[0].wl.width);
+    assert_eq!(format!("W {corner}"), "W 591");
+}
+
+#[test]
+fn with_no_picture_there_are_no_numbers_to_set_and_the_tab_says_why() {
+    // Nothing open: no W 1.0 and L 0.0 to type into, and the button that sets the brightness
+    // says why it does nothing.
+    let nothing = words_of(&AppState::default());
+    let said = "Open a scan to see it here.";
+    assert!(nothing.iter().any(|word| word == said), "{nothing:?}");
+    assert!(
+        !nothing.iter().any(|word| word.starts_with("W ")),
+        "{nothing:?}"
+    );
+    // Under a document the pictures are out of sight and have no brightness to set.
+    let mut covered = showing_a_scan_of("MR", None);
+    covered.document = Some(crate::state::OpenDocument {
+        entry: "DOCS/D0001".to_owned(),
+        report: None,
+    });
+    let words = words_of(&covered);
+    let said = "A document is open: close it to see the pictures.";
+    assert!(words.iter().any(|word| word == said), "{words:?}");
+    assert!(
+        !words.iter().any(|word| word.starts_with("W ")),
+        "{words:?}"
+    );
+    assert_eq!(brightness_asked(&covered), [], "and a click does nothing");
 }

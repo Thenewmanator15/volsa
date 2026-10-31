@@ -12,7 +12,7 @@ use egui::{Align, Atom, AtomExt, Button, Id, Layout, RichText, Ui, Vec2, vec2};
 use voxa_core::StudyInfo;
 
 use super::browser::study_title;
-use super::commands::{self, Does, Request};
+use super::commands::{self, Does, Request, menus};
 use super::search::Search;
 use super::symbols::{self, Symbol};
 use super::theme::{self, ThemeChoice};
@@ -22,6 +22,10 @@ use crate::state::AppState;
 mod menu;
 #[cfg(test)]
 mod tests;
+
+/// What a screen reader calls the button of the menu at the right.
+#[cfg(test)]
+pub(super) const MENU: &str = menus::MORE.name;
 
 /// The kinds of thing a scan can be opened from. The system's own dialogs choose either a
 /// folder or a file, never both, so there is a choice of each.
@@ -47,9 +51,6 @@ const TITLE_LEAST: f32 = 48.0;
 pub(super) const SEARCH_SAYS: &str = "Find a tool or part";
 /// The key that opens the search, written in the box.
 const SEARCH_KEY: &str = "Ctrl K";
-/// What a screen reader calls the button of the menu at the right, and what resting the pointer
-/// on it says.
-pub(super) const MENU: &str = "More";
 /// Left over on a line, in points, so that rounding never pushes the last button off it.
 const SPARE: f32 = 1.0;
 
@@ -113,7 +114,8 @@ fn shares(ui: &Ui) -> (f32, f32) {
 
 /// The Open menu: a folder, or a zip file or a DICOMDIR.
 fn open_menu(ui: &mut Ui, route: &mut Route<'_>) {
-    ui.menu_button("Open", |ui| {
+    let open = &menus::OPEN;
+    commands::menu_button(ui, open, open.label, |ui| {
         for id in ["open.folder", "open.file"] {
             if let Some(does) = commands::button(ui, id, route.state, None) {
                 route.take(Some(does));

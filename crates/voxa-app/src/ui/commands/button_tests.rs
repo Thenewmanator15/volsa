@@ -1,7 +1,7 @@
 //! An action's button: it shows its label, a screen reader hears its name, and it can be
 //! pressed only while the action can be used.
 
-use egui::{Event, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
+use egui::{Button, Event, Modifiers, PointerButton, Pos2, RawInput, Rect, pos2, vec2};
 
 use super::*;
 use crate::annotations::Tool;
@@ -113,7 +113,7 @@ fn a_name_that_holds_the_label_is_the_name_alone() {
         ("pictures.slices", "Slices"),
         ("pictures.scene", "3D"),
         ("planes.link", "Link"),
-        ("measure.show", "MEASURE"),
+        ("tab.measure", "MEASURE"),
         ("search.open", "search"),
     ] {
         let command = listed(id);

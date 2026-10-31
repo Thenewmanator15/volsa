@@ -4,7 +4,7 @@ use super::{INTENDED_USE, LICENCES, LOG_SAYS, NOTICE, THIRD_PARTY, notices, open
 use crate::ui::theme;
 
 /// The name of the button in the About window that opens the notices.
-const BUTTON: &str = "Licences and notices…";
+const BUTTON: &str = "Licences and notices…, Show the licences and notices";
 /// The title of the notices window.
 const TITLE: &str = "Licences and notices";
 /// The page that says what Voxa is for, which comes in a download of Voxa too.

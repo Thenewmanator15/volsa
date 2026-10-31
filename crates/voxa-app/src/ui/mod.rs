@@ -16,6 +16,7 @@ mod browser;
 mod capture;
 mod cine;
 mod commands;
+mod confirm;
 #[cfg(test)]
 mod described_tests;
 mod document;
@@ -57,8 +58,10 @@ mod tabs;
 mod tags;
 mod theme;
 mod top;
+mod typing;
 mod viewport;
 mod volumes;
+mod welcome;
 
 pub use bare::{BareLayout, BareWindow};
 pub use browser::thumbnail;
@@ -78,6 +81,8 @@ pub struct VoxaApp {
     rail: rail::RailState,
     about_open: bool,
     help_open: bool,
+    /// The work the person is being asked about before it is thrown away, if any.
+    confirming: Option<commands::Confirm>,
     tags: tags::Panel,
     /// What the bars keep between frames: the theme, and whether the list of notices is open.
     bars: bars::Kept,
@@ -143,7 +148,7 @@ impl eframe::App for VoxaApp {
         self.screen.settle(window);
         let state = self.session.state();
         let search = &mut self.search;
-        let (asked, _disclaimer) = bars::show(ui, state, search, &mut self.bars, &mut actions);
+        let (asked, line) = bars::show(ui, state, search, &mut self.bars, &mut actions);
         for request in asked {
             self.ask(ui.ctx(), request);
         }
@@ -157,9 +162,20 @@ impl eframe::App for VoxaApp {
         let (panel, pictures) = self.pictures_then_panel(ui, frame, &mut actions);
         self.drag_the_list(ui, list);
         self.drag_the_panel(ui, panel);
+        // The notice area is drawn last of the window's widgets, so that Tab reaches it last.
+        let state = self.session.state();
+        let asked = bars::draw_notices(ui, state, &line, &mut self.bars, &mut actions);
+        for request in asked {
+            self.ask(ui.ctx(), request);
+        }
         self.windows(ui.ctx(), pictures, &mut actions);
         self.keys(ui.ctx(), &mut actions);
         self.show_search(ui.ctx(), &mut actions);
+        actions.extend(confirm::show(
+            ui.ctx(),
+            self.session.state(),
+            &mut self.confirming,
+        ));
         let saving = self.scene_asked.take();
         self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
         if std::mem::take(&mut self.label_asked) {
@@ -170,6 +186,7 @@ impl eframe::App for VoxaApp {
             self.dispatch(action);
         }
         self.for_a_picture(ui.ctx());
+        typing::note_the_pass(ui.ctx());
         // A column opened this frame in a narrow window folds the other in the next.
         if self.screen.unsettled(window) {
             ui.ctx().request_repaint();

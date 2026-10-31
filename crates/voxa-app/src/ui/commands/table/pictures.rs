@@ -10,11 +10,15 @@ use crate::state::AppState;
 
 /// Why an arrangement with the 3D view cannot be had: the scan shown has none, and the reason
 /// it gives, as a sentence.
-fn no_3d_view(state: &AppState) -> Option<Why> {
+pub(in crate::ui) fn no_3d_view(state: &AppState) -> Option<Why> {
     let SceneStatus::Unavailable(said) = &state.scene.status else {
         return None;
     };
-    let Some(reason) = said.first().map(|reason| reason.trim()) else {
+    let reason = said
+        .iter()
+        .map(|reason| reason.trim())
+        .find(|reason| !reason.is_empty());
+    let Some(reason) = reason else {
         return Some(Why::Borrowed("This scan has no 3D view."));
     };
     let stop = if reason.ends_with('.') { "" } else { "." };

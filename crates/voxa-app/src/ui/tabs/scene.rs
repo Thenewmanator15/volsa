@@ -5,7 +5,7 @@
 use egui::{RichText, Ui};
 use voxa_render::{Look, MAX_CUTS, NamedView};
 
-use super::super::commands::{self, Request};
+use super::super::commands::{self, Request, menus};
 use super::super::scene::{export, views};
 use super::super::theme;
 use super::{offer, row, section};
@@ -102,9 +102,16 @@ fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
 /// back.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
     let mut asked = Vec::new();
-    if !state.pictures.given(&state.scene.status).has_scene() {
+    // A scan with no 3D view says why; otherwise an arrangement without one says how to get it.
+    let why = commands::no_3d_view(state);
+    let said = why.map(std::borrow::Cow::into_owned);
+    let said = said.or_else(|| {
+        let shown = state.pictures.given(&state.scene.status).has_scene();
+        (!shown).then(|| NO_3D_VIEW.to_owned())
+    });
+    if let Some(said) = said {
         let quiet = theme::palette(ui.ctx()).quiet_text;
-        ui.label(RichText::new(NO_3D_VIEW).small().color(quiet));
+        ui.label(RichText::new(said).small().color(quiet));
     }
     section(ui, "Look");
     row(ui, |ui| looks(ui, state, actions, &mut asked));
@@ -129,10 +136,10 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     });
     section(ui, "Views and pictures");
     let saving = row(ui, |ui| {
-        views::menu(ui, state, actions);
-        let menu = ui.menu_button("Export", |ui| export::contents(ui, state));
-        menu.response
-            .on_hover_text("Save the 3D view as a picture or as a turntable");
+        views::menu(ui, state, (actions, &mut asked));
+        let export = &menus::EXPORT;
+        let menu =
+            commands::menu_button(ui, export, export.label, |ui| export::contents(ui, state));
         menu.inner.flatten()
     });
     asked.extend(saving.map(Request::SaveScene));

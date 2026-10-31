@@ -7,7 +7,7 @@ use std::borrow::Cow;
 use voxa_volume::PRESETS;
 
 use super::super::{Command, Does, Place, Tab, Why};
-use super::PLAIN;
+use super::{PLAIN, no_picture};
 use crate::action::Action;
 use crate::profile::{CT_WINDOWS, Profile, Unit, unit_of};
 use crate::state::AppState;
@@ -37,6 +37,9 @@ fn named(state: &AppState, window: usize) -> Option<Action> {
 /// Why a CT window cannot be used: the scan shown does not say its values are in Hounsfield
 /// units, which the window is in. Such a scan can be a derived or secondary CT.
 fn needs_hu(state: &AppState) -> Option<Why> {
+    if let Some(why) = no_picture(state) {
+        return Some(why);
+    }
     let in_hu = state
         .shown_info(state.active)
         .is_some_and(|info| unit_of(info) == Unit::Hu);
@@ -52,6 +55,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "From the 1 to the 99.5 percentile of the slice shown",
         words: BRIGHTNESS,
         place: Place::Tab(Tab::View),
+        why_not: no_picture,
         does: Does::Act(|state| Some(preset(state, 0))),
         ..PLAIN
     },
@@ -63,6 +67,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: BRIGHTNESS,
         place: Place::Tab(Tab::View),
         profiles: &[Profile::Mr],
+        why_not: no_picture,
         does: Does::Act(|state| Some(preset(state, 1))),
         ..PLAIN
     },
@@ -74,6 +79,7 @@ pub(super) const COMMANDS: &[Command] = &[
         words: BRIGHTNESS,
         place: Place::Tab(Tab::View),
         profiles: &[Profile::Mr],
+        why_not: no_picture,
         does: Does::Act(|state| Some(preset(state, 2))),
         ..PLAIN
     },

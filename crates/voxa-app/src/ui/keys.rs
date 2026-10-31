@@ -1,11 +1,11 @@
 //! What the keys do: each key pressed, with what is held, looked up in the list of actions.
 
-use egui::Key;
+use egui::{Context, EventFilter, Id, Key, Response};
 
 use super::VoxaApp;
 use super::commands::{self, Does, Request};
 use super::overlay::steps_slices;
-use super::search;
+use super::typing;
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -27,14 +27,87 @@ pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Does> {
         .then(|| command.does.clone())
 }
 
+/// Where the person has the keyboard when a key is pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Keyboard {
+    /// Nowhere in particular: every key is Voxa's.
+    Free,
+    /// On a button, a card or another widget, whose keys are egui's to move and press with.
+    OnAWidget,
+    /// On a picture, which holds the arrows against egui's moving of the focus, so that they
+    /// are Voxa's: they step through the slices.
+    OnAPicture,
+}
+
+/// The keys egui moves the keyboard and presses buttons with: Voxa leaves them to it while a
+/// widget has the keyboard.
+const EGUIS: [Key; 12] = [
+    Key::Tab,
+    Key::Escape,
+    Key::Enter,
+    Key::Space,
+    Key::ArrowUp,
+    Key::ArrowDown,
+    Key::ArrowLeft,
+    Key::ArrowRight,
+    Key::Home,
+    Key::End,
+    Key::PageUp,
+    Key::PageDown,
+];
+
+/// The keys egui keeps while a picture has the keyboard: it moves on with Tab, and presses with
+/// Enter; a picture's other keys are Voxa's.
+const EGUIS_ON_A_PICTURE: [Key; 3] = [Key::Tab, Key::Escape, Key::Enter];
+
+/// Where a pass noted that a picture has the keyboard.
+const PICTURE_HAS_THE_KEYBOARD: &str = "voxa: the pass in which a picture had the keyboard";
+
+/// Let a picture that has the keyboard keep the arrow keys: egui would move the keyboard to the
+/// widget beside it with them, and they step through the slices instead. Called for the
+/// response of each picture as it is drawn. A tool in hand can take the arrows from the slices
+/// by consuming them before [`pressed_keys`] looks, in the pass in which the picture is drawn.
+pub fn hold_the_arrows(ctx: &Context, picture: &Response) {
+    if !picture.has_focus() {
+        return;
+    }
+    let arrows = EventFilter {
+        horizontal_arrows: true,
+        vertical_arrows: true,
+        ..EventFilter::default()
+    };
+    ctx.memory_mut(|memory| memory.set_focus_lock_filter(picture.id, arrows));
+    let now = ctx.cumulative_pass_nr();
+    ctx.data_mut(|data| data.insert_temp(Id::new(PICTURE_HAS_THE_KEYBOARD), now));
+}
+
+/// Where the person has the keyboard in the pass now being drawn.
+fn keyboard(ctx: &Context) -> Keyboard {
+    let noted = ctx.data(|data| data.get_temp::<u64>(Id::new(PICTURE_HAS_THE_KEYBOARD)));
+    if noted == Some(ctx.cumulative_pass_nr()) {
+        Keyboard::OnAPicture
+    } else if ctx.egui_wants_keyboard_input() {
+        Keyboard::OnAWidget
+    } else {
+        Keyboard::Free
+    }
+}
+
 /// The keys pressed this frame that are Voxa's to answer, with what was held with each: none
-/// while a text field or another widget has the keyboard, as when the person types in a
-/// field, nor while the search box is open. A key held down is taken again as the system
-/// repeats it only when it steps through the slices; any other acts once.
-pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
-    if ctx.egui_wants_keyboard_input() || search::holds_keyboard(ctx) {
+/// while a text field has the keyboard, as when the person types in a field, nor while the
+/// search box or a question is open. While another widget has it, every key but those egui
+/// moves and presses with (Tab, Enter, Space, the arrows, Home, End and the Page keys); while a
+/// picture has it, the arrows and those keys step through the slices. A key held down is taken
+/// again as the system repeats it only when it steps through the slices; any other acts once.
+pub fn pressed_keys(ctx: &Context) -> Vec<(Key, Held)> {
+    if typing::keys_are_taken(ctx) {
         return Vec::new();
     }
+    let left_to_egui: &[Key] = match keyboard(ctx) {
+        Keyboard::Free => &[],
+        Keyboard::OnAWidget => &EGUIS,
+        Keyboard::OnAPicture => &EGUIS_ON_A_PICTURE,
+    };
     ctx.input(|input| {
         let down = |event: &egui::Event| match event {
             egui::Event::Key {
@@ -43,7 +116,7 @@ pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
                 repeat,
                 modifiers,
                 ..
-            } if !*repeat || steps_slices(*key) => {
+            } if !left_to_egui.contains(key) && (!*repeat || steps_slices(*key)) => {
                 let (command, shift) = (modifiers.command, modifiers.shift);
                 Some((*key, Held { command, shift }))
             }

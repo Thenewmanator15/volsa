@@ -138,11 +138,13 @@ fn a_card_out_of_sight_is_scrolled_to_as_the_arrows_reach_it() {
 }
 
 /// Which part of the window a node is in, numbered in the order Tab is to go through them: the
-/// top bar, the rail, the pictures and the panel.
+/// top bar, the rail, the pictures, the panel and the notices along the bottom.
 fn part_of(node: &super::window::Heard) -> u8 {
     let middle = node.at.expect("it is placed").center();
     if middle.y < TOP_BAR {
         0
+    } else if middle.y > SIZE[1] - BOTTOM_LINE {
+        4
     } else if middle.x < RAIL {
         1
     } else if middle.x > SIZE[0] - PANEL {
@@ -154,6 +156,8 @@ fn part_of(node: &super::window::Heard) -> u8 {
 
 /// How far down the top bar reaches, at the most.
 const TOP_BAR: f32 = 40.0;
+/// How far up from the bottom of the window the bottom line reaches, at the most.
+const BOTTOM_LINE: f32 = 40.0;
 
 #[test]
 fn tab_goes_through_the_top_bar_the_rail_the_pictures_and_the_panel_in_that_order() {
@@ -174,4 +178,124 @@ fn tab_goes_through_the_top_bar_the_rail_the_pictures_and_the_panel_in_that_orde
     }
     let after = wraps.and_then(|at| parts.get(at + 1));
     assert_eq!(after, Some(&0), "{parts:?}");
+}
+
+/// A made-up notice, such as the first screen of an export with other files in it has.
+fn a_notice() -> crate::state::Notice {
+    crate::state::Notice {
+        kind: crate::state::NoticeKind::Info,
+        text: "2 files are not scans or documents Voxa lists".to_owned(),
+        details: vec!["notes.txt".to_owned()],
+        key: None,
+    }
+}
+
+#[test]
+fn tab_reaches_the_notices_last_and_then_goes_round_to_the_top_bar() {
+    let mut state = thick_scan_ready();
+    state.notices.push(a_notice());
+    let mut window = Window::new();
+    let _ = window.told(&state);
+    let mut parts = Vec::new();
+    for _ in 0..90 {
+        let (told, _) = window.press(&state, Key::Tab);
+        parts.extend(told.focused().map(part_of));
+    }
+    let wraps = parts.windows(2).position(|pair| pair[1] < pair[0]);
+    let once = &parts[..wraps.map_or(parts.len(), |at| at + 1)];
+    assert!(once.is_sorted(), "{parts:?}");
+    for part in 0..5 {
+        assert!(once.contains(&part), "nothing in part {part}: {parts:?}");
+    }
+    assert_eq!(once.last(), Some(&4), "the notices come last: {parts:?}");
+    let after = wraps.and_then(|at| parts.get(at + 1));
+    assert_eq!(after, Some(&0), "{parts:?}");
+}
+
+/// Press Tab until the keyboard is on a viewport; gives what was told then.
+fn tab_to_a_viewport(window: &mut Window, state: &AppState) -> Told {
+    for _ in 0..90 {
+        let (told, _) = window.press(state, Key::Tab);
+        let on_a_viewport = told
+            .focused()
+            .is_some_and(|node| node.name.contains(" slice "));
+        if on_a_viewport {
+            return told;
+        }
+    }
+    panic!("Tab never reached a viewport");
+}
+
+#[test]
+fn with_the_keyboard_on_a_viewport_the_arrows_step_its_slices_and_it_keeps_the_keyboard() {
+    let state = thick_scan_ready();
+    let mut window = Window::new();
+    let _ = window.told(&state);
+    let told = tab_to_a_viewport(&mut window, &state);
+    let viewport = told.focused().map(|node| node.id);
+    let step = |delta| Action::Scroll { viewport: 0, delta };
+    // The first press is the one that gives the viewport the lock; the next ones are answered.
+    for (key, delta) in [(Key::ArrowDown, 1), (Key::ArrowDown, 1), (Key::ArrowUp, -1)] {
+        let (told, asked) = window.press(&state, key);
+        assert!(asked.contains(&step(delta)), "{key:?}: {asked:?}");
+        assert_eq!(
+            told.focused().map(|node| node.id),
+            viewport,
+            "{key:?} kept it"
+        );
+    }
+    for (key, delta) in [(Key::PageDown, 10), (Key::PageUp, -10)] {
+        let (_, asked) = window.press(&state, key);
+        assert!(asked.contains(&step(delta)), "{key:?}: {asked:?}");
+    }
+}
+
+#[test]
+fn with_the_keyboard_on_a_button_the_letters_of_the_window_still_work() {
+    let state = thick_scan_ready();
+    let mut window = Window::new();
+    let _ = window.told(&state);
+    let (told, _) = window.press(&state, Key::Tab);
+    assert!(told.focused().is_some(), "Tab put the keyboard on a button");
+    let (_, asked) = window.press(&state, Key::H);
+    let flip = Action::Flip {
+        viewport: 0,
+        horizontal: true,
+    };
+    assert!(asked.contains(&flip), "{asked:?}");
+    // But Space and Enter are the button's own, not the cine's.
+    let (_, asked) = window.press(&state, Key::Space);
+    assert!(
+        !asked
+            .iter()
+            .any(|action| matches!(action, Action::CineToggle { .. })),
+        "{asked:?}"
+    );
+}
+
+#[test]
+fn a_key_a_viewport_lets_go_of_is_not_taken_twice_when_a_tool_consumes_it() {
+    // Keyboard measuring (Task 22) claims the arrows while a tool is in hand by consuming them
+    // in the pass in which the viewport is drawn: the keys of the window never see them.
+    let state = thick_scan_ready();
+    let mut window = Window::new();
+    let _ = window.told(&state);
+    let _ = tab_to_a_viewport(&mut window, &state);
+    let ctx = window.ctx.clone();
+    let consume = |ctx: &egui::Context| {
+        ctx.input_mut(|input| input.consume_key(egui::Modifiers::NONE, Key::ArrowDown));
+    };
+    let down = |pressed| egui::Event::Key {
+        key: Key::ArrowDown,
+        physical_key: None,
+        pressed,
+        repeat: false,
+        modifiers: egui::Modifiers::NONE,
+    };
+    let mut taken = Vec::new();
+    let _ = super::window::pass(&ctx, SIZE, vec![down(true), down(false)], &mut |ui| {
+        consume(ui.ctx());
+        taken = crate::ui::keys::pressed_keys(ui.ctx());
+    });
+    assert_eq!(taken, []);
 }

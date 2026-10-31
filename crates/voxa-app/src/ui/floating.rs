@@ -8,7 +8,7 @@
 use egui::{Context, Id, Key, Modifiers, Rect, Window, vec2};
 
 use super::scene::export;
-use super::{VoxaApp, about, help, search};
+use super::{VoxaApp, about, help, typing};
 use crate::action::Action;
 
 /// Where the area of the pictures is, which the windows are told each frame.
@@ -88,7 +88,7 @@ impl Open<'_> {
 }
 
 /// Close the floating window opened last when Esc is pressed, and take the key so that it does
-/// nothing else. Esc is left alone while a text field or the search box has the keyboard,
+/// nothing else. Esc is left alone while a text field, the search box or a question has the keyboard,
 /// which have their own use for it. Called every frame, to note which windows are open.
 pub fn close_on_esc(ctx: &Context, mut open: Open<'_>) {
     let kept = Id::new(OPENED);
@@ -106,8 +106,7 @@ pub fn close_on_esc(ctx: &Context, mut open: Open<'_>) {
             order.push(which);
         }
     }
-    let typing = ctx.egui_wants_keyboard_input() || search::holds_keyboard(ctx);
-    let escaped = !typing && ctx.input(|input| input.key_pressed(Key::Escape));
+    let escaped = !typing::keys_are_taken(ctx) && ctx.input(|input| input.key_pressed(Key::Escape));
     if let Some(last) = order.last().copied().filter(|_| escaped) {
         open.close(ctx, last);
         order.pop();
@@ -127,9 +126,13 @@ impl VoxaApp {
             tags: &mut self.tags.open,
         };
         close_on_esc(ctx, open);
-        about::show(ctx, &mut self.about_open);
+        let (state, mut asked) = (self.session.state(), Vec::new());
+        about::show_in(ctx, state, &mut self.about_open, &mut asked);
         help::show(ctx, &mut self.help_open);
-        self.tags.show(ctx, self.session.state(), actions);
+        self.tags.show(ctx, state, actions);
+        for request in asked {
+            self.ask(ctx, request);
+        }
     }
 }
 

@@ -5,6 +5,7 @@ use voxa_render::{Look, MAX_CUTS, NamedView};
 
 use super::super::{Command, Does, Place, Request, Tab, Why};
 use super::PLAIN;
+use super::pictures::no_3d_view;
 use crate::action::Action;
 use crate::labels::{look_drawn, on_this_series};
 use crate::scene::SceneStatus;
@@ -43,6 +44,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: LOOKS[0].2,
         words: &["surface", "solid", "shaded"],
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneLook(Look::Surface))),
         ..PLAIN
     },
@@ -53,6 +55,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: LOOKS[1].2,
         words: &["vr", "volume rendering", "see-through"],
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneLook(Look::Vr))),
         ..PLAIN
     },
@@ -68,6 +71,7 @@ pub(super) const COMMANDS: &[Command] = &[
             "vessels",
         ],
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneLook(Look::Mip))),
         ..PLAIN
     },
@@ -78,7 +82,10 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: PARTS_HINT,
         words: &["parts", "labels", "segmentation", "solids"],
         place: Place::Tab(Tab::Scene),
-        why_not: |state| (!on_this_series(state)).then_some(Why::Borrowed(PARTS_NEED_LABELS)),
+        why_not: |state| {
+            no_3d_view(state)
+                .or_else(|| (!on_this_series(state)).then_some(Why::Borrowed(PARTS_NEED_LABELS)))
+        },
         does: Does::Act(|_| Some(Action::SceneLook(Look::Parts))),
         ..PLAIN
     },
@@ -88,6 +95,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[0].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Anterior))),
         ..PLAIN
     },
@@ -97,6 +105,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[1].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Posterior))),
         ..PLAIN
     },
@@ -106,6 +115,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[2].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Left))),
         ..PLAIN
     },
@@ -115,6 +125,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[3].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Right))),
         ..PLAIN
     },
@@ -124,6 +135,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[4].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Superior))),
         ..PLAIN
     },
@@ -133,6 +145,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: VIEWS[5].1,
         words: SIDE,
         place: Place::Tab(Tab::Scene),
+        why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SceneView(NamedView::Inferior))),
         ..PLAIN
     },
@@ -144,7 +157,8 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["cut", "clip", "section", "open"],
         place: Place::Tab(Tab::Scene),
         why_not: |state| {
-            (state.scene.cuts.len() >= MAX_CUTS).then_some(Why::Borrowed("Three cuts at most."))
+            let full = state.scene.cuts.len() >= MAX_CUTS;
+            no_3d_view(state).or_else(|| full.then_some(Why::Borrowed("Three cuts at most.")))
         },
         does: Does::Act(|_| Some(Action::CutAdd)),
         ..PLAIN
@@ -191,7 +205,8 @@ pub(super) const COMMANDS: &[Command] = &[
         words: &["slice", "plane", "2D", "inside"],
         place: Place::Tab(Tab::Scene),
         why_not: |state| {
-            (look_drawn(state) == Look::Parts).then_some(Why::Borrowed(NO_SLICE_AMONG_PARTS))
+            let among_parts = look_drawn(state) == Look::Parts;
+            no_3d_view(state).or_else(|| among_parts.then_some(Why::Borrowed(NO_SLICE_AMONG_PARTS)))
         },
         does: Does::Act(|state| Some(Action::ShowSliceInScene(!state.scene.slice_shown))),
         ..PLAIN

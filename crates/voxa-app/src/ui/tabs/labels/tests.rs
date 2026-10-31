@@ -5,13 +5,16 @@ use std::cell::Cell;
 use std::path::PathBuf;
 
 use egui::{Rect, Ui};
-use voxa_labels::{Made, Side, Trust, Verdict, verdict_in_words};
+use voxa_labels::{Made, Side, Trust, Verdict};
 
 use super::*;
 use crate::reducer::reduce;
 use crate::testing::{labelled_head, thick_scan_ready};
+use crate::ui::commands::Confirm;
 use crate::ui::hand::{Hand, Seen};
 use crate::ui::panel::{self, PanelState, Tab};
+use crate::ui::parts::Asked;
+use crate::ui::parts::labelling::verdict_in_plain_words;
 use crate::ui::tabs::Kept;
 use crate::ui::tabs::made_up::{
     WIDE, labelled_by, labelled_with, labels_tab, labels_written, named, part, parts, screen,
@@ -44,7 +47,7 @@ fn made_and_failed() -> (AppState, String) {
         fail_below: 0.65,
         low: vec![("general csf".to_owned(), 0.6)],
     };
-    let said = verdict_in_words(&verdict);
+    let said = verdict_in_plain_words(&verdict);
     let made = Made {
         by: "Voxa 9.8.7".to_owned(),
         model: "Made-up model, robust".to_owned(),
@@ -264,7 +267,11 @@ fn clicking_down_the_tab_finds_everything_it_offers() {
         };
         assert!(actions.contains(&hide), "{group}");
     }
-    assert!(actions.contains(&Action::PartsShowAll) && actions.contains(&Action::CloseLabels));
+    assert!(actions.contains(&Action::PartsShowAll));
+    assert!(
+        !actions.contains(&Action::CloseLabels),
+        "closing asks first"
+    );
     assert!(actions.contains(&Action::SetOverlay(Overlay::Off)));
     assert!(actions.contains(&Action::SetOverlay(Overlay::Filled)));
     assert!(
@@ -272,7 +279,10 @@ fn clicking_down_the_tab_finds_everything_it_offers() {
         "the one in use"
     );
     let files = [Asked::OpenNames, Asked::SaveCsv].map(Request::Choose);
-    assert_eq!(requests.len(), files.len(), "{requests:?}");
+    // Closing the labels is asked about before it is done: once from each of the two buttons.
+    let closing = Request::Confirm(Confirm::CloseLabels);
+    assert!(requests.contains(&closing), "{requests:?}");
+    assert_eq!(requests.len(), files.len() + 1, "{requests:?}");
     assert!(files.iter().all(|file| requests.contains(file)));
 }
 
@@ -322,7 +332,7 @@ fn the_tab_says_what_the_labels_are_where_their_names_came_from_and_the_models_c
     };
     let said = labels_written(&labelled_by(Some(verdict), NamesFrom::Nothing, None));
     assert!(
-        said.contains("The labelling model's own check failed"),
+        said.contains("The labelling model's own check of its work did not pass for general csf"),
         "{said}"
     );
     assert!(said.contains("called by their numbers"), "{said}");
@@ -372,6 +382,7 @@ fn labels_of_another_study_are_said_to_be_and_can_be_closed() {
     state.labels.study = Some(voxa_core::StudyId("another".to_owned()));
     assert!(labels_written(&state).contains("another study"));
     let (actions, requests) = sweep_labels(&state);
-    assert_eq!((actions, requests), (vec![Action::CloseLabels], vec![]));
+    let asked = vec![Request::Confirm(Confirm::CloseLabels)];
+    assert_eq!((actions, requests), (vec![], asked));
 }
 mod short;

@@ -117,8 +117,11 @@ fn header(
         .max_rect(full)
         .layout(Layout::right_to_left(Align::Min));
     let mut buttons = ui.new_child(at_the_right);
-    if buttons.button(CLOSE).clicked() {
-        actions.push(Action::CloseDocument);
+    let close = commands::button_made(&mut buttons, "document.close", state, CLOSE, |command| {
+        Button::new(command.label)
+    });
+    if let Some((_, Some(does))) = close {
+        asked.extend(does.run(state, actions));
     }
     let tags = commands::button_made(&mut buttons, "tags.show", state, "", |command| {
         Button::new(command.name)

@@ -17,7 +17,7 @@ use crate::ui::keys;
 use crate::ui::panel::{self, PanelState, Tab};
 
 /// A series ready to measure on, with a ruler and a marker measured on it.
-fn measured_twice() -> AppState {
+pub(super) fn measured_twice() -> AppState {
     let mut state = thick_scan_ready();
     let ruler = Shape::Ruler {
         a: [0.0, 0.0, 10.0],
@@ -34,7 +34,7 @@ fn measured_twice() -> AppState {
 
 /// The tab as it is kept between passes, with what it gave in them.
 #[derive(Default)]
-struct Kept {
+pub(super) struct Kept {
     tab: MeasureTab,
     /// What every tab keeps, for the panel drawn whole.
     all: super::super::Kept,
@@ -47,7 +47,7 @@ struct Kept {
 
 impl Kept {
     /// Draw the tab for `state` in `ui`, and keep what it gave.
-    fn draw(&mut self, ui: &mut Ui, state: &AppState) {
+    pub(super) fn draw(&mut self, ui: &mut Ui, state: &AppState) {
         let asked = show(ui, state, &mut self.tab, &mut self.actions);
         self.requests.extend(asked);
         self.bottom = ui.min_rect().bottom();
@@ -62,7 +62,7 @@ impl Kept {
 
 /// How wide the contents of a tab are in the narrowest panel: 260 points, less its margins
 /// and the bar beside the tab.
-const NARROW: f32 = 236.0;
+pub(super) const NARROW: f32 = 236.0;
 
 /// Each thing once, in the order first met.
 fn once<T: PartialEq>(all: Vec<T>) -> Vec<T> {

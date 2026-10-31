@@ -6,18 +6,25 @@
 use egui::{Align, RichText, ScrollArea, Ui, style::ScrollAnimation};
 use voxa_render::Overlay;
 
-use super::{offer, row, section};
+use super::{choose_small, offer, offer_small, row, section};
 use crate::action::Action;
 use crate::labels::{Labels, LabelsStatus, NamesFrom, on_this_series};
 use crate::state::AppState;
 use crate::ui::access;
 use crate::ui::commands::Request;
 use crate::ui::parts::{
-    self, Asked, MADE_ELSEWHERE, PartsView, WHAT_LABELS_ARE, all_shown, labelling, title,
+    self, MADE_ELSEWHERE, PartsView, WHAT_LABELS_ARE, all_shown, labelling, title,
 };
 use crate::ui::theme;
 
 mod overview;
+
+/// The ways the labels are drawn over the planes, by the action that chooses each.
+const OVERLAYS: [(Overlay, &str); 3] = [
+    (Overlay::Off, "labels.overlay.off"),
+    (Overlay::Outline, "labels.overlay.outline"),
+    (Overlay::Filled, "labels.overlay.filled"),
+];
 
 /// Said of labels whose names came from a table beside them.
 const NAMED: &str = "Names from the table beside the labels.";
@@ -79,7 +86,7 @@ pub fn show(
     let mut asked = Vec::new();
     match &state.labels.status {
         LabelsStatus::Ready if on_this_series(state) => {
-            list(ui, &state.labels, view, actions, &mut asked);
+            list(ui, state, view, actions, &mut asked);
         }
         status => scrolling(ui, |ui| {
             without_labels(ui, state, status, actions, &mut asked);
@@ -111,9 +118,7 @@ fn without_labels(
         }
         LabelsStatus::Ready => {
             ui.label(quiet(ui, OTHER_STUDY));
-            if ui.button("Close").clicked() {
-                actions.push(Action::CloseLabels);
-            }
+            offer(ui, "labels.close", state, None, actions, asked);
         }
     }
 }
@@ -137,11 +142,12 @@ fn ways_to_get_some(
 /// them: the overview by group, and every group with its rows.
 fn list(
     ui: &mut Ui,
-    labels: &Labels,
+    state: &AppState,
     view: &mut PartsView,
     actions: &mut Vec<Action>,
     asked: &mut Vec<Request>,
 ) {
+    let labels = &state.labels;
     // In a short window the part that stays in place would leave the list almost no room, so
     // it scrolls too, with the model's check, which is the first of it, in sight to begin with.
     let fixed = ScrollArea::vertical()
@@ -149,8 +155,8 @@ fn list(
         .auto_shrink([false, true])
         .max_height(FIXED_MOST * ui.available_height());
     fixed.show(ui, |ui| {
-        asked.extend(about(ui, labels));
-        asked.extend(switches(ui, labels, actions));
+        about(ui, state, (actions, asked));
+        switches(ui, state, (actions, asked));
         let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
         let search = ui.add(search.desired_width(f32::INFINITY));
         access::call(&search, "Search parts");
@@ -209,9 +215,9 @@ fn groups(ui: &mut Ui, labels: &Labels, view: &mut PartsView, actions: &mut Vec<
 
 /// What the labels are: what they are of, who made them, where their names came from, and the
 /// labelling model's own check of them; and, beneath that, the button that saves the list as
-/// a table, and for labels that Voxa made, the one that saves them as a file. Gives what was
-/// asked of the window.
-fn about(ui: &mut Ui, labels: &Labels) -> Vec<Request> {
+/// a table, and for labels that Voxa made, the one that saves them as a file.
+fn about(ui: &mut Ui, state: &AppState, (actions, asked): (&mut Vec<Action>, &mut Vec<Request>)) {
+    let labels = &state.labels;
     if !labels.title.is_empty() {
         ui.label(RichText::new(&labels.title).strong());
     }
@@ -233,34 +239,20 @@ fn about(ui: &mut Ui, labels: &Labels) -> Vec<Request> {
     if let Some(verdict) = labels.verdict.as_ref().filter(|_| labels.made.is_none()) {
         labelling::verdict_line(ui, verdict);
     }
-    let save = ui.small_button("Save as CSV…");
-    let hint = "Save every part, with its volume, as a table for a spreadsheet";
-    let csv = save.on_hover_text(hint).clicked().then_some(Asked::SaveCsv);
-    let file = labelling::save_as(ui, labels).map(Asked::Labelling);
-    csv.into_iter().chain(file).map(Request::Choose).collect()
+    offer_small(ui, "labels.save_csv", state, None, (actions, asked));
+    labelling::save_as(ui, state, (actions, asked));
 }
 
 /// The switches that act on all the labels: show every part, close the labels, choose
 /// another table of names, and how the labels are drawn over the plane views.
-fn switches(ui: &mut Ui, labels: &Labels, actions: &mut Vec<Action>) -> Vec<Request> {
-    let mut asked = Vec::new();
+fn switches(
+    ui: &mut Ui,
+    state: &AppState,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
     ui.horizontal_wrapped(|ui| {
-        if ui.small_button("Show all").clicked() {
-            actions.push(Action::PartsShowAll);
-        }
-        if ui
-            .small_button("Close")
-            .on_hover_text("Close these labels")
-            .clicked()
-        {
-            actions.push(Action::CloseLabels);
-        }
-        let names = ui.small_button("Names…");
-        if names
-            .on_hover_text("Choose a table of names for these labels")
-            .clicked()
-        {
-            asked.push(Request::Choose(Asked::OpenNames));
+        for id in ["labels.show_all", "labels.close", "labels.names"] {
+            offer_small(ui, id, state, None, (actions, asked));
         }
     });
     ui.horizontal_wrapped(|ui| {
@@ -269,24 +261,11 @@ fn switches(ui: &mut Ui, labels: &Labels, actions: &mut Vec<Action>) -> Vec<Requ
                 .small()
                 .color(theme::palette(ui.ctx()).quiet_text),
         );
-        let ways = [
-            (Overlay::Off, "Off", "No labels over the plane views"),
-            (Overlay::Outline, "Outline", "A line round each part"),
-            (
-                Overlay::Filled,
-                "Filled",
-                "The line, and a tint of the part's colour inside it",
-            ),
-        ];
-        for (overlay, word, hover) in ways {
-            let chosen = labels.overlay == overlay;
-            let way = ui.selectable_label(chosen, RichText::new(word).small());
-            if way.on_hover_text(hover).clicked() && !chosen {
-                actions.push(Action::SetOverlay(overlay));
-            }
+        for (overlay, id) in OVERLAYS {
+            let chosen = state.labels.overlay == overlay;
+            choose_small(ui, id, state, chosen, (actions, asked));
         }
     });
-    asked
 }
 
 #[cfg(test)]

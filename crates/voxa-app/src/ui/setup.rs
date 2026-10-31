@@ -80,6 +80,7 @@ impl VoxaApp {
             rail: rail::RailState::default(),
             about_open: false,
             help_open: false,
+            confirming: None,
             tags: tags::Panel::default(),
             bars: bars::Kept {
                 theme: choice,

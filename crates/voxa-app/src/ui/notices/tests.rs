@@ -6,6 +6,32 @@ use super::*;
 use crate::ui::seen::{self, Seen, click_at, is_red, key};
 use crate::ui::theme::ThemeChoice;
 
+/// The line drawn whole, as the window draws it in two steps: the line, then the notice area.
+/// A click that asks for the list to be opened opens it. Gives the disclaimer.
+fn show(ui: &mut Ui, notices: &[Notice], open: &mut bool, actions: &mut Vec<Action>) -> Response {
+    let state = AppState {
+        notices: notices.to_vec(),
+        ..AppState::default()
+    };
+    show_state(ui, &state, open, actions)
+}
+
+/// As [`show`], for the notices of a state, which can name the patients of the export open.
+pub(super) fn show_state(
+    ui: &mut Ui,
+    state: &AppState,
+    open: &mut bool,
+    actions: &mut Vec<Action>,
+) -> Response {
+    let line = place(ui, state);
+    for request in draw(ui, state, &line, open, actions) {
+        if request == Request::ShowNotices {
+            *open = true;
+        }
+    }
+    line.disclaimer
+}
+
 /// A notice of this kind and these words.
 fn notice(kind: NoticeKind, text: &str) -> Notice {
     Notice {

@@ -4,12 +4,11 @@
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Request, Tab, TagsOf, Why};
+use super::super::{Command, Does, Place, Request, TagsOf, Why};
 use super::{PLAIN, alone, ctrl};
+use crate::action::Action;
 use crate::naming::{Group, group_of};
-use crate::planes::grid;
 use crate::state::AppState;
-use crate::ui::parts::NO_VOLUME;
 use crate::ui::theme::ThemeChoice;
 use crate::ui::top::Pick;
 
@@ -128,7 +127,6 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Larger",
         words: &["zoom in", "bigger", "enlarge"],
         key: Some(ctrl(Key::Equals, "Ctrl+=")),
-        place: Place::Menu,
         does: Does::Ask(Request::Larger),
         ..PLAIN
     },
@@ -138,7 +136,6 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Smaller",
         words: &["zoom out", "smaller", "shrink"],
         key: Some(ctrl(Key::Minus, "Ctrl+-")),
-        place: Place::Menu,
         does: Does::Ask(Request::Smaller),
         ..PLAIN
     },
@@ -178,7 +175,7 @@ pub(super) const COMMANDS: &[Command] = &[
         name: "Show help, the keys and what the mouse does",
         label: "?",
         words: &["help", "topics", "shortcuts", "keyboard", "mouse", "keys"],
-        // Shift with slash does it too: see the other keys in the list's own module.
+        // A question mark is its own key for egui, whichever keyboard types it.
         key: Some(alone(Key::Questionmark, "?")),
         place: Place::TopBar,
         does: Does::Ask(Request::Help(None)),
@@ -225,6 +222,62 @@ pub(super) const COMMANDS: &[Command] = &[
         ..PLAIN
     },
     Command {
+        id: "notices.show",
+        name: "Show the notices",
+        label: "Notices",
+        explains: "What Voxa has to tell you, such as how saving went",
+        words: &["notices", "messages", "warnings", "skipped", "news"],
+        place: Place::Line,
+        why_not: |state| {
+            state
+                .notices
+                .is_empty()
+                .then_some(Why::Borrowed("There are no notices."))
+        },
+        does: Does::Ask(Request::ShowNotices),
+        ..PLAIN
+    },
+    Command {
+        id: "about.notices",
+        name: "Show the licences and notices",
+        label: "Licences and notices…",
+        explains: "The licence and notice texts of everything Voxa is built from",
+        words: &["licence", "license", "credits", "third party", "notices"],
+        place: Place::About,
+        does: Does::Ask(Request::Licences),
+        ..PLAIN
+    },
+    Command {
+        id: "log.copy",
+        name: "Copy where the log is",
+        label: "Copy",
+        words: &["log", "path", "clipboard", "copy", "support"],
+        place: Place::About,
+        why_not: |_| {
+            crate::log::path()
+                .is_none()
+                .then_some(Why::Borrowed("Voxa is not keeping a log in this run."))
+        },
+        does: Does::Ask(Request::CopyTheLog),
+        ..PLAIN
+    },
+    Command {
+        id: "document.close",
+        name: "Close the document",
+        label: "Close",
+        explains: "Go back to the pictures",
+        words: &["document", "report", "page", "close", "pictures"],
+        place: Place::Document,
+        why_not: |state| {
+            state
+                .document
+                .is_none()
+                .then_some(Why::Borrowed("No document is open."))
+        },
+        does: Does::Act(|_| Some(Action::CloseDocument)),
+        ..PLAIN
+    },
+    Command {
         id: "tags.show",
         name: "Show the file's tags",
         label: "Tags",
@@ -233,16 +286,6 @@ pub(super) const COMMANDS: &[Command] = &[
         // On a card, the tags of the first file of that card's series.
         place: Place::Card,
         does: Does::Ask(Request::Tags(TagsOf::Shown)),
-        ..PLAIN
-    },
-    Command {
-        id: "labels.open",
-        name: "Open a file of labels",
-        label: "Open labels…",
-        words: &["labels", "segmentation", "nifti", "open"],
-        place: Place::Tab(Tab::Labels),
-        why_not: |state| grid(state).is_none().then_some(Why::Borrowed(NO_VOLUME)),
-        does: Does::Ask(Request::OpenLabels),
         ..PLAIN
     },
 ];

@@ -9,7 +9,7 @@ use voxa_core::Volume;
 use voxa_labels::LabelSet;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, document, labels, layout, planes, scene, strip, theme, viewport};
+use super::{VoxaApp, document, labels, layout, planes, scene, strip, theme, viewport, welcome};
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::session::Session;
@@ -37,6 +37,26 @@ impl VoxaApp {
         true
     }
 
+    /// Say how to begin, with the ways to open something, in place of the pictures while
+    /// nothing is open. Whether it did.
+    fn show_how_to_begin(
+        &mut self,
+        ui: &mut egui::Ui,
+        whole: egui::Rect,
+        actions: &mut Vec<Action>,
+    ) -> bool {
+        let state = self.session.state();
+        if !welcome::is_empty(state) {
+            return false;
+        }
+        let asked = welcome::show(ui, whole, state, actions);
+        ui.allocate_rect(whole, egui::Sense::hover());
+        for request in asked {
+            self.ask(ui.ctx(), request);
+        }
+        true
+    }
+
     /// Draw the strip and, beneath it, the pictures of the arrangement shown in what is left of
     /// the window. The 3D scene is drawn only when the arrangement has it; without it, its
     /// volume is put on the graphics card all the same. The volume becomes ready either way, as
@@ -51,7 +71,9 @@ impl VoxaApp {
         // Before anything is drawn, whatever stands in the middle of the window.
         let views = (&mut self.scene, &mut self.planes);
         let volume = settle_volume(&self.session, views, render, actions);
-        if self.show_document(ui, whole, render, actions) {
+        if self.show_document(ui, whole, render, actions)
+            || self.show_how_to_begin(ui, whole, actions)
+        {
             return;
         }
         theme::on_the_pictures_ground(ui);

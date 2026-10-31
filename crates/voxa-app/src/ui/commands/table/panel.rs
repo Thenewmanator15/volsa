@@ -2,14 +2,16 @@
 
 use egui::Key;
 
-use super::super::{Command, Does, Place, Request, Tab};
+use super::super::{Command, Does, Place, Request, Shortcut, Tab};
 use super::{PLAIN, alone};
 
-/// The entry that shows `tab`, named by `name`, found by `words` as well.
+/// The entry that shows `tab`, named by `name`, found by `words` as well, and shown by `key` if
+/// it has one.
 const fn show(
     tab: Tab,
     name: &'static str,
     explains: &'static str,
+    key: Option<Shortcut>,
     words: &'static [&'static str],
 ) -> Command {
     Command {
@@ -18,6 +20,7 @@ const fn show(
         label: tab.title(),
         explains,
         words,
+        key,
         place: Place::Panel,
         does: Does::Ask(Request::ShowTab(tab)),
         ..PLAIN
@@ -30,30 +33,43 @@ pub(super) const COMMANDS: &[Command] = &[
         Tab::View,
         "Show the View tab",
         "Brightness, which way round the patient is drawn, the slices and how they are shown",
+        None,
         &["view", "tab", "panel", "brightness"],
     ),
     show(
         Tab::Measure,
         "Show the Measure tab",
-        "The tools that measure, and what has been measured",
-        &["tab", "panel", "rulers"],
+        "Rulers, angles, regions and markers, and the list of what has been measured",
+        Some(alone(Key::M, "M")),
+        &[
+            "measure",
+            "measurements",
+            "tab",
+            "panel",
+            "rulers",
+            "tools",
+            "list",
+        ],
     ),
     show(
         Tab::Scene,
         "Show the 3D tab",
         "The looks of the 3D scene, the sides it is seen from, its cuts and saving it",
+        None,
         &["tab", "panel", "scene"],
     ),
     show(
         Tab::Labels,
         "Show the Labels tab",
         "The labelled parts of the scan",
+        None,
         &["tab", "panel", "parts"],
     ),
     show(
         Tab::Tools,
         "Show the Tools tab",
         "Tools that work on the scan, such as labelling it",
+        None,
         &["tab", "panel", "labelling"],
     ),
     Command {

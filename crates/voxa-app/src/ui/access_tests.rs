@@ -4,16 +4,17 @@
 
 mod names;
 mod rail_keys;
+mod walk;
 mod window;
 
 use egui::accesskit::Role;
 use voxa_dicom::{Report, ReportLine};
 
+use self::walk::{Scene, check_buttons, extra_windows};
 use self::window::{Heard, Told, Window};
 use super::commands;
 use super::panel::Tab;
 use super::tabs::made_up::labelled_by;
-use super::top;
 use crate::action::Action;
 use crate::annotations::Shape;
 use crate::labels::NamesFrom;
@@ -91,6 +92,16 @@ fn every_window() -> Vec<(&'static str, AppState)> {
     ]
 }
 
+/// Every state of the window the walks read: the arrangements and the report, and the states
+/// with a labelling run, a kept result, labels that Voxa made, a notice, a floating window, a
+/// question or a menu open.
+fn every_scene() -> Vec<Scene> {
+    let plain = every_window()
+        .into_iter()
+        .map(|(name, state)| Scene::plain(name, state));
+    plain.chain(extra_windows()).collect()
+}
+
 /// The window for `state` with this tab open, as a screen reader is told of it.
 fn told_of(state: &AppState, tab: Tab) -> (Told, Window) {
     let mut window = Window::new();
@@ -110,13 +121,34 @@ fn needs_a_name(node: &Heard) -> bool {
 
 #[test]
 fn every_interactive_node_has_a_name() {
-    for (window, state) in every_window() {
+    for scene in every_scene() {
+        let window = scene.name;
         for tab in Tab::ALL {
-            let (told, _) = told_of(&state, tab);
+            let (told, _) = walk::told_in(&scene, tab);
+            // What egui makes of a popup, which holds the controls that are named, and of the title
+            // bar of a window that floats, which lies in the window, and a scroll bar, are not
+            // controls of Voxa's to name.
+            let egui_s = |node: &Heard| {
+                let holds = |other: &Heard| {
+                    let (outer, inner) = (node.at, other.at);
+                    let named = !other.name.is_empty() && other.id != node.id;
+                    named && outer.zip(inner).is_some_and(|(o, i)| o.contains_rect(i))
+                };
+                let in_a_window = |other: &Heard| {
+                    let (outer, inner) = (other.at, node.at);
+                    let window = other.role == Role::Window;
+                    window && outer.zip(inner).is_some_and(|(o, i)| o.contains_rect(i))
+                };
+                match node.role {
+                    Role::ScrollBar => true,
+                    Role::Unknown => told.nodes.iter().any(|one| holds(one) || in_a_window(one)),
+                    _ => false,
+                }
+            };
             let unnamed: Vec<&Heard> = told
                 .nodes
                 .iter()
-                .filter(|node| needs_a_name(node) && node.name.trim().is_empty())
+                .filter(|node| needs_a_name(node) && node.name.trim().is_empty() && !egui_s(node))
                 .collect();
             assert!(unnamed.is_empty(), "{window}, {tab:?}: {unnamed:#?}");
             // A field that says something before anything is typed is named by what it says.
@@ -140,71 +172,92 @@ fn every_interactive_node_has_a_name() {
     }
 }
 
-/// Whether a button's name is one the list of actions gives: the action's name, or the name
-/// after the label that was written on the button, as `4, Four viewports`.
-fn is_an_actions(name: &str) -> bool {
-    let search = commands::find("search.open").expect("listed");
-    let as_the_box_writes = commands::spoken(search, top::SEARCH_SAYS);
-    let of_an_action = |command: &commands::Command| {
-        name == command.name || name == commands::spoken(command, command.label)
-    };
-    commands::all().iter().any(of_an_action) || name == as_the_box_writes
+#[test]
+fn every_button_in_the_bars_and_tabs_is_a_command_a_menu_or_a_row_named_by_its_item() {
+    for scene in every_scene() {
+        for tab in Tab::ALL {
+            check_buttons(&scene, tab);
+        }
+    }
 }
 
-/// The buttons that are not actions of the list, called by these names: the menus, which open
-/// more actions; the Labels tab's own switches, with the three ways labels are drawn over the
-/// planes; and the Tools tab's buttons. A value field (the window, the level, the speed), the
-/// switch Loop and the switch of each side of a part are not buttons, so need no place here.
-const BY_NAME: [&str; 12] = [
-    "Open",
-    "More",
-    "Views",
-    "Export",
-    "Options",
-    "Show all",
-    "Close",
-    "Names…",
-    "Save as CSV…",
-    "Off",
-    "Outline",
-    "Filled",
-];
-
-/// The buttons that are not actions of the list, called by names that begin with these words:
-/// the rows of lists, each of which belongs to one item and so is not an action. A
-/// measurement's Remove and Go to, a saved view's Delete, a group of parts' Show or Hide, and
-/// the report's own Close and Save a copy.
-const BY_ROW: [&str; 6] = [
-    "Remove ",
-    "Go to ",
-    "Delete ",
-    "Show ",
-    "Hide ",
-    "Save a copy as PDF",
-];
+#[test]
+fn the_states_walked_reach_the_buttons_that_used_to_be_drawn_by_hand() {
+    // Each of these is only drawn in one state, so the walk sees it only if it reaches that state.
+    let scenes = every_scene();
+    let seen = |scene: &str, tab: Tab, name: &str| {
+        let scene = scenes.iter().find(|one| one.name == scene).expect(scene);
+        let (told, _) = walk::told_in(scene, tab);
+        // By the name of the action, or by it after the label the button writes on itself.
+        let command = commands::all().iter().find(|command| command.name == name);
+        let spoken = command.map(|command| commands::spoken(command, command.label));
+        let found = told
+            .nodes
+            .iter()
+            .any(|node| node.name == name || spoken.as_deref() == Some(node.name.as_str()));
+        assert!(found, "{} has no button {name:?} in {tab:?}", scene.name);
+    };
+    seen("a labelling run", Tab::Tools, "Stop labelling the scan");
+    seen(
+        "a kept result",
+        Tab::Tools,
+        "Show the labels kept for this series",
+    );
+    seen("a kept result", Tab::Tools, "Label this scan again");
+    seen(
+        "a kept result",
+        Tab::Tools,
+        "Delete the labels kept for this series",
+    );
+    seen(
+        "labels that Voxa made",
+        Tab::Labels,
+        "Save the labels as a file",
+    );
+    seen("labels that Voxa made", Tab::Labels, "Close the labels");
+    seen(
+        "the notices listed",
+        Tab::View,
+        "Dismiss: Made-up: a slice could not be read",
+    );
+    seen("About", Tab::View, "Show the licences and notices");
+    seen(
+        "the labelling options menu",
+        Tab::Tools,
+        "Choose the folder of the models",
+    );
+    seen(
+        "the labelling options menu",
+        Tab::Tools,
+        "Label the cortex areas",
+    );
+    seen("the Views menu", Tab::Scene, "Delete Front");
+    seen(
+        "the interface size menu",
+        Tab::View,
+        "Draw the interface at 150%",
+    );
+    seen("a question", Tab::View, "Keep them");
+}
 
 #[test]
-fn every_button_in_the_bars_and_tabs_is_a_command() {
-    for (window, state) in every_window() {
-        for tab in Tab::ALL {
-            let (told, hand) = told_of(&state, tab);
-            let outside_the_rail = told
-                .nodes
-                .iter()
-                .filter(|node| node.at.is_some_and(|at| !hand.rail_at.contains_rect(at)));
-            let buttons = outside_the_rail.filter(|node| node.role == Role::Button && !node.hidden);
-            for button in buttons {
-                let name = button.name.as_str();
-                let by_hand =
-                    BY_NAME.contains(&name) || BY_ROW.iter().any(|row| name.starts_with(row));
-                // A saved view and a part are each a button named by what they are.
-                let a_view = state.views.iter().any(|view| view.name == name);
-                let a_part = state.labels.parts.iter().any(|part| part.name == name);
-                assert!(
-                    is_an_actions(name) || by_hand || a_view || a_part,
-                    "{window}, {tab:?}: {name:?} is not an action's name"
-                );
-            }
-        }
+fn an_empty_window_says_how_to_begin_in_the_middle_where_a_person_looks() {
+    let scenes = every_scene();
+    let empty = scenes
+        .iter()
+        .find(|one| one.name == "an empty window")
+        .expect("walked");
+    let (told, _) = walk::told_in(empty, Tab::View);
+    for id in ["open.folder", "open.file"] {
+        let command = commands::find(id).expect("listed");
+        let name = commands::spoken(command, command.label);
+        let button = told.called(&name).unwrap_or_else(|| panic!("{name}"));
+        // Not the rail at the left, nor the bar across the top: in the middle.
+        let at = button.at.expect("placed").center();
+        let (left, right) = (window::RAIL, window::SIZE[0] - window::PANEL);
+        assert!(
+            at.x > left && at.x < right && at.y > 60.0,
+            "{name} at {at:?}"
+        );
     }
 }

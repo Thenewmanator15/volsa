@@ -10,7 +10,7 @@ use voxa_dicom::Frame;
 use voxa_render::{SlicePipeline, ViewTransform};
 
 use super::overlay;
-use super::theme;
+use super::{keys, theme};
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
@@ -214,6 +214,8 @@ pub fn show(
         );
         let kind = WidgetType::Image;
         response.widget_info(|| WidgetInfo::labeled(kind, true, said::said(state, at)));
+        // With the keyboard on a viewport the arrows are Voxa's, to step through its slices.
+        keys::hold_the_arrows(ui.ctx(), &response);
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
         let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
@@ -228,6 +230,9 @@ pub fn show(
             actions.extend(tools::measure(ui, &pane, &response, held, &taken));
         }
         written_over(ui, &pane, drawn);
+        if response.has_focus() {
+            focus_ring(ui, cell);
+        }
         let mut unused = 0.0;
         let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
@@ -249,6 +254,14 @@ fn pane(state: &AppState, at: usize, cell: Rect) -> Pane<'_> {
         cell,
         shown: overlay::display_view(placement, &view, state.radiological),
     }
+}
+
+/// Mark the viewport that has the keyboard, inside its edge, in the colour of what is selected.
+fn focus_ring(ui: &Ui, cell: Rect) {
+    let line = Stroke::new(2.0, ui.visuals().selection.stroke.color);
+    let inside = cell.shrink(ACTIVE_BORDER + 1.0);
+    ui.painter()
+        .rect_stroke(inside, 0, line, StrokeKind::Inside);
 }
 
 /// Write over a viewport why it has no picture, if it has none, and mark it if it is the

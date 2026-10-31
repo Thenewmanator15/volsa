@@ -176,10 +176,36 @@ pub fn corner_text(
     let window = if series.colour {
         Vec::new()
     } else {
-        vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)]
+        vec![format!(
+            "W {}  L {}",
+            window_number(wl.width),
+            window_number(wl.center)
+        )]
     };
     [who_and_when, what, which, window]
 }
+
+/// A width or a level of a window as it is written, in the corner of a picture and in the View
+/// tab alike: no decimals from 100 up, one from 10, and below that three figures that matter,
+/// so that a map of small values is not written as `W 0  L 0`.
+pub fn window_number(value: f32) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    let size = value.abs();
+    if size == 0.0 {
+        return "0".to_owned();
+    }
+    let (mut decimals, mut next) = (0_usize, 100.0_f32);
+    while size < next && decimals < MOST_DECIMALS {
+        decimals += 1;
+        next /= 10.0;
+    }
+    format!("{value:.decimals$}")
+}
+
+/// The most decimals a window's width or level is written with.
+const MOST_DECIMALS: usize = 6;
 
 /// What a corner of a picture says of the value under the pointer: `Value -12 HU`, or with the
 /// unit the scan's files give it, or with none. `None` for a value that is not a number.

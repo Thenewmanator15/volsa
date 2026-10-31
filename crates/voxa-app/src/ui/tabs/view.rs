@@ -7,6 +7,7 @@ use voxa_core::WindowLevel;
 
 use super::super::access;
 use super::super::commands::{self, Request};
+use super::super::overlay::window_number;
 use super::super::volumes;
 use super::{offer, row, section};
 use crate::action::Action;
@@ -118,6 +119,15 @@ fn switch(
     }
 }
 
+/// A number of the window as a number to write.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "a width or a level of a window is far inside what an f32 holds"
+)]
+fn narrowed(number: f64) -> f32 {
+    number as f32
+}
+
 /// Add a number that can be typed or dragged, called `name` for a screen reader and saying
 /// `hint` when the pointer rests on it; whether it was changed.
 fn field(ui: &mut Ui, number: egui::DragValue<'_>, name: &str, hint: &str) -> bool {
@@ -129,14 +139,35 @@ fn field(ui: &mut Ui, number: egui::DragValue<'_>, name: &str, hint: &str) -> bo
 /// The window and level of the active viewport, as numbers that can be typed or dragged, in
 /// Hounsfield units where the scan is in them, and the settings its profile offers.
 fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
+    // No numbers to set where no picture is in sight to set them on: say so, once.
+    let settings = match commands::no_picture(state) {
+        Some(why) => {
+            ui.weak(why);
+            true
+        }
+        None => window_and_level(ui, state, actions),
+    };
+    if settings {
+        row(ui, |ui| {
+            for id in WINDOW_IDS {
+                offer(ui, id, state, None, actions, asked);
+            }
+        });
+    }
+}
+
+/// The window and level of the active viewport, as numbers that can be typed or dragged, in
+/// Hounsfield units where the scan is in them. Whether the settings it offers are to be offered
+/// too: not for a picture stored in colour.
+fn window_and_level(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> bool {
     let viewport = state.active;
     let Some(shown) = state.viewports.get(viewport) else {
-        return;
+        return false;
     };
     let info = state.shown_info(viewport);
     if info.is_some_and(|info| info.colour) {
         ui.weak(IN_COLOUR);
-        return;
+        return false;
     }
     let unit = if info.is_some_and(|info| unit_of(info) == Unit::Hu) {
         " HU"
@@ -145,15 +176,19 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
     };
     let (mut width, mut level) = (shown.wl.width, shown.wl.center);
     let step = f64::from((shown.wl.width / 100.0).max(0.1));
+    // Written as the corner of the picture writes it, not to two decimals whatever the size.
+    let written = |number: f64, _: std::ops::RangeInclusive<usize>| window_number(narrowed(number));
     let width_field = egui::DragValue::new(&mut width)
         .speed(step)
         .prefix("W ")
         .suffix(unit)
+        .custom_formatter(written)
         .range(1.0..=f32::MAX);
     let level_field = egui::DragValue::new(&mut level)
         .speed(step)
         .prefix("L ")
-        .suffix(unit);
+        .suffix(unit)
+        .custom_formatter(written);
     let (width_changed, level_changed) = row(ui, |ui| {
         let width_hint = "Width: the span of values from black to white";
         let width_changed = field(ui, width_field, "Window width", width_hint);
@@ -167,11 +202,7 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
             wl: WindowLevel::new(level, width),
         });
     }
-    row(ui, |ui| {
-        for id in WINDOW_IDS {
-            offer(ui, id, state, None, actions, asked);
-        }
-    });
+    true
 }
 
 /// The buttons that mirror the picture of the active viewport, turn it, and fit it whole.

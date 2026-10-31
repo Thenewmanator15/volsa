@@ -69,6 +69,7 @@ pub fn show(
     }
     section(ui, "Tools");
     tools(ui, state, actions, &mut asked);
+    how_to_draw(ui, state);
     row(ui, |ui| {
         for id in STEPS {
             offer(ui, id, state, None, actions, &mut asked);
@@ -116,6 +117,24 @@ fn tools(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
             }
         }
     });
+}
+
+/// While a tool is in hand, how to use it, and how to put it down: the hint on its button says so
+/// only when the pointer rests on it, and a person who has just chosen it looks at the picture.
+fn how_to_draw(ui: &mut Ui, state: &AppState) {
+    let in_hand = TOOLS.iter().find(|(tool, _)| *tool == state.tool);
+    let command = in_hand.and_then(|(_, id)| commands::find(id));
+    let Some(command) = command.filter(|_| state.tool != Tool::Navigate) else {
+        return;
+    };
+    let stop = if command.explains.ends_with('.') {
+        ""
+    } else {
+        "."
+    };
+    let said = format!("{}{stop} Esc puts it down.", command.explains);
+    let quiet = theme::palette(ui.ctx()).quiet_text;
+    ui.label(RichText::new(said).small().color(quiet));
 }
 
 /// One annotation in the list: its name, which can be typed over, and a button that removes
@@ -259,3 +278,5 @@ fn notice(state: &AppState) -> String {
 mod slice_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tool_tests;

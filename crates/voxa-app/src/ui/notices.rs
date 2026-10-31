@@ -8,14 +8,17 @@
 
 use egui::{
     Align, Align2, Area, Atom, AtomExt, Button, Context, Frame, Id, Key, Layout, Modifiers, Order,
-    Pos2, Rect, Response, RichText, ScrollArea, TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
+    Pos2, Rect, Response, RichText, ScrollArea, TextStyle, TextWrapMode, Ui, UiBuilder, Vec2,
+    WidgetText,
 };
 
+use super::commands::{self, Does, Request};
 use super::symbols::{self, Symbol};
 use super::theme;
-use super::{floating, search};
+use super::{floating, typing};
 use crate::action::Action;
-use crate::state::{Notice, NoticeKind};
+use crate::documents::Mask;
+use crate::state::{AppState, Notice, NoticeKind};
 
 /// The least of a notice that is shown beside the disclaimer, in points: a notice that would
 /// be cut shorter than this goes onto a line of its own.
@@ -37,6 +40,8 @@ const SIDE_ROOM: f32 = 8.0;
 const LIST: &str = "voxa: the list of notices";
 
 #[cfg(test)]
+mod masking_tests;
+#[cfg(test)]
 mod tests;
 
 /// How a kind of notice is drawn: its symbol and its colour. Something to look at, and a
@@ -48,44 +53,120 @@ fn look(ctx: &Context, kind: NoticeKind) -> (Symbol, egui::Color32) {
         NoticeKind::Warning | NoticeKind::Error => (Symbol::Warning, palette.warning),
     }
 }
+/// Where the line put the disclaimer and made room for the notice area.
+pub struct Line {
+    /// The disclaimer as it was laid out.
+    #[cfg_attr(
+        not(test),
+        expect(dead_code, reason = "the tests of the bars find the disclaimer by it")
+    )]
+    pub disclaimer: Response,
+    /// The room made for the notice area; `None` when there is no notice to show.
+    area: Option<Rect>,
+    /// The top of the line.
+    top: f32,
+}
 
-/// Draw the line: the disclaimer, and the notice area. `open` says whether the list of
-/// notices is open, and is changed by a click on the notice area, by Esc, and by a click
-/// anywhere else. The area goes beside the disclaimer when the line has room for both, and
-/// onto a line of its own below it when it has not; nothing is drawn over the disclaimer,
-/// which wraps in a window too narrow for it. Gives the disclaimer as it was laid out.
-pub fn show(
-    ui: &mut Ui,
-    notices: &[Notice],
-    open: &mut bool,
-    actions: &mut Vec<Action>,
-) -> Response {
+/// What the notices say, made fit for the screen: while the patient's details are hidden, no
+/// name or identifier of anyone in the export is on the line or in the list, whatever the
+/// notice was made from.
+struct Said {
+    mask: Mask,
+}
+
+impl Said {
+    /// The notices of `state` as they are shown.
+    fn of(state: &AppState) -> Self {
+        Self {
+            mask: Mask::for_export(state),
+        }
+    }
+
+    /// A notice as it is shown.
+    fn notice(&self, notice: &Notice) -> Notice {
+        let hide = |text: &str| self.mask.apply(text).into_owned();
+        Notice {
+            kind: notice.kind,
+            text: hide(&notice.text),
+            details: notice.details.iter().map(|detail| hide(detail)).collect(),
+            key: notice.key,
+        }
+    }
+}
+
+/// Lay out the line: the disclaimer, and room for the notice area at its right when the line
+/// has room for both, or on a line of its own below it when it has not; nothing is laid over
+/// the disclaimer, which wraps in a window too narrow for it. The area itself is drawn by
+/// [`draw`], after the rest of the window, so that the Tab key reaches it last (R38). Gives
+/// where the disclaimer and the room for the area are.
+pub fn place(ui: &mut Ui, state: &AppState) -> Line {
     let disclaimer = RichText::new(theme::DISCLAIMER)
         .small()
         .color(theme::palette(ui.ctx()).quiet_text);
     let top = ui.max_rect().top();
-    let Some(newest) = notices.last() else {
-        *open = false;
-        return ui.add(egui::Label::new(disclaimer).wrap());
+    let Some(newest) = state.notices.last() else {
+        let disclaimer = ui.add(egui::Label::new(disclaimer).wrap());
+        return Line {
+            disclaimer,
+            area: None,
+            top,
+        };
     };
-    let (shown, area) = if beside(ui, newest, notices.len()) {
+    let newest = Said::of(state).notice(newest);
+    let height = ui.spacing().interact_size.y;
+    let (disclaimer, area) = if beside(ui, &newest, state.notices.len()) {
         ui.horizontal(|ui| {
             let shown = ui.label(disclaimer);
-            (shown, notice_area(ui, notices, newest))
+            let width = ui.available_width();
+            (shown, ui.allocate_space(Vec2::new(width, height)).1)
         })
         .inner
     } else {
         let shown = ui.add(egui::Label::new(disclaimer).wrap());
-        let area = ui.horizontal(|ui| notice_area(ui, notices, newest)).inner;
-        (shown, area)
+        let width = ui.available_width();
+        (shown, ui.allocate_space(Vec2::new(width, height)).1)
     };
-    if area.clicked() {
-        *open = !*open;
+    Line {
+        disclaimer,
+        area: Some(area),
+        top,
+    }
+}
+
+/// Draw the notice area in the room [`place`] made for it, and the list of notices above the
+/// line while `open`. `open` is changed by a click on the area when the list is open, by Esc
+/// and by a click anywhere else. A click on the area while the list is shut asks for it to be
+/// opened, which is given back.
+pub fn draw(
+    ui: &mut Ui,
+    state: &AppState,
+    line: &Line,
+    open: &mut bool,
+    actions: &mut Vec<Action>,
+) -> Vec<Request> {
+    let mut asked = Vec::new();
+    let (Some(room), Some(newest)) = (line.area, state.notices.last()) else {
+        *open = false;
+        return asked;
+    };
+    let said = Said::of(state);
+    let drawn = ui.scope_builder(UiBuilder::new().max_rect(room), |ui| {
+        notice_area(ui, state, &said, newest)
+    });
+    let Some((area, does)) = drawn.inner else {
+        *open = false;
+        return asked;
+    };
+    if does.is_some() && *open {
+        *open = false;
+    } else if let Some(does) = does {
+        asked.extend(does.run(state, actions));
     }
     if *open {
-        list(ui.ctx(), notices, (&area, top), open, actions);
+        let at = (&said, &area, line.top);
+        list(ui.ctx(), &state.notices, at, (open, actions));
     }
-    shown
+    asked
 }
 
 /// The width of `text` in a text style, laid out on one line.
@@ -114,52 +195,59 @@ fn beside(ui: &Ui, notice: &Notice, count: usize) -> bool {
     needed + 2.0 * spacing.item_spacing.x <= ui.available_width()
 }
 
-/// The notice area, at the right of what is left of its line: a button holding the icon, the
-/// newest notice cut short to fit, and how many there are. Gives the button.
-fn notice_area(ui: &mut Ui, notices: &[Notice], newest: &Notice) -> Response {
+/// The notice area, at the right of the room made for it: a button holding the icon, the
+/// newest notice cut short to fit, and how many there are. It is the button of the action that
+/// shows the notices, and its hover text holds the whole of the newest notice and what more
+/// there is to say of it. Gives the button, and what it did if it was clicked.
+fn notice_area(
+    ui: &mut Ui,
+    state: &AppState,
+    said: &Said,
+    newest: &Notice,
+) -> Option<(Response, Option<Does>)> {
     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+        let newest = said.notice(newest);
         let (symbol, colour) = look(ui.ctx(), newest.kind);
         let room = Id::new("voxa: the icon of the newest notice");
-        let words = RichText::new(&newest.text).small().color(colour);
-        let icon = Atom::custom(room, Vec2::splat(ICON));
-        let mut button = Button::new((icon, words.atom_shrink(true)))
-            .truncate()
-            .small()
-            .frame_when_inactive(false);
-        let counted = count_of(notices.len());
-        if let Some(said) = &counted {
-            button = button.right_text(RichText::new(said).small().color(colour));
-        }
-        let shown = button.atom_ui(ui);
-        if let Some(rect) = shown.rect(room) {
-            symbols::paint(ui.painter(), rect, symbol, colour);
-        }
-        let name = match &counted {
+        let counted = count_of(state.notices.len());
+        let written = match &counted {
             Some(said) => format!("{said}, the newest: {}", newest.text),
             None => format!("1 notice: {}", newest.text),
         };
-        ui.ctx()
-            .accesskit_node_builder(shown.response.id, |node| node.set_label(name));
-        let hover =
-            std::iter::once(newest.text.as_str()).chain(newest.details.iter().map(String::as_str));
-        shown
-            .response
-            .on_hover_text(hover.collect::<Vec<_>>().join("\n"))
+        let more = newest.details.iter().map(String::as_str);
+        let note: Vec<&str> = std::iter::once(newest.text.as_str()).chain(more).collect();
+        let note = note.join("\n");
+        let shows = (written.as_str(), note.as_str());
+        let made = commands::button_made_noting(ui, "notices.show", state, shows, |_| {
+            let words = RichText::new(&newest.text).small().color(colour);
+            let icon = Atom::custom(room, Vec2::splat(ICON));
+            let button = Button::new((icon, words.atom_shrink(true)))
+                .truncate()
+                .small()
+                .frame_when_inactive(false);
+            match &counted {
+                Some(said) => button.right_text(RichText::new(said).small().color(colour)),
+                None => button,
+            }
+        })?;
+        if let Some(rect) = made.0.rect(room) {
+            symbols::paint(ui.painter(), rect, symbol, colour);
+        }
+        Some((made.0.response, made.1))
     })
     .inner
 }
 
 /// Draw the list of notices above the line, the newest first, each with a button to dismiss
-/// it, while `open`; Esc, and a press anywhere but on the list or the area `at`, close it,
-/// and so does the last notice being dismissed. `at.1` is the top of the line.
+/// it, while `open`; Esc, and a press anywhere but on the list or the area `at.1`, close it,
+/// and so does the last notice being dismissed. `at.2` is the top of the line.
 fn list(
     ctx: &Context,
     notices: &[Notice],
-    at: (&Response, f32),
-    open: &mut bool,
-    actions: &mut Vec<Action>,
+    at: (&Said, &Response, f32),
+    (open, actions): (&mut bool, &mut Vec<Action>),
 ) {
-    let (area, top) = at;
+    let (said, area, top) = at;
     let room = ctx.content_rect();
     // Nothing floats over the scans rail: the list starts no further left than where the
     // pictures do, as the window told the floating windows in the frame before, and is
@@ -181,7 +269,7 @@ fn list(
                     .show(ui, |ui| {
                         // The newest first, each by its place among them all.
                         for (place, notice) in notices.iter().enumerate().rev() {
-                            row(ui, place, notice, actions);
+                            row(ui, place, &said.notice(notice), actions);
                         }
                     });
             });
@@ -225,8 +313,7 @@ fn row(ui: &mut Ui, place: usize, notice: &Notice, actions: &mut Vec<Action>) {
 /// Whether the person has asked to close the list this frame: Esc, unless a text field or the
 /// search has use for it, or a press anywhere but on the list at `list` or the area at `area`.
 fn closed_by_the_person(ctx: &Context, list: Rect, area: Rect) -> bool {
-    let typing = ctx.egui_wants_keyboard_input() || search::holds_keyboard(ctx);
-    let escaped = !typing && ctx.input(|input| input.key_pressed(Key::Escape));
+    let escaped = !typing::keys_are_taken(ctx) && ctx.input(|input| input.key_pressed(Key::Escape));
     if escaped {
         ctx.input_mut(|input| input.consume_key(Modifiers::NONE, Key::Escape));
     }

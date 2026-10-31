@@ -8,12 +8,10 @@
 use std::borrow::Cow;
 use std::sync::LazyLock;
 
-use egui::{AtomLayoutResponse, Button, Key, Ui};
-use voxa_core::SeriesId;
+use egui::Key;
 
 use super::keys::Held;
 pub use super::panel::Tab;
-use super::parts::Asked;
 use super::scene::export;
 use super::tabs::Save;
 use super::theme::ThemeChoice;
@@ -22,7 +20,19 @@ use crate::action::Action;
 use crate::profile::Profile;
 use crate::state::AppState;
 
+mod draw;
+pub mod menus;
+mod request;
 mod table;
+
+#[cfg(test)]
+pub use draw::spoken;
+pub use draw::{button, button_labelled, button_made, button_made_noting, offer, offer_small};
+#[cfg(test)]
+pub use menus::MENUS;
+pub use menus::{menu_button, named};
+pub use request::{Confirm, Request, TagsOf};
+pub(in crate::ui) use table::{no_3d_view, no_picture};
 
 /// One action a person can take.
 #[derive(Debug, Clone)]
@@ -41,13 +51,6 @@ pub struct Command {
     /// Its key, if it has one.
     pub key: Option<Shortcut>,
     /// Where in the window it lives.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the panel, the strip and the top bar read it (Tasks 6 to 10)"
-        )
-    )]
     pub place: Place,
     /// The profiles of scan it is offered for; empty when it is offered for every scan.
     pub profiles: &'static [Profile],
@@ -91,8 +94,38 @@ pub enum Place {
     Rail,
     /// The menu of a scan's card.
     Card,
+    /// The line along the bottom of the window.
+    Line,
+    /// The About window.
+    About,
+    /// The document shown in the middle of the window.
+    Document,
     /// Nowhere but its key.
     Keys,
+}
+
+impl Place {
+    /// Where the action lives, in a few words for a person looking for it; `None` for one that has
+    /// only its key.
+    pub const fn said(self) -> Option<&'static str> {
+        Some(match self {
+            Self::TopBar => "In the top bar",
+            Self::Menu => "In the menu at the right of the top bar",
+            Self::Strip => "Above the pictures",
+            Self::Panel => "In the tab panel",
+            Self::Tab(Tab::View) => "In the View tab",
+            Self::Tab(Tab::Measure) => "In the Measure tab",
+            Self::Tab(Tab::Scene) => "In the 3D tab",
+            Self::Tab(Tab::Labels) => "In the Labels tab",
+            Self::Tab(Tab::Tools) => "In the Tools tab",
+            Self::Rail => "Beside the scans",
+            Self::Card => "In the menu of a scan's card",
+            Self::Line => "In the line along the bottom",
+            Self::About => "In the About window",
+            Self::Document => "Above the document",
+            Self::Keys => return None,
+        })
+    }
 }
 
 /// What an action does.
@@ -113,68 +146,14 @@ impl Does {
                 actions.extend(act(state));
                 None
             }
+            // With a document open the pictures are out of sight: the file asked for is its.
+            Self::Ask(Request::Tags(TagsOf::Shown)) if state.document.is_some() => {
+                let entry = state.document.as_ref().map(|open| open.entry.clone());
+                entry.map(|entry| Request::Tags(TagsOf::Entry(entry)))
+            }
             Self::Ask(request) => Some(request),
         }
     }
-}
-
-/// What a person asks of the window rather than of the scan.
-#[derive(Debug, Clone, PartialEq)]
-pub enum Request {
-    /// To choose a scan to open, of this kind.
-    Open(Pick),
-    /// To search the actions, parts, scans and help.
-    Search,
-    /// To open or close the help, at a topic if one is named.
-    Help(Option<&'static str>),
-    /// To see the About window.
-    About,
-    /// To show the tags of a file.
-    Tags(TagsOf),
-    /// To go into full screen, or out of it.
-    FullScreen,
-    /// To show a tab of the panel.
-    ShowTab(Tab),
-    /// To fold the column of scans, or unfold it.
-    FoldRail,
-    /// To fold the panel of tabs, or unfold it.
-    FoldPanel,
-    /// To draw the window in this theme.
-    Theme(ThemeChoice),
-    /// To draw the interface at this size, 1 being its usual size.
-    Size(f32),
-    /// To draw the interface a step larger.
-    Larger,
-    /// To draw the interface a step smaller.
-    Smaller,
-    /// To save the measurements as this kind of file.
-    SaveMeasurements(Save),
-    /// To save the 3D scene as a picture or a turntable.
-    SaveScene(export::Asked),
-    /// To open a file of labels.
-    OpenLabels,
-    /// To choose a file the labels or their labelling need, or where to save them.
-    Choose(Asked),
-    /// To label the scan in the scene with Voxa's own networks, told how much of the graphics
-    /// card the window holds itself, which only the window can say.
-    LabelScan,
-    /// To say, in a notice, where the log of this run is.
-    WhereTheLogIs,
-    /// To show the files that are not scans, under the scans in the rail.
-    ShowOtherFiles,
-    /// To choose where to save a copy of the PDF stored in the document with this entry name.
-    SaveDocumentPdf(String),
-}
-
-/// Whose tags the tags window shows.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TagsOf {
-    /// The file behind the slice the active viewport shows, following it as it changes.
-    Shown,
-    /// The first file of this series.
-    Series(SeriesId),
-    /// The file stored under this name in the export, such as a document's.
-    Entry(String),
 }
 
 /// Every entry, in the order the help lists their keys.
@@ -190,9 +169,10 @@ pub fn find(id: &str) -> Option<&'static Command> {
     all().iter().find(|command| command.id == id)
 }
 
-/// Keys that do what another action's key does: Ctrl+Shift+Z redoes, as in many programs, a
-/// slash searches as Ctrl+K does, and a question mark, which is Shift with slash on some
-/// keyboards, shows the keys.
+/// Keys that do what another action's key does: Ctrl+Shift+Z redoes, as in many programs, and a
+/// slash searches as Ctrl+K does, with Shift held or not: on a keyboard where a slash needs Shift
+/// (a German one, Shift+7) it is still the slash, and a question mark, which egui reports as
+/// its own key, shows the keys.
 const OTHER_KEYS: [(Key, Held, &str); 3] = [
     (
         Key::Z,
@@ -208,7 +188,7 @@ const OTHER_KEYS: [(Key, Held, &str); 3] = [
             command: false,
             shift: true,
         },
-        "help.keys",
+        "search.open",
     ),
     (
         Key::Slash,
@@ -270,105 +250,6 @@ pub fn hint(command: &Command) -> String {
         hint.push_str(command.explains);
     }
     hint
-}
-
-/// Draw the button of the action `id`, showing its label, and give what it does when it is
-/// clicked. `selected` draws a button that stays pressed while it is `Some(true)`. While the
-/// action cannot be used, the button is greyed and says why; for a scan it is not offered
-/// for, nothing is drawn.
-pub fn button(ui: &mut Ui, id: &str, state: &AppState, selected: Option<bool>) -> Option<Does> {
-    let command = find(id)?;
-    labelled(ui, command, command.label, state, selected)
-}
-
-/// As [`button`], with a label that follows the state, such as Play that becomes Pause.
-pub fn button_labelled(
-    ui: &mut Ui,
-    id: &str,
-    label: &str,
-    state: &AppState,
-    selected: Option<bool>,
-) -> Option<Does> {
-    labelled(ui, find(id)?, label, state, selected)
-}
-
-/// As [`button`], with the button itself made by `make` from the action, for a button that is
-/// more than a label: one with its key beside its name, or an icon drawn on it. `shows` is
-/// the words the made button writes on itself, for a screen reader to say with the action's
-/// name (see [`spoken`]); empty when the button writes the name itself or only a picture.
-/// Gives where the button was drawn, with the places of its custom atoms, and what it does
-/// if it was clicked; `None` when the action is not offered for the scan shown.
-pub fn button_made<'a>(
-    ui: &mut Ui,
-    id: &str,
-    state: &AppState,
-    shows: &str,
-    make: impl FnOnce(&Command) -> Button<'a>,
-) -> Option<(AtomLayoutResponse, Option<Does>)> {
-    let command = find(id)?;
-    draw(ui, command, (make(command), shows), state)
-}
-
-/// What a screen reader calls the button of `command` that writes `shows` on itself: the
-/// action's name when that holds the words (whatever their case), so that a person who
-/// speaks the words they can see is understood (WCAG 2.5.3, label in name); otherwise the
-/// words, then the name, as `1, One viewport`. A mark with no letter or digit in it, such as
-/// `◀` or `?`, is a picture and not words anyone speaks, so the name stands alone. The help
-/// and the search say the name alone.
-pub fn spoken(command: &Command, shows: &str) -> Cow<'static, str> {
-    let shows = shows.trim();
-    let words = shows.chars().any(char::is_alphanumeric);
-    let holds = command.name.to_lowercase().contains(&shows.to_lowercase());
-    if !words || holds {
-        Cow::Borrowed(command.name)
-    } else {
-        Cow::Owned(format!("{shows}, {}", command.name))
-    }
-}
-
-/// Draw an action's button with this label.
-fn labelled(
-    ui: &mut Ui,
-    command: &Command,
-    label: &str,
-    state: &AppState,
-    selected: Option<bool>,
-) -> Option<Does> {
-    let button = match selected {
-        Some(on) => Button::selectable(on, label),
-        None => Button::new(label),
-    };
-    draw(ui, command, (button, label), state)?.1
-}
-
-/// Draw an action's button, which writes `written` on itself: its hint, why not while it cannot
-/// be used, and its name for a screen reader, whatever the button says.
-fn draw(
-    ui: &mut Ui,
-    command: &Command,
-    (button, written): (Button<'_>, &str),
-    state: &AppState,
-) -> Option<(AtomLayoutResponse, Option<Does>)> {
-    if !offered(command, state) {
-        return None;
-    }
-    let why_not = (command.why_not)(state);
-    let mut shown = if why_not.is_none() {
-        button.atom_ui(ui)
-    } else {
-        ui.add_enabled_ui(false, |ui| button.atom_ui(ui)).inner
-    };
-    // A screen reader says the name, which a short label such as `◀` does not, after the
-    // label if the name does not hold it.
-    let said = spoken(command, written);
-    ui.ctx()
-        .accesskit_node_builder(shown.response.id, |node| node.set_label(said));
-    shown.response = shown.response.on_hover_text(hint(command));
-    if let Some(why) = why_not {
-        shown.response = shown.response.on_disabled_hover_text(why);
-    }
-    let does = shown.response.clicked().then(|| command.does.clone());
-    Some((shown, does))
 }
 
 #[cfg(test)]

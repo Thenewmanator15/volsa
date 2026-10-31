@@ -267,7 +267,7 @@ fn the_menus_name_what_they_hold() {
     let state = measured_in_four();
     let ctx = seen::context(1.0);
     let mut draw = |ui: &mut egui::Ui| {
-        views::contents(ui, &state, &mut Vec::new());
+        views::contents(ui, &state, (&mut Vec::new(), &mut Vec::new()));
         let _ = export::contents(ui, &state);
     };
     let told = settled(&ctx, [400.0, 600.0], &mut draw);

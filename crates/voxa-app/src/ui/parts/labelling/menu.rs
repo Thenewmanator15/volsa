@@ -1,15 +1,16 @@
 //! The menu beside the button that labels: which model, whether the cortex is divided into its
 //! areas, where the run goes, whether the result is kept, and where the model and runtime
-//! files are.
+//! files are. Every entry but the places a run can go is an action of the list of actions.
 
 use egui::{Id, Popup, PopupCloseBehavior, RichText, Ui};
 use voxa_models::{Card, CardKind, RunsOn};
-use voxa_segment::{ModelChoice, THICK_MM};
+use voxa_segment::ModelChoice;
 
 use super::super::super::theme;
-use super::Wants;
 use crate::action::Action;
 use crate::labelling::{Labelling, LabellingAction};
+use crate::state::AppState;
+use crate::ui::commands::{self, Request, menus};
 
 /// What the menu is known by.
 const MENU: &str = "labelling options";
@@ -21,47 +22,56 @@ const AUTOMATIC_PLACE: &str =
 /// Said of a folder that has not been chosen.
 const NO_FOLDER: &str = "None chosen: Voxa looks where these files are usually kept.";
 
+/// The models to choose between, by the action that chooses each.
+const MODELS: [(ModelChoice, &str); 3] = [
+    (ModelChoice::Automatic, "tools.model.automatic"),
+    (ModelChoice::Standard, "tools.model.standard"),
+    (ModelChoice::Robust, "tools.model.robust"),
+];
+
 /// The menu's own identity, for holding it open from outside.
 pub fn menu_id() -> Id {
     Id::new(MENU)
 }
 
-/// The button that opens the menu, and the menu while it is open. Gives the folder the
-/// person asked to choose, if they did.
+/// The button that opens the menu, and the menu while it is open. What its entries ask of the
+/// window goes onto `asked`.
 pub(super) fn options(
     ui: &mut Ui,
-    labelling: &Labelling,
+    state: &AppState,
     actions: &mut Vec<Action>,
-) -> Option<Wants> {
-    let button = ui.button("Options");
+    asked: &mut Vec<Request>,
+) {
+    let button = ui.button(menus::OPTIONS.label);
+    let button = commands::named(ui, &menus::OPTIONS, menus::OPTIONS.label, button);
     let menu = Popup::menu(&button)
         .id(menu_id())
         .close_behavior(PopupCloseBehavior::CloseOnClickOutside);
-    let shown = menu.show(|ui| choices(ui, labelling, actions));
-    shown.and_then(|shown| shown.inner)
+    menu.show(|ui| choices(ui, state, actions, asked));
 }
 
 /// What the menu holds.
-fn choices(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) -> Option<Wants> {
-    model(ui, labelling, actions);
-    let mut cortex = labelling.cortex;
-    let divide = ui.checkbox(&mut cortex, "Cortex areas");
-    if divide
-        .on_hover_text("Divide the cortex into its areas")
-        .changed()
-    {
-        send(actions, LabellingAction::SetCortex(cortex));
-    }
+fn choices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
+    let labelling = &state.labelling;
+    model(ui, state, actions, asked);
+    commands::offer(
+        ui,
+        "tools.label.cortex",
+        state,
+        Some(labelling.cortex),
+        actions,
+        asked,
+    );
     places(ui, labelling, actions);
-    let mut keep = labelling.keep;
-    let keeps = ui.checkbox(&mut keep, "Keep results on this computer");
-    if keeps
-        .on_hover_text("Keep each result, to show again when the same series is opened")
-        .changed()
-    {
-        send(actions, LabellingAction::SetKeep(keep));
-    }
-    folders(ui, labelling)
+    commands::offer(
+        ui,
+        "tools.label.keep",
+        state,
+        Some(labelling.keep),
+        actions,
+        asked,
+    );
+    folders(ui, state, actions, asked);
 }
 
 /// Ask for an action about labelling.
@@ -78,33 +88,13 @@ fn heading(ui: &mut Ui, text: &str) {
     );
 }
 
-/// Which model: left to Voxa, or one of the two.
-fn model(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
+/// Which model: left to Voxa, or one of the two. The one in force is not asked for again.
+fn model(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     heading(ui, "Model");
-    let automatic =
-        format!("Robust when the slices are more than {THICK_MM} mm apart, otherwise Standard");
-    let ways = [
-        (ModelChoice::Automatic, "Automatic", automatic.as_str()),
-        (
-            ModelChoice::Standard,
-            "Standard",
-            "The standard model, whatever the scan",
-        ),
-        (
-            ModelChoice::Robust,
-            "Robust",
-            "The robust model, whatever the scan",
-        ),
-    ];
-    for (way, name, hover) in ways {
-        let chosen = labelling.choice == way;
-        if ui
-            .selectable_label(chosen, name)
-            .on_hover_text(hover)
-            .clicked()
-            && !chosen
-        {
-            send(actions, LabellingAction::SetModelChoice(way));
+    for (way, id) in MODELS {
+        let chosen = state.labelling.choice == way;
+        if let Some(does) = commands::button(ui, id, state, Some(chosen)).filter(|_| !chosen) {
+            asked.extend(does.run(state, actions));
         }
     }
 }
@@ -118,12 +108,11 @@ fn card_entry(card: &Card) -> String {
     }
 }
 
-/// Where the run goes: left to Voxa, a graphics card by its name, or the processor. A card
-/// that is software standing in for one is never a place to run, and is not offered. A card
-/// the system lists twice is offered once, as the first of its name: a choice is kept by the
-/// card's name and found again as the first card of that name.
-fn places(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
-    heading(ui, "Runs on");
+/// The cards the menu offers as places to run: a card that is software standing in for one is
+/// never a place to run, and is not offered. A card the system lists twice is offered once, as
+/// the first of its name: a choice is kept by the card's name and found again as the first card
+/// of that name.
+fn real_cards(labelling: &Labelling) -> Vec<&Card> {
     let real = labelling
         .cards
         .iter()
@@ -134,7 +123,26 @@ fn places(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
             cards.push(card);
         }
     }
-    let named = cards
+    cards
+}
+
+/// What each place a run can go is called in the menu, in the order they are listed.
+#[cfg(test)]
+pub fn places_named(labelling: &Labelling) -> Vec<String> {
+    let cards = real_cards(labelling).into_iter().map(card_entry);
+    let automatic = std::iter::once("Automatic".to_owned());
+    automatic
+        .chain(cards)
+        .chain(["Processor".to_owned()])
+        .collect()
+}
+
+/// Where the run goes: left to Voxa, a graphics card by its name, or the processor. There is a
+/// card for each the system lists, so these are rows of a list, as the saved views are, and not
+/// actions of the list of actions.
+fn places(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
+    heading(ui, "Runs on");
+    let named = real_cards(labelling)
         .into_iter()
         .map(|card| (RunsOn::Card(card.id), card_entry(card)));
     let automatic = (RunsOn::Automatic, "Automatic".to_owned());
@@ -152,31 +160,25 @@ fn places(ui: &mut Ui, labelling: &Labelling, actions: &mut Vec<Action>) {
     }
 }
 
-/// The two buttons that ask for a folder of files, each saying which folder was chosen.
-fn folders(ui: &mut Ui, labelling: &Labelling) -> Option<Wants> {
+/// The two buttons that ask for a folder of files, each followed by which folder was chosen.
+fn folders(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     ui.separator();
-    let mut wants = None;
+    let labelling = &state.labelling;
     let ways = [
-        (
-            Wants::ModelsFolder,
-            "Folder of the models…",
-            &labelling.models,
-        ),
-        (
-            Wants::RuntimeFolder,
-            "Folder of the runtime…",
-            &labelling.runtime,
-        ),
+        ("tools.label.models_folder", &labelling.models),
+        ("tools.label.runtime_folder", &labelling.runtime),
     ];
-    for (way, name, chosen) in ways {
-        let hover = chosen.as_ref().map_or_else(
-            || NO_FOLDER.to_owned(),
-            |folder| format!("Chosen: {}", folder.display()),
-        );
-        if ui.button(name).on_hover_text(hover).clicked() {
-            wants = Some(way);
+    for (id, chosen) in ways {
+        let before = asked.len();
+        commands::offer(ui, id, state, None, actions, asked);
+        if asked.len() > before {
             ui.close();
         }
+        if let Some(folder) = chosen {
+            heading(ui, &format!("Chosen: {}", folder.display()));
+        }
     }
-    wants
+    if labelling.models.is_none() && labelling.runtime.is_none() {
+        heading(ui, NO_FOLDER);
+    }
 }

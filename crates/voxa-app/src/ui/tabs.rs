@@ -5,7 +5,7 @@
 
 use egui::{Rect, RichText, Ui};
 
-use super::commands::{self, Request};
+use super::commands::{Request, offer, offer_small};
 use super::panel::{self, Tab};
 use super::parts::PartsView;
 use super::{VoxaApp, layout, shares, theme};
@@ -95,6 +95,23 @@ fn section(ui: &mut Ui, title: &str) {
     );
 }
 
+/// Draw the small button that chooses one way of several, drawn pressed while it is the way in
+/// force and then not asked for again.
+fn choose_small(
+    ui: &mut Ui,
+    id: &str,
+    state: &AppState,
+    chosen: bool,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
+    if chosen {
+        let nothing = (&mut Vec::new(), &mut Vec::new());
+        offer_small(ui, id, state, Some(true), nothing);
+    } else {
+        offer_small(ui, id, state, Some(false), (actions, asked));
+    }
+}
+
 /// A row of controls that goes onto the next line, whole, when the panel is too narrow for it.
 fn row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
     let wrapped = ui.horizontal_wrapped(|ui| {
@@ -103,21 +120,6 @@ fn row<R>(ui: &mut Ui, add: impl FnOnce(&mut Ui) -> R) -> R {
         add(ui)
     });
     wrapped.inner
-}
-
-/// Draw the button of the action `id`, and take what it does: a change of state onto
-/// `actions`, anything it asks of the window onto `asked`. Nothing is left undone.
-fn offer(
-    ui: &mut Ui,
-    id: &str,
-    state: &AppState,
-    selected: Option<bool>,
-    actions: &mut Vec<Action>,
-    asked: &mut Vec<Request>,
-) {
-    if let Some(does) = commands::button(ui, id, state, selected) {
-        asked.extend(does.run(state, actions));
-    }
 }
 
 impl VoxaApp {

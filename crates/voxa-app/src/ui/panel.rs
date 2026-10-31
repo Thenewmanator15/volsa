@@ -16,8 +16,11 @@ mod icons;
 const LEAST: f32 = 260.0;
 /// How wide the panel is folded, in points: a strip of one icon for each tab.
 pub const STRIP: f32 = 44.0;
-/// How large the button of each icon in the strip is, in points.
+/// How large the button of each icon in the strip is, in points, when there is room for them.
 const ICON: f32 = 32.0;
+/// How small the button of each icon is made when there is not: a window as small as the
+/// smallest with the interface drawn at twice its size.
+const LEAST_ICON: f32 = 20.0;
 
 /// The tabs of the panel at the right of the window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -246,19 +249,23 @@ fn strip(ui: &mut Ui, panel: &mut PanelState, state: &AppState) {
         let unfold = commands::button_labelled(ui, "panel.fold", "«", state, None);
         choose(panel, unfold.as_ref());
         ui.add_space(4.0);
+        // The icons share the height that is left, so that none runs past the line below.
+        let tabs = f32::from(u8::try_from(Tab::ALL.len()).unwrap_or(5));
+        let share = ui.available_height() / tabs - ui.spacing().item_spacing.y;
+        let size = share.clamp(LEAST_ICON, ICON);
         for tab in Tab::ALL {
-            let does = icon_button(ui, tab, panel.tab == tab);
+            let does = icon_button(ui, tab, (panel.tab == tab, size));
             choose(panel, does.as_ref());
         }
     });
 }
 
-/// The button of a tab as an icon, `selected` if it is the tab shown. A screen reader says
-/// the name of the tab's action, and the pointer resting on it gives its hint. Gives what the
-/// action does when it is clicked.
-fn icon_button(ui: &mut Ui, tab: Tab, selected: bool) -> Option<Does> {
+/// The button of a tab as an icon `size` points across, `selected` if it is the tab shown. A
+/// screen reader says the name of the tab's action, and the pointer resting on it gives its hint.
+/// Gives what the action does when it is clicked.
+fn icon_button(ui: &mut Ui, tab: Tab, (selected, size): (bool, f32)) -> Option<Does> {
     let command = commands::find(tab.command())?;
-    let (rect, response) = ui.allocate_exact_size(vec2(ICON, ICON), Sense::click());
+    let (rect, response) = ui.allocate_exact_size(vec2(size, size), Sense::click());
     let kind = WidgetType::SelectableLabel;
     response.widget_info(|| WidgetInfo::selected(kind, true, selected, command.name));
     let look = ui.style().interact_selectable(&response, selected);

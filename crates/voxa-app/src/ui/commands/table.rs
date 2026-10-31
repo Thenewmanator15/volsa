@@ -7,6 +7,7 @@ use super::{Command, Does, Place, Shortcut, Why};
 use crate::action::Action;
 use crate::state::AppState;
 
+mod labels;
 mod measure;
 mod panel;
 mod pictures;
@@ -15,6 +16,8 @@ mod slices;
 mod tools;
 mod top;
 mod window;
+
+pub(in crate::ui) use pictures::no_3d_view;
 
 /// Every entry, in order.
 pub(super) fn all() -> Vec<Command> {
@@ -25,6 +28,7 @@ pub(super) fn all() -> Vec<Command> {
         panel::COMMANDS,
         measure::COMMANDS,
         scene::COMMANDS,
+        labels::COMMANDS,
         tools::COMMANDS,
         top::COMMANDS,
     ]
@@ -75,4 +79,26 @@ const fn ctrl(key: Key, shown: &'static str) -> Shortcut {
         shift: false,
         shown,
     }
+}
+
+/// Why a control of the pictures can do nothing: a document is open in their place, or no scan
+/// is shown in the viewport the keys act on.
+pub(in crate::ui) fn no_picture(state: &AppState) -> Option<Why> {
+    if state.document.is_some() {
+        return Some(Why::Borrowed(
+            "A document is open: close it to see the pictures.",
+        ));
+    }
+    state
+        .shown_info(state.active)
+        .is_none()
+        .then_some(Why::Borrowed("Open a scan to see it here."))
+}
+
+/// Why the arrangement of the pictures can do nothing to be seen: a document is open in their
+/// place.
+pub(super) fn covered_by_a_document(state: &AppState) -> Option<Why> {
+    state.document.is_some().then_some(Why::Borrowed(
+        "A document is open: close it to see the pictures.",
+    ))
 }

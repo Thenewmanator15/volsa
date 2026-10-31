@@ -7,7 +7,6 @@ use egui::{RichText, Ui};
 use egui_wgpu::RenderState;
 use voxa_segment::Stage;
 
-use super::Asked;
 use crate::action::Action;
 use crate::labelling::{LabellingAction, can_label, what_will_run};
 use crate::labels::on_this_series;
@@ -18,9 +17,11 @@ use crate::ui::theme;
 mod made;
 mod menu;
 
+#[cfg(test)]
+pub use made::verdict_in_plain_words;
 pub use made::{made_by, save_as, solids_in_words, verdict_line};
 #[cfg(test)]
-pub use menu::menu_id;
+pub use menu::{menu_id, places_named};
 
 /// Said while a run is on.
 const SLOW: &str = "The 3D view may be slow while the graphics card is busy.";
@@ -52,7 +53,7 @@ pub fn strip(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Re
     let none_open = !on_this_series(state);
     let mut asked = Vec::new();
     match (labelling.running, &labelling.kept) {
-        (Some(reached), _) => running(ui, reached, actions),
+        (Some(reached), _) => running(ui, reached, state, (actions, &mut asked)),
         (None, kept) => {
             if none_open {
                 ready(ui, state, actions, &mut asked);
@@ -71,11 +72,6 @@ pub fn strip(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Re
 fn quiet(ui: &Ui, text: &str) -> RichText {
     let quiet = theme::palette(ui.ctx()).quiet_text;
     RichText::new(text).small().color(quiet)
-}
-
-/// The window is asked to choose what the strip wants chosen.
-fn choose(wants: Option<Wants>) -> Option<Request> {
-    wants.map(|wants| Request::Choose(Asked::Labelling(wants)))
 }
 
 /// What labels the scan once the window has been asked to, told how much of the graphics card
@@ -98,12 +94,15 @@ pub fn stage_in_words(stage: Stage) -> String {
 }
 
 /// A run is on: the stage it has reached, the way to stop it, and that the 3D view may be slow.
-fn running(ui: &mut Ui, stage: Stage, actions: &mut Vec<Action>) {
+fn running(
+    ui: &mut Ui,
+    reached: Stage,
+    state: &AppState,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
     ui.horizontal(|ui| {
-        ui.label(stage_in_words(stage));
-        if ui.button("Stop").clicked() {
-            actions.push(Action::Labelling(LabellingAction::StopLabelling));
-        }
+        ui.label(stage_in_words(reached));
+        commands::offer(ui, "tools.label.stop", state, None, actions, asked);
     });
     ui.label(quiet(ui, SLOW));
 }
@@ -116,7 +115,7 @@ fn ready(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut V
         if let Some(does) = commands::button(ui, "tools.label", state, None) {
             asked.extend(does.run(state, actions));
         }
-        asked.extend(choose(menu::options(ui, &state.labelling, actions)));
+        menu::options(ui, state, actions, asked);
     });
     ui.label(quiet(
         ui,
@@ -134,18 +133,12 @@ fn keeping(
 ) {
     ui.label(format!("Labels made on {when} are kept for this series."));
     ui.horizontal_wrapped(|ui| {
-        if ui.small_button("Show").clicked() {
-            actions.push(Action::Labelling(LabellingAction::ShowKept));
-        }
-        let can = can_label(state);
-        let again = ui.add_enabled(can.is_ok(), egui::Button::new("Make again").small());
-        if let Err(why) = &can {
-            again.on_disabled_hover_text(why.as_str());
-        } else if again.clicked() {
-            asked.push(Request::LabelScan);
-        }
-        if ui.small_button("Delete").clicked() {
-            actions.push(Action::Labelling(LabellingAction::DeleteKept));
+        for id in [
+            "tools.label.show_kept",
+            "tools.label.again",
+            "tools.label.delete_kept",
+        ] {
+            commands::offer_small(ui, id, state, None, (actions, asked));
         }
     });
 }

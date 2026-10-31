@@ -285,7 +285,8 @@ fn post(state: &mut AppState, key: &'static str, notice: Option<Notice>) {
 }
 
 /// The notice of the files the export holds that are neither scans nor documents Voxa lists, in
-/// words that do not read as scans being lost; the names are in its details.
+/// words that do not read as scans being lost; the names are in its details, each by its last
+/// part alone: the folders a file lies in can be named for the patient (S-UI-02).
 fn skipped_notice(skipped: &[String]) -> Option<Notice> {
     let text = match skipped.len() {
         0 => return None,
@@ -295,9 +296,18 @@ fn skipped_notice(skipped: &[String]) -> Option<Notice> {
     Some(Notice {
         kind: NoticeKind::Info,
         text,
-        details: skipped.to_vec(),
+        details: skipped
+            .iter()
+            .map(|path| last_part(path).to_owned())
+            .collect(),
         key: Some(SKIPPED),
     })
+}
+
+/// The last part of a path inside an export, the file's own name.
+fn last_part(path: &str) -> &str {
+    let mut parts = path.rsplit(['/', '\\']);
+    parts.find(|part| !part.is_empty()).unwrap_or(path)
 }
 
 /// Give a viewport still waiting for its automatic window the one worked out for the slice it

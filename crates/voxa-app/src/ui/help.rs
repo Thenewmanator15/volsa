@@ -12,6 +12,8 @@ mod drawn_tests;
 mod open_tests;
 mod topics;
 #[cfg(test)]
+mod wording_sources;
+#[cfg(test)]
 mod wording_tests;
 
 pub use topics::TOPICS;

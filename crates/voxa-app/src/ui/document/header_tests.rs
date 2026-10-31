@@ -42,6 +42,11 @@ fn pass_in(ctx: &Context, wide: f32, title: &str) -> (Rect, Seen) {
     (area, seen)
 }
 
+/// What a screen reader calls the button that closes the document.
+fn closing() -> &'static str {
+    commands::find("document.close").expect("listed").name
+}
+
 #[test]
 fn a_title_of_300_characters_in_300_points_leaves_both_buttons_whole_and_clear_of_it() {
     let ctx = seen::context(1.0);
@@ -51,11 +56,11 @@ fn a_title_of_300_characters_in_300_points_leaves_both_buttons_whole_and_clear_o
     let _ = pass_in(&ctx, 300.0, &title);
     let (area, seen) = pass_in(&ctx, 300.0, &title);
     let tags = commands::find("tags.show").expect("listed").name;
-    let buttons = [tags, CLOSE].map(|name| {
+    let buttons = [tags, closing()].map(|name| {
         let place = seen.place_of(name);
         place.unwrap_or_else(|| panic!("{name} is drawn: {:?}", seen.names))
     });
-    for (name, place) in [tags, CLOSE].into_iter().zip(buttons) {
+    for (name, place) in [tags, closing()].into_iter().zip(buttons) {
         assert!(
             area.contains_rect(place),
             "{name} at {place:?} is outside {area:?}"
@@ -91,6 +96,6 @@ fn a_short_title_leaves_the_buttons_at_the_right_edge() {
     let ctx = seen::context(1.0);
     let _ = pass_in(&ctx, 600.0, "Made-up report");
     let (area, seen) = pass_in(&ctx, 600.0, "Made-up report");
-    let close = seen.place_of(CLOSE).expect("drawn");
+    let close = seen.place_of(closing()).expect("drawn");
     assert!(area.right() - close.right() < 24.0, "{close:?} in {area:?}");
 }

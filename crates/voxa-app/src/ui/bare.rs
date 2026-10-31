@@ -10,7 +10,7 @@ use super::browser::Thumbnails;
 use super::screen::Screen;
 use super::search::Search;
 use super::theme::{self, ThemeChoice};
-use super::{bars, layout, panel, rail, tabs};
+use super::{bars, layout, panel, rail, tabs, welcome};
 use crate::prefs::Arrangement;
 use crate::state::AppState;
 
@@ -99,7 +99,7 @@ impl BareWindow {
         self.screen.settle(window);
         let mut actions = Vec::new();
         let state = &self.state;
-        bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
+        let (_, line) = bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
         let widths = self.screen.widths(window);
         let open = self.screen.list_shown;
         let thumbnails = &self.thumbnails;
@@ -115,11 +115,16 @@ impl BareWindow {
         let mut middle = layout::beside_the_panel(ui, widths.panel);
         let blank = egui::CentralPanel::default().frame(super::middle());
         let pictures = blank.show(&mut middle, |ui| {
+            if welcome::is_empty(state) {
+                let whole = ui.available_rect_before_wrap();
+                let _ = welcome::show(ui, whole, state, &mut Vec::new());
+            }
             ui.allocate_space(ui.available_size());
         });
         let kept = &mut self.tabs;
         let contents = |ui: &mut Ui, tab| tabs::show(ui, tab, state, kept, &mut actions);
         let panel = panel::show(ui, &mut self.screen.panel, state, widths.panel, contents);
+        bars::draw_notices(ui, state, &line, &mut self.bars, &mut Vec::new());
         BareLayout {
             rail,
             panel: panel.rect,

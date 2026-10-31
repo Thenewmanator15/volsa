@@ -236,3 +236,32 @@ fn the_list_is_not_rebuilt_while_nothing_changes() {
         1
     );
 }
+
+#[test]
+fn an_action_that_can_be_used_says_where_it_lives_beneath_its_name() {
+    let state = thick_scan_ready();
+    let ctx = window();
+    let mut search = opened(&ctx, &state);
+    pass(&ctx, &mut search, &state, vec![typed("mirror")]);
+    let drawn = pass(&ctx, &mut search, &state, Vec::new());
+    let words = &drawn.words;
+    assert!(
+        words
+            .iter()
+            .any(|word| word.contains("Mirror the picture left to right")),
+        "{words:?}"
+    );
+    assert!(
+        words.iter().any(|word| word.contains("In the View tab")),
+        "{words:?}"
+    );
+    // An action that has only its key says nothing of where it lives.
+    let mut search = opened(&ctx, &state);
+    pass(&ctx, &mut search, &state, vec![typed("slice after")]);
+    let drawn = pass(&ctx, &mut search, &state, Vec::new());
+    assert!(
+        !drawn.words.iter().any(|word| word.contains("In the ")),
+        "{:?}",
+        drawn.words
+    );
+}

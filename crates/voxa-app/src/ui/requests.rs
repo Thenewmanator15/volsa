@@ -27,24 +27,16 @@ impl VoxaApp {
             }
             Request::Help(topic) => help::ask(ctx, &mut self.help_open, topic),
             Request::About => self.about_open = true,
+            Request::Licences => about::open_notices(ctx),
+            Request::CopyTheLog => {
+                if let Some(log) = crate::log::path() {
+                    ctx.copy_text(log.display().to_string());
+                }
+            }
+            Request::ShowNotices => self.bars.notices_open = true,
+            Request::Confirm(confirm) => self.confirming = Some(confirm),
             Request::Tags(of) => self.tags.open_on(of),
-            Request::FullScreen => screen::toggle_full_screen(ctx),
-            Request::ShowTab(tab) => {
-                self.screen.show_tab(tab);
-                ctx.request_repaint();
-            }
-            Request::FoldPanel => {
-                self.screen.toggle_panel();
-                ctx.request_repaint();
-            }
-            Request::FoldRail => {
-                self.screen.toggle_rail();
-                ctx.request_repaint();
-            }
-            Request::Size(size) => ctx.set_zoom_factor(size),
             Request::WhereTheLogIs => self.dispatch(Action::Post(about::where_the_log_is())),
-            Request::Larger => egui::gui_zoom::zoom_in(ctx),
-            Request::Smaller => egui::gui_zoom::zoom_out(ctx),
             Request::SaveMeasurements(kind) => {
                 let saved = tabs::save_measurements(kind, self.session.state());
                 if let Some(notice) = saved {
@@ -65,6 +57,31 @@ impl VoxaApp {
                     self.dispatch(Action::SaveDocumentPdf(entry, to));
                 }
             }
+            // How the window is arranged and drawn, which `arrange` answers.
+            other => self.arrange(ctx, other),
+        }
+    }
+
+    /// Do what asks how the window is arranged or drawn: the tabs, the columns, full screen, the
+    /// size of the interface.
+    fn arrange(&mut self, ctx: &egui::Context, request: Request) {
+        match request {
+            Request::FullScreen => screen::toggle_full_screen(ctx),
+            Request::ShowTab(tab) => {
+                self.screen.show_tab(tab);
+                ctx.request_repaint();
+            }
+            Request::FoldPanel => {
+                self.screen.toggle_panel();
+                ctx.request_repaint();
+            }
+            Request::FoldRail => {
+                self.screen.toggle_rail();
+                ctx.request_repaint();
+            }
+            Request::Size(size) => ctx.set_zoom_factor(size),
+            Request::Larger => egui::gui_zoom::zoom_in(ctx),
+            Request::Smaller => egui::gui_zoom::zoom_out(ctx),
             Request::ShowOtherFiles => {
                 self.rail.other_open = true;
                 if !self.screen.list_shown {
@@ -72,6 +89,7 @@ impl VoxaApp {
                 }
                 ctx.request_repaint();
             }
+            other => tracing::warn!("a request that nothing answers: {other:?}"),
         }
     }
 }

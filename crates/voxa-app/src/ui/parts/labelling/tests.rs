@@ -12,7 +12,7 @@ use crate::labelling::{LabellingAction, Ready, can_label, what_will_run};
 use crate::labels::NamesFrom;
 use crate::reducer::reduce;
 use crate::testing::thick_scan_ready;
-use crate::ui::commands::Request;
+use crate::ui::commands::{Confirm, Request};
 use crate::ui::parts::Asked;
 use crate::ui::tabs::made_up::{
     able, cards, labelled_by, named, once, screen, sweep_tools, tools_written,
@@ -187,12 +187,13 @@ fn each_stage_is_said_in_plain_words() {
 fn a_result_kept_for_the_series_is_said_with_show_make_again_and_delete() {
     let state = kept_with_labels_open();
     let (actions, requests) = sweep_tools(&state);
-    for wanted in [
-        act(LabellingAction::ShowKept),
-        act(LabellingAction::DeleteKept),
-    ] {
-        assert!(actions.contains(&wanted), "{wanted:?}: {actions:?}");
-    }
+    let show = act(LabellingAction::ShowKept);
+    assert!(actions.contains(&show), "{show:?}: {actions:?}");
+    // Deleting what took minutes to make asks first, and does nothing until it is answered.
+    let delete = act(LabellingAction::DeleteKept);
+    assert!(!actions.contains(&delete), "{actions:?}");
+    let asked = Request::Confirm(Confirm::DeleteKept);
+    assert!(requests.contains(&asked), "Delete: {requests:?}");
     assert!(asks_to_label(&requests), "Make again: {requests:?}");
     let said = tools_written(&state);
     let lines = lines_of(&said);
@@ -222,10 +223,8 @@ fn make_again_is_greyed_where_labelling_cannot_run_and_the_other_two_still_work(
         actions.contains(&act(LabellingAction::ShowKept)),
         "{actions:?}"
     );
-    assert!(
-        actions.contains(&act(LabellingAction::DeleteKept)),
-        "{actions:?}"
-    );
+    let asked = Request::Confirm(Confirm::DeleteKept);
+    assert!(requests.contains(&asked), "{requests:?}");
 }
 
 #[test]

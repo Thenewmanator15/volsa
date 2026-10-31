@@ -4,7 +4,7 @@
 use egui::Key;
 
 use super::super::{Command, Does, Place, Request, Tab, Why};
-use super::{PLAIN, alone, ctrl};
+use super::{PLAIN, ctrl};
 use crate::action::Action;
 use crate::annotations::Tool;
 use crate::measuring::{why_no_region, why_not_measurable};
@@ -30,17 +30,6 @@ fn none_measured(state: &AppState) -> Option<Why> {
 
 /// The entries.
 pub(super) const COMMANDS: &[Command] = &[
-    Command {
-        id: "measure.show",
-        name: "Show the measurements",
-        label: "Measure",
-        explains: "Rulers, angles, regions and markers, and the list of them",
-        words: &["measure", "measurements", "tools", "list"],
-        key: Some(alone(Key::M, "M")),
-        place: Place::TopBar,
-        does: Does::Ask(Request::ShowTab(Tab::Measure)),
-        ..PLAIN
-    },
     Command {
         id: "measure.move",
         name: "Move without measuring",
