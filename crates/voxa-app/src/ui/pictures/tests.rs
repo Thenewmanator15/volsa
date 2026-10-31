@@ -2,34 +2,11 @@
 //! reaches the graphics card, and no second copy of it waits in memory.
 
 use egui::{Pos2, Rect, vec2};
-use voxa_core::Affine;
-use voxa_render::{MAX_VOLUME_BYTES, Prepared, RenderError};
+use voxa_render::{MAX_VOLUME_BYTES, Prepared};
 
 use super::*;
 use crate::pictures::Pictures;
-use crate::testing::thick_scan_ready;
-
-/// The graphics device as the window has it, made on the one adapter every device with no window
-/// shares (this test makes no graphics instance of its own); `None` with a printed notice on a
-/// computer with no graphics adapter, not even a software one.
-fn a_render_state() -> Option<RenderState> {
-    match voxa_render::render_state_without_a_window() {
-        Ok(render) => Some(render),
-        Err(RenderError::NoAdapter) => {
-            eprintln!("skipped: no graphics adapter here, not even a software one");
-            None
-        }
-        Err(other) => panic!("{other}"),
-    }
-}
-
-/// A cube `side` voxels of 1 mm each way, every voxel `value`.
-fn cube(side: u32, value: f32) -> Arc<Volume> {
-    let values = vec![value; (side * side * side) as usize];
-    let placement =
-        Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0; 3]);
-    Arc::new(Volume::new([side; 3], values, placement).expect("adds up"))
-}
+use crate::testing::{a_render_state, cube, thick_scan_ready};
 
 #[test]
 fn in_slices_the_volume_made_ready_reaches_the_card_and_no_copy_of_it_waits() {
@@ -69,4 +46,60 @@ fn in_slices_the_volume_made_ready_reaches_the_card_and_no_copy_of_it_waits() {
         assert_eq!(actions, [Action::SceneUploaded { halved: 0 }]);
     }
     assert!(view.needs(&first), "and no longer the one before it");
+}
+
+/// The state of the made-up scan, ready in the scene and with this document open.
+fn with_a_document_open(open: bool) -> AppState {
+    let mut state = thick_scan_ready();
+    if open {
+        let entry = "DOCS/A0001".to_owned();
+        state.document = Some(crate::state::OpenDocument {
+            entry,
+            report: None,
+        });
+    }
+    state
+}
+
+#[test]
+fn with_a_document_open_the_volume_made_ready_reaches_the_card_and_no_copy_of_it_waits() {
+    let Some(render) = a_render_state() else {
+        return;
+    };
+    let side = render.device.limits().max_texture_dimension_3d;
+    let series = crate::testing::id(crate::testing::THICK_SCAN);
+    let volume = cube(8, 1.0);
+    for open in [true, false] {
+        // A worker made the volume ready while the report was being read, or not open at all.
+        let ready = Prepared::of(&volume, side, MAX_VOLUME_BYTES);
+        let state = with_a_document_open(open);
+        let session = Session::holding(state, &series, Arc::clone(&volume), Some(ready));
+        let mut view = scene::SceneView::new(Some(&render));
+        let mut planes = planes::PlanesView::new(Some(&render));
+        let mut actions = Vec::new();
+        let held = settle_volume(
+            &session,
+            (&mut view, &mut planes),
+            Some(&render),
+            &mut actions,
+        );
+        assert_eq!(
+            held.as_ref(),
+            Some(&volume),
+            "the volume of the scene's series"
+        );
+        if open {
+            // No picture is drawn to take it up, so it is put on the card here.
+            assert!(!view.has_waiting(), "no second copy waits in memory");
+            assert!(!view.needs(&volume), "the card holds this volume");
+            assert_eq!(actions, [Action::SceneUploaded { halved: 0 }]);
+        } else {
+            // The pictures take it up as they are drawn.
+            assert!(view.has_waiting(), "handed over, for the scene to take");
+            assert!(view.needs(&volume));
+            assert_eq!(actions, []);
+        }
+        // Nothing is left in the store either way: it was taken once.
+        assert!(session.take_prepared(&series).is_none());
+    }
 }

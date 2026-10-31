@@ -360,3 +360,30 @@ pub fn showing_a_scan_of(modality: &str, rescale_type: Option<&str>) -> crate::s
     reduce(&mut state, Action::SelectSeries { viewport, series });
     state
 }
+
+/// The graphics device as the window has it, made on the one adapter every device with no window
+/// shares; `None` with a printed notice on a computer with no graphics adapter, not even a
+/// software one. An adapter that will not start is not a reason to skip a test, and stops it.
+pub fn a_render_state() -> Option<egui_wgpu::RenderState> {
+    match voxa_render::render_state_without_a_window() {
+        Ok(render) => Some(render),
+        Err(voxa_render::RenderError::NoAdapter) => {
+            eprintln!("skipped: no graphics adapter here, not even a software one");
+            None
+        }
+        Err(other) => panic!("{other}"),
+    }
+}
+
+/// A cube `side` voxels of 1 mm each way, every voxel `value`.
+pub fn cube(side: u32, value: f32) -> std::sync::Arc<voxa_core::Volume> {
+    let values = vec![value; (side * side * side) as usize];
+    let placement = voxa_core::Affine::from_columns(
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [0.0; 3],
+    );
+    let volume = voxa_core::Volume::new([side; 3], values, placement).expect("adds up");
+    std::sync::Arc::new(volume)
+}

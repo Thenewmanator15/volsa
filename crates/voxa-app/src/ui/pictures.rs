@@ -48,6 +48,9 @@ impl VoxaApp {
         actions: &mut Vec<Action>,
     ) {
         let whole = ui.available_rect_before_wrap();
+        // Before anything is drawn, whatever stands in the middle of the window.
+        let views = (&mut self.scene, &mut self.planes);
+        let volume = settle_volume(&self.session, views, render, actions);
         if self.show_document(ui, whole, render, actions) {
             return;
         }
@@ -57,15 +60,6 @@ impl VoxaApp {
         let asked = strip::show(ui, along, state, actions);
         // A scan with no 3D view has its slices alone: they are all there is.
         let areas = layout::areas(state.pictures.given(&state.scene.status), rest);
-        let shown = state.scene.series.as_ref();
-        let volume = shown.and_then(|series| self.session.volume(series));
-        // If it has still to go on the graphics device, take what a worker made ready of it.
-        let waiting = volume
-            .as_ref()
-            .is_some_and(|volume| self.scene.needs(volume));
-        let ready = shown.filter(|_| waiting);
-        self.scene
-            .offer(ready.and_then(|series| self.session.take_prepared(series)));
         // One copy of the labels on the device, for the planes and the scene to draw from.
         let set = self.session.labels();
         if self.held.keep(render, state, set.as_ref()) {
@@ -190,6 +184,45 @@ fn slices(
     viewport::show(ui, area, session.state(), &slices, held, render, actions);
 }
 
+/// The volume of the scene's series, with what a worker made ready of it for the graphics device
+/// handed over to the scene, which takes it up when it is drawn. This is the first thing the
+/// middle of the window does, whatever it then shows: with a document in the place of the
+/// pictures nothing is drawn to take the volume up, and a copy of it as large as the volume
+/// itself would wait in the store until the document was closed, beside the volume the card
+/// holds. So then it is put on the card here, and a smooth curve nobody draws is let go.
+fn settle_volume(
+    session: &Session,
+    (scene, planes): (&mut scene::SceneView, &mut planes::PlanesView),
+    render: Option<&RenderState>,
+    actions: &mut Vec<Action>,
+) -> Option<Arc<Volume>> {
+    let state = session.state();
+    let shown = state.scene.series.as_ref();
+    let volume = shown.and_then(|series| session.volume(series));
+    // If it has still to go on the graphics device, take what a worker made ready of it.
+    let waiting = volume.as_ref().is_some_and(|volume| scene.needs(volume));
+    let ready = shown.filter(|_| waiting);
+    scene.offer(ready.and_then(|series| session.take_prepared(series)));
+    if state.document.is_some() {
+        let held = volume.as_ref();
+        keep_on_card(scene, render, held, actions);
+        VoxaApp::smooth_planes(session, (scene, planes), render, held, actions);
+    }
+    volume
+}
+
+/// Put the scene's volume on the graphics card if it is not there yet, with no 3D view drawn
+/// to do it, and say how often it had to be halved, when it was put there now.
+fn keep_on_card(
+    view: &mut scene::SceneView,
+    render: Option<&RenderState>,
+    volume: Option<&Arc<Volume>>,
+    actions: &mut Vec<Action>,
+) {
+    let halved = view.keep_on_card(render, volume);
+    actions.extend(halved.map(|halved| Action::SceneUploaded { halved }));
+}
+
 /// Draw the 3D scene in `area`; or, with no area for it in the arrangement shown, keep its
 /// volume on the graphics card all the same, so that no second copy of it waits in memory.
 fn scene_or_card(
@@ -205,8 +238,7 @@ fn scene_or_card(
         scene::show(ui, area, state, sources, view, render, actions);
     } else {
         let (volume, _) = sources;
-        let halved = view.keep_on_card(render, volume);
-        actions.extend(halved.map(|halved| Action::SceneUploaded { halved }));
+        keep_on_card(view, render, volume, actions);
     }
 }
 

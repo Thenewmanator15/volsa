@@ -217,6 +217,8 @@ impl Session {
 #[cfg(test)]
 mod annotation_tests;
 #[cfg(test)]
+mod holding;
+#[cfg(test)]
 mod kept_tests;
 #[cfg(test)]
 mod lost_tests;
