@@ -10,14 +10,16 @@
 
 use voxa_core::Volume;
 
-/// How a volume's axes are turned for the networks.
+use crate::Toward;
+
+/// How a volume's axes are turned for a network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct Turn {
+pub struct Turn {
     /// For each of the image's axes (x, y, z), the volume's axis it runs along: 0 for
     /// columns, 1 for rows, 2 for slices.
-    pub(super) order: [usize; 3],
+    pub order: [usize; 3],
     /// For each of the image's axes, whether it runs the other way from the volume's axis.
-    pub(super) turned_round: [bool; 3],
+    pub turned_round: [bool; 3],
 }
 
 /// A volume's values with its axes turned.
@@ -41,6 +43,20 @@ impl Turn {
     /// whatever its sign, in the column of that direction. An axis is turned round when it
     /// runs away from its direction.
     pub(super) fn of(volume: &Volume, steps: [f64; 3]) -> Self {
+        Self::towards(
+            volume,
+            steps,
+            [Toward::Right, Toward::Anterior, Toward::Superior],
+        )
+    }
+
+    /// How a volume's axes are turned so that the image's axes point towards these three
+    /// directions, in order: `SynthSeg`'s rule, for any orientation code. For each of the
+    /// patient's three axes, in `SynthSeg`'s order, the volume's axis that lies most along it is
+    /// chosen and mended as [`Turn::of`] does; then the image's axes take them in the order of
+    /// the code, each turned round when the volume's step runs away from its letter. With the
+    /// code right, front, top this is exactly [`Turn::of`].
+    pub fn towards(volume: &Volume, steps: [f64; 3], towards: [Toward; 3]) -> Self {
         let [across, down, through] = steps;
         // The grid's transform is the volume's with each step made shorter, so its transform
         // back has each number made as many times larger. (Changing the sign of a row of a
@@ -48,15 +64,22 @@ impl Turn {
         // of its numbers are asked for here.)
         let at_1_mm = |[col, row, slice]: [f64; 3]| [col * across, row * down, slice * through];
         let back = volume.patient_to_voxel().columns();
-        let mut order = back.map(at_1_mm).map(largest);
-        mend(&mut order);
+        let mut by_patient = back.map(at_1_mm).map(largest);
+        mend(&mut by_patient);
 
         // A step keeps its direction however long it is.
-        let steps = volume.voxel_to_patient().columns().map(right_front_top);
+        let steps = volume.voxel_to_patient().columns();
+        let mut order = [0; 3];
         let mut turned_round = [false; 3];
-        for (direction, (round, &axis)) in turned_round.iter_mut().zip(&order).enumerate() {
-            let step = steps.get(axis).and_then(|step| step.get(direction));
-            *round = step.is_some_and(|&part| part < 0.0);
+        for (axis, toward) in towards.into_iter().enumerate() {
+            let (patient, negative) = toward.axis();
+            let from = by_patient.get(patient).copied().unwrap_or(0);
+            let step = steps.get(from).and_then(|step| step.get(patient)).copied();
+            let along = step.map(|step| if negative { -step } else { step });
+            if let (Some(slot), Some(round)) = (order.get_mut(axis), turned_round.get_mut(axis)) {
+                *slot = from;
+                *round = along.is_some_and(|along| along < 0.0);
+            }
         }
         Self {
             order,
@@ -103,11 +126,6 @@ impl Turn {
             values,
         }
     }
-}
-
-/// A step in Voxa's left-posterior-superior as `SynthSeg` sees it: right, front, top.
-fn right_front_top([left, back, top]: [f64; 3]) -> [f64; 3] {
-    [-left, -back, top]
 }
 
 /// Which of three numbers is the largest, whatever its sign: the first of them on a tie.

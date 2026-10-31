@@ -35,8 +35,11 @@ mod resample;
 mod tests;
 #[cfg(test)]
 mod thin_tests;
+#[cfg(test)]
+mod towards_tests;
 
-use align::{Turn, Turned};
+pub use align::Turn;
+use align::Turned;
 pub use head::{Sizes, sizes};
 
 /// A volume needs this many voxels along every side, as given and at 1 mm. This floor is

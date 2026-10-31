@@ -8,6 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+voxa-core.workspace = true
 voxa-labels.workspace = true
 voxa-models.workspace = true
 voxa-segment.workspace = true

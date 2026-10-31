@@ -20,6 +20,7 @@
 mod describe;
 mod fit;
 mod folder;
+mod grid;
 mod onnx;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
@@ -31,4 +32,5 @@ pub use describe::{
 };
 pub use fit::{Wiring, fit};
 pub use folder::{DESCRIPTION, Offered, PluginError, check_folder};
+pub use grid::{Grid, Region, label_grid, overhang_mm, sample};
 pub use onnx::{Dim, Element, NetworkError, NetworkFacts, Port, read_network};
