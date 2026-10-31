@@ -2,12 +2,14 @@
 //! name written in a report or its title is hidden while the details are off and shown as
 //! written while they are on.
 
-use voxa_dicom::read_report;
+use voxa_dicom::{Report, read_report};
 
-use super::tests::{opened_with, pass_with, words_of};
+use super::tests::{line, opened, opened_with, pass, pass_with, where_is, words_of};
 use super::*;
 use crate::documents::mask::NAME_HIDDEN;
-use crate::testing::documents::{NAMED, NAMED_TITLE, named_report_file, scans_and_a_named_report};
+use crate::testing::documents::{
+    NAMED, NAMED_TITLE, REPORT, named_report_file, scans_and_a_named_report,
+};
 use crate::ui::seen::{self, Seen};
 
 /// A state that has read the made-up export and the report that names its patient, and shows
@@ -131,4 +133,59 @@ fn a_report_in_an_export_of_documents_alone_hides_the_name_its_file_gives() {
     let written = pass_with(&ctx, &shown, &mut kept, Vec::new());
     let words = words_of(&written.seen);
     assert!(words.contains(&"Note: Reviewed for Test Phantom (PHANTOM-001) today."));
+}
+
+#[test]
+fn a_note_under_the_heading_says_when_something_was_left_out() {
+    // The note names what stands in the places it was done, and the switch that turns it off.
+    assert!(LEFT_OUT.contains(crate::documents::mask::HIDDEN));
+    assert!(LEFT_OUT.contains("Show patient details"));
+    let ctx = seen::context(1.0);
+    let (mut kept, mut state) = (Kept::default(), naming_the_patient());
+    let hidden = pass_with(&ctx, &state, &mut kept, Vec::new());
+    assert!(words_of(&hidden.seen).contains(&LEFT_OUT));
+    // Under the line that says the report is shown as text, and above its first line.
+    let (heading, note) = (HEADING, LEFT_OUT);
+    let (heading, note) = (
+        where_is(&hidden.seen, heading),
+        where_is(&hidden.seen, note),
+    );
+    assert!(heading.bottom() <= note.top(), "{heading:?} over {note:?}");
+    let first = where_is(
+        &hidden.seen,
+        "Seen by: Name hidden (turn on Show patient details to see it)",
+    );
+    assert!(note.bottom() <= first.top(), "{note:?} over {first:?}");
+    // With the details on, nothing is left out, and nothing says so; nor after turning them off
+    // and on again.
+    state.show_patient = true;
+    let shown = pass_with(&ctx, &state, &mut kept, Vec::new());
+    assert!(!words_of(&shown.seen).contains(&LEFT_OUT));
+    state.show_patient = false;
+    let again = pass_with(&ctx, &state, &mut kept, Vec::new());
+    assert!(words_of(&again.seen).contains(&LEFT_OUT));
+    // A report that names nobody has nothing left out while the details are hidden.
+    let report = Report {
+        lines: vec![line(0, None, "Width: 12 mm")],
+        cut_short: false,
+    };
+    let plain = opened(REPORT, Some(Ok(report)));
+    let nothing = pass_with(&ctx, &plain, &mut Kept::default(), Vec::new());
+    assert!(!words_of(&nothing.seen).contains(&LEFT_OUT));
+}
+
+#[test]
+fn what_is_hidden_in_a_heading_is_told_of_in_the_note_too() {
+    let named = Report {
+        lines: vec![
+            line(0, Some("Notes on Test Phantom"), ""),
+            line(1, None, "Nothing else."),
+        ],
+        cut_short: false,
+    };
+    let state = opened_with(scans_and_a_named_report(), NAMED, Some(Ok(named)));
+    let drawn = pass(&seen::context(1.0), &state, Vec::new());
+    let words = words_of(&drawn.seen);
+    assert!(words.contains(&"Notes on [hidden]"), "{words:?}");
+    assert!(words.contains(&LEFT_OUT), "{words:?}");
 }

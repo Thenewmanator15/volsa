@@ -54,6 +54,8 @@ pub struct Kept {
     content: Option<Content>,
     /// What is left out of the words of the lines.
     mask: Mask,
+    /// Whether the mask changes any word of any line or heading of the report.
+    replaced: bool,
     /// What each line is drawn with, once it has come in sight.
     prepared: Vec<Option<Prepared>>,
     /// The width the heights were measured or guessed for, in whole points.
@@ -71,9 +73,10 @@ pub struct Kept {
 }
 
 impl Kept {
-    /// Make again whatever what is shown no longer matches: the words of the lines when the
-    /// report or whether details are hidden has changed, and the heights when the width has.
-    fn fit(&mut self, shown: &Shown<'_>, ui: &Ui) {
+    /// Make again the words of the lines if the report, or whether details are hidden, has
+    /// changed since they were made. Whether the mask changes any word of the report: found out
+    /// once, as the words are made again, and not for every frame.
+    pub fn take_in(&mut self, shown: &Shown<'_>) -> bool {
         let (state, lines) = (shown.state, &shown.report.lines);
         let content = Content {
             entry: shown.document.entry.clone(),
@@ -86,7 +89,21 @@ impl Kept {
             self.mask = Mask::for_document(state, shown.document);
             self.prepared = lines.iter().map(|_| None).collect();
             self.width = 0.0;
+            let changes = |text: &str, is_name| self.mask.changes(text, is_name);
+            self.replaced = lines.iter().any(|line| {
+                let heading = line.heading.as_deref();
+                changes(&line.text, line.is_name)
+                    || heading.is_some_and(|text| changes(text, false))
+            });
         }
+        self.replaced
+    }
+
+    /// Make again whatever what is shown no longer matches: the words of the lines when the
+    /// report or whether details are hidden has changed, and the heights when the width has.
+    fn fit(&mut self, shown: &Shown<'_>, ui: &Ui) {
+        self.take_in(shown);
+        let lines = &shown.report.lines;
         let width = ui.available_width().floor().max(1.0);
         if (width - self.width).abs() >= 1.0 {
             self.width = width;
@@ -180,7 +197,7 @@ fn as_points(count: usize) -> f32 {
 /// those in sight.
 pub fn show(ui: &mut Ui, shown: &Shown<'_>, kept: &mut Kept) {
     ScrollArea::vertical()
-        .id_salt("voxa: the lines of a report")
+        .id_salt(("voxa: the lines of a report", &shown.document.entry))
         .auto_shrink(false)
         .show_viewport(ui, |ui, view| {
             kept.fit(shown, ui);
@@ -203,8 +220,9 @@ pub fn show(ui: &mut Ui, shown: &Shown<'_>, kept: &mut Kept) {
                 // the scroll area, which is how many lines are above those in sight: scrolling
                 // would give a line another id, and a selection or the focus of a screen reader
                 // would move to another line.
-                let own =
-                    egui::UiBuilder::new().id(egui::Id::new(("voxa: a line of a report", at)));
+                let entry = &shown.document.entry;
+                let own = egui::Id::new(("voxa: a line of a report", entry, at));
+                let own = egui::UiBuilder::new().id(own);
                 let height = ui.scope_builder(own, |ui| draw(ui, depth, words)).inner + gap;
                 changed |= kept.measured(at, height);
                 #[cfg(test)]

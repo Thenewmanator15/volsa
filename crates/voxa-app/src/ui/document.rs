@@ -30,6 +30,9 @@ use lines::Shown;
 
 /// The line above a report, which says what is shown is not the report itself.
 pub const HEADING: &str = "Shown as text. The original report is the reference.";
+/// The line under it that says what the report leaves out while the patient's details are
+/// hidden. It is shown only when something was in fact replaced.
+pub const LEFT_OUT: &str = "While patient details are hidden, the patient's name and identifier are shown as [hidden]. Turn on Show patient details to see the report as written.";
 /// The line that says part of a report is not shown.
 pub const CUT_SHORT: &str = "Part of this report is too long or too deeply nested to show here.";
 /// What a PDF stored in DICOM is said to be.
@@ -148,16 +151,20 @@ fn report(ui: &mut Ui, open: &OpenDocument, of: (&IndexedDocument, &AppState), k
         }
         Some(Ok(report)) => {
             ui.label(RichText::new(HEADING).strong());
-            if report.cut_short {
-                ui.label(RichText::new(CUT_SHORT).color(theme::palette(ui.ctx()).warning));
-            }
-            ui.add_space(6.0);
             let (document, state) = of;
             let shown = Shown {
                 report,
                 document,
                 state,
             };
+            if kept.take_in(&shown) {
+                let quiet = theme::palette(ui.ctx()).quiet_text;
+                ui.label(RichText::new(LEFT_OUT).small().color(quiet));
+            }
+            if report.cut_short {
+                ui.label(RichText::new(CUT_SHORT).color(theme::palette(ui.ctx()).warning));
+            }
+            ui.add_space(6.0);
             lines::show(ui, &shown, kept);
         }
     }

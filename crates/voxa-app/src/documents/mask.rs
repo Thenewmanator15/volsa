@@ -8,17 +8,36 @@
 //! out, and a DICOM name's parts joined by a space in either order, is replaced by [`HIDDEN`].
 //! A name written another way inside free text, such as with an initial, a title, a different
 //! spelling or only a surname, cannot be found reliably and may show.
+//!
+//! What is replaced must never change what a report says. So an identifier of fewer than four
+//! letters or digits, a name (or way of writing it) of fewer than three, and one of punctuation
+//! alone are not looked for, and a number is never taken apart: `10` is not found in `10.5`,
+//! `0.10` or `1,10`. A short identifier may therefore show; a figure of the report is never
+//! changed. The window says under a report's heading when it replaced anything (see
+//! `ui/document.rs`).
+//!
+//! A mask works on a plain string too: [`Mask::apply`] and [`Mask::words`] need no report, only
+//! a mask made by [`Mask::of`] or [`Mask::for_document`], which any text that may name the
+//! patient (a file's name or path, say) can be given.
 
 use std::borrow::Cow;
 
 use voxa_dicom::{Index, IndexedDocument};
 
+use crate::naming::printable;
 use crate::state::AppState;
 
 /// What stands in for a name or an identifier found written out in a document.
 pub const HIDDEN: &str = "[hidden]";
 /// What stands in for the value of an item that holds a person's name.
 pub const NAME_HIDDEN: &str = "Name hidden (turn on Show patient details to see it)";
+/// The fewest letters and digits an identifier must hold to be looked for in a document's
+/// words. A shorter one, such as `1` or `P2`, is also how numbers, sizes and series are
+/// written, and replacing it would change what the report says.
+const SHORTEST_IDENTIFIER: usize = 4;
+/// The fewest letters and digits a name, or one way of writing it, must hold. A shorter one
+/// is as likely to be a word of the report as the person.
+const SHORTEST_NAME: usize = 3;
 
 /// What is left out of what a document says, and how.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -61,15 +80,10 @@ impl Mask {
         let mut needles: Vec<Vec<char>> = Vec::new();
         for (name, id) in people {
             let given = |field: &Option<String>| field.as_deref().map(str::trim).map(str::to_owned);
-            let words = given(name)
-                .into_iter()
-                .flat_map(|name| written_as(&name))
-                .chain(given(id));
-            needles.extend(
-                words
-                    .filter(|word| !word.is_empty())
-                    .map(|word| folded(&word)),
-            );
+            let names = given(name).into_iter().flat_map(|name| written_as(&name));
+            let names = names.filter(|word| worth_looking_for(word, SHORTEST_NAME));
+            let id = given(id).filter(|id| worth_looking_for(id, SHORTEST_IDENTIFIER));
+            needles.extend(names.chain(id).map(|word| folded(&printable(&word))));
         }
         needles.sort_by_key(|needle| std::cmp::Reverse(needle.len()));
         needles.dedup();
@@ -96,6 +110,12 @@ impl Mask {
             return Cow::Owned(self.apply(&hidden).into_owned());
         }
         self.apply(text)
+    }
+
+    /// Whether [`Mask::words`] of `text` says anything other than `text`: it holds an item that
+    /// holds a person's name, or a place where the patient is named.
+    pub fn changes(&self, text: &str, is_name: bool) -> bool {
+        self.words(text, is_name) != text
     }
 
     /// `text` with each place the patient is named replaced by [`HIDDEN`]; `text` itself, not
@@ -170,7 +190,8 @@ fn folded(text: &str) -> Vec<char> {
 }
 
 /// Whether `needle` is written at `at` in the text (`original`, and `lower`, its folded form)
-/// as a word of its own: not as part of a longer run of letters and digits.
+/// as a word of its own: not as part of a longer run of letters and digits, nor taken from a
+/// number written with a point or a comma in it.
 fn is_at(original: &[char], lower: &[char], at: usize, needle: &[char]) -> bool {
     let end = at + needle.len();
     if lower.get(at..end) != Some(needle) {
@@ -182,7 +203,29 @@ fn is_at(original: &[char], lower: &[char], at: usize, needle: &[char]) -> bool 
     let ends_a_word = needle.last().is_some_and(|last| last.is_alphanumeric());
     let joined_before = starts_a_word && inside(before);
     let joined_after = ends_a_word && inside(original.get(end));
-    !joined_before && !joined_after
+    // A number is never taken apart: "10" is not found in "10.5", "0.10" or "1,10".
+    let digit = |letter: Option<&char>| letter.is_some_and(char::is_ascii_digit);
+    let mark = |letter: Option<&char>| letter.is_some_and(|letter| matches!(letter, '.' | ','));
+    let goes_on = needle.last().is_some_and(char::is_ascii_digit)
+        && mark(original.get(end))
+        && digit(original.get(end + 1));
+    let came_from = needle.first().is_some_and(char::is_ascii_digit)
+        && at
+            .checked_sub(1)
+            .is_some_and(|before| mark(original.get(before)))
+        && at
+            .checked_sub(2)
+            .is_some_and(|before| digit(original.get(before)));
+    !joined_before && !joined_after && !goes_on && !came_from
+}
+
+/// Whether `word` holds at least `shortest` letters and digits: enough to be told from the
+/// ordinary words and numbers of a report.
+fn worth_looking_for(word: &str, shortest: usize) -> bool {
+    word.chars()
+        .filter(|letter| letter.is_alphanumeric())
+        .count()
+        >= shortest
 }
 
 #[cfg(test)]

@@ -92,7 +92,7 @@ fn a_name_is_not_found_inside_a_longer_word_nor_are_numbers_taken_apart() {
         "xPHANTOM-001 PHANTOM-0012"
     );
     assert_eq!(hidden("A width of 12 mm"), "A width of 12 mm");
-    // A short identifier is only found whole, and shows where it was.
+    // A short identifier is not looked for at all: what it would change is the report's words.
     let short = Index {
         studies: vec![study("1.2.8.0", None, Some("1"))],
         ..Index::default()
@@ -100,8 +100,72 @@ fn a_name_is_not_found_inside_a_longer_word_nor_are_numbers_taken_apart() {
     let mask = Mask::of(&short, &document("1.2.8.0"), false);
     assert_eq!(
         mask.apply("Width: 12 mm, 1 of 21").as_ref(),
-        "Width: 12 mm, [hidden] of 21"
+        "Width: 12 mm, 1 of 21"
     );
+}
+
+/// The mask of a study whose patient is `name` and `id`.
+fn mask_of(name: Option<&str>, id: Option<&str>) -> Mask {
+    let named = Index {
+        studies: vec![study("1.2.8.0", name, id)],
+        ..Index::default()
+    };
+    Mask::of(&named, &document("1.2.8.0"), false)
+}
+
+#[test]
+fn a_short_or_numeric_identifier_never_changes_a_number() {
+    // Too short to be looked for, and the numbers around it are left alone.
+    let short = mask_of(None, Some("10"));
+    for text in [
+        "10.5 mm",
+        "0.10",
+        "1,10",
+        "Width: 10 mm",
+        "a size of 0.10 cm",
+    ] {
+        assert_eq!(short.apply(text).as_ref(), text);
+    }
+    // Long enough to be looked for: found as a word of its own, never taken from a number.
+    let long = mask_of(None, Some("12345"));
+    assert_eq!(long.apply("MRN 12345.").as_ref(), "MRN [hidden].");
+    assert_eq!(
+        long.apply("MRN: 12345, seen").as_ref(),
+        "MRN: [hidden], seen"
+    );
+    for text in ["12345.6 mm", "0.12345", "3,12345", "12345,6", "1.2345"] {
+        assert_eq!(long.apply(text).as_ref(), text);
+    }
+    // A number that merely ends a sentence is the identifier all the same.
+    assert_eq!(
+        long.apply("Seen 12345. Next 2.").as_ref(),
+        "Seen [hidden]. Next 2."
+    );
+}
+
+#[test]
+fn a_name_of_under_three_letters_is_not_looked_for_but_one_of_three_is() {
+    let two = mask_of(Some("Wu"), None);
+    assert_eq!(two.apply("Seen by Wu").as_ref(), "Seen by Wu");
+    let three = mask_of(Some("Lee"), None);
+    assert_eq!(three.apply("Seen by Lee").as_ref(), "Seen by [hidden]");
+    // A name of two short parts is long enough written out whole: "Li^Wu" and "Li Wu".
+    let parts = mask_of(Some("Li^Wu"), None);
+    assert_eq!(
+        parts.apply("Li Wu and Wu Li").as_ref(),
+        "[hidden] and [hidden]"
+    );
+    assert_eq!(parts.apply("Wu").as_ref(), "Wu");
+}
+
+#[test]
+fn a_needle_of_punctuation_alone_is_not_looked_for() {
+    let dashes = mask_of(Some("^"), Some("-"));
+    for text in ["T1-weighted, -5 mm", "a^b", "^^"] {
+        assert_eq!(dashes.apply(text).as_ref(), text);
+    }
+    let marks = mask_of(Some("^^"), Some("--- "));
+    assert_eq!(marks.apply("T1--- weighted").as_ref(), "T1--- weighted");
 }
 
 #[test]

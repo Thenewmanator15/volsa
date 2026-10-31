@@ -3,9 +3,11 @@
 
 use egui::{Context, Event, Modifiers, MouseWheelUnit, Pos2, vec2};
 
-use super::super::tests::{WINDOW, line, opened, pass_with, where_is};
+use super::super::tests::{WINDOW, line, opened, opened_with, pass_with, where_is};
 use super::*;
-use crate::testing::documents::REPORT;
+use crate::state::OpenDocument;
+use crate::testing::documents::{NAMED, REPORT, document_files, named_report_file};
+use crate::testing::{indexed, three_series_files};
 use crate::ui::seen::{self, Seen};
 
 /// How many lines the longest report holds.
@@ -235,4 +237,28 @@ fn a_line_keeps_the_identity_a_screen_reader_knows_it_by_as_the_report_scrolls()
     for n in shared {
         assert_eq!(before[&n], after[&n], "line {n}");
     }
+}
+
+#[test]
+fn a_second_report_opens_at_its_top_not_where_the_first_was_left() {
+    let files = [
+        three_series_files(),
+        document_files(),
+        vec![named_report_file()],
+    ];
+    let mut state = opened_with(
+        indexed(files.concat()),
+        REPORT,
+        Some(Ok(long_report(LINES))),
+    );
+    let (ctx, mut kept) = (seen::context(1.0), Kept::default());
+    let _ = pass_with(&ctx, &state, &mut kept, Vec::new());
+    let down = items_drawn(&scroll(&ctx, &state, &mut kept, -3000.0));
+    assert!(down.first().is_some_and(|first| *first > 10), "{down:?}");
+    // Another report opened in its place starts from its own first line.
+    let entry = NAMED.to_owned();
+    let report = Some(Ok(long_report(LINES)));
+    state.document = Some(OpenDocument { entry, report });
+    let drawn = pass_with(&ctx, &state, &mut kept, Vec::new());
+    assert_eq!(items_drawn(&drawn.seen).first(), Some(&0));
 }
