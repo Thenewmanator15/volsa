@@ -21,7 +21,8 @@ The faults that matter are those where something Voxa is handed makes it do what
 
 - **The files Voxa reads, which may come from anyone.** DICOM files, folders and zip files of
   them, `DICOMDIR` files, NIfTI label files (`.nii`, `.nii.gz`) and their tables of names
-  (`.json`, `.ctbl`), a model folder (`model.json` and its networks), and the files Voxa keeps
+  (`.json`, `.ctbl`), a model folder (`model.json` and its networks), a plugin folder
+  (`plugin.json` and its network, [below](#plugins)), and the files Voxa keeps
   in its own two folders. A file that makes Voxa run code, read or write outside the places
   it should, or take memory or time without end counts. A file that only makes Voxa stop or
   show something wrong is a fault too; if you are sure it does no more than that, an ordinary
@@ -41,6 +42,33 @@ These are not for this form:
   use. A label made by a model is a guess, and a label that is wrong is an ordinary issue.
 - A fault in ONNX Runtime or DirectML themselves, which goes to Microsoft, or in a library Voxa
   is built on, which goes to that library. If it reaches Voxa, tell us too.
+
+## Plugins
+
+A plugin is a folder a person adds: a `plugin.json` and an ONNX network someone else made
+([docs/plugins.md](docs/plugins.md)). Its files can come from anywhere, so they count as files
+Voxa reads, above, and so does anything that makes Voxa run a plugin network other than the one
+the person added.
+
+- **S-PL-01.** Voxa accepts only standard ONNX operators, reads the network file's structure
+  itself, with limits, before ONNX Runtime sees it, and runs it in a helper process
+  (`voxa.exe --plugin-helper`) held in a Windows job object that ends it with Voxa, lets it
+  start no process, and caps its memory. The helper has the person's own rights: it is not a
+  sandbox. Add plugins only from sources you trust.
+- **S-PL-02.** Names in a description never lead outside its folder: only plain names are
+  taken, links are not followed, and Voxa's copy lives in a folder named by a sum, never by
+  anything the description says.
+- **S-PL-03.** The helper checks the network file's SHA-256 before it opens it, on every run.
+- **S-PL-04.** A description's words are shown as plain text inside the "Added by you" frame,
+  never as links and never as Voxa's own words.
+- **S-PL-05.** Scan values pass between Voxa and its helper through pipes only; none is written
+  to disk.
+- **S-PL-06.** The helper's runtime has its telemetry turned off before anything else, as
+  Voxa's own is.
+
+A fault in a plugin's model itself, such as wrong labels, is its maker's and not for this form.
+A network file that gets past the checks above and makes the helper, or Voxa, do what it should
+not is.
 
 ## Never include a real scan
 

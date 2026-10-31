@@ -8,14 +8,15 @@ Voxa is a Cargo workspace of small crates that talk only through their public in
 | `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
 | `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `voxa-core` |
 | `voxa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it, and writing both, with who made a label set; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `voxa-core` |
-| `voxa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them. No image mathematics. Its `cards.rs` is the one module outside `voxa-render` that uses `unsafe` | nothing in the workspace |
+| `voxa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them; starting a helper program in a Windows job object. No image mathematics. Its `cards.rs` and `process.rs` are the only modules outside `voxa-render` that use `unsafe` | nothing in the workspace |
 | `voxa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between the networks and the mirrored run, tidying the answer into a label grid, the table of names with the model's verdict, and the notes a reader should know | `voxa-core`, `voxa-labels`, `voxa-models` |
+| `voxa-plugins` | Models a person adds: reading and checking `plugin.json`, the folder's files and the network's structure; the preparation menu (the grid, the box or blocks, the scaling); the helper's messages and the helper itself; measuring what a plugin needs and choosing where it fits; one run, from the plugin's grid to a label set with its notes; whether a scan's modality and contrast are what the plugin accepts | `voxa-core`, `voxa-labels`, `voxa-models`, `voxa-segment` |
 | `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `voxa-core`, `voxa-volume`, `voxa-labels` |
 | `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
 | `xtask` | `cargo xtask check`, `cargo xtask coverage` and `cargo xtask check-models` | nothing in the workspace |
 
 Dependencies point downward only: core, then dicom, volume, labels and models, then segment and
-render, then app. `voxa-app` contains no image mathematics; anything that computes on pixels or
+render, then plugins, then app. `voxa-app` contains no image mathematics; anything that computes on pixels or
 coordinates lives below it, where it can be tested without a window.
 
 ## Data flow
@@ -193,6 +194,39 @@ it holds, so that the run leaves room. If the window's device is lost, `eframe` 
 another: `voxa-app/src/ui/lost.rs` watches for it from the start, the work in hand goes on, and
 the person is told once, in the window and in a message box, to start Voxa again. Annotations,
 saved views and kept results are written by workers and do not depend on the card.
+
+## Plugins: the path of a run in a helper
+
+A plugin is a model a person adds, as a folder with a `plugin.json` ([plugins.md](plugins.md);
+[adr/0007-plugins.md](adr/0007-plugins.md) for why it is built as it is). Its network never runs
+in Voxa's own process.
+
+1. **Adding.** **Add a plugin…** sends `PluginAction::Offer` with the folder. A worker checks it
+   (`voxa_plugins::check_folder`: the description, every listed file's name, kind, size and sum,
+   the network's structure, and that the network fits the description) and the state shows its
+   card. **Add** copies the listed files under the local folder's `plugins`, into a folder named
+   by the description's sum, checks the copy again, and measures the network on the processor
+   and on each discrete card (`voxa_plugins::measure`), keeping the figures in `measured.json`
+   beside it. A plugin that cannot run on the processor is removed again.
+2. **Asking.** **Run** sends `PluginAction::Run`. The reducer refuses a scan of a modality the
+   plugin does not list, warns before a contrast the scan's description names that it does not,
+   and otherwise starts the run, stopping any labelling run; the two share one turn.
+3. **The helper.** On a thread of its own, the worker chooses a place where the measured need
+   fits (`voxa_plugins::places`, with labelling's **Runs on**), measuring first where none was,
+   and `voxa_plugins::run_plugin` starts `voxa.exe --plugin-helper` through
+   `voxa_models::start_helper`, which puts it in a job object (ends with Voxa or on **Stop**,
+   starts nothing, memory capped at the measured need with a quarter added) before telling it
+   anything. Over its pipes Voxa sends the job; the helper checks the network's sum, loads the
+   runtime with telemetry off and opens the network. Voxa then samples, scales and sends each
+   box or block as 32-bit numbers, and the helper answers each with its labels as 16-bit
+   numbers. Nothing is written to disk. A card with no room, or one that stops answering, gives
+   way to the next place.
+4. **The result.** Voxa puts the labels together (each voxel from the nearest block's centre),
+   keeps the largest piece if asked, and makes a label set on the plugin's own grid, with a
+   table whose `added_by_you` part names the plugin and whose first note is the contrast stamp
+   or note. The worker keeps it as the series' result for that plugin and the state opens it as
+   labels, so it is drawn, listed and exported as any labels are, with "Added by you, not part
+   of Voxa" first.
 
 ## Kinds of series, and volumes of a series
 

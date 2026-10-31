@@ -6,6 +6,38 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Plugins: models a person adds themselves. **Add a plugin…**, under **Added by you** in the
+  Parts tab, takes a folder holding a `plugin.json` and an ONNX network someone else made.
+  Voxa checks the folder, shows a card that says first "Added by you, not part of Voxa. Voxa
+  has not checked what this model does. Not for diagnostic use.", then what the plugin says of
+  itself and every setting Voxa will prepare a scan with, and copies it only on **Add**. It
+  then measures what the network needs on the processor and on each graphics card with memory
+  of its own. **Run** prepares the scan in the open from a fixed menu (the grid along the
+  scan's own axes at the plugin's spacing, one centred box or blocks, percentile, z-score or
+  fixed scaling), runs the network, and opens its labels with the banner first in the list,
+  the plane and 3D captions, the kept files, a saved table and the parts exported as CSV. A
+  scan of a modality the plugin does not list is refused; a contrast the scan's description
+  names that the plugin does not list is warned of, run only after **Run anyway**, and stamped
+  on the result; a description that names none is stamped "Contrast not confirmed". Label maps
+  run now; one number, a value map and an alignment are part of the format and refused as not
+  yet run. Voxa downloads no plugin, recommends none and links to none.
+  [docs/plugins.md](docs/plugins.md) is for people who make one, and
+  [record 0007](docs/adr/0007-plugins.md) says why it is built as it is.
+
+### Security
+
+- A plugin's network runs only in a helper process, `voxa.exe --plugin-helper`, held in a
+  Windows job object that ends it with Voxa or on **Stop**, lets it start no process and caps
+  its memory at what it was measured to need; if it fails or ends early, Voxa says so and goes
+  on. Before ONNX Runtime sees a network file, Voxa reads its structure itself and refuses any
+  operator outside standard ONNX, local functions, data outside the plugin's listed files, and
+  files past the reader's limits. Every listed file is checked by name, size and SHA-256 when
+  added, and the network's sum again by the helper before every run. Scan values reach the
+  helper through pipes only. SECURITY.md has a "Plugins" section; the helper is not a sandbox,
+  so add plugins only from sources you trust.
+
 ## [0.6.0] - 2026-10-22
 
 The sixth release, made for a first public release: a download for Windows, the notices and

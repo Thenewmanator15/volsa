@@ -36,3 +36,14 @@ Food and Drug Administration or any other agency, and that clinical applications
 recommended nor advised. Labels made with those weights come under the same caution.
 docs/models.md in the source (MODELS.md in a download of Voxa) says more, under "The terms
 of the model's weights", with where the agreement can be read.
+
+## Plugins you add
+
+You can add a model that someone else made, as a plugin. A plugin is added by you and is not
+part of Voxa: Voxa has not checked what it does, recommends none, links to none and downloads
+none. Whatever a plugin gives is shown under "Added by you, not part of Voxa", with its maker's
+name, its source and its licence as its maker gives them, and is not for diagnostic use. Its
+licence, and whether it may be used for what you want, are between you and its maker. Voxa runs
+a plugin only on the kind of scan it says it is for, warns before running it on a scan whose
+description names another contrast, and says so on the result. docs/plugins.md in the source
+says what a plugin is and what Voxa does with one.

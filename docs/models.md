@@ -14,6 +14,11 @@ beside this file in a download of Voxa, and in
 [docs/intended-use.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/intended-use.md)
 in Voxa's source.
 
+This page is about SynthSeg, the model Voxa's own labelling runs. A model someone else made can
+be added as a plugin, which is not part of Voxa:
+[docs/plugins.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/plugins.md) in Voxa's
+source says how.
+
 ## What comes with Voxa, and what does not
 
 - **The runtime comes in the download.** The zip on the Releases page holds a folder called
