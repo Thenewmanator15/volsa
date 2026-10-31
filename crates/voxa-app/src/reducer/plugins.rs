@@ -224,6 +224,18 @@ fn stop_quietly(plugins: &mut Plugins) -> Option<Effect> {
     plugins.running.take().map(|_| effect(PluginEffect::Stop))
 }
 
+/// Keep a run on the series it was started on: when the scene has moved to another series, the
+/// run is stopped, as labelling's is, and nothing is said, since the person moved on themselves.
+/// A scene that shows nothing leaves the run alone.
+pub(super) fn keep(state: &mut AppState) -> Option<Effect> {
+    let scene = state.scene.series.as_ref()?;
+    let running = state.plugins.running.as_ref()?;
+    if &running.series == scene {
+        return None;
+    }
+    stop_quietly(&mut state.plugins)
+}
+
 /// Stops the run on and says so; with none on, does nothing.
 pub(super) fn stop(state: &mut AppState) -> Option<Effect> {
     let stopped = stop_quietly(&mut state.plugins)?;

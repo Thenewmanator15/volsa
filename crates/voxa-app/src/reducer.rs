@@ -54,8 +54,9 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     } else {
         scene::follow(state)
     });
-    // A run of labelling belongs to the series it was started on.
+    // A run of labelling, or of a plugin, belongs to the series it was started on.
     effects.extend(labelling::keep(state));
+    effects.extend(plugins::keep(state));
     planes::settle(state);
     annotations::settle(state, was.as_ref());
     effects.extend(link::keep(state, &before));

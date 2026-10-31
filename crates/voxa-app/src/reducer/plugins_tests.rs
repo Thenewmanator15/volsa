@@ -253,3 +253,20 @@ fn opening_another_folder_drops_a_warning_about_the_scan_left() {
     assert_eq!(state.plugins.warning, None);
     assert_eq!(state.plugins.running, None);
 }
+
+#[test]
+fn moving_the_scene_to_another_series_stops_a_plugin_run() {
+    let mut state = ready("MR", "T1");
+    run(&mut state);
+    assert!(state.plugins.running.is_some());
+    let moved = Action::SelectSeries {
+        viewport: state.active,
+        series: crate::testing::id(crate::testing::FINE_SCAN),
+    };
+    let effects = reduce(&mut state, moved);
+    assert!(
+        effects.contains(&Effect::Plugins(PluginEffect::Stop)),
+        "{effects:?}"
+    );
+    assert!(state.plugins.running.is_none());
+}
