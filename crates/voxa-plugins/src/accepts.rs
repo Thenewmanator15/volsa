@@ -83,7 +83,8 @@ pub fn decide(modality: &str, description: &str, accepts: &Accepts) -> Decision 
     Decision::Warn {
         warning: format!("This plugin expects {expects}; this scan's description says {says}."),
         stamp: format!(
-            "Run after a warning: this plugin expects {expects}; this scan's description says              {says}."
+            "Run after a warning: this plugin expects {expects}; this scan's description says \
+             {says}."
         ),
     }
 }
