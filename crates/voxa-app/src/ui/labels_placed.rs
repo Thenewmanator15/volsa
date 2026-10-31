@@ -33,8 +33,9 @@ pub struct Placed {
 /// wanted, brought inside `bounds`, if that meets none of the places already `taken` and none
 /// of the labels before it. If it does it moves down, a step at a time, each step its own
 /// height and the gap between labels, as far as `bounds` reach, and then, if nowhere there was
-/// clear, up; the moved label has a leader. Where nowhere is clear the label goes where it is
-/// covered least, so none is ever left out.
+/// clear, up; the moved label has a leader. A place that would stand on the label's own anchor
+/// is passed over, so that a leader always has some length. Where nowhere is clear the label
+/// goes where it is covered least, so none is ever left out.
 pub fn place(wanted: &[Wanted], taken: &[Rect], bounds: Rect) -> Vec<Placed> {
     let mut placed: Vec<Placed> = Vec::with_capacity(wanted.len());
     for want in wanted {
@@ -46,7 +47,11 @@ pub fn place(wanted: &[Wanted], taken: &[Rect], bounds: Rect) -> Vec<Placed> {
             .collect();
         let covered = |slot: Rect| (overlap(slot, &blocked), slot);
         // The first of the slots to be least covered is the first that is clear, if one is.
-        let least = slots(home, bounds).map(covered);
+        // A slot that would stand on the label's own anchor is passed over, home excepted: the
+        // line to it would have no length, and the words would sit on the shape they belong to.
+        let clear_of_its_shape =
+            |slot: &Rect| *slot == home || !slot.expand(GAP).contains(want.anchor);
+        let least = slots(home, bounds).filter(clear_of_its_shape).map(covered);
         let rect = least
             .min_by(|(one, _), (other, _)| one.total_cmp(other))
             .map_or(home, |(_, slot)| slot);

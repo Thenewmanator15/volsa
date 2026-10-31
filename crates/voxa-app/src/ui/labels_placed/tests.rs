@@ -1,9 +1,9 @@
 //! Where measurement labels go when they would meet each other, the text in a corner, or the
 //! edge of the picture.
 
-use egui::{Rect, pos2, vec2};
+use egui::{Pos2, Rect, pos2, vec2};
 
-use super::{Placed, Wanted, place};
+use super::{GAP, Placed, Wanted, place};
 
 /// The picture the labels are written over: 400 by 300 points.
 fn picture() -> Rect {
@@ -121,4 +121,50 @@ fn labels_in_one_row_keep_a_space_between_them_so_they_do_not_read_as_one() {
     let space = second.left() - first.right();
     assert!(!side_by_side || space >= 4.0, "{first:?} then {second:?}");
     assert!(placed[1].leader.is_some(), "it was moved: {placed:?}");
+}
+
+/// A label 60 by 12 points at `(100, 100)` whose shape is at `anchor`, with something already
+/// written where it would stand, so that it must move.
+fn moved_from_its_place(anchor: Pos2) -> Placed {
+    let wanted = Wanted {
+        rect: Rect::from_min_size(pos2(100.0, 100.0), vec2(60.0, 12.0)),
+        anchor,
+    };
+    let blocker = wanted.rect;
+    place(&[wanted], &[blocker], picture())[0]
+}
+
+#[test]
+fn a_moved_region_label_never_covers_its_anchor_and_has_a_line() {
+    // A region's label begins at its anchor's x, and one pulled left at the right edge begins
+    // left of it: moved one step down it would stand on its own shape and have no line.
+    let beginning_at = pos2(100.0, 112.0);
+    let inside_its_width = pos2(130.0, 118.0);
+    let near_its_end = pos2(155.0, 112.0);
+    for anchor in [beginning_at, inside_its_width, near_its_end] {
+        let placed = moved_from_its_place(anchor);
+        assert!(
+            !placed.rect.expand(GAP).contains(anchor),
+            "{anchor:?} is under {placed:?}"
+        );
+        let (from, to) = placed.leader.expect("a moved label is joined to its shape");
+        assert_eq!(from, anchor);
+        assert!(
+            from.distance(to) > 1.0,
+            "a line of no length: {from:?} {to:?}"
+        );
+    }
+}
+
+#[test]
+fn a_label_that_cannot_move_clear_of_its_anchor_stays_where_it_wanted() {
+    // Room for two rows only, and the anchor in the second: the one place a step down would
+    // stand on its own shape, so the label stays in its own, as crowded as that is.
+    let bounds = Rect::from_min_size(pos2(0.0, 100.0), vec2(400.0, 26.0));
+    let wanted = Wanted {
+        rect: Rect::from_min_size(pos2(100.0, 100.0), vec2(60.0, 12.0)),
+        anchor: pos2(130.0, 119.0),
+    };
+    let placed = place(&[wanted], &[wanted.rect], bounds);
+    assert_eq!((placed[0].rect, placed[0].leader), (wanted.rect, None));
 }
