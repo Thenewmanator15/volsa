@@ -62,6 +62,29 @@ pub trait SeriesSource: Send {
         Ok(())
     }
 
+    /// The names [`SeriesSource::visit_files`] would visit, in the order it would visit them,
+    /// so that they can be shared out between readers. `None` when the source cannot say
+    /// them without reading its files.
+    fn names(&mut self) -> Option<Vec<String>> {
+        None
+    }
+
+    /// The files named, in the order given, each handed to `visit` as
+    /// [`SeriesSource::visit_files`] hands it.
+    ///
+    /// # Errors
+    /// As [`SeriesSource::visit_files`]; a source that cannot say its names cannot visit
+    /// them either, and says the first is missing.
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        let _ = visit;
+        let first = names.first().cloned().unwrap_or_default();
+        Err(VoxaError::MissingEntry(first))
+    }
+
     /// Another reader of the same files, which reads them without waiting for this one, so
     /// that each thread decoding slices can read with a reader of its own. `None` when the
     /// source cannot give one and its reads must take turns.

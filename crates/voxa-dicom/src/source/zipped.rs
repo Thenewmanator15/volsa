@@ -43,6 +43,19 @@ impl ZipSource {
         let mut entry = self.archive.by_index(at).map_err(archive_error)?;
         read_limited(&mut entry, MAX_ENTRY_BYTES)
     }
+
+    /// Hand the entry at `at` to `visit` as `name`, refused first if it is too large to be
+    /// read whole.
+    fn visit_one(
+        &mut self,
+        name: &str,
+        at: usize,
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        let mut entry = self.archive.by_index(at).map_err(archive_error)?;
+        within_limit(entry.size(), MAX_ENTRY_BYTES)?;
+        visit(name, &mut entry)
+    }
 }
 
 /// How an archive was opened.
@@ -141,10 +154,30 @@ impl SeriesSource for ZipSource {
         &mut self,
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
     ) -> Result<(), VoxaError> {
-        for (name, at) in self.files.iter() {
-            let mut entry = self.archive.by_index(*at).map_err(archive_error)?;
-            within_limit(entry.size(), MAX_ENTRY_BYTES)?;
-            visit(name, &mut entry)?;
+        let files = Arc::clone(&self.files);
+        for (name, at) in files.iter() {
+            self.visit_one(name, *at, visit)?;
+        }
+        Ok(())
+    }
+
+    fn names(&mut self) -> Option<Vec<String>> {
+        Some(self.files.iter().map(|(name, _)| name.clone()).collect())
+    }
+
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        let files = Arc::clone(&self.files);
+        for name in names {
+            let found = files.binary_search_by(|(known, _)| known.as_str().cmp(name));
+            let (name, at) = found
+                .ok()
+                .and_then(|i| files.get(i))
+                .ok_or_else(|| VoxaError::MissingEntry(name.clone()))?;
+            self.visit_one(name, *at, visit)?;
         }
         Ok(())
     }

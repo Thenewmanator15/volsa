@@ -8,9 +8,10 @@ use crate::decode::unreadable;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
-use crate::header::{Header, Told, read_header_from};
-use crate::source::{MAX_ENTRY_BYTES, SeriesSource};
+use crate::header::{Header, Told};
+use crate::source::SeriesSource;
 
+mod threads;
 mod volumes;
 
 /// A gap further than this fraction from the typical gap makes a stack uneven.
@@ -67,22 +68,29 @@ pub fn index(
 ) -> Result<Index, VoxaError> {
     let mut found = Found::default();
     let mut seen = 0;
-    source.visit_files(&mut |name, contents| {
-        let at = seen;
-        seen += 1;
-        if is_directory_file(name) {
-            return Ok(());
+    if let Some(runs) = threads::read_on_threads(source) {
+        // Read on several threads; taken in here in name order, as if read in turn.
+        for (read, error) in runs {
+            for (name, read) in read {
+                if found.take(name, read, seen) {
+                    on_progress(&found.index());
+                }
+                seen += 1;
+            }
+            if let Some(error) = error {
+                return Err(error);
+            }
         }
-        let Some(header) = read_header_from(contents, MAX_ENTRY_BYTES)? else {
-            found.skipped.push(name.to_owned());
-            return Ok(());
-        };
-        let starts_a_series = found.add(name.to_owned(), header);
-        if starts_a_series || at % REPORT_EVERY == 0 {
-            on_progress(&found.index());
-        }
-        Ok(())
-    })?;
+    } else {
+        source.visit_files(&mut |name, contents| {
+            let read = threads::read_one(name, contents)?;
+            if found.take(name.to_owned(), read, seen) {
+                on_progress(&found.index());
+            }
+            seen += 1;
+            Ok(())
+        })?;
+    }
     let finished = found.index();
     on_progress(&finished);
     Ok(finished)
@@ -373,5 +381,7 @@ mod reading_tests;
 mod scan_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threads_tests;
 #[cfg(test)]
 mod volumes_tests;

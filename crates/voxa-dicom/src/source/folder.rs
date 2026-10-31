@@ -85,9 +85,29 @@ impl SeriesSource for FolderSource {
         visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
     ) -> Result<(), VoxaError> {
         for (name, path) in self.files.iter() {
-            let mut file = File::open(path)?;
-            within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
-            visit(name, &mut file)?;
+            visit_one(name, path, visit)?;
+        }
+        Ok(())
+    }
+
+    fn names(&mut self) -> Option<Vec<String>> {
+        Some(self.files.iter().map(|(name, _)| name.clone()).collect())
+    }
+
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+    ) -> Result<(), VoxaError> {
+        for name in names {
+            let found = self
+                .files
+                .binary_search_by(|(known, _)| known.as_str().cmp(name));
+            let (name, path) = found
+                .ok()
+                .and_then(|at| self.files.get(at))
+                .ok_or_else(|| VoxaError::MissingEntry(name.clone()))?;
+            visit_one(name, path, visit)?;
         }
         Ok(())
     }
@@ -97,4 +117,15 @@ impl SeriesSource for FolderSource {
             files: Arc::clone(&self.files),
         }))
     }
+}
+
+/// Hand one file to `visit`, refused first if it is too large to be read whole.
+fn visit_one(
+    name: &str,
+    path: &Path,
+    visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
+) -> Result<(), VoxaError> {
+    let mut file = File::open(path)?;
+    within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
+    visit(name, &mut file)
 }
