@@ -132,7 +132,7 @@ fn narrowed(value: f64) -> f32 {
 /// a number, which [`Scale::apply`] makes 0.
 pub fn outside_value(outside: Outside, stats: &Statistics) -> f32 {
     match outside {
-        Outside::Lowest => stats.lowest,
+        Outside::Lowest => stats.scan_lowest,
         Outside::Zero => f32::NAN,
     }
 }

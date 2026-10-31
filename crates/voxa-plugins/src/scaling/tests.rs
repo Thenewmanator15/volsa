@@ -205,3 +205,21 @@ fn percentiles_are_numpys_exactly_when_each_value_has_its_own_bin() {
     assert!((percentile(&stats, 98.0) - 97.02).abs() < 1e-9);
     assert!((percentile(&stats, 50.0) - 49.5).abs() < 1e-9);
 }
+
+#[test]
+fn above_zero_the_surroundings_are_the_scans_lowest_and_are_not_counted() {
+    // Air at 0 and tissue at 4 and 8; the box is twice as long as the scan.
+    let volume = volume_of([2, 2, 2], |col, row, _| match (col, row) {
+        (0, 0) => 0.0,
+        (0, _) => 4.0,
+        _ => 8.0,
+    });
+    let grid = Grid::of(&volume, &input("LPS", [1.0; 3]));
+    let region = grid.whole_box([4, 2, 2]);
+    let stats = gather(&volume, &grid, Some(region), Voxels::AboveZero).expect("gathered");
+    // The six voxels above 0 count; the air and the eight voxels around the scan do not.
+    assert_eq!(stats.count, 6);
+    assert!((stats.mean - 20.0 / 3.0).abs() < 1e-9, "{}", stats.mean);
+    // Around the scan is the scan's lowest value, 0, not the lowest counted, 4.
+    assert_eq!(outside_value(Outside::Lowest, &stats), 0.0);
+}

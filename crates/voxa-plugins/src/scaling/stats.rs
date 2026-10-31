@@ -28,6 +28,9 @@ pub struct Statistics {
     pub lowest: f32,
     /// The highest value counted; 0 when none was.
     pub highest: f32,
+    /// The lowest value of the scan, whether it counted or not: what lies around it; 0 when
+    /// the scan has no value.
+    pub scan_lowest: f32,
     /// How many values were counted.
     pub count: u64,
     /// Their mean.
@@ -58,13 +61,15 @@ pub fn gather(
         Voxels::AboveZero => value > 0.0,
     };
     let first = first_pass(volume, grid, region, &counts)?;
-    let surroundings = if over.is_some() && counts(first.lowest) {
+    // The surroundings are the scan's lowest value, and count only if that value does (it is
+    // then also the lowest counted).
+    let surroundings = if over.is_some() && counts(first.scan_lowest) {
         first.outside
     } else {
         0
     };
     let count = first.count + surroundings;
-    let sum = first.sum + surroundings as f64 * f64::from(first.lowest);
+    let sum = first.sum + surroundings as f64 * f64::from(first.scan_lowest);
     let mean = if count == 0 { 0.0 } else { sum / count as f64 };
     let (bins, squares) = second_pass(volume, grid, region, &counts, &first, mean, surroundings)?;
     let sd = if count == 0 {
@@ -75,6 +80,7 @@ pub fn gather(
     Ok(Statistics {
         lowest: first.lowest,
         highest: first.highest,
+        scan_lowest: first.scan_lowest,
         count,
         mean,
         sd,
@@ -91,6 +97,8 @@ struct First {
     lowest: f32,
     /// The highest counted; 0 when none was.
     highest: f32,
+    /// The lowest of every value, counted or not; 0 when there was none.
+    scan_lowest: f32,
     /// Their sum.
     sum: f64,
     /// How many voxels lay outside the scan.
@@ -109,11 +117,16 @@ fn first_pass(
 ) -> Result<First, RunError> {
     let (mut count, mut lowest, mut highest, mut sum) =
         (0_u64, f32::INFINITY, f32::NEG_INFINITY, 0.0);
-    let mut outside = 0_u64;
+    let (mut outside, mut scan_lowest) = (0_u64, f32::INFINITY);
     let largest_slab = slabs(volume, grid, region, &mut |value| {
         if value == SURROUNDINGS {
             outside += 1;
-        } else if value.is_finite() && counts(value) {
+            return;
+        }
+        if value.is_finite() {
+            scan_lowest = scan_lowest.min(value);
+        }
+        if value.is_finite() && counts(value) {
             count += 1;
             lowest = lowest.min(value);
             highest = highest.max(value);
@@ -123,10 +136,14 @@ fn first_pass(
     if count == 0 {
         (lowest, highest) = (0.0, 0.0);
     }
+    if !scan_lowest.is_finite() {
+        scan_lowest = 0.0;
+    }
     Ok(First {
         count,
         lowest,
         highest,
+        scan_lowest,
         sum,
         outside,
         largest_slab,
@@ -166,7 +183,7 @@ fn second_pass(
         }
     })?;
     for _ in 0..surroundings {
-        add(f64::from(first.lowest));
+        add(f64::from(first.scan_lowest));
     }
     Ok((bins, squares))
 }
@@ -219,6 +236,7 @@ impl Statistics {
         Self {
             lowest: 0.0,
             highest: 0.0,
+            scan_lowest: 0.0,
             count: 0,
             mean: 0.0,
             sd: 0.0,
