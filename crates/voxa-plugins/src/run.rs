@@ -13,22 +13,22 @@ use voxa_core::Volume;
 use voxa_labels::{LabelGrid, Table};
 use voxa_models::{Device, RunError, Stop, Supported};
 
-use crate::accepts::in_mm;
 use crate::finish::FinishError;
 use crate::helper::{Client, HelperError, OpenJob, Where};
 use crate::{
     BlockPlan, DescribeError, Description, Fit, Fits, Grid, HelperStarter, Input, LabelMap,
     LabelOutput, Measured, Output, Outside, Over, PluginError, Region, Scale, ScaleError, Scaling,
-    Statistics, Wiring, check_folder, gather, outside_value, overhang_mm, read_measured, sample,
-    spacing_note, voxels_of,
+    Statistics, Wiring, check_folder, gather, outside_value, read_measured, sample, voxels_of,
 };
 
 #[cfg(test)]
 mod tests;
 
-/// The note on a result made in blocks.
-pub const BLOCKS_NOTE: &str =
-    "Run in blocks: near the edges between blocks, labels may differ from the model's own program.";
+mod notes;
+
+pub use notes::BLOCKS_NOTE;
+use notes::notes;
+
 /// How often a run looks at its stop.
 const LOOK_EVERY: Duration = Duration::from_millis(50);
 
@@ -374,31 +374,4 @@ fn run_blocks(
         map.put(start, prepared.block, owned, &labels);
     }
     Ok(())
-}
-
-/// What a reader should know of how the labels were made: the spacing the plugin was made for,
-/// what a whole box left out, and that blocks were used.
-fn notes(description: &Description, prepared: &Prepared, volume: &Volume) -> Vec<String> {
-    let mut notes = Vec::new();
-    notes.extend(spacing_note(
-        volume.spacing_mm(),
-        description.accepts.thickest_mm,
-    ));
-    if prepared.plan.is_some() {
-        notes.push(BLOCKS_NOTE.to_owned());
-    } else if let Some(overhang) = overhang_mm(&prepared.grid, prepared.region) {
-        let spacing = description.input.spacing_mm;
-        let sides: Vec<String> = prepared
-            .block
-            .iter()
-            .zip(spacing)
-            .map(|(side, mm)| in_mm(*side as f64 * mm))
-            .collect();
-        notes.push(format!(
-            "The plugin's box of {} mm left out part of the scan, up to {} mm beyond the box.",
-            sides.join(" × "),
-            in_mm(overhang)
-        ));
-    }
-    notes
 }
