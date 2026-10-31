@@ -170,3 +170,32 @@ fn nothing_typed_is_kept() {
         assert!(!key.contains("search") && !key.contains("query"), "{key}");
     }
 }
+
+#[test]
+fn labelling_is_found_by_search_and_runs_as_the_button_does() {
+    use super::entries::entries_for;
+    use super::matching::ranked;
+    use crate::ui::tabs::made_up::{able, sweep_tools};
+    let state = able();
+    let entries = entries_for(&state);
+    let labelling = Target::Command("tools.label");
+    for query in ["Label this brain scan", "segment", "synthseg", "parts"] {
+        let top = ranked(query, &entries);
+        let among_first_eight = top
+            .iter()
+            .take(8)
+            .any(|&at| entries[at].target == labelling);
+        assert!(among_first_eight, "{query:?} does not find the labelling");
+    }
+    // Choosing it asks the window for what the button in the Tools tab asks it for.
+    let (actions, asked) = ran(&labelling, &state);
+    let (_, button_asked) = sweep_tools(&state);
+    assert_eq!((actions, asked), (vec![], Some(Request::LabelScan)));
+    assert_eq!(button_asked, [Request::LabelScan]);
+    // Where the scan cannot be labelled it says so in a notice and asks for nothing.
+    let (actions, asked) = ran(&labelling, &AppState::default());
+    assert_eq!(asked, None);
+    assert!(
+        matches!(actions.as_slice(), [Action::Post(notice)] if notice.text.contains("cannot label"))
+    );
+}

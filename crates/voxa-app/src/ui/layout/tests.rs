@@ -114,32 +114,58 @@ fn sweep(large: MainPanel, column: ColumnShows, there_is_3d: bool) -> Vec<Action
 }
 
 #[test]
-fn with_the_scene_large_the_strip_has_a_tab_for_slices_planes_and_parts() {
+fn with_the_scene_large_the_strip_has_a_tab_for_slices_and_one_for_planes() {
     let (slices, planes) = (ColumnShows::Slices, ColumnShows::Planes);
-    let parts = Action::SetColumn(ColumnShows::Parts);
     assert_eq!(
         sweep(MainPanel::Scene, slices, true),
-        [
-            Action::SetColumn(planes),
-            parts.clone(),
-            Action::SetMain(MainPanel::Stack)
-        ],
-        "the tabs not shown, then Enlarge for the slices"
+        [Action::SetColumn(planes), Action::SetMain(MainPanel::Stack)],
+        "the tab not shown, then Enlarge for the slices"
     );
     assert_eq!(
         sweep(MainPanel::Scene, planes, true),
         [
             Action::SetColumn(slices),
-            parts,
             Action::SetMain(MainPanel::Planes)
         ],
         "Enlarge gives the planes the large part"
     );
-    assert_eq!(
-        sweep(MainPanel::Scene, ColumnShows::Parts, true),
-        [Action::SetColumn(slices), Action::SetColumn(planes)],
-        "a list has nothing to enlarge"
-    );
+}
+
+/// Everything the strip writes.
+fn words(large: MainPanel, column: ColumnShows) -> Vec<String> {
+    let ctx = egui::Context::default();
+    let strip = Rect::from_min_size(pos2(0.0, 0.0), vec2(360.0, 24.0));
+    let mut output = ctx.run_ui(RawInput::default(), |ui| {
+        header(ui, strip, (large, column), true, &mut Vec::new());
+    });
+    output.textures_delta.clear();
+    let mut said = Vec::new();
+    let mut shapes: Vec<&egui::Shape> =
+        output.shapes.iter().map(|clipped| &clipped.shape).collect();
+    while let Some(shape) = shapes.pop() {
+        match shape {
+            egui::Shape::Text(text) => said.push(text.galley.text().to_owned()),
+            egui::Shape::Vec(more) => shapes.extend(more),
+            _ => {}
+        }
+    }
+    said
+}
+
+#[test]
+fn the_labelled_parts_are_a_tab_of_the_panel_and_not_a_tab_of_the_strip() {
+    for large in [MainPanel::Scene, MainPanel::Planes, MainPanel::Stack] {
+        for column in [ColumnShows::Slices, ColumnShows::Planes] {
+            let said = words(large, column);
+            assert!(
+                !said.iter().any(|word| word == "Parts"),
+                "{large:?}: {said:?}"
+            );
+        }
+    }
+    let said = words(MainPanel::Scene, ColumnShows::Slices);
+    assert!(said.iter().any(|word| word == "Slices"), "{said:?}");
+    assert!(said.iter().any(|word| word == "Planes"), "{said:?}");
 }
 
 #[test]
@@ -149,19 +175,15 @@ fn the_button_on_the_column_gives_what_it_shows_the_large_part() {
         sweep(MainPanel::Stack, slices, true),
         [Action::SetMain(MainPanel::Scene)]
     );
-    let parts = Action::SetColumn(ColumnShows::Parts);
     assert_eq!(
         sweep(MainPanel::Planes, slices, true),
-        [parts.clone(), Action::SetMain(MainPanel::Stack)]
+        [Action::SetMain(MainPanel::Stack)],
+        "with the planes large the column holds the slices and has no tab to choose"
     );
     assert_eq!(
         sweep(MainPanel::Planes, ColumnShows::Planes, true),
-        [parts, Action::SetMain(MainPanel::Stack)],
-        "with the planes large the column holds the slices, or the parts"
-    );
-    assert_eq!(
-        sweep(MainPanel::Planes, ColumnShows::Parts, true),
-        [Action::SetColumn(slices)]
+        [Action::SetMain(MainPanel::Stack)],
+        "a column that was showing the planes shows the slices"
     );
 }
 
@@ -211,18 +233,6 @@ fn each_kind_of_view_is_given_its_part_of_the_window() {
     let with_planes = areas(MainPanel::Scene, planes, main, side);
     assert_eq!((with_planes.scene, with_planes.slices), (main, None));
     assert_eq!(with_planes.planes, Some(stacked(side)));
-    let listed = areas(MainPanel::Scene, ColumnShows::Parts, main, side);
-    assert_eq!((listed.scene, listed.parts), (main, Some(side)));
-    assert_eq!((listed.slices, listed.planes), (None, None));
-    let beside_the_planes = areas(MainPanel::Planes, ColumnShows::Parts, main, side);
-    assert_eq!(
-        (beside_the_planes.parts, beside_the_planes.slices),
-        (Some(side), None)
-    );
-    assert_eq!(
-        areas(MainPanel::Stack, ColumnShows::Parts, main, side).parts,
-        None
-    );
     for column in [slices, planes] {
         let stack_large = areas(MainPanel::Stack, column, main, side);
         assert_eq!(

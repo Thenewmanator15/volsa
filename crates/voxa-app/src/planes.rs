@@ -34,8 +34,6 @@ pub enum ColumnShows {
     Slices,
     /// The axial, coronal and sagittal planes through the position.
     Planes,
-    /// The list of labelled parts.
-    Parts,
 }
 
 /// The plane views.

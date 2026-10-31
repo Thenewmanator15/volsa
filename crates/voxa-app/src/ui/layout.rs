@@ -13,7 +13,7 @@ const LEAST_SHARE: f32 = 0.15;
 /// The most of the width the column may take, so that the large part keeps two fifths.
 const MOST_SHARE: f32 = 0.6;
 /// The least the column is given while that is no more than half the width: what the
-/// strip along its top needs for three tabs and a button.
+/// strip along its top needs for two tabs and a button.
 const LEAST_COLUMN: f32 = 260.0;
 /// The height of the strip along the top of the column, which says what the column shows and
 /// holds the button that enlarges it.
@@ -71,8 +71,6 @@ pub struct Areas {
     pub planes: Option<[Rect; 3]>,
     /// The 2D viewports, when they are shown.
     pub slices: Option<Rect>,
-    /// The list of labelled parts, when it is shown.
-    pub parts: Option<Rect>,
 }
 
 /// Give the large part and the column to what is shown. With the 3D scene large the column
@@ -85,34 +83,23 @@ pub fn areas(large: MainPanel, column: ColumnShows, main: Rect, side: Rect) -> A
             scene: main,
             planes: None,
             slices: Some(side),
-            parts: None,
-        },
-        (MainPanel::Scene, ColumnShows::Parts) => Areas {
-            scene: main,
-            planes: None,
-            slices: None,
-            parts: Some(side),
         },
         (MainPanel::Scene, ColumnShows::Planes) => Areas {
             scene: main,
             planes: Some(stacked(side)),
             slices: None,
-            parts: None,
         },
         (MainPanel::Stack, _) => Areas {
             scene: side,
             planes: None,
             slices: Some(main),
-            parts: None,
         },
         (MainPanel::Planes, _) => {
             let [axial, sagittal, coronal, scene] = quad(main);
-            let listed = column == ColumnShows::Parts;
             Areas {
                 scene,
                 planes: Some([axial, coronal, sagittal]),
-                slices: (!listed).then_some(side),
-                parts: listed.then_some(side),
+                slices: Some(side),
             }
         }
     }
@@ -164,26 +151,22 @@ pub fn header(
     there_is_3d: bool,
     actions: &mut Vec<Action>,
 ) {
-    // A list has nothing to enlarge.
     let enlarged = match (large, column) {
-        (MainPanel::Scene | MainPanel::Planes, ColumnShows::Parts) => None,
-        (MainPanel::Scene, ColumnShows::Planes) => Some(MainPanel::Planes),
-        (MainPanel::Scene | MainPanel::Planes, _) => Some(MainPanel::Stack),
-        (MainPanel::Stack, _) => Some(MainPanel::Scene),
+        (MainPanel::Scene, ColumnShows::Planes) => MainPanel::Planes,
+        (MainPanel::Scene | MainPanel::Planes, _) => MainPanel::Stack,
+        (MainPanel::Stack, _) => MainPanel::Scene,
     };
     let inside = strip.shrink2(vec2(4.0, 0.0));
     let mut strip = ui.new_child(UiBuilder::new().max_rect(inside));
     strip.with_layout(Layout::right_to_left(Align::Center), |ui| {
-        if let Some(enlarged) = enlarged {
-            let can = there_is_3d || large != MainPanel::Stack;
-            let enlarge = ui.add_enabled(can, egui::Button::new("Enlarge").small());
-            let enlarge = enlarge.on_disabled_hover_text("This series has no 3D view to enlarge");
-            if enlarge
-                .on_hover_text("Give this the large part of the window")
-                .clicked()
-            {
-                actions.push(Action::SetMain(enlarged));
-            }
+        let can = there_is_3d || large != MainPanel::Stack;
+        let enlarge = ui.add_enabled(can, egui::Button::new("Enlarge").small());
+        let enlarge = enlarge.on_disabled_hover_text("This series has no 3D view to enlarge");
+        if enlarge
+            .on_hover_text("Give this the large part of the window")
+            .clicked()
+        {
+            actions.push(Action::SetMain(enlarged));
         }
         ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
             shown_in_the_column(ui, large, column, actions);
@@ -191,9 +174,9 @@ pub fn header(
     });
 }
 
-/// Say what the column shows, as tabs to choose between where there is a choice: the
-/// slices, the planes or the parts with the 3D scene large; the slices or the parts with
-/// the planes large, where a column that was showing the planes shows the slices.
+/// Say what the column shows, as tabs to choose between where there is a choice: the slices
+/// or the planes with the 3D scene large. With the slices large the column holds the scene,
+/// and with the planes large it holds the slices; there is nothing to choose then.
 fn shown_in_the_column(
     ui: &mut Ui,
     large: MainPanel,
@@ -206,21 +189,16 @@ fn shown_in_the_column(
         "Planes",
         "Axial, coronal and sagittal planes through one point",
     );
-    let parts = (
-        ColumnShows::Parts,
-        "Parts",
-        "The labelled parts of the head, from a file of labels",
-    );
-    let (tabs, column) = match large {
-        MainPanel::Stack => {
-            ui.label(RichText::new("3D").small().color(theme::QUIET_TEXT));
-            return;
-        }
-        MainPanel::Scene => (vec![slices, planes, parts], column),
-        MainPanel::Planes if column == ColumnShows::Parts => (vec![slices, parts], column),
-        MainPanel::Planes => (vec![slices, parts], ColumnShows::Slices),
+    let alone = match large {
+        MainPanel::Stack => Some("3D"),
+        MainPanel::Planes => Some("Slices"),
+        MainPanel::Scene => None,
     };
-    for (shows, name, hover) in tabs {
+    if let Some(name) = alone {
+        ui.label(RichText::new(name).small().color(theme::QUIET_TEXT));
+        return;
+    }
+    for (shows, name, hover) in [slices, planes] {
         let tab = ui.selectable_label(column == shows, RichText::new(name).small());
         if tab.on_hover_text(hover).clicked() && column != shows {
             actions.push(Action::SetColumn(shows));

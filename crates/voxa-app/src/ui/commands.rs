@@ -11,6 +11,7 @@ use egui::{Button, Key, Ui};
 
 use super::keys::Held;
 pub use super::panel::Tab;
+use super::parts::Asked;
 use super::scene::export;
 use super::tabs::Save;
 use super::theme::ThemeChoice;
@@ -145,6 +146,11 @@ pub enum Request {
     SaveScene(export::Asked),
     /// To open a file of labels.
     OpenLabels,
+    /// To choose a file the labels or their labelling need, or where to save them.
+    Choose(Asked),
+    /// To label the scan in the scene with Voxa's own networks, told how much of the graphics
+    /// card the window holds itself, which only the window can say.
+    LabelScan,
     /// To show the files that are not scans.
     #[expect(dead_code, reason = "Task 11 adds the other files")]
     ShowOtherFiles,

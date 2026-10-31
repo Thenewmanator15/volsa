@@ -1,54 +1,58 @@
 //! What each tab of the panel at the right of the window holds, and the window's way of
 //! drawing the panel with the tab that is open.
 //!
-//! The View, Measure and 3D tabs are here in full. Labels and Tools still have their content
-//! elsewhere, until Task 8 brings it in; each says where.
+//! Each of the five tabs is in a file of its own.
 
 use egui::{Rect, RichText, Ui};
 
 use super::commands::{self, Request};
 use super::panel::{self, Tab};
+use super::parts::PartsView;
 use super::{VoxaApp, shares, theme};
 use crate::action::Action;
 use crate::state::AppState;
+use crate::tools::ToolInfo;
 
+mod labels;
+#[cfg(test)]
+pub(super) mod made_up;
 mod measure;
 mod scene;
+mod tools;
 mod view;
 
 pub use measure::{MeasureTab, NO_VOLUME, NOTHING_MEASURED, Save, save as save_measurements};
 pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
+pub use tools::{LABEL_BUTTON, LABEL_TOOL};
 pub use view::{LINK_SAYS, SMOOTH_SAYS};
 
-/// What the Labels tab says until the labelled parts are in it.
-const LABELS_ELSEWHERE: &str =
-    "The labelled parts are in the Parts tab above the column of pictures for now.";
-/// What the Tools tab says until labelling a scan is in it.
-const TOOLS_ELSEWHERE: &str =
-    "Labelling a scan is in the Parts tab above the column of pictures for now.";
+/// What the tabs keep between frames.
+#[derive(Debug, Default)]
+pub struct Kept {
+    /// What the Measure tab keeps: the name being typed.
+    pub measuring: MeasureTab,
+    /// What the Labels tab keeps: the search typed, and the group to scroll to.
+    pub parts: PartsView,
+}
 
-/// Draw what `tab` holds. `measuring` is what the Measure tab keeps between frames. Changes of
-/// state go onto `actions`; what its buttons ask of the window is given back.
+/// Draw what `tab` holds. `kept` is what the tabs keep between frames. Changes of state go onto
+/// `actions`; what its buttons ask of the window is given back.
 pub fn show(
     ui: &mut Ui,
     tab: Tab,
     state: &AppState,
-    measuring: &mut MeasureTab,
+    kept: &mut Kept,
     actions: &mut Vec<Action>,
 ) -> Vec<Request> {
+    // The tools added by the person: the plugin engine fills this list once there is one.
+    let added: &[ToolInfo] = &[];
     match tab {
         Tab::View => view::show(ui, state, actions),
         Tab::Scene => scene::show(ui, state, actions),
-        Tab::Measure => measure::show(ui, state, measuring, actions),
-        Tab::Labels => elsewhere(ui, LABELS_ELSEWHERE),
-        Tab::Tools => elsewhere(ui, TOOLS_ELSEWHERE),
+        Tab::Measure => measure::show(ui, state, &mut kept.measuring, actions),
+        Tab::Labels => labels::show(ui, state, &mut kept.parts, actions),
+        Tab::Tools => tools::show(ui, state, added, actions),
     }
-}
-
-/// A tab whose content is not in it yet: one line that says where it is today.
-fn elsewhere(ui: &mut Ui, says: &str) -> Vec<Request> {
-    ui.label(RichText::new(says).color(theme::QUIET_TEXT));
-    Vec::new()
 }
 
 /// The small heading above a group of controls in a tab.
@@ -88,8 +92,8 @@ impl VoxaApp {
     /// is while it is open, for its left edge to be dragged.
     pub(super) fn tab_panel(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) -> Option<Rect> {
         let state = self.session.state();
-        let measuring = &mut self.measure;
-        let tab_in = |ui: &mut Ui, tab| show(ui, tab, state, measuring, actions);
+        let kept = &mut self.tabs;
+        let tab_in = |ui: &mut Ui, tab| show(ui, tab, state, kept, actions);
         let shown = panel::show(ui, &mut self.screen.panel, state, tab_in);
         for request in shown.requests {
             self.ask(ui.ctx(), request);

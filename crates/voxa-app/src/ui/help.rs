@@ -32,11 +32,11 @@ pub const MOUSE: [(&str, &str); 14] = [
         "Select it. Rest the pointer on a part for its name",
     ),
     (
-        "Click Label this scan, in the Parts tab",
+        "Click Label this scan, in the Tools tab",
         "Label the scan with Voxa's own networks. The menu beside it chooses how",
     ),
     (
-        "Click Stop, in the Parts tab",
+        "Click Stop, in the Tools tab",
         "Stop labelling the scan now. No labels are made",
     ),
 ];
@@ -184,10 +184,12 @@ mod tests {
         let label = MOUSE
             .iter()
             .find(|(input, _)| input.contains("Label this scan"));
-        let (_, does) = label.expect("what the button that labels does is listed");
+        let (where_it_is, does) = label.expect("what the button that labels does is listed");
+        assert!(where_it_is.ends_with("in the Tools tab"), "{where_it_is}");
         assert!(does.contains("Voxa's own networks"), "{does}");
         let stop = MOUSE.iter().find(|(input, _)| input.contains("Stop"));
-        let (_, does) = stop.expect("what Stop does is listed");
+        let (where_it_is, does) = stop.expect("what Stop does is listed");
+        assert!(where_it_is.ends_with("in the Tools tab"), "{where_it_is}");
         assert!(does.contains("Stop labelling"), "{does}");
         let in_3d = MOUSE
             .iter()

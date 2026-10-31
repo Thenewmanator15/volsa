@@ -10,11 +10,19 @@ use super::theme;
 pub struct Seen {
     /// Every piece of text, in the order it was painted.
     pub words: Vec<String>,
+    /// Where each piece of text was painted, in the same order.
+    pub placed: Vec<Rect>,
     /// What a screen reader is told of each widget that has a name, and where it is.
     pub names: Vec<(String, Rect)>,
 }
 
 impl Seen {
+    /// Where the first piece of text that is `text` was painted, if there is one.
+    pub fn text_bounds(&self, text: &str) -> Option<Rect> {
+        let at = self.words.iter().position(|word| word == text)?;
+        self.placed.get(at).copied()
+    }
+
     /// Where the widget a screen reader calls `name` is, if one is.
     pub fn bounds_of(&self, name: &str) -> Option<Rect> {
         let named = self.names.iter().find(|(one, _)| one == name);
@@ -33,10 +41,14 @@ pub struct Hand {
     size: Vec2,
 }
 
-/// The words written by a shape and the shapes within it.
-fn words_of(shape: &egui::Shape, into: &mut Vec<String>) {
+/// The words written by a shape and the shapes within it, and where they were painted.
+fn words_of(shape: &egui::Shape, into: &mut Seen) {
     match shape {
-        egui::Shape::Text(text) => into.push(text.galley.text().to_owned()),
+        egui::Shape::Text(text) => {
+            into.words.push(text.galley.text().to_owned());
+            let at = Rect::from_min_size(text.pos, text.galley.size());
+            into.placed.push(at);
+        }
         egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| words_of(shape, into)),
         _ => {}
     }
@@ -76,7 +88,7 @@ impl Hand {
         output.textures_delta.clear();
         let mut seen = Seen::default();
         for clipped in &output.shapes {
-            words_of(&clipped.shape, &mut seen.words);
+            words_of(&clipped.shape, &mut seen);
         }
         let update = output.platform_output.accesskit_update.into_iter();
         for (_, node) in update.flat_map(|update| update.nodes) {

@@ -34,6 +34,8 @@ fn measured_twice() -> AppState {
 #[derive(Default)]
 struct Kept {
     tab: MeasureTab,
+    /// What every tab keeps, for the panel drawn whole.
+    all: super::super::Kept,
     actions: Vec<Action>,
     requests: Vec<Request>,
     /// How far down and across the contents reached in the last pass.
@@ -286,7 +288,7 @@ fn frame(
         drew.requests = keys::answered(ui.ctx(), state).1;
         let contents = |ui: &mut Ui, tab: Tab| {
             let mut actions = Vec::new();
-            super::super::show(ui, tab, state, &mut kept.tab, &mut actions)
+            super::super::show(ui, tab, state, &mut kept.all, &mut actions)
         };
         let _ = panel::show(ui, panel, state, contents);
         drew.layers = ui

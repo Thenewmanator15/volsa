@@ -28,16 +28,18 @@ use labelling::Run;
 
 mod labelling;
 mod measured;
+mod tabs;
 
 pub use labelling::made_up_look;
 pub use measured::sample_annotations;
+pub use tabs::tab_asked;
 
 /// The environment variable naming the file to save.
 pub const VARIABLE: &str = "VOXA_CAPTURE";
 /// The environment variable naming what to have in the picture, separated by commas: the
-/// windows `tags`, `keys` and `about`, `measure` for the Measure tab open in the panel, for the 3D scene `vr` or `mip`, `turned`, `cut` and
+/// windows `tags`, `keys` and `about`, `measure`, `labelling` and `parts` for the Measure, Tools and Labels tab open in the panel, for the 3D scene `vr` or `mip`, `turned`, `cut` and
 /// `slice`, `planes` for the plane views in the column or `quad` for them large, `measured`
-/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Parts tab as it is on a computer that can label (with `parts`), and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
+/// for one of each kind of annotation in the axial plane, `first` for the first series listed in place of the one Voxa opens itself, `stepped` for the next volume of a series that holds several, `labelling` for the strip in the Tools tab as it is on a computer that can label, and `labelled` for a result that Voxa makes itself: the picture starts a run and waits for it, `nolist` for the series list hidden however wide the window is, and `fitted` for the window fitted to the screen as it is when Voxa starts with no size remembered, in place of the size asked for.
 pub const SHOW_VARIABLE: &str = "VOXA_CAPTURE_SHOW";
 /// The environment variable giving words from the description of the series to show in
 /// place of the one Voxa opens itself: the first listed whose description holds them.
@@ -115,7 +117,6 @@ pub fn pose(wanted: &str) -> Vec<Action> {
         ("slice", Action::ShowSliceInScene(true)),
         ("planes", Action::SetColumn(ColumnShows::Planes)),
         ("quad", Action::SetMain(MainPanel::Planes)),
-        ("parts", Action::SetColumn(ColumnShows::Parts)),
         ("filled", Action::SetOverlay(voxa_render::Overlay::Filled)),
         ("smooth", Action::SetSmooth(true)),
         ("stepped", Action::StepVolume { viewport: 0, by: 1 }),

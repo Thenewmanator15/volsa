@@ -1,49 +1,22 @@
-//! The strip at the top of the Parts tab: what it shows in each state, and what each of its
-//! buttons and menu entries asks for, found by clicking all over the tab as its list is swept.
+//! The strip in the Tools tab: what it shows in each state, and what each of its buttons and
+//! menu entries asks for, found by clicking every button of the tab.
 
 use std::path::PathBuf;
 
+use egui::Ui;
 use voxa_labels::{Made, Verdict};
-use voxa_models::{Card, CardId, CardKind};
 use voxa_segment::Stage;
 
-use super::super::tests::{Shown, labelled_by, named, pass, sweep_with, written};
-use super::super::{Asked, MADE_ELSEWHERE};
 use super::*;
 use crate::labelling::{LabellingAction, Ready, can_label, what_will_run};
 use crate::labels::NamesFrom;
 use crate::reducer::reduce;
 use crate::testing::thick_scan_ready;
-
-/// Bytes of the graphics card the window holds, as the strip is told.
-pub(super) const HELD: u64 = 1 << 30;
-
-pub(super) fn card(number: u64, name: &str, kind: CardKind) -> Card {
-    Card {
-        id: CardId(number),
-        index: u32::try_from(number).expect("a small number"),
-        name: name.to_owned(),
-        kind,
-        own_bytes: 8 << 30,
-    }
-}
-
-/// An integrated card, a discrete one and a software one.
-pub(super) fn cards() -> Vec<Card> {
-    vec![
-        card(1, "Made-up shared graphics", CardKind::Integrated),
-        card(2, "Made-up card A", CardKind::Discrete),
-        card(3, "Made-up software renderer", CardKind::Software),
-    ]
-}
-
-/// The 30-slice series with its volume built, on a computer that can label, with no labels.
-pub(super) fn able() -> AppState {
-    let mut state = thick_scan_ready();
-    state.labelling.ready = Ready::Yes;
-    state.labelling.cards = cards();
-    state
-}
+use crate::ui::commands::Request;
+use crate::ui::parts::Asked;
+use crate::ui::tabs::made_up::{
+    able, cards, labelled_by, named, once, screen, sweep_tools, tools_written,
+};
 
 /// Who made labels: Voxa, with a model, on a card, on a day, and two notes.
 pub(super) fn by_voxa() -> Made {
@@ -83,33 +56,40 @@ pub(super) fn act(action: LabellingAction) -> Action {
     Action::Labelling(action)
 }
 
-pub(super) fn label_scan() -> Action {
-    act(LabellingAction::LabelScan { held: HELD })
+/// Whether what was asked of the window includes labelling the scan.
+pub(super) fn asks_to_label(requests: &[Request]) -> bool {
+    requests.contains(&Request::LabelScan)
 }
 
-pub(super) fn asks_to_label(actions: &[Action]) -> bool {
-    let is_it =
-        |action: &Action| matches!(action, Action::Labelling(LabellingAction::LabelScan { .. }));
-    actions.iter().any(is_it)
+/// Click every button of the Tools tab with the strip's menu held open.
+pub(super) fn swept_menu(state: &AppState) -> (Vec<Action>, Vec<Request>) {
+    let (hand, mut actions, mut requests) = (screen(), Vec::new(), Vec::new());
+    let mut draw = |ui: &mut Ui| {
+        egui::Popup::open_id(ui.ctx(), menu_id());
+        requests.extend(crate::ui::tabs::made_up::tools_tab()(
+            ui,
+            state,
+            &mut actions,
+        ));
+    };
+    // The menu is there to be clicked in from the second pass on.
+    let _ = hand.pass(Vec::new(), &mut draw);
+    hand.click_each(&mut draw);
+    (once(actions), once(requests))
 }
 
-/// Click all over the tab, told that the window holds `HELD` bytes of its card.
-pub(super) fn swept(state: &AppState) -> (Vec<Action>, Vec<Asked>) {
-    sweep_with(state, Shown::with(HELD, false))
-}
-
-/// As [`swept`], with the strip's menu held open.
-pub(super) fn swept_menu(state: &AppState) -> (Vec<Action>, Vec<Asked>) {
-    sweep_with(state, Shown::with(HELD, true))
-}
-
-/// What is written on the tab with the strip's menu open.
+/// What is written on the Tools tab with the strip's menu open.
 pub(super) fn menu_words(state: &AppState) -> String {
-    let mut shown = Shown::with(HELD, true);
-    for _ in 0..3 {
-        let _ = pass(&mut shown, state, Vec::new());
+    let hand = screen();
+    let mut draw = |ui: &mut Ui| {
+        egui::Popup::open_id(ui.ctx(), menu_id());
+        let _ = crate::ui::tabs::made_up::tools_tab()(ui, state, &mut Vec::new());
+    };
+    let mut seen = hand.pass(Vec::new(), &mut draw);
+    for _ in 0..2 {
+        seen = hand.pass(Vec::new(), &mut draw);
     }
-    shown.words
+    seen.words.join("\n")
 }
 
 pub(super) fn lines_of(words: &str) -> Vec<&str> {
@@ -124,27 +104,23 @@ pub(super) fn at(lines: &[&str], is: impl Fn(&str) -> bool) -> usize {
 }
 
 #[test]
-fn with_no_labels_open_the_button_and_what_it_will_do_are_the_top_of_the_tab() {
+fn with_no_labels_open_the_button_and_what_it_will_do_are_the_top_of_the_tool() {
     let state = able();
-    let (actions, _) = swept(&state);
+    let (actions, requests) = sweep_tools(&state);
     assert!(
-        actions.contains(&label_scan()),
-        "the button asks to label, with what the window holds of its card: {actions:?}"
+        asks_to_label(&requests),
+        "the button asks the window to label: {requests:?}"
     );
-    let said = written(&state);
+    let itself =
+        |action: &Action| matches!(action, Action::Labelling(LabellingAction::LabelScan { .. }));
+    assert!(!actions.iter().any(itself), "and does not label it itself");
+    let said = tools_written(&state);
     let lines = lines_of(&said);
+    let tool = at(&lines, |line| line == "Label this brain scan");
     let button = at(&lines, |line| line == "Label this scan");
     let line = at(&lines, |line| line == what_will_run(&state));
-    let first = at(&lines, |line| line.contains("Labels are parts"));
-    assert!(button < line && line < first, "in that order: {said}");
+    assert!(tool < button && button < line, "in that order: {said}");
     assert!(lines.contains(&"Options"), "{said}");
-    // What labels are is true of the labels Voxa makes as of those another program made.
-    assert_eq!(
-        lines[first],
-        "Labels are parts of the head outlined on this scan: by Voxa, when it labels the scan, \
-         or by another program, as a NIfTI file (.nii or .nii.gz) with a table of names beside \
-         it if it has one."
-    );
 }
 
 #[test]
@@ -160,9 +136,9 @@ fn where_labelling_cannot_run_the_button_is_greyed_and_the_sentence_says_why() {
     let unchecked = thick_scan_ready();
     for state in [missing, unchecked, reading] {
         let why = can_label(&state).expect_err("labelling cannot run here");
-        let (actions, _) = swept(&state);
-        assert!(!asks_to_label(&actions), "{why}: {actions:?}");
-        let said = written(&state);
+        let (_, requests) = sweep_tools(&state);
+        assert!(!asks_to_label(&requests), "{why}: {requests:?}");
+        let said = tools_written(&state);
         assert!(said.contains("Label this scan"), "{said}");
         assert!(lines_of(&said).contains(&why.as_str()), "{why}: {said}");
         assert!(
@@ -177,15 +153,16 @@ fn while_a_run_is_on_the_strip_says_the_stage_and_offers_stop_and_not_the_button
     let mut state = able();
     state.labelling.running = Some(Stage::Finding { step: 2, of: 3 });
     state.labelling.on = state.scene.series.clone();
-    let (actions, _) = swept(&state);
+    let (actions, requests) = sweep_tools(&state);
     assert!(
         actions.contains(&act(LabellingAction::StopLabelling)),
         "{actions:?}"
     );
-    assert!(!asks_to_label(&actions), "{actions:?}");
-    let said = written(&state);
+    assert!(!asks_to_label(&requests), "{requests:?}");
+    let said = tools_written(&state);
     let lines = lines_of(&said);
     for line in [
+        "Label this brain scan",
         "Finding the structures, 2 of 3",
         "Stop",
         "The 3D view may be slow while the graphics card is busy.",
@@ -209,15 +186,15 @@ fn each_stage_is_said_in_plain_words() {
 #[test]
 fn a_result_kept_for_the_series_is_said_with_show_make_again_and_delete() {
     let state = kept_with_labels_open();
-    let (actions, _) = swept(&state);
+    let (actions, requests) = sweep_tools(&state);
     for wanted in [
         act(LabellingAction::ShowKept),
         act(LabellingAction::DeleteKept),
-        label_scan(),
     ] {
         assert!(actions.contains(&wanted), "{wanted:?}: {actions:?}");
     }
-    let said = written(&state);
+    assert!(asks_to_label(&requests), "Make again: {requests:?}");
+    let said = tools_written(&state);
     let lines = lines_of(&said);
     assert!(
         lines.contains(&"Labels made on 2099-01-02 are kept for this series."),
@@ -231,7 +208,7 @@ fn a_result_kept_for_the_series_is_said_with_show_make_again_and_delete() {
     let mut with_none_open = able();
     with_none_open.labelling.kept = state.labelling.kept.clone();
     with_none_open.labelling.kept_files = state.labelling.kept_files.clone();
-    let said = written(&with_none_open);
+    let said = tools_written(&with_none_open);
     assert!(said.contains("Label this scan") && said.contains("kept for this series"));
 }
 
@@ -239,8 +216,8 @@ fn a_result_kept_for_the_series_is_said_with_show_make_again_and_delete() {
 fn make_again_is_greyed_where_labelling_cannot_run_and_the_other_two_still_work() {
     let mut state = kept_with_labels_open();
     state.labelling.ready = Ready::No("Made-up: the runtime files are not there.".to_owned());
-    let (actions, _) = swept(&state);
-    assert!(!asks_to_label(&actions), "{actions:?}");
+    let (actions, requests) = sweep_tools(&state);
+    assert!(!asks_to_label(&requests), "{requests:?}");
     assert!(
         actions.contains(&act(LabellingAction::ShowKept)),
         "{actions:?}"
@@ -252,22 +229,38 @@ fn make_again_is_greyed_where_labelling_cannot_run_and_the_other_two_still_work(
 }
 
 #[test]
-fn labels_from_a_file_leave_the_tab_as_it_was_and_the_strip_says_nothing() {
+fn labels_from_a_file_leave_the_tool_with_nothing_to_offer_and_it_says_why() {
     let mut state = named();
     state.labelling.ready = Ready::Yes;
     state.labelling.cards = cards();
-    let said = written(&state);
+    let said = tools_written(&state);
     for absent in ["Label this scan", "Options", "kept for this series", "Stop"] {
         assert!(!said.contains(absent), "{absent}: {said}");
     }
-    assert!(said.contains(MADE_ELSEWHERE), "{said}");
-    assert!(!said.contains("Not for diagnostic use"), "{said}");
-    let (actions, asked) = swept(&state);
-    assert!(!asks_to_label(&actions), "{actions:?}");
     assert!(
-        !asked
-            .iter()
-            .any(|asked| matches!(asked, Asked::Labelling(_))),
-        "{asked:?}"
+        said.contains("Label this brain scan"),
+        "still listed: {said}"
     );
+    assert!(
+        said.contains(
+            "Labels are open on this series. Close them in the Labels tab to label it again."
+        ),
+        "{said}"
+    );
+    assert!(!said.contains("Not for diagnostic use"), "{said}");
+    let (_, requests) = sweep_tools(&state);
+    assert!(!asks_to_label(&requests), "{requests:?}");
+    assert!(
+        !requests
+            .iter()
+            .any(|asked| matches!(asked, Request::Choose(Asked::Labelling(_)))),
+        "{requests:?}"
+    );
+}
+
+#[test]
+fn once_asked_the_window_labels_the_scan_told_what_it_holds_of_the_card() {
+    // Where there is no graphics device the window holds nothing of a card.
+    let held = act(LabellingAction::LabelScan { held: 0 });
+    assert_eq!(label_when_asked(&able(), None), held);
 }

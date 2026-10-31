@@ -86,9 +86,9 @@ impl Opening {
 }
 
 impl Opening {
-    /// Ask the person for the file the Parts list wants, and give what comes of it: what
-    /// opens a label file, or another table of names for the labels open, or what says how
-    /// saving the list of `open` labels went. `None` when they chose nothing.
+    /// Ask the person for the file the Labels and Tools tabs want, and give what comes of it:
+    /// what opens a label file, or another table of names for the labels open, or what says
+    /// how saving the list of `open` labels went. `None` when they chose nothing.
     pub fn chosen(&mut self, asked: parts::Asked, open: &Labels) -> Option<Action> {
         match asked {
             parts::Asked::OpenLabels => {

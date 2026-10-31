@@ -42,16 +42,24 @@ impl VoxaApp {
             }
             // Made once the frame has its graphics device in hand.
             Request::SaveScene(asked) => self.scene_asked = Some(asked),
-            Request::OpenLabels => {
-                let open = &self.session.state().labels;
-                if let Some(opening) = self.labels.chosen(parts::Asked::OpenLabels, open) {
-                    self.dispatch(opening);
-                }
-            }
+            Request::OpenLabels => self.choose(parts::Asked::OpenLabels),
+            Request::Choose(asked) => self.choose(asked),
+            // Made once the frame has its graphics device in hand.
+            Request::LabelScan => self.label_asked = true,
             Request::Search => self.search.open(),
             // What the window has no place for yet: the theme button (Task 10, applied in Task
             // 17), and the other files (Task 11).
             Request::Theme(_) | Request::ShowOtherFiles => {}
+        }
+    }
+}
+
+impl VoxaApp {
+    /// Ask the person for the file `asked` wants chosen, and do what comes of their choice.
+    fn choose(&mut self, asked: parts::Asked) {
+        let open = &self.session.state().labels;
+        if let Some(action) = self.labels.chosen(asked, open) {
+            self.dispatch(action);
         }
     }
 }

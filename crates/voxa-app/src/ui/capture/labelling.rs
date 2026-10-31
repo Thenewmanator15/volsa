@@ -1,4 +1,4 @@
-//! What a picture of the window can ask for about labelling a scan: the strip in the Parts tab
+//! What a picture of the window can ask for about labelling a scan: the strip in the Tools tab
 //! as it is on a computer that can label, whichever this one is (`labelling`), and a result
 //! that Voxa made itself (`labelled`), for which the picture starts a run and waits for it.
 

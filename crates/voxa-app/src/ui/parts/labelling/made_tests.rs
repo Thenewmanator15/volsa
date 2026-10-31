@@ -1,14 +1,15 @@
-//! The strip's words about labels that Voxa made: who made them, with what, where and when,
+//! What the Labels tab says of labels that Voxa made: who made them, with what, where and when,
 //! what the model's own check said, and the notes beneath.
 
 use voxa_labels::{Verdict, verdict_in_words};
 
-use super::super::tests::{labelled_by, written};
-use super::super::{Asked, MADE_ELSEWHERE};
 use super::made::made_in_words;
-use super::tests::{at, by_voxa, lines_of, made_by_voxa, swept};
+use super::tests::{at, by_voxa, lines_of, made_by_voxa};
 use super::*;
 use crate::labels::NamesFrom;
+use crate::ui::commands::Request;
+use crate::ui::parts::{Asked, MADE_ELSEWHERE};
+use crate::ui::tabs::made_up::{labelled_by, labels_written as written, sweep_labels as swept};
 
 #[test]
 fn labels_made_by_voxa_say_with_what_where_and_when_and_each_note_on_its_own_line() {
@@ -23,11 +24,9 @@ fn labels_made_by_voxa_say_with_what_where_and_when_and_each_note_on_its_own_lin
     let first = at(&lines, |line| line == "A first made-up note.");
     let second = at(&lines, |line| line == "A second made-up note.");
     assert!(caption < first && first < second, "beneath it: {said}");
-    let (_, asked) = swept(&state);
-    assert!(
-        asked.contains(&Asked::Labelling(Wants::SaveLabels)),
-        "{asked:?}"
-    );
+    let (_, requests) = swept(&state);
+    let save = Request::Choose(Asked::Labelling(Wants::SaveLabels));
+    assert!(requests.contains(&save), "{requests:?}");
     assert!(lines.contains(&"Save as…"), "{said}");
 }
 

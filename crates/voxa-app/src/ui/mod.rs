@@ -71,9 +71,9 @@ pub struct VoxaApp {
     tags: tags::Panel,
     /// The search box, which finds actions, parts, scans and help topics.
     search: search::Search,
-    /// What the Measure tab keeps between frames: the name being typed.
-    measure: tabs::MeasureTab,
-    parts: parts::PartsView,
+    /// What the tabs keep between frames: the name being typed in the Measure tab, and the
+    /// search typed in the Labels tab.
+    tabs: tabs::Kept,
     /// The label file to open, and the one that is open.
     labels: labels::Opening,
     /// The labels on the graphics device.
@@ -90,6 +90,9 @@ pub struct VoxaApp {
     /// A picture or a turntable of the 3D scene asked for this frame, made once the frame's
     /// graphics device is in hand.
     scene_asked: Option<scene::export::Asked>,
+    /// Whether labelling the scan was asked for this frame, done once the frame's graphics
+    /// device is in hand to say how much of the card the window holds itself.
+    label_asked: bool,
     /// What is remembered from one run to the next.
     kept: crate::prefs::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
@@ -175,8 +178,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             search: search::Search::default(),
-            measure: tabs::MeasureTab::default(),
-            parts: parts::PartsView::default(),
+            tabs: tabs::Kept::default(),
             labels: labels::Opening::waiting_for(labels),
             held: labels::Held::default(),
             clocks: [cine::Clock::default(); VIEWPORTS],
@@ -185,6 +187,7 @@ impl VoxaApp {
             label_pose: Vec::new(),
             turntable: None,
             scene_asked: None,
+            label_asked: false,
             card: lost::Card::watching(render, &creation.egui_ctx),
         };
         app.recall();
@@ -335,6 +338,10 @@ impl eframe::App for VoxaApp {
         self.show_search(ui.ctx(), &mut actions);
         let saving = self.scene_asked.take();
         self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
+        if std::mem::take(&mut self.label_asked) {
+            let (state, render) = (self.session.state(), frame.wgpu_render_state());
+            actions.push(parts::labelling::label_when_asked(state, render));
+        }
         for action in actions {
             self.dispatch(action);
         }

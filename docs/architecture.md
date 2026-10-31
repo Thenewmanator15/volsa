@@ -137,7 +137,7 @@ built as it is. Nothing else in Voxa depends on any of it.
    answer is a `Ready` in the state: yes, or a sentence that says what is missing. The runtime
    is loaded once in a program's life, so a runtime folder changed later takes effect at the
    next start.
-2. **The button.** **Label this scan** in the Parts tab sends `LabelScan`. The reducer starts
+2. **The button.** **Label this scan** in the Tools tab sends `LabelScan`. The reducer starts
    a run only if the computer is ready, no run is on, no label file is being read and the
    scene holds a built volume. It picks the model (Automatic takes the robust one when any
    slice spacing is over 3 mm) and sends `Effect::LabelScan` with the series, what is wanted,
@@ -178,7 +178,7 @@ built as it is. Nothing else in Voxa depends on any of it.
 6. **Keeping.** After the report, the worker writes a gzipped label file and its table, for
    every result so that **Save as** can offer them, and, once the state has taken the result
    in, keeps them under the local folder if the person has not switched keeping off. A kept
-   result is found again when the same series is shown, and the Parts tab offers to show it,
+   result is found again when the same series is shown, and the Tools tab offers to show it,
    make it again or delete it.
 7. **Stopping.** A run says what it says with its own number. It ends when the person presses
    **Stop**, when the scene moves to another series, when another export is opened, or when the
@@ -297,7 +297,7 @@ small made-up volumes (`tools/golden` makes them; they are kept under
 `crates/voxa-segment/tests/golden`). The steps between the networks, the mirrored run and the
 224 cube are run with stand-in networks (the `testkit` feature of `voxa-models`), the model
 folder check with folders made in the test, the sums that say where a run fits with made-up
-cards, and the reducer and the Parts tab by actions and state with no window. A label file is
+cards, and the reducer and the Labels and Tools tabs by actions and state with no window. A label file is
 written and read back. So `cargo xtask check` needs neither on the machine. It is meant to
 pass on Windows and Linux; for 0.5.0 it has been run on Windows only, and has not been built
 or run on Linux. The tests that run the real networks on the converter's made-up head are marked

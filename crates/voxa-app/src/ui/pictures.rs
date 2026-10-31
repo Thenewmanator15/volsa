@@ -7,7 +7,7 @@ use egui_wgpu::RenderState;
 use voxa_core::Volume;
 use voxa_render::VolumePipeline;
 
-use super::{VoxaApp, labels, layout, parts, planes, scene, shares, viewport};
+use super::{VoxaApp, labels, layout, planes, scene, shares, viewport};
 use crate::action::Action;
 use crate::scene::SceneStatus;
 use crate::session::Session;
@@ -76,12 +76,6 @@ impl VoxaApp {
             let frames = |series: &_, slice| session.cached(series, slice);
             viewport::show(ui, for_slices, state, &frames, gpus, render, actions);
         }
-        if let Some(area) = areas.parts {
-            let held = parts::labelling::held_on_card(state, render);
-            let asked = parts::show(ui, area, state, held, &mut self.parts, actions);
-            let open = &state.labels;
-            actions.extend(asked.and_then(|asked| self.labels.chosen(asked, open)));
-        }
         ui.allocate_rect(whole, egui::Sense::hover());
         // After everything beside it, so that the drag is the line's.
         self.drag_the_column(ui, whole, f32::midpoint(main.right(), side.left()));
@@ -132,7 +126,7 @@ impl VoxaApp {
     }
 
     /// Whether the 2D viewports are out of sight, their place in the column taken by the
-    /// planes or the parts.
+    /// planes.
     pub(super) fn slices_hidden(&self) -> bool {
         !crate::planes::slices_in_sight(self.session.state())
     }

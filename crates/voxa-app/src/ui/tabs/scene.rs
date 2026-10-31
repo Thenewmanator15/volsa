@@ -35,7 +35,7 @@ pub const LOOKS: [(Look, &str, &str); 3] = [
 
 /// What the Parts look is, and why it cannot be chosen while there are no labels.
 pub const PARTS_HINT: &str = "The labelled parts of the head as solids, each in its own colour";
-pub const PARTS_NEED_LABELS: &str = "Open labels in the Parts tab to see them as solids here.";
+pub const PARTS_NEED_LABELS: &str = "Open labels in the Labels tab to see them as solids here.";
 
 /// The sides the patient can be seen from, with what each button says, its letter and a word, and
 /// what it means, from which the list of actions takes its entries for them.

@@ -137,7 +137,7 @@ fn every_reason_an_action_cannot_be_used_ends_with_a_full_stop() {
         "The scan shown is not one of several volumes.",
         "There is no 3D view to save yet.",
         "The slice is a picture of the scan: it is not drawn among the labelled parts.",
-        "Open labels in the Parts tab to see them as solids here.",
+        "Open labels in the Labels tab to see them as solids here.",
     ] {
         assert!(said.contains(reached), "no state gives: {reached}");
     }

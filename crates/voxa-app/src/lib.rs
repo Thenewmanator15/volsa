@@ -39,6 +39,7 @@ mod settings;
 mod state;
 #[cfg(test)]
 mod testing;
+mod tools;
 mod ui;
 mod views;
 mod volume_store;
@@ -69,6 +70,7 @@ pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
+pub use tools::{ADDED_BY_YOU, MadeBy, ToolInfo};
 pub use ui::{VoxaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, ViewsAction, series_key};
 pub use volume_store::VolumeStore;

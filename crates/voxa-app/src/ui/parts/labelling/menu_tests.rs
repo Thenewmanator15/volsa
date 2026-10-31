@@ -3,10 +3,12 @@
 use voxa_models::{CardId, CardKind, RunsOn};
 use voxa_segment::ModelChoice;
 
-use super::super::Asked;
-use super::tests::{able, act, card, lines_of, menu_words, swept_menu};
+use super::tests::{act, lines_of, menu_words, swept_menu};
 use super::*;
 use crate::labelling::LabellingAction;
+use crate::ui::commands::Request;
+use crate::ui::parts::Asked;
+use crate::ui::tabs::made_up::{able, card};
 
 #[test]
 fn a_card_the_system_lists_twice_is_offered_once_as_the_first_of_its_name() {
@@ -114,18 +116,19 @@ fn the_menu_names_every_card_but_a_software_one_and_warns_of_an_integrated_one()
 
 #[test]
 fn the_menu_asks_for_the_folder_of_the_models_and_the_folder_of_the_runtime() {
-    let (_, asked) = swept_menu(&able());
+    let (_, requests) = swept_menu(&able());
+    let wants = |wants| Request::Choose(Asked::Labelling(wants));
     assert!(
-        asked.contains(&Asked::Labelling(Wants::ModelsFolder)),
-        "{asked:?}"
+        requests.contains(&wants(Wants::ModelsFolder)),
+        "{requests:?}"
     );
     assert!(
-        asked.contains(&Asked::Labelling(Wants::RuntimeFolder)),
-        "{asked:?}"
+        requests.contains(&wants(Wants::RuntimeFolder)),
+        "{requests:?}"
     );
     assert!(
-        !asked.contains(&Asked::Labelling(Wants::SaveLabels)),
-        "{asked:?}"
+        !requests.contains(&wants(Wants::SaveLabels)),
+        "{requests:?}"
     );
 }
 

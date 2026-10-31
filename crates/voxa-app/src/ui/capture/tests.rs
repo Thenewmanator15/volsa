@@ -286,3 +286,30 @@ fn a_picture_does_not_wait_for_a_run_that_this_computer_cannot_make() {
     );
     assert_eq!(Run::Not.patience(usual), usual);
 }
+
+#[test]
+fn a_picture_can_ask_for_a_tab_of_the_panel_to_be_open() {
+    use crate::ui::panel::Tab;
+    assert_eq!(tab_asked("tags, vr"), None);
+    assert_eq!(tab_asked("measure"), Some(Tab::Measure));
+    assert_eq!(
+        tab_asked("labelling"),
+        Some(Tab::Tools),
+        "the strip that labels a scan is in the Tools tab"
+    );
+    assert_eq!(
+        tab_asked("labelled, parts"),
+        Some(Tab::Labels),
+        "the parts are in the Labels tab"
+    );
+    assert_eq!(
+        tab_asked("labelling, parts"),
+        Some(Tab::Labels),
+        "the labels, when both are asked for"
+    );
+}
+
+#[test]
+fn the_parts_are_no_longer_a_pose_of_the_column() {
+    assert_eq!(pose("parts"), [], "they are a tab of the panel now");
+}

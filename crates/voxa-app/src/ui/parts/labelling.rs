@@ -1,17 +1,19 @@
-//! The strip at the top of the Parts tab, where a person labels the scan with Voxa's own
-//! networks: the button and what it will do, the choices behind it, how far a run has got and
-//! the way to stop it, and the result kept for the series. It is also how labels that Voxa
-//! made are described, here and over the pictures.
+//! The strip in the Tools tab, where a person labels the scan with Voxa's own networks: the
+//! button and what it will do, the choices behind it, how far a run has got and the way to
+//! stop it, and the result kept for the series. It is also how labels that Voxa made are
+//! described, in the Labels tab and over the pictures.
 
 use egui::{RichText, Ui};
 use egui_wgpu::RenderState;
 use voxa_segment::Stage;
 
-use super::super::theme;
+use super::Asked;
 use crate::action::Action;
 use crate::labelling::{LabellingAction, can_label, what_will_run};
 use crate::labels::on_this_series;
 use crate::state::AppState;
+use crate::ui::commands::{self, Request};
+use crate::ui::theme;
 
 mod made;
 mod menu;
@@ -20,10 +22,11 @@ pub use made::{made_by, save_as, solids_in_words, verdict_line};
 #[cfg(test)]
 pub use menu::menu_id;
 
-/// The button that starts a run.
-const LABEL: &str = "Label this scan";
 /// Said while a run is on.
 const SLOW: &str = "The 3D view may be slow while the graphics card is busy.";
+/// Said where the labelling is not offered because labels are already open on the series.
+const OPEN_ALREADY: &str =
+    "Labels are open on this series. Close them in the Labels tab to label it again.";
 /// Where the labels are saved from the dialog, unless the person names another file.
 const FILE_NAME: &str = "labels.nii.gz";
 
@@ -40,30 +43,28 @@ pub enum Wants {
 
 /// Draw the strip. It is shown while a run is on (the stage and a way to stop), and otherwise
 /// while no labels are open on the series (the button, what it will do, and the menu of
-/// choices) and while a result is kept for it. `held` is how many bytes of the graphics card
-/// the window draws on Voxa holds itself, which a run is told. With labels open and nothing
-/// kept it draws nothing: the tab is as it was before Voxa could label. Gives what the person
-/// asked to be chosen in a dialog.
-pub fn strip(ui: &mut Ui, state: &AppState, held: u64, actions: &mut Vec<Action>) -> Option<Wants> {
+/// choices) and while a result is kept for it. With labels open and nothing kept it says why
+/// there is nothing to offer. Gives what the strip asks of the window: to label the scan,
+/// which the window does once it can say how much of the graphics card it holds itself, and
+/// what the person asked to be chosen in a dialog.
+pub fn strip(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
     let labelling = &state.labelling;
     let none_open = !on_this_series(state);
-    if labelling.running.is_none() && !none_open && labelling.kept.is_none() {
-        return None;
-    }
-    let mut wants = None;
+    let mut asked = Vec::new();
     match (labelling.running, &labelling.kept) {
         (Some(reached), _) => running(ui, reached, actions),
         (None, kept) => {
             if none_open {
-                wants = ready(ui, state, held, actions);
+                ready(ui, state, actions, &mut asked);
+            } else if kept.is_none() {
+                ui.label(quiet(OPEN_ALREADY));
             }
             if let Some(when) = kept {
-                keeping(ui, state, when, held, actions);
+                keeping(ui, state, when, actions, &mut asked);
             }
         }
     }
-    ui.separator();
-    wants
+    asked
 }
 
 /// The words for a quiet line.
@@ -71,9 +72,17 @@ fn quiet(text: &str) -> RichText {
     RichText::new(text).small().color(theme::QUIET_TEXT)
 }
 
-/// What asks for a run.
-fn label_scan(held: u64) -> Action {
-    Action::Labelling(LabellingAction::LabelScan { held })
+/// The window is asked to choose what the strip wants chosen.
+fn choose(wants: Option<Wants>) -> Option<Request> {
+    wants.map(|wants| Request::Choose(Asked::Labelling(wants)))
+}
+
+/// What labels the scan once the window has been asked to, told how much of the graphics card
+/// the window draws on it holds itself (see [`held_on_card`]), which only the window can say.
+pub fn label_when_asked(state: &AppState, render: Option<&RenderState>) -> Action {
+    Action::Labelling(LabellingAction::LabelScan {
+        held: held_on_card(state, render),
+    })
 }
 
 /// A stage of a run, in plain words.
@@ -98,27 +107,27 @@ fn running(ui: &mut Ui, stage: Stage, actions: &mut Vec<Action>) {
     ui.label(quiet(SLOW));
 }
 
-/// No run is on and no labels are open: the button, the menu beside it and, beneath them,
-/// what the button will do, or why it cannot do anything.
-fn ready(ui: &mut Ui, state: &AppState, held: u64, actions: &mut Vec<Action>) -> Option<Wants> {
+/// No run is on and no labels are open: the button, from the list of actions, the menu beside
+/// it and, beneath them, what the button will do, or why it cannot do anything.
+fn ready(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     let can = can_label(state);
-    let wants = ui
-        .horizontal(|ui| {
-            if ui
-                .add_enabled(can.is_ok(), egui::Button::new(LABEL))
-                .clicked()
-            {
-                actions.push(label_scan(held));
-            }
-            menu::options(ui, &state.labelling, actions)
-        })
-        .inner;
+    ui.horizontal(|ui| {
+        if let Some(does) = commands::button(ui, "tools.label", state, None) {
+            asked.extend(does.run(state, actions));
+        }
+        asked.extend(choose(menu::options(ui, &state.labelling, actions)));
+    });
     ui.label(quiet(&can.err().unwrap_or_else(|| what_will_run(state))));
-    wants
 }
 
 /// A result is kept for the series: when it was made, and the ways to show, make and delete it.
-fn keeping(ui: &mut Ui, state: &AppState, when: &str, held: u64, actions: &mut Vec<Action>) {
+fn keeping(
+    ui: &mut Ui,
+    state: &AppState,
+    when: &str,
+    actions: &mut Vec<Action>,
+    asked: &mut Vec<Request>,
+) {
     ui.label(format!("Labels made on {when} are kept for this series."));
     ui.horizontal_wrapped(|ui| {
         if ui.small_button("Show").clicked() {
@@ -129,7 +138,7 @@ fn keeping(ui: &mut Ui, state: &AppState, when: &str, held: u64, actions: &mut V
         if let Err(why) = &can {
             again.on_disabled_hover_text(why.as_str());
         } else if again.clicked() {
-            actions.push(label_scan(held));
+            asked.push(Request::LabelScan);
         }
         if ui.small_button("Delete").clicked() {
             actions.push(Action::Labelling(LabellingAction::DeleteKept));

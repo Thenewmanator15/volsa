@@ -11,6 +11,7 @@ mod measure;
 mod panel;
 mod scene;
 mod slices;
+mod tools;
 mod top;
 mod window;
 
@@ -22,6 +23,7 @@ pub(super) fn all() -> Vec<Command> {
         panel::COMMANDS,
         measure::COMMANDS,
         scene::COMMANDS,
+        tools::COMMANDS,
         top::COMMANDS,
     ]
     .concat()
