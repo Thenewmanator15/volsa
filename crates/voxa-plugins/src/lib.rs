@@ -17,6 +17,7 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod blocks;
 mod describe;
 mod fit;
 mod folder;
@@ -26,6 +27,7 @@ mod scaling;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
+pub use blocks::BlockPlan;
 pub use describe::{
     Accepts, AlignOutput, Contrast, Contrasts, DescribeError, Description, FieldUnit, Fit, Gives,
     Input, Kind, LabelOutput, Layout, Listed, Moves, Name, NumberOutput, Output, Outside, Over,
