@@ -1,6 +1,6 @@
 //! The line along the bottom of the window: where its notice goes, and the list of them all.
 
-use egui::{Pos2, Rect};
+use egui::{Id, Pos2, Rect};
 
 use super::*;
 use crate::ui::seen::{self, Seen, click_at, is_red, key};
@@ -263,4 +263,45 @@ fn no_notice_is_drawn_red() {
     // And the test itself knows red when it sees it.
     assert!(is_red(egui::Color32::from_rgb(220, 40, 40)));
     assert!(!is_red(theme::WARNING));
+}
+
+#[test]
+fn the_list_keeps_off_the_scans_rail_in_a_narrow_window() {
+    // A window 700 points across with the rail open: the list, up to 460 points wide and
+    // hung from the right, would reach 232 and cover the rail's last 28 points.
+    let notices = three();
+    let size = [700.0, 500.0];
+    let rail = 260.0;
+    let ctx = seen::context(1.0);
+    let mut open = true;
+    let mut laid = Rect::NOTHING;
+    // The window lays out the line, then the rail, then the pictures, which tell the floating
+    // windows where they are: the list reads that, from the frame before.
+    for _ in 0..4 {
+        let (rail_at, _) = seen::pass(&ctx, size, Vec::new(), |ui| {
+            egui::Panel::bottom("line").show(ui, |ui| {
+                show(ui, &notices, &mut open, &mut Vec::new());
+            });
+            let column = egui::Panel::left("rail").exact_size(rail);
+            let rail_at = column.show(ui, |ui| ui.allocate_space(ui.available_size()));
+            let middle = egui::CentralPanel::default().show(ui, |ui| {
+                ui.allocate_space(ui.available_size());
+            });
+            crate::ui::floating::keep_to(ui.ctx(), middle.response.rect);
+            rail_at.response.rect
+        });
+        laid = rail_at;
+    }
+    assert!(open);
+    let list = ctx.memory(|memory| memory.area_rect(Id::new(LIST)));
+    let list = list.expect("the list is shown");
+    assert!(
+        list.left() >= laid.right() && !list.intersect(laid).is_positive(),
+        "the list at {list:?} meets the rail at {laid:?}"
+    );
+    assert!(list.right() <= size[0], "{list:?} is inside the window");
+    assert!(
+        list.width() > 200.0,
+        "and not squeezed to nothing: {list:?}"
+    );
 }

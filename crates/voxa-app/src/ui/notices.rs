@@ -11,9 +11,9 @@ use egui::{
     Pos2, Rect, Response, RichText, ScrollArea, TextStyle, TextWrapMode, Ui, Vec2, WidgetText,
 };
 
-use super::search;
 use super::symbols::{self, Symbol};
 use super::theme;
+use super::{floating, search};
 use crate::action::Action;
 use crate::state::{Notice, NoticeKind};
 
@@ -30,7 +30,8 @@ const LIST_WIDEST: f32 = 460.0;
 const LIST_TALLEST: f32 = 320.0;
 /// How far above the line the list ends, in points.
 const ABOVE_THE_LINE: f32 = 6.0;
-/// The room left at the sides of the list in a narrow window, in points.
+/// The room left at the sides of the list in a narrow window, in points, and between it and the
+/// rail.
 const SIDE_ROOM: f32 = 8.0;
 /// The list's own name, which it keeps its place under.
 const LIST: &str = "voxa: the list of notices";
@@ -159,7 +160,11 @@ fn list(
 ) {
     let (area, top) = at;
     let room = ctx.content_rect();
-    let width = (room.width() - 2.0 * SIDE_ROOM).clamp(0.0, LIST_WIDEST);
+    // Nothing floats over the scans rail: the list starts no further left than where the
+    // pictures do, as the window told the floating windows in the frame before, and is
+    // narrower than it would be if that is nearer than its widest.
+    let left = floating::area(ctx).left().max(room.left()) + SIDE_ROOM;
+    let width = (room.right() - SIDE_ROOM - left).clamp(0.0, LIST_WIDEST);
     let tallest = (top - room.top() - 2.0 * SIDE_ROOM).clamp(40.0, LIST_TALLEST);
     let corner = Pos2::new(room.right() - SIDE_ROOM, top - ABOVE_THE_LINE);
     let shown = Area::new(Id::new(LIST))

@@ -9,8 +9,8 @@
 //! field empty.
 
 use egui::{
-    Align2, Area, Context, Event, EventFilter, Frame, Id, Key, Modifiers, Order, Pos2, Rect,
-    RichText, ScrollArea, TextEdit, Ui, style::ScrollAnimation, vec2,
+    Align2, Area, Context, Event, EventFilter, Frame, Id, Key, LayerId, Modifiers, Order, Pos2,
+    Rect, RichText, ScrollArea, TextEdit, Ui, style::ScrollAnimation, vec2,
 };
 
 use super::VoxaApp;
@@ -326,6 +326,11 @@ impl Search {
 /// Cover the whole window, under the box, with something that takes the pointer but does
 /// nothing with it. The box is open until the press that closes it is over, and that press
 /// is the box's: it must not reach what is under it, such as a picture with a ruler in hand.
+///
+/// The box is made a sublayer of the cover, which egui keeps directly above it however the
+/// two are raised: a press away from the box lands on the cover, which then asks to be on top,
+/// and must not end up above the box, which would shut it out from the mouse the next time it
+/// is opened.
 fn cover_the_window(ctx: &Context) {
     let room = ctx.content_rect();
     Area::new(Id::new(BLOCKER))
@@ -335,6 +340,9 @@ fn cover_the_window(ctx: &Context) {
         .show(ctx, |ui| {
             ui.allocate_space(room.size());
         });
+    let cover = LayerId::new(Order::Foreground, Id::new(BLOCKER));
+    let held = LayerId::new(Order::Foreground, Id::new(BOX));
+    ctx.memory_mut(|memory| memory.areas_mut().set_sublayer(cover, held));
 }
 
 /// Where the corner of the box goes to hang under the top bar's box `bar_box`, with the box
