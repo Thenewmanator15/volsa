@@ -142,7 +142,7 @@ fn every_key_of_0_6_0_still_does_what_it_did() {
         let down = Gives::Act(Action::SetTool(Tool::Navigate));
         assert_eq!(on(Key::Escape, NONE, &holding), Some(down), "{tool:?}");
     }
-    for nothing in [Key::Num3, Key::Z, Key::Y, Key::Slash, Key::ArrowLeft] {
+    for nothing in [Key::Num3, Key::Z, Key::Y, Key::K, Key::ArrowLeft] {
         assert_eq!(
             on(nothing, NONE, &state),
             None,
@@ -291,7 +291,7 @@ fn keys_do_nothing_while_a_text_field_has_focus() {
     assert_eq!(actions, [flip, Action::SetLayout(Layout::One)]);
     assert_eq!(
         requests,
-        [Request::ShowTab(Tab::Measure)],
+        [Request::Search, Request::ShowTab(Tab::Measure)],
         "with the field let go"
     );
 }
@@ -325,4 +325,27 @@ fn an_action_for_some_profiles_is_offered_only_for_them() {
     assert!(offered(&for_mr, &shown));
     assert!(!offered(&for_ct, &shown));
     assert!(!offered(&for_mr, &AppState::default()), "no scan is shown");
+}
+
+#[test]
+fn ctrl_k_and_a_slash_open_the_search_and_nothing_else_does() {
+    let state = AppState::default();
+    let search = Gives::Ask(Request::Search);
+    assert_eq!(on(Key::K, CTRL, &state), Some(search));
+    assert_eq!(
+        on(Key::Slash, NONE, &state),
+        Some(Gives::Ask(Request::Search))
+    );
+    assert_eq!(
+        on(Key::K, NONE, &state),
+        None,
+        "K alone is not a key of Voxa's"
+    );
+    // A question mark is Shift with slash on some keyboards, and shows the keys instead.
+    assert_eq!(
+        on(Key::Slash, SHIFT, &state),
+        Some(Gives::Ask(Request::Help(None)))
+    );
+    let command = find("search.open").expect("listed");
+    assert_eq!(command.key.map(|key| key.shown), Some("Ctrl+K or /"));
 }

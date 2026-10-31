@@ -74,8 +74,71 @@ fn an_action_that_cannot_be_used_says_why_in_a_sentence() {
     assert_eq!(why("measure.ruler"), Some(super::super::measure::NO_VOLUME));
     assert_eq!(
         why("scene.save.picture"),
-        Some("There is no 3D view to save yet")
+        Some("There is no 3D view to save yet.")
     );
     assert!(why("volume.before").is_some_and(|said| said.contains("several volumes")));
     assert_eq!(why("layout.two"), None);
+}
+
+/// States in which actions give their reasons: nothing open; a scan shown; its 3D view cut
+/// as many times as it can be; the labelled parts drawn as solids; and the first and the last
+/// volume of a scan that holds several.
+fn states_that_give_reasons() -> Vec<AppState> {
+    use crate::reducer::reduce;
+    use crate::testing::{
+        FIRST_ECHO, SECOND_ECHO, id, indexed, labelled_head, thick_scan_ready, three_series_files,
+        two_echoes_files,
+    };
+    let mut cut = thick_scan_ready();
+    for _ in 0..MAX_CUTS {
+        reduce(&mut cut, Action::CutAdd);
+    }
+    let (mut solid, _) = labelled_head();
+    reduce(&mut solid, Action::SceneLook(voxa_render::Look::Parts));
+    let on_echo = |echo: &str| {
+        let mut state = AppState::default();
+        let files = [three_series_files(), two_echoes_files()].concat();
+        reduce(&mut state, Action::IndexProgress(indexed(files)));
+        let (viewport, series) = (0, id(echo));
+        reduce(&mut state, Action::SelectSeries { viewport, series });
+        state
+    };
+    vec![
+        AppState::default(),
+        thick_scan_ready(),
+        cut,
+        solid,
+        on_echo(FIRST_ECHO),
+        on_echo(SECOND_ECHO),
+    ]
+}
+
+#[test]
+fn every_reason_an_action_cannot_be_used_ends_with_a_full_stop() {
+    // Search posts a reason as a notice, which is a sentence.
+    let mut said = std::collections::HashSet::new();
+    for state in states_that_give_reasons() {
+        for command in all() {
+            if let Some(why) = (command.why_not)(&state) {
+                assert!(why.ends_with('.'), "{}: {why}", command.id);
+                said.insert(why);
+            }
+        }
+    }
+    // The states reach the reasons that were without a stop.
+    for reached in [
+        "There is nothing to take back.",
+        "There is nothing to do again.",
+        "Three cuts at most.",
+        "There is no cut 1.",
+        "There is no cut 3.",
+        "This is the first volume.",
+        "This is the last volume.",
+        "The scan shown is not one of several volumes.",
+        "There is no 3D view to save yet.",
+        "The slice is a picture of the scan: it is not drawn among the labelled parts.",
+        "Open labels in the Parts tab to see them as solids here.",
+    ] {
+        assert!(said.contains(reached), "no state gives: {reached}");
+    }
 }

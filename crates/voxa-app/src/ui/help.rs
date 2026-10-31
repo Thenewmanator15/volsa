@@ -175,7 +175,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(keys_listed().len() + MOUSE.len(), 40);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 41);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
@@ -201,7 +201,15 @@ mod tests {
         let listed = keys_listed();
         let does = |key: &str| listed.iter().find(|(shown, _)| *shown == key);
         let does = |key| does(key).map(|(_, does)| *does);
-        for key in ["Ctrl+Z", "Ctrl+Y or Ctrl+Shift+Z", "M", "B", "F11", "?"] {
+        for key in [
+            "Ctrl+Z",
+            "Ctrl+Y or Ctrl+Shift+Z",
+            "M",
+            "B",
+            "F11",
+            "?",
+            "Ctrl+K or /",
+        ] {
             assert!(does(key).is_some(), "{key}");
         }
         let escape = does("Esc").expect("listed");

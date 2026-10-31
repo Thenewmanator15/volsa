@@ -33,7 +33,6 @@ pub struct Command {
     /// the name says enough.
     pub explains: &'static str,
     /// Other words a person may look for it by.
-    #[cfg_attr(not(test), expect(dead_code, reason = "search reads them (Task 5)"))]
     pub words: &'static [&'static str],
     /// Its key, if it has one.
     pub key: Option<Shortcut>,
@@ -129,7 +128,6 @@ pub enum Request {
     /// To choose a scan to open, of this kind.
     Open(Pick),
     /// To search the actions, parts, scans and help.
-    #[expect(dead_code, reason = "Task 5 adds search")]
     Search,
     /// To open or close the help, at a topic if one is named.
     Help(Option<&'static str>),
@@ -179,9 +177,10 @@ pub fn find(id: &str) -> Option<&'static Command> {
     all().iter().find(|command| command.id == id)
 }
 
-/// Keys that do what another action's key does, for the keyboards that type it another way:
-/// Ctrl+Shift+Z redoes, as in many programs, and a question mark is Shift with slash on some.
-const OTHER_KEYS: [(Key, Held, &str); 2] = [
+/// Keys that do what another action's key does: Ctrl+Shift+Z redoes, as in many programs, a
+/// slash searches as Ctrl+K does, and a question mark, which is Shift with slash on some
+/// keyboards, shows the keys.
+const OTHER_KEYS: [(Key, Held, &str); 3] = [
     (
         Key::Z,
         Held {
@@ -197,6 +196,14 @@ const OTHER_KEYS: [(Key, Held, &str); 2] = [
             shift: true,
         },
         "help.keys",
+    ),
+    (
+        Key::Slash,
+        Held {
+            command: false,
+            shift: false,
+        },
+        "search.open",
     ),
 ];
 

@@ -36,6 +36,7 @@ mod scene;
 mod scene_bar;
 mod screen;
 mod scrolled;
+mod search;
 mod shares;
 mod size;
 mod start;
@@ -65,6 +66,8 @@ pub struct VoxaApp {
     about_open: bool,
     help_open: bool,
     tags: tags::Panel,
+    /// The search box, which finds actions, parts, scans and help topics.
+    search: search::Search,
     measure: measure::Panel,
     parts: parts::PartsView,
     /// The label file to open, and the one that is open.
@@ -166,6 +169,7 @@ impl VoxaApp {
             about_open: false,
             help_open: false,
             tags: tags::Panel::default(),
+            search: search::Search::default(),
             measure: measure::Panel::default(),
             parts: parts::PartsView::default(),
             labels: labels::Opening::waiting_for(labels),
@@ -328,6 +332,7 @@ impl eframe::App for VoxaApp {
             self.ask(ui.ctx(), commands::Request::SaveMeasurements(kind));
         }
         self.keys(ui.ctx(), &mut actions);
+        self.show_search(ui.ctx(), &mut actions);
         let saving = self.scene_asked.take();
         self.save_scene(ui.ctx(), frame.wgpu_render_state(), saving, &mut actions);
         for action in actions {

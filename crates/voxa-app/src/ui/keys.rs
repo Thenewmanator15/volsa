@@ -5,6 +5,7 @@ use egui::Key;
 use super::VoxaApp;
 use super::commands::{self, Does, Request};
 use super::overlay::steps_slices;
+use super::search;
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -25,11 +26,11 @@ pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Does> {
 }
 
 /// The keys pressed this frame that are Voxa's to answer, with what was held with each: none
-/// while a text field or another widget has the keyboard, as when the person types in the
-/// search field. A key held down is taken again as the system repeats it only when it steps
-/// through the slices; any other acts once.
+/// while a text field or another widget has the keyboard, as when the person types in a
+/// field, nor while the search box is open. A key held down is taken again as the system
+/// repeats it only when it steps through the slices; any other acts once.
 pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
-    if ctx.egui_wants_keyboard_input() {
+    if ctx.egui_wants_keyboard_input() || search::holds_keyboard(ctx) {
         return Vec::new();
     }
     ctx.input(|input| {

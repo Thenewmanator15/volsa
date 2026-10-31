@@ -42,12 +42,12 @@ impl VoxaApp {
                     self.dispatch(opening);
                 }
             }
+            Request::Search => self.search.open(),
             // What the window has no place for yet: the other tabs and folding the panel come
-            // with the panel (Task 6), search (Task 5), the theme button (Task 10, applied in
-            // Task 17), and the other files (Task 11).
+            // with the panel (Task 6), the theme button (Task 10, applied in Task 17), and the
+            // other files (Task 11).
             Request::ShowTab(_)
             | Request::FoldPanel
-            | Request::Search
             | Request::Theme(_)
             | Request::ShowOtherFiles => {}
         }

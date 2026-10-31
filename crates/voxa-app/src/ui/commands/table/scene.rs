@@ -15,10 +15,10 @@ use crate::views::ViewsAction;
 
 /// Why the slice shown in 2D cannot be drawn in the scene while it shows the Parts look.
 const NO_SLICE_AMONG_PARTS: &str =
-    "The slice is a picture of the scan: it is not drawn among the labelled parts";
+    "The slice is a picture of the scan: it is not drawn among the labelled parts.";
 
 /// The words each side the patient can be seen from is found by.
-const SIDE: &[&str] = &["side", "view", "orientation", "camera"];
+const SIDE: &[&str] = &["side", "viewpoint", "orientation", "camera"];
 
 /// The words each button that removes a cut is found by.
 const UNCUT: &[&str] = &["remove", "uncut", "cut"];
@@ -26,7 +26,7 @@ const UNCUT: &[&str] = &["remove", "uncut", "cut"];
 /// Why there is nothing to save of the scene yet.
 fn not_ready(state: &AppState) -> Option<&'static str> {
     let there = state.scene.status == SceneStatus::Ready;
-    (!there).then_some("There is no 3D view to save yet")
+    (!there).then_some("There is no 3D view to save yet.")
 }
 
 /// Why a cut cannot be removed: there are fewer than `cut` cuts.
@@ -143,7 +143,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Straight across the view; drag the cut's handle to move it",
         words: &["cut", "clip", "section", "open"],
         place: Place::Tab(Tab::Scene),
-        why_not: |state| (state.scene.cuts.len() >= MAX_CUTS).then_some("Three cuts at most"),
+        why_not: |state| (state.scene.cuts.len() >= MAX_CUTS).then_some("Three cuts at most."),
         does: Does::Act(|_| Some(Action::CutAdd)),
         ..PLAIN
     },
@@ -154,7 +154,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Put back what this cut took away",
         words: UNCUT,
         place: Place::Tab(Tab::Scene),
-        why_not: |state| no_cut(state, 1, "There is no cut 1"),
+        why_not: |state| no_cut(state, 1, "There is no cut 1."),
         does: Does::Act(|_| Some(Action::CutRemove { cut: 0 })),
         ..PLAIN
     },
@@ -165,7 +165,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Put back what this cut took away",
         words: UNCUT,
         place: Place::Tab(Tab::Scene),
-        why_not: |state| no_cut(state, 2, "There is no cut 2"),
+        why_not: |state| no_cut(state, 2, "There is no cut 2."),
         does: Does::Act(|_| Some(Action::CutRemove { cut: 1 })),
         ..PLAIN
     },
@@ -176,7 +176,7 @@ pub(super) const COMMANDS: &[Command] = &[
         explains: "Put back what this cut took away",
         words: UNCUT,
         place: Place::Tab(Tab::Scene),
-        why_not: |state| no_cut(state, 3, "There is no cut 3"),
+        why_not: |state| no_cut(state, 3, "There is no cut 3."),
         does: Does::Act(|_| Some(Action::CutRemove { cut: 2 })),
         ..PLAIN
     },

@@ -99,7 +99,7 @@ pub(super) const COMMANDS: &[Command] = &[
         place: Place::Tab(Tab::Measure),
         why_not: |state| {
             let none = !state.annotations.can_undo();
-            none.then_some("There is nothing to take back")
+            none.then_some("There is nothing to take back.")
         },
         does: Does::Act(|_| Some(Action::Undo)),
         ..PLAIN
@@ -114,7 +114,7 @@ pub(super) const COMMANDS: &[Command] = &[
         place: Place::Tab(Tab::Measure),
         why_not: |state| {
             let none = !state.annotations.can_redo();
-            none.then_some("There is nothing to do again")
+            none.then_some("There is nothing to do again.")
         },
         does: Does::Act(|_| Some(Action::Redo)),
         ..PLAIN
@@ -145,7 +145,7 @@ pub(super) const COMMANDS: &[Command] = &[
         id: "measure.clear",
         name: "Clear all the measurements",
         label: "Clear all",
-        explains: "Remove every measurement of this series (Ctrl+Z brings them back)",
+        explains: "Remove every measurement of this series. This can be undone with Ctrl+Z.",
         words: &["clear", "delete", "remove", "erase"],
         place: Place::Tab(Tab::Measure),
         why_not: none_measured,

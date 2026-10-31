@@ -10,7 +10,7 @@ use crate::ui::parts::NO_VOLUME;
 use crate::ui::toolbar::Pick;
 
 /// The words each size of the interface is found by.
-const SIZE: &[&str] = &["interface size", "zoom", "scale", "text size"];
+const SIZE: &[&str] = &["interface size", "scale", "text size"];
 
 /// A size the interface can be drawn at, as the menu offers it.
 const fn size(id: &'static str, label: &'static str, name: &'static str, at: f32) -> Command {
@@ -70,7 +70,7 @@ pub(super) const COMMANDS: &[Command] = &[
         id: "size.larger",
         name: "Draw the interface larger",
         label: "Larger",
-        words: &["zoom in", "bigger", "interface size", "scale"],
+        words: &["zoom in", "bigger", "enlarge"],
         key: Some(ctrl(Key::Equals, "Ctrl+=")),
         place: Place::Menu,
         does: Does::Ask(Request::Larger),
@@ -80,7 +80,7 @@ pub(super) const COMMANDS: &[Command] = &[
         id: "size.smaller",
         name: "Draw the interface smaller",
         label: "Smaller",
-        words: &["zoom out", "interface size", "scale"],
+        words: &["zoom out", "smaller", "shrink"],
         key: Some(ctrl(Key::Minus, "Ctrl+-")),
         place: Place::Menu,
         does: Does::Ask(Request::Smaller),
@@ -102,6 +102,18 @@ pub(super) const COMMANDS: &[Command] = &[
     size("size.150", "150%", "Draw the interface at 150%", 1.5),
     size("size.175", "175%", "Draw the interface at 175%", 1.75),
     size("size.200", "200%", "Draw the interface at 200%", 2.0),
+    Command {
+        id: "search.open",
+        name: "Search actions, parts, scans and help",
+        label: "Search",
+        explains: "Type a few letters of what you want to do or find",
+        words: &["find", "search", "look up", "go to", "command"],
+        // A slash does it too: see the other keys in the list's own module.
+        key: Some(ctrl(Key::K, "Ctrl+K or /")),
+        place: Place::TopBar,
+        does: Does::Ask(Request::Search),
+        ..PLAIN
+    },
     Command {
         id: "help.keys",
         name: "Show the keys and what the mouse does",

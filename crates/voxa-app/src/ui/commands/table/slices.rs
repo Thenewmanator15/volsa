@@ -23,12 +23,12 @@ fn volume_at_end(state: &AppState, last: bool) -> Option<&'static str> {
         .and_then(|series| state.series(series))
         .and_then(|listed| listed.info.set.as_ref());
     let Some(set) = set else {
-        return Some("The scan shown is not one of several volumes");
+        return Some("The scan shown is not one of several volumes.");
     };
     if last && set.at + 1 >= set.count {
-        Some("This is the last volume")
+        Some("This is the last volume.")
     } else if !last && set.at == 0 {
-        Some("This is the first volume")
+        Some("This is the first volume.")
     } else {
         None
     }
