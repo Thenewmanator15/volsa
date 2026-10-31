@@ -10,6 +10,9 @@ use voxa_app::{Command, Outcome, WINDOWED, outcome, parse_args, run, tell};
 
 fn main() -> ExitCode {
     let command = parse_args(std::env::args_os().skip(1));
+    if let Ok(Command::PluginHelper) = command {
+        return voxa_plugins::helper::serve_stdio();
+    }
     if let Some(said) = outcome(&command) {
         tell(&said, WINDOWED);
         return ExitCode::from(said.code);

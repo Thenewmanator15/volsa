@@ -124,7 +124,10 @@ mod job {
     use windows::core::PCWSTR;
 
     /// The size of the limits handed to and read from the system: under 200 bytes.
-    #[expect(clippy::cast_possible_truncation, reason = "a record of under 200 bytes")]
+    #[expect(
+        clippy::cast_possible_truncation,
+        reason = "a record of under 200 bytes"
+    )]
     const LIMITS_SIZE: u32 = size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32;
 
     /// A job object, closed when it is dropped: closing it ends every process in it.

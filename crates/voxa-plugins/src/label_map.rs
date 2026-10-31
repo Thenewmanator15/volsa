@@ -43,6 +43,11 @@ impl LabelMap {
         Ok(LabelMap { region, ids })
     }
 
+    /// The labels, a label for each voxel of the region, the last axis fastest.
+    pub fn ids(&self) -> &[u16] {
+        &self.ids
+    }
+
     /// Writes the labels of the block that starts at `start` (a place in the grid) and is `size`
     /// voxels, `labels` in the block's own order, at the voxels it `owns` that lie in the map.
     pub fn put(&mut self, start: [isize; 3], size: [usize; 3], owns: Region, labels: &[u16]) {

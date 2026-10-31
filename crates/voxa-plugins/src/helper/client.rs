@@ -58,9 +58,21 @@ impl<R: Read, W: Write> Client<R, W> {
         Ok(done.card_bytes)
     }
 
-    /// Sends one message; a pipe that will not take it is a helper that has ended.
+    /// Sends one message. A pipe that will not take it is a helper that has ended, perhaps
+    /// after saying why: a helper refused the memory for a block says so while the block is
+    /// still being sent, and ends. What it said is read before the end is taken as silent.
     fn send(&mut self, kind: u8, payload: &[u8]) -> Result<(), HelperError> {
-        write_frame(&mut self.write, kind, payload).map_err(|_| HelperError::Ended)
+        if write_frame(&mut self.write, kind, payload).is_ok() {
+            return Ok(());
+        }
+        match read_frame(&mut self.read) {
+            Ok(Some((FAILED, payload))) => {
+                let failure: Failure =
+                    serde_json::from_slice(&payload).map_err(|_| HelperError::Ended)?;
+                Err(failure.into())
+            }
+            _ => Err(HelperError::Ended),
+        }
     }
 
     /// Reads the reply, which must be of `kind` or say why there is none.

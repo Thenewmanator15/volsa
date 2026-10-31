@@ -16,6 +16,8 @@ mod card_tests;
 #[cfg(test)]
 mod load_tests;
 #[cfg(test)]
+mod named_tests;
+#[cfg(test)]
 mod tests;
 
 /// Windows' code for "not enough memory", as a runtime's words carry it.

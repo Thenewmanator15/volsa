@@ -4546,6 +4546,7 @@ dependencies = [
  "voxa-dicom",
  "voxa-labels",
  "voxa-models",
+ "voxa-plugins",
  "voxa-render",
  "voxa-segment",
  "voxa-volume",

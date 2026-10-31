@@ -19,10 +19,12 @@ use crate::{LabelOutput, Layout};
 
 mod client;
 pub(crate) mod frame;
+mod runtime_opener;
 mod serve;
 
 pub use client::Client;
-pub use serve::serve;
+pub use runtime_opener::{RuntimeOpener, serve_stdio};
+pub use serve::{ServeError, serve};
 
 #[cfg(test)]
 mod frame_tests;

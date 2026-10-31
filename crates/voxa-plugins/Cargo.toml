@@ -28,5 +28,16 @@ tempfile.workspace = true
 # Stand-ins for the networks.
 voxa-models = { workspace = true, features = ["testkit"] }
 
+# The plugin helper as a program, for this crate's tests; Voxa itself is started as one.
+[[bin]]
+name = "voxa-plugin-helper"
+test = false
+doc = false
+
+# Real runs through the helper and ONNX Runtime. Its tests are all ignored unless asked for.
+[[test]]
+name = "with_runtime"
+required-features = ["testkit"]
+
 [lints]
 workspace = true

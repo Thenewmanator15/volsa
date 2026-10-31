@@ -53,9 +53,9 @@ impl Turn {
     /// How a volume's axes are turned so that the image's axes point towards these three
     /// directions, in order: `SynthSeg`'s rule, for any orientation code. For each of the
     /// patient's three axes, in `SynthSeg`'s order, the volume's axis that lies most along it is
-    /// chosen and mended as [`Turn::of`] does; then the image's axes take them in the order of
+    /// chosen and mended as `SynthSeg`'s own turn does; then the image's axes take them in the order of
     /// the code, each turned round when the volume's step runs away from its letter. With the
-    /// code right, front, top this is exactly [`Turn::of`].
+    /// code right, front, top this is exactly `SynthSeg`'s own turn.
     pub fn towards(volume: &Volume, steps: [f64; 3], towards: [Toward; 3]) -> Self {
         let [across, down, through] = steps;
         // The grid's transform is the volume's with each step made shorter, so its transform

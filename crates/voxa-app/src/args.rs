@@ -34,7 +34,13 @@ pub enum Command {
     Version,
     /// Say how Voxa is started.
     Help,
+    /// Serve one plugin run as Voxa's helper, over standard input and output, with no window:
+    /// `--plugin-helper` and nothing else. Voxa starts itself so; a person never needs to.
+    PluginHelper,
 }
+
+/// The argument Voxa starts its plugin helper with.
+pub const HELPER: &str = "--plugin-helper";
 
 /// What to say for `--version`.
 pub fn version() -> String {
@@ -49,11 +55,17 @@ pub fn version() -> String {
 /// A sentence for the person at the keyboard when more than one scan is named (it lists the
 /// ones to leave out) or an option is given that Voxa does not have.
 pub fn parse_args(args: impl Iterator<Item = OsString>) -> Result<Command, String> {
+    let args: Vec<OsString> = args.collect();
+    if let [only] = args.as_slice()
+        && only == HELPER
+    {
+        return Ok(Command::PluginHelper);
+    }
     let mut paths: Vec<PathBuf> = Vec::new();
     let mut asked = None;
     let mut only_paths = false;
     let mut labels = None;
-    let mut args = args;
+    let mut args = args.into_iter();
     while let Some(arg) = args.next() {
         let text = arg.to_string_lossy();
         match text.as_ref() {
@@ -122,6 +134,18 @@ mod tests {
             "{nothing_after}"
         );
         assert!(USAGE.contains("--labels FILE"));
+    }
+
+    #[test]
+    fn plugin_helper_is_its_own_command() {
+        assert_eq!(parsed(&["--plugin-helper"]), Ok(Command::PluginHelper));
+        assert!(parsed(&["--plugin-helper", "scan"]).is_err());
+        assert!(parsed(&["scan", "--plugin-helper"]).is_err());
+    }
+
+    #[test]
+    fn the_help_does_not_mention_the_helper() {
+        assert!(!USAGE.contains("plugin-helper"));
     }
 
     #[test]

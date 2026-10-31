@@ -82,15 +82,24 @@ pub(crate) fn from_floats(values: &[f32]) -> Vec<u8> {
         .collect()
 }
 
-/// Little-endian bytes as 32-bit numbers; `None` when they are not a whole number of them.
-pub(crate) fn to_floats(bytes: &[u8]) -> Option<Vec<f32>> {
+/// Little-endian bytes as 32-bit numbers, the memory for them asked for in a way that can be
+/// refused.
+///
+/// # Errors
+///
+/// [`FrameError::Cut`] when they are not a whole number of them, [`FrameError::NoRoom`] when
+/// there is not the memory.
+pub(crate) fn to_floats(bytes: &[u8]) -> Result<Vec<f32>, FrameError> {
     let (numbers, rest) = bytes.as_chunks::<4>();
-    rest.is_empty().then(|| {
-        numbers
-            .iter()
-            .map(|four| f32::from_le_bytes(*four))
-            .collect()
-    })
+    if !rest.is_empty() {
+        return Err(FrameError::Cut);
+    }
+    let mut values = Vec::new();
+    values
+        .try_reserve_exact(numbers.len())
+        .map_err(|_| FrameError::NoRoom)?;
+    values.extend(numbers.iter().map(|four| f32::from_le_bytes(*four)));
+    Ok(values)
 }
 
 /// 16-bit numbers as little-endian bytes.

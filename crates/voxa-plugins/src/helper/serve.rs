@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 use voxa_models::{Network, Stop, Tensor, file_sum};
 
 use super::frame::{
-    BLOCK, DONE, FAILED, FINISH, LABELS, OPEN, OPENED, from_labels, read_frame, to_floats,
-    write_frame,
+    BLOCK, DONE, FAILED, FINISH, FrameError, LABELS, OPEN, OPENED, from_labels, read_frame,
+    to_floats, write_frame,
 };
 use super::{Failure, OpenJob, Opener};
 use crate::Layout;
@@ -64,7 +64,12 @@ pub fn serve(
         match read_frame(input) {
             Ok(None) => return Ok(()),
             Ok(Some((BLOCK, payload))) => {
-                let values = to_floats(&payload).ok_or(ServeError("a block was not numbers"))?;
+                let values = match to_floats(&payload) {
+                    Ok(values) => values,
+                    Err(FrameError::NoRoom) => return failed(output, &Failure::NoRoom),
+                    Err(_) => return Err(ServeError("a block was not numbers")),
+                };
+                drop(payload);
                 match answer(network.as_mut(), &job, values) {
                     Ok(labels) => send(output, LABELS, &from_labels(&labels))?,
                     Err(failure) => return failed(output, &failure),
@@ -78,6 +83,7 @@ pub fn serve(
                 let report = serde_json::to_vec(&done).map_err(|_| ServeError("a report"))?;
                 return send(output, DONE, &report);
             }
+            Err(FrameError::NoRoom) => return failed(output, &Failure::NoRoom),
             _ => return Err(ServeError("a message out of turn")),
         }
     }

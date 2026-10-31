@@ -13,6 +13,7 @@ voxa-dicom.workspace = true
 voxa-volume.workspace = true
 voxa-labels.workspace = true
 voxa-models.workspace = true
+voxa-plugins.workspace = true
 voxa-segment.workspace = true
 voxa-render.workspace = true
 rayon.workspace = true

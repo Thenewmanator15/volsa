@@ -56,7 +56,7 @@ const EVERY_TEST: [&str; 4] = ["test", "--workspace", "--all-features", "--no-fa
 
 /// The crates with tests that need a model folder and the runtime. Such a test is marked
 /// `ignore`, so that the other tasks pass it by.
-const WITH_MODELS: [&str; 2] = ["voxa-models", "voxa-segment"];
+const WITH_MODELS: [&str; 3] = ["voxa-models", "voxa-segment", "voxa-plugins"];
 /// The variables that name the model folder and the folder that holds the runtime.
 const FOLDERS: [&str; 2] = ["VOXA_MODELS", "VOXA_RUNTIME"];
 

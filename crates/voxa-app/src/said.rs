@@ -67,7 +67,7 @@ pub fn outcome(command: &Result<Command, String>) -> Option<Outcome> {
     match command {
         Ok(Command::Help) => Some(said(USAGE.to_owned())),
         Ok(Command::Version) => Some(said(version())),
-        Ok(Command::Run(_) | Command::RunWith { .. }) => None,
+        Ok(Command::Run(_) | Command::RunWith { .. } | Command::PluginHelper) => None,
         Err(mistake) => Some(Outcome {
             text: format!("{mistake}\n\n{USAGE}"),
             failed: true,
