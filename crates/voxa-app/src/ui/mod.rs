@@ -47,8 +47,6 @@ mod volumes;
 pub use browser::thumbnail;
 pub use start::run;
 
-/// Decoded slices kept in memory: one gibibyte of pixel values.
-const CACHE_BYTES: usize = 1 << 30;
 /// Thumbnails are made at twice their size on screen, to stay sharp on dense displays.
 const THUMBNAIL_PIXELS: u32 = 128;
 
@@ -144,6 +142,8 @@ impl VoxaApp {
         let (settings, local) = capture::folders(capture.is_some());
         let prefs = crate::prefs::Kept::new(settings);
         let arranged = prefs.remembered().arrangement();
+        let budget =
+            crate::budget::bytes_for(prefs.remembered().memory_mib, voxa_models::total_memory());
         creation.egui_ctx.set_zoom_factor(arranged.interface_size);
         // A picture is of a window the size it asks for, not one fitted to this screen,
         // unless it asks to see the fitting.
@@ -152,7 +152,7 @@ impl VoxaApp {
         let mut app = Self {
             screen: screen::Screen::new(arranged, fitted, hidden),
             kept: prefs,
-            session: Session::new(from_workers, reports, CACHE_BYTES, local),
+            session: Session::new(from_workers, reports, budget, local),
             gpus: gpus.unwrap_or_default(),
             scene: scene::SceneView::new(render),
             planes: planes::PlanesView::new(render),

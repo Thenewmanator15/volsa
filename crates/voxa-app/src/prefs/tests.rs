@@ -27,7 +27,37 @@ fn changed() -> Prefs {
         radiological: false,
         linked: false,
         overlay: "filled".to_owned(),
+        memory_mib: None,
     }
+}
+
+#[test]
+fn a_preferences_file_without_a_budget_takes_the_default() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    std::fs::write(folder.path().join(FILE), r#"{"viewports": 2}"#).expect("writes");
+    assert_eq!(load(folder.path()).memory_mib, None);
+}
+
+#[test]
+fn a_budget_out_of_range_is_held_within_it() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    let budget_of = |text: &str| {
+        std::fs::write(folder.path().join(FILE), text).expect("writes");
+        load(folder.path()).memory_mib
+    };
+    assert_eq!(budget_of(r#"{"memory_mib": 1024}"#), Some(1024));
+    assert_eq!(budget_of(r#"{"memory_mib": 16}"#), Some(256));
+    assert_eq!(budget_of(r#"{"memory_mib": 9999999}"#), Some(65_536));
+}
+
+#[test]
+fn a_budget_set_by_hand_is_kept_when_the_rest_is_saved() {
+    // Nothing in the window sets it yet, so what the window saves never has it.
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    std::fs::write(folder.path().join(FILE), r#"{"memory_mib": 1024}"#).expect("writes");
+    let mut kept = Kept::new(Some(folder.path().to_owned()));
+    assert!(kept.keep(&changed()));
+    assert_eq!(load(folder.path()).memory_mib, Some(1024));
 }
 
 #[test]

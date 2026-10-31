@@ -15,6 +15,7 @@
 mod action;
 mod annotations;
 mod args;
+mod budget;
 mod cache;
 mod card;
 mod choices;

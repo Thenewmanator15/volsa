@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use voxa_core::{HeldVolume, SeriesId, Volume};
+use voxa_core::{Grid, HeldVolume, SeriesId, Volume};
 use voxa_render::Smoothed;
 
 /// The one volume in use. A volume is large, so only the newest is kept.
@@ -109,6 +109,37 @@ impl VolumeStore {
             return None;
         }
         self.preview.take().map(|(_, preview)| preview)
+    }
+
+    /// The bytes of values the volumes kept hold in memory: the volume and any copy of it
+    /// halved for the graphics card.
+    pub fn bytes_held(&self) -> usize {
+        let volume = self
+            .held
+            .as_ref()
+            .map_or(0, |(_, volume)| volume.bytes_held());
+        let copy = self
+            .for_card
+            .as_ref()
+            .map_or(0, |(copy, _)| copy.bytes_held());
+        volume.saturating_add(copy)
+    }
+
+    /// The bytes the graphics card holds of the volume kept: two a voxel of what it is given.
+    pub fn card_bytes(&self) -> usize {
+        let given = self
+            .for_card
+            .as_ref()
+            .map(|(copy, _)| copy)
+            .or(self.held.as_ref().map(|(_, volume)| volume));
+        let voxels: usize = given.map_or(0, |given| {
+            given
+                .dims()
+                .iter()
+                .map(|&side| side as usize)
+                .product::<usize>()
+        });
+        voxels.saturating_mul(2)
     }
 
     /// Keep nothing.

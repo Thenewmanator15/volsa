@@ -22,6 +22,7 @@ mod held;
 mod kept;
 pub(crate) mod labelling;
 mod labels;
+mod memory;
 mod opened;
 mod post;
 mod preview;
@@ -47,6 +48,8 @@ pub struct Workers {
 struct Shared {
     reports: Sender<Action>,
     cache: Arc<Mutex<FrameCache>>,
+    /// The memory budget for decoded values: what the frame cache was given at the start.
+    budget: usize,
     /// The source that is open, once it has been indexed.
     source: Mutex<Option<Box<dyn SeriesSource>>>,
     /// How many sources have been opened. Work begun for an earlier one stops.
@@ -112,9 +115,11 @@ impl Workers {
         labeller: Option<Arc<dyn labelling::Labeller>>,
     ) -> Self {
         let named = rayon::ThreadPoolBuilder::new().thread_name(|n| format!("voxa-worker-{n}"));
+        let budget = lock(&cache).budget();
         let shared = Shared {
             reports,
             cache,
+            budget,
             source: Mutex::new(None),
             opened: AtomicU64::new(0),
             kept: opened::Opened::default(),
@@ -198,6 +203,7 @@ impl Workers {
         lock(&self.shared.newest).clear();
         lock(&self.shared.cache).clear();
         lock(&self.shared.volumes).clear();
+        self.shared.share_the_budget();
         *lock(&self.shared.wanted_volume) = None;
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {

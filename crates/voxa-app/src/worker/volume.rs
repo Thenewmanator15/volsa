@@ -185,6 +185,7 @@ impl Shared {
         // The volume is where the series' slices are read from now: no second copy is kept.
         lock(&self.cache).forget(series);
         drop(store);
+        self.share_the_budget();
         let series = series.clone();
         self.report(Action::VolumeReady {
             series: series.clone(),

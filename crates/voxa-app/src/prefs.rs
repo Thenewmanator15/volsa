@@ -22,6 +22,8 @@ pub const INTERFACE_SIZES: RangeInclusive<f32> = 0.5..=3.0;
 pub const LIST_SHARE: f32 = 1.0 / 6.0;
 /// The share of the middle of the window the column beside the large part starts with.
 pub const COLUMN_SHARE: f32 = 0.3;
+/// The memory budgets, in mebibytes, a remembered one is held between.
+pub const MEMORY_MIB: RangeInclusive<u32> = 256..=65_536;
 
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +46,9 @@ pub struct Prefs {
     pub linked: bool,
     /// How labels are drawn over the planes: `off`, `outline` or `filled`.
     pub overlay: String,
+    /// The memory budget for decoded scans, in mebibytes; `None` for the default (see
+    /// [`crate::budget`]). Nothing in the window sets it yet: it is set in the file by hand.
+    pub memory_mib: Option<u32>,
 }
 
 /// How the window itself is set out, which the state does not hold: its size, the size of
@@ -118,6 +123,7 @@ impl Prefs {
             radiological: state.radiological,
             linked: state.planes.linked,
             overlay: overlay.to_owned(),
+            memory_mib: None,
         }
     }
 
@@ -178,6 +184,8 @@ impl Prefs {
         if overlay_of(&self.overlay).is_none() {
             self.overlay = start.overlay;
         }
+        let (least, most) = MEMORY_MIB.into_inner();
+        self.memory_mib = self.memory_mib.map(|mib| mib.clamp(least, most));
         self
     }
 }
@@ -236,6 +244,11 @@ impl Kept {
     pub fn keep(&mut self, now: &Prefs) -> bool {
         let Some(folder) = &self.folder else {
             return false;
+        };
+        // What the window cannot set yet is kept as it was read.
+        let now = &Prefs {
+            memory_mib: now.memory_mib.or(self.last.memory_mib),
+            ..now.clone()
         };
         if *now == self.last {
             return false;

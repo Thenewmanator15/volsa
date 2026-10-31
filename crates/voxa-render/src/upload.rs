@@ -38,6 +38,9 @@ pub struct CardRoom {
     pub norm16: bool,
     /// The most bytes one texture of a volume may take; a longer series is held in several.
     pub texture_bytes: u64,
+    /// Whether the device's memory is the computer's own, as an integrated card's is: what it
+    /// holds then counts against the memory budget.
+    pub shares_memory: bool,
 }
 
 impl Default for CardRoom {
@@ -48,6 +51,7 @@ impl Default for CardRoom {
             most_bytes: None,
             norm16: false,
             texture_bytes: MAX_TEXTURE_BYTES,
+            shares_memory: false,
         }
     }
 }
@@ -62,6 +66,7 @@ impl CardRoom {
                 .features()
                 .contains(wgpu::Features::TEXTURE_FORMAT_16BIT_NORM),
             texture_bytes: MAX_TEXTURE_BYTES,
+            shares_memory: false,
         }
     }
 

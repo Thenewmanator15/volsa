@@ -40,10 +40,11 @@ impl Session {
     pub fn new(
         to_reports: Sender<Action>,
         reports: Receiver<Action>,
-        cache_bytes: usize,
+        budget_bytes: usize,
         settings: Option<PathBuf>,
     ) -> Self {
-        let cache = Arc::new(Mutex::new(FrameCache::new(cache_bytes)));
+        // The frame cache has the whole budget until a volume is kept.
+        let cache = Arc::new(Mutex::new(FrameCache::new(budget_bytes)));
         let volumes = Arc::new(Mutex::new(VolumeStore::default()));
         let (kept, built) = (Arc::clone(&cache), Arc::clone(&volumes));
         let mut state = AppState::default();

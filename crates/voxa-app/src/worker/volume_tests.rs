@@ -328,3 +328,21 @@ fn no_curve_is_worked_out_for_a_volume_the_card_holds_in_slabs() {
     assert!(bench.is_quiet(), "and no curve follows");
     assert!(lock(&bench.volumes).take_smoothed(&series).is_none());
 }
+
+#[test]
+fn a_kept_volume_leaves_the_frame_cache_what_the_budget_has_over() {
+    let budget = 256 << 20;
+    let bench = Bench::with_budget(budget);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    let held = stored(&bench, THICK_SCAN).expect("kept").bytes_held();
+    assert!(held > 0);
+    assert_eq!(lock(&bench.cache).budget(), budget - held);
+    assert_eq!(
+        bench.workers.over_budget(),
+        0,
+        "a small series is within it"
+    );
+}

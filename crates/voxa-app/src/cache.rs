@@ -38,6 +38,34 @@ impl FrameCache {
         self.bytes
     }
 
+    /// Hold no more than `budget_bytes` from now on, letting slices go until the cache is
+    /// within it: a whole series at a time, the one with the fewest slices held first.
+    pub fn set_budget(&mut self, budget_bytes: usize) {
+        self.budget = budget_bytes;
+        while self.bytes > self.budget {
+            let fewest = self
+                .frames
+                .iter()
+                .min_by_key(|(_, slices)| slices.len())
+                .map(|(series, _)| series.clone());
+            let Some(series) = fewest else {
+                break;
+            };
+            let slices = self.frames.get_mut(&series);
+            let last = slices
+                .as_ref()
+                .and_then(|slices| slices.keys().next_back().copied());
+            let gone = slices
+                .zip(last)
+                .and_then(|(slices, last)| slices.remove(&last));
+            self.bytes -= gone.as_deref().map_or(0, size_of);
+            self.frames.retain(|_, slices| !slices.is_empty());
+        }
+        let frames = &self.frames;
+        self.unannounced
+            .retain(|(series, slice)| frames.get(series).is_some_and(|it| it.contains_key(slice)));
+    }
+
     /// A slice, if it is held.
     pub fn get(&self, series: &SeriesId, slice: usize) -> Option<Arc<Frame>> {
         self.frames.get(series)?.get(&slice).cloned()
@@ -187,6 +215,18 @@ mod tests {
             cache.take_unannounced(&id("a"), 2).is_none(),
             "a frame forgotten and put back as said is not unannounced"
         );
+    }
+
+    #[test]
+    fn a_lower_budget_lets_slices_go_until_the_cache_is_within_it() {
+        let mut cache = FrameCache::new(10 * ONE);
+        for slice in 0..10 {
+            cache.insert(&id("a"), slice, frame(0.0), 0);
+        }
+        cache.set_budget(4 * ONE);
+        assert_eq!((cache.bytes(), cache.budget()), (4 * ONE, 4 * ONE));
+        cache.set_budget(20 * ONE);
+        assert_eq!(cache.bytes(), 4 * ONE, "a higher one takes nothing back");
     }
 
     #[test]

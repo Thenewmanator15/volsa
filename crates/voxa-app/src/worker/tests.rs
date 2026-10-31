@@ -23,7 +23,7 @@ const QUIET: Duration = Duration::from_millis(400);
 pub(super) struct Bench {
     pub(super) workers: Workers,
     reports: Receiver<Action>,
-    cache: Arc<Mutex<FrameCache>>,
+    pub(super) cache: Arc<Mutex<FrameCache>>,
     pub(super) volumes: Arc<Mutex<VolumeStore>>,
 }
 

@@ -11,9 +11,18 @@ const MARGIN: u64 = 256 << 20;
 
 /// What the window's card can hold of a volume.
 pub(crate) fn room_on(render: &egui_wgpu::RenderState) -> CardRoom {
-    let name = render.adapter.get_info().name;
-    let most = most_bytes(&voxa_models::cards(), &name, voxa_models::unheld);
-    CardRoom::of(&render.device, most)
+    let info = render.adapter.get_info();
+    let most = most_bytes(&voxa_models::cards(), &info.name, voxa_models::unheld);
+    CardRoom {
+        shares_memory: shares_memory(info.device_type),
+        ..CardRoom::of(&render.device, most)
+    }
+}
+
+/// Whether graphics of this kind keep what they hold in the computer's own memory.
+pub(crate) fn shares_memory(kind: egui_wgpu::wgpu::DeviceType) -> bool {
+    use egui_wgpu::wgpu::DeviceType;
+    matches!(kind, DeviceType::IntegratedGpu | DeviceType::Cpu)
 }
 
 /// The bytes a volume may take on the card of this name: the memory of its own that no
@@ -41,6 +50,14 @@ mod tests {
             kind,
             own_bytes: 16 << 30,
         }
+    }
+
+    #[test]
+    fn integrated_and_software_graphics_share_the_computers_memory() {
+        use egui_wgpu::wgpu::DeviceType;
+        assert!(shares_memory(DeviceType::IntegratedGpu));
+        assert!(shares_memory(DeviceType::Cpu));
+        assert!(!shares_memory(DeviceType::DiscreteGpu));
     }
 
     #[test]
