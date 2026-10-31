@@ -149,7 +149,7 @@ fn scans_come_before_other_files_which_start_closed() {
         ..AppState::default()
     };
     let index = state.index.as_ref().expect("open");
-    let people = people_of(index, false);
+    let people = crate::people::people_of(index, false);
     let order = |other_open| {
         let asked = rows::Asked {
             index,
@@ -160,7 +160,7 @@ fn scans_come_before_other_files_which_start_closed() {
         };
         let rows = rows::rows(&asked).into_iter();
         let named = rows.map(|row| match row {
-            Row::Card { info, .. } => info.id.0.clone(),
+            Row::Card { study, series } => index.studies[study].series[series].id.0.clone(),
             Row::Other(count) => format!("other files: {count}"),
             heading => format!("{heading:?}"),
         });
@@ -297,4 +297,39 @@ fn a_folded_rail_is_a_strip_that_opens_it() {
     let _ = fold(press);
     let ((_, asked), _) = fold(release);
     assert_eq!(asked, [Request::FoldRail]);
+}
+
+#[test]
+fn the_rows_are_worked_out_again_only_when_what_they_come_from_changes() {
+    let mut state = AppState {
+        index: Some(with_odd_series()),
+        ..AppState::default()
+    };
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let drawn = |state: &AppState, rail: &mut RailState| {
+        let _ = pass(&ctx, state, rail, Vec::new());
+        rail.builds
+    };
+    assert_eq!(drawn(&state, &mut rail), 1);
+    assert_eq!(
+        drawn(&state, &mut rail),
+        1,
+        "drawn again with nothing changed"
+    );
+    state.show_patient = true;
+    assert_eq!(drawn(&state, &mut rail), 2, "the patient's details shown");
+    rail.other_open = true;
+    assert_eq!(drawn(&state, &mut rail), 3, "the other files opened");
+    let series = id(FINE_SCAN);
+    crate::reducer::reduce(
+        &mut state,
+        Action::SelectSeries {
+            viewport: 0,
+            series,
+        },
+    );
+    assert_eq!(drawn(&state, &mut rail), 4, "another series shown");
+    crate::reducer::reduce(&mut state, Action::IndexProgress(with_odd_series()));
+    assert_eq!(drawn(&state, &mut rail), 5, "the index read again");
+    assert_eq!(drawn(&state, &mut rail), 5);
 }

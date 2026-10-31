@@ -28,6 +28,7 @@ mod measurements;
 mod moved;
 mod naming;
 mod parts_table;
+mod people;
 mod pictures;
 mod planes;
 mod prefs;

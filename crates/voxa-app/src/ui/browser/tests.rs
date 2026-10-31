@@ -166,7 +166,7 @@ fn a_series_of_several_volumes_has_one_card_whatever_their_number() {
     series.extend((0..2).map(|at| volume_of("two", at, 2)));
     let ids = |shown: Option<&SeriesId>| -> Vec<String> {
         let cards = one_for_each(&series, shown);
-        cards.iter().map(|info| info.id.0.clone()).collect()
+        cards.iter().map(|at| series[*at].id.0.clone()).collect()
     };
     assert_eq!(
         ids(None),

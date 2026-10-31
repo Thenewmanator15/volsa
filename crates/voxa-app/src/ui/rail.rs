@@ -3,8 +3,8 @@
 //! group that is closed until it is opened. Folded, the rail is a strip that opens it again.
 //!
 //! An export can hold hundreds of series, so only the rows in sight are drawn: every row is of
-//! a fixed height (see [`rows`]), and the rows above and below the part in sight are passed
-//! over by their heights alone.
+//! a fixed height (see [`rows`]), the rows are kept from one frame to the next (see [`kept`]),
+//! and the rows in sight are found among them by their heights.
 //!
 //! While the patient's details are hidden, nothing here says the patient's name: a person's
 //! studies are headed `Person 1`, `Person 2`, and a page's card shows a page in place of its
@@ -15,21 +15,23 @@ use egui::{
     Color32, FontId, Frame, Id, Margin, Rect, RichText, ScrollArea, Sense, Shape, Stroke,
     TextStyle, Ui, WidgetInfo, WidgetType, pos2, vec2,
 };
-use voxa_core::SeriesId;
+use voxa_dicom::Index;
 
-use super::browser::{Thumbnails, study_title};
+use super::browser::{Thumbnails, face_of, study_title};
 use super::commands::{self, Request};
 use super::{panel, theme};
 use crate::action::Action;
-use crate::naming::{Group, group_of, printable};
+use crate::naming::printable;
+use crate::people::Person;
 use crate::state::AppState;
 
 mod card;
-mod people;
+mod kept;
 mod rows;
 mod strip;
 
-pub use people::people_of;
+pub use kept::RailState;
+use kept::shown_in;
 use rows::Row;
 
 /// How wide the rail is folded: a strip as wide as the tab panel's.
@@ -40,35 +42,6 @@ const NOTHING_OPEN: &str = "Open a scan export to begin: a folder, a zip file or
 const OTHER_FILES: &str = "rail.other";
 /// The room above the heading of the other files, in its row.
 const ABOVE_OTHER: f32 = 8.0;
-
-/// What the rail keeps from one frame to the next.
-#[derive(Debug, Clone, Default)]
-pub struct RailState {
-    /// Whether the other files are shown under the scans.
-    pub other_open: bool,
-    /// The series the active viewport showed when the rail was last drawn.
-    shown: Option<SeriesId>,
-}
-
-impl RailState {
-    /// Open the other files once the active viewport comes to show one of them, as it does
-    /// when an export holds no scans, so that its card is in sight.
-    fn follow(&mut self, state: &AppState) {
-        let shown = shown_in(state);
-        if shown == self.shown.as_ref() {
-            return;
-        }
-        let listed = shown.and_then(|id| state.series(id));
-        self.other_open |= listed.is_some_and(|listed| group_of(&listed.info) == Group::Other);
-        self.shown = shown.cloned();
-    }
-}
-
-/// The series the active viewport shows.
-fn shown_in(state: &AppState) -> Option<&SeriesId> {
-    let viewport = state.viewports.get(state.active)?;
-    viewport.series.as_ref()
-}
 
 /// What the rail says at its top when an export holds the studies of `count` people.
 pub fn people_said(count: usize) -> String {
@@ -122,42 +95,36 @@ pub fn show(
         return requests;
     };
     rail.follow(state);
-    let people = people_of(index, state.show_patient);
-    if people.len() > 1 {
-        ui.label(RichText::new(people_said(people.len())).color(theme::WARNING));
+    let open = rail.other_open;
+    let laid = rail.laid(index, state);
+    if laid.people.len() > 1 {
+        ui.label(RichText::new(people_said(laid.people.len())).color(theme::WARNING));
         ui.add_space(4.0);
     }
-    let asked = rows::Asked {
-        index,
-        people: &people,
-        shown: shown_in(state),
-        other_open: rail.other_open,
-        show_patient: state.show_patient,
-    };
-    let rows = rows::rows(&asked);
-    let open = rail.other_open;
     let mut asks = card::Asks {
         state,
         actions,
         requests: &mut requests,
     };
+    let from = Sources {
+        index,
+        people: &laid.people,
+        thumbnails,
+        open,
+    };
     let scroll = ScrollArea::vertical()
         .id_salt("voxa: the rail")
         .auto_shrink(false);
     let toggled = scroll.show_viewport(ui, |ui, sight| {
-        let total: f32 = rows.iter().map(Row::height).sum();
-        ui.set_height(total);
+        ui.set_height(laid.height());
         let (origin, wide) = (ui.max_rect().min, ui.max_rect().width());
         let mut toggled = false;
-        let mut top = 0.0;
-        for (number, row) in rows.iter().enumerate() {
-            let height = row.height();
-            if top + height > sight.min.y && top < sight.max.y {
-                let rect = Rect::from_min_size(origin + vec2(0.0, top), vec2(wide, height));
-                let placed = Placed { rect, number };
-                toggled |= draw(ui, placed, row, thumbnails, open, &mut asks);
-            }
-            top += height;
+        let first = laid.first_below(sight.min.y);
+        let rows = laid.rows.iter().zip(&laid.tops).enumerate().skip(first);
+        for (number, (row, top)) in rows.take_while(|(_, (_, top))| **top < sight.max.y) {
+            let size = vec2(wide, row.height());
+            let rect = Rect::from_min_size(origin + vec2(0.0, *top), size);
+            toggled |= draw(ui, Placed { rect, number }, *row, &from, &mut asks);
         }
         toggled
     });
@@ -165,6 +132,18 @@ pub fn show(
         rail.other_open = !rail.other_open;
     }
     requests
+}
+
+/// What the rows name by their places, and what they are drawn with.
+struct Sources<'a> {
+    /// The export's index, whose studies and series the rows name.
+    index: &'a Index,
+    /// The people the rows name.
+    people: &'a [Person],
+    /// The small pictures of the series.
+    thumbnails: &'a Thumbnails,
+    /// Whether the other files are open.
+    open: bool,
 }
 
 /// Where a row is drawn, and which row of the rail it is.
@@ -181,25 +160,40 @@ struct Placed {
 fn draw(
     ui: &mut Ui,
     placed: Placed,
-    row: &Row<'_>,
-    thumbnails: &Thumbnails,
-    open: bool,
+    row: Row,
+    from: &Sources<'_>,
     asks: &mut card::Asks<'_>,
 ) -> bool {
     let rect = placed.rect;
     match row {
-        Row::Person(label) => heading(ui, placed, label, &TextStyle::Body),
-        Row::Study(study) => heading(ui, placed, &study_title(study), &TextStyle::Small),
-        Row::Card { info, face } => {
+        Row::Person(place) => {
+            if let Some(person) = from.people.get(place) {
+                heading(ui, placed, &person.label, &TextStyle::Body);
+            }
+        }
+        Row::Study(at) => {
+            if let Some(study) = from.index.studies.get(at) {
+                heading(ui, placed, &study_title(study), &TextStyle::Small);
+            }
+        }
+        Row::Card { study, series } => {
+            let all = from
+                .index
+                .studies
+                .get(study)
+                .map(|study| study.series.as_slice());
+            let Some((all, info)) = all.and_then(|all| Some((all, all.get(series)?))) else {
+                return false;
+            };
             let card = card::Card {
                 info,
-                texture: thumbnails.get(*face),
+                texture: from.thumbnails.get(&face_of(all, info).id),
                 selected: shown_in(asks.state) == Some(&info.id),
             };
             let at = Rect::from_min_size(rect.min, vec2(rect.width(), card::HEIGHT));
             card::show(ui, at, &card, asks);
         }
-        Row::Other(count) => return other_heading(ui, rect, *count, open),
+        Row::Other(count) => return other_heading(ui, rect, count, from.open),
     }
     false
 }

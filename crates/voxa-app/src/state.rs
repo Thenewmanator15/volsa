@@ -143,6 +143,9 @@ pub struct Notice {
 pub struct AppState {
     /// What was found in the source that is open.
     pub index: Option<Index>,
+    /// How many times in this run the index has been replaced or cleared: what is worked out
+    /// from the index is worked out again when this changes.
+    pub index_changes: u64,
     /// How the viewports are arranged.
     pub layout: Layout,
     /// The viewports; a layout shows the first one, two or four.
@@ -183,6 +186,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             index: None,
+            index_changes: 0,
             layout: Layout::One,
             viewports: Default::default(),
             active: 0,

@@ -7,6 +7,7 @@ use voxa_dicom::{Index, best_series};
 
 use crate::action::{Action, Effect};
 use crate::naming::{Group, group_of};
+use crate::people::first_of;
 use crate::pictures::Pictures;
 use crate::planes::Planes;
 use crate::scene::Scene;
@@ -138,6 +139,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::IndexProgress(index) => {
             post(state, SKIPPED, skipped_notice(&index.skipped));
             state.index = Some(index);
+            state.index_changes += 1;
         }
         Action::IndexFailed(why) => {
             let notice = Notice {
@@ -183,6 +185,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
 /// and what the person chose to see is kept; everything about the scan is gone.
 fn emptied(state: &AppState) -> AppState {
     AppState {
+        index_changes: state.index_changes + 1,
         layout: state.layout,
         active: state.active,
         radiological: state.radiological,
@@ -253,14 +256,15 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
 
 /// The series to open first. The scans come first, always: the best of them as the index
 /// chooses it, the most detailed of the volumes; with none, the scan of the most pixels, the
-/// earlier of two as large; and with no scans at all, the first of the other files.
+/// earlier of two as large; and with no scans at all, the first of the other files as the rail
+/// lists them.
 fn first_to_open(index: &Index) -> Option<&SeriesInfo> {
     let all = || index.series.iter().map(|series| &series.info);
     let scans = || all().filter(|info| group_of(info) == Group::Scans);
     let best = best_series(index).map(|series| &series.info);
     best.filter(|info| group_of(info) == Group::Scans)
         .or_else(|| scans().rev().max_by_key(|info| info.voxel_count()))
-        .or_else(|| all().next())
+        .or_else(|| first_of(index, Group::Other))
 }
 
 /// Replace the notice with this key, or remove it when there is nothing to say.

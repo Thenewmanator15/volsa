@@ -152,3 +152,74 @@ fn a_faulted_series_still_shown_beside_keeps_its_notice() {
         .filter(|notice| notice.key == Some("series"));
     assert_eq!(said.count(), 1, "the stack is still shown at the left");
 }
+
+#[test]
+fn an_export_of_pages_opens_other_files_whichever_viewport_is_active() {
+    let pages = vec![
+        series(1, "SC", "made-up page", 1),
+        series(2, "OT", "made-up map", 1),
+    ];
+    let made = export(vec![("MADE-UP-1", "Made^Up", pages)]);
+    let index = made.index.expect("made");
+    let read = |state: &mut AppState| {
+        reduce(state, Action::OpenPath("made-up.zip".into()));
+        reduce(state, Action::IndexProgress(index.clone()));
+        reduce(state, Action::IndexDone);
+    };
+    let mut state = AppState::default();
+    (state.layout, state.active) = (Layout::TwoAcross, 1);
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let _ = pass(&ctx, &state, &mut rail, Vec::new());
+    read(&mut state);
+    assert_eq!(state.viewports[0].series, Some(id("1.2.9.1")));
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    assert!(rail.other_open, "open, whichever viewport was active");
+    let page = &state.series(&id("1.2.9.1")).expect("listed").info;
+    assert!(
+        top_of(&drawn.seen, page).is_some(),
+        "the page shown is in sight"
+    );
+    // Closed, then the same export read again between two frames: open again.
+    let heading = drawn.seen.place_of("Other files, 2").expect("drawn");
+    let _ = click(&ctx, &state, &mut rail, heading);
+    assert!(!rail.other_open);
+    read(&mut state);
+    let _ = pass(&ctx, &state, &mut rail, Vec::new());
+    assert!(rail.other_open, "open again for the export read again");
+}
+
+#[test]
+fn the_other_file_opened_first_is_the_first_the_rail_lists() {
+    // The older study comes first in the index; the rail lists the newer first.
+    let mut made = export(vec![
+        (
+            "MADE-UP-1",
+            "Made^Up",
+            vec![series(1, "SC", "made-up older page", 1)],
+        ),
+        (
+            "MADE-UP-1",
+            "Made^Up",
+            vec![series(2, "SC", "made-up newer page", 2)],
+        ),
+    ]);
+    let index = made.index.take().expect("made");
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(index));
+    reduce(&mut state, Action::IndexDone);
+    assert_eq!(
+        state.viewports[0].series,
+        Some(id("1.2.9.2")),
+        "the newer study's"
+    );
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    let top = |number: &str| {
+        let info = &state.series(&id(number)).expect("listed").info;
+        top_of(&drawn.seen, info).expect("drawn")
+    };
+    assert!(
+        top("1.2.9.2") < top("1.2.9.1"),
+        "and its card is the first of the other files"
+    );
+}

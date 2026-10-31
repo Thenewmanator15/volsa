@@ -1,15 +1,16 @@
 //! What the rail holds, from top to bottom, as rows of fixed heights, so that the rows in sight
 //! can be found without laying out the others: the scans, each person's and each study's
 //! under a heading where there are several, then the heading of the other files and, while
-//! they are open, the other files in the same order.
+//! they are open, the other files in the same order. A row names what it shows by its place in
+//! the index, so that the rows can be kept from one frame to the next.
 
-use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
+use voxa_core::{SeriesId, StudyInfo};
 use voxa_dicom::Index;
 
 use super::card;
-use super::people::Person;
 use crate::naming::{Group, group_of};
-use crate::ui::browser::{face_of, one_for_each};
+use crate::people::Person;
+use crate::ui::browser::one_for_each;
 
 /// How tall the heading of a person's studies is, with the room above it.
 const PERSON: f32 = 30.0;
@@ -21,26 +22,26 @@ const OTHER: f32 = 34.0;
 pub const GAP: f32 = 4.0;
 
 /// One row of the rail.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Row<'a> {
-    /// The heading of one person's studies.
-    Person(&'a str),
-    /// The heading of a study: its date and description.
-    Study(&'a StudyInfo),
-    /// The card of a series, and the series whose small picture it carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Row {
+    /// The heading of one person's studies, by the person's place among the people.
+    Person(usize),
+    /// The heading of a study, by its place among the index's studies.
+    Study(usize),
+    /// The card of a series.
     Card {
-        /// The series the card stands for.
-        info: &'a SeriesInfo,
-        /// The series whose picture is on it.
-        face: &'a SeriesId,
+        /// The place of its study among the index's studies.
+        study: usize,
+        /// Its place among that study's series.
+        series: usize,
     },
     /// The heading of the other files: how many cards it holds.
     Other(usize),
 }
 
-impl Row<'_> {
+impl Row {
     /// How tall the row is, with the room that goes with it.
-    pub fn height(&self) -> f32 {
+    pub fn height(self) -> f32 {
         match self {
             Self::Person(_) => PERSON,
             Self::Study(_) => STUDY,
@@ -54,7 +55,7 @@ impl Row<'_> {
 pub struct Asked<'a> {
     /// What the export holds.
     pub index: &'a Index,
-    /// Whose studies they are.
+    /// Whose studies they are, in the order the rail lists them.
     pub people: &'a [Person],
     /// The series the active viewport shows, whose volume stands for its series.
     pub shown: Option<&'a SeriesId>,
@@ -67,7 +68,7 @@ pub struct Asked<'a> {
 /// The rows of the rail. Each person's studies are headed when there are several people, or
 /// the patient's details are shown; each study is headed when the export holds several
 /// studies or several people, the top bar naming the study otherwise.
-pub fn rows<'a>(asked: &Asked<'a>) -> Vec<Row<'a>> {
+pub fn rows(asked: &Asked<'_>) -> Vec<Row> {
     let mut rows = group(asked, Group::Scans);
     let others = group(asked, Group::Other);
     let count = others
@@ -84,22 +85,23 @@ pub fn rows<'a>(asked: &Asked<'a>) -> Vec<Row<'a>> {
 }
 
 /// The rows of the series of one group, person by person and study by study.
-fn group<'a>(asked: &Asked<'a>, which: Group) -> Vec<Row<'a>> {
+fn group(asked: &Asked<'_>, which: Group) -> Vec<Row> {
     let several = asked.people.len() > 1;
     let head_people = several || asked.show_patient;
     let head_studies = several || asked.index.studies.len() > 1;
     let mut rows = Vec::new();
-    for person in asked.people {
-        let studies = person.studies.iter();
-        let studies = studies.filter_map(|at| asked.index.studies.get(*at));
+    for (place, person) in asked.people.iter().enumerate() {
         let mut theirs = Vec::new();
-        for study in studies {
-            let cards = cards_of(study, asked.shown, which);
+        for &at in &person.studies {
+            let Some(study) = asked.index.studies.get(at) else {
+                continue;
+            };
+            let cards = cards_of(at, study, asked.shown, which);
             if cards.is_empty() {
                 continue;
             }
             if head_studies {
-                theirs.push(Row::Study(study));
+                theirs.push(Row::Study(at));
             }
             theirs.extend(cards);
         }
@@ -107,21 +109,22 @@ fn group<'a>(asked: &Asked<'a>, which: Group) -> Vec<Row<'a>> {
             continue;
         }
         if head_people {
-            rows.push(Row::Person(&person.label));
+            rows.push(Row::Person(place));
         }
         rows.extend(theirs);
     }
     rows
 }
 
-/// The cards of a study's series in `group`, one for each series of several volumes.
-fn cards_of<'a>(study: &'a StudyInfo, shown: Option<&SeriesId>, which: Group) -> Vec<Row<'a>> {
+/// The cards of the series in `which` of the study at `at`, one for each series of several
+/// volumes.
+fn cards_of(at: usize, study: &StudyInfo, shown: Option<&SeriesId>, which: Group) -> Vec<Row> {
     let standing = one_for_each(&study.series, shown).into_iter();
     standing
-        .filter(|info| group_of(info) == which)
-        .map(|info| Row::Card {
-            info,
-            face: &face_of(&study.series, info).id,
+        .filter(|series| {
+            let info = study.series.get(*series);
+            info.is_some_and(|info| group_of(info) == which)
         })
+        .map(|series| Row::Card { study: at, series })
         .collect()
 }

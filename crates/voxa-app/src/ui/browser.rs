@@ -105,21 +105,25 @@ fn grey_level(fraction: f32) -> u8 {
     (fraction.clamp(0.0, 1.0) * 255.0).round() as u8
 }
 
-/// The series a study's cards stand for, in the study's order: every series of one volume,
-/// and one volume of each series that holds several. That one is the volume `shown`, when it
-/// is of that series, and otherwise the first.
-pub fn one_for_each<'a>(series: &'a [SeriesInfo], shown: Option<&SeriesId>) -> Vec<&'a SeriesInfo> {
+/// The places among a study's `series` of those its cards stand for, in the study's order: every
+/// series of one volume, and one volume of each series that holds several. That one is the
+/// volume `shown`, when it is of that series, and otherwise the first.
+pub fn one_for_each(series: &[SeriesInfo], shown: Option<&SeriesId>) -> Vec<usize> {
     let on_show = shown
         .and_then(|shown| series.iter().find(|info| info.id == *shown))
         .and_then(|info| info.set.as_ref());
-    let stands = |info: &&SeriesInfo| match &info.set {
+    let stands = |info: &SeriesInfo| match &info.set {
         None => true,
         Some(set) => match on_show {
             Some(shown) if shown.of == set.of => shown.at == set.at,
             _ => set.at == 0,
         },
     };
-    series.iter().filter(stands).collect()
+    let places = series.iter().enumerate();
+    places
+        .filter(|(_, info)| stands(info))
+        .map(|(at, _)| at)
+        .collect()
 }
 
 /// The series whose picture a card carries: the series itself, or the first volume of the
