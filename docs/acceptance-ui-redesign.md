@@ -11,13 +11,15 @@ This record says what was checked, how, and with what result, for the work in
 used in a walk-through is a made-up study that nobody's scan is part of: the phantom that
 `write_phantom` writes, a made-up report and PDF, and a made-up export with brain-like descriptions.
 Nothing from a real export is in this record or in the pictures. Pictures were taken with
-`VOXA_CAPTURE` and are kept in the workspace folder, not in the repository, except the five
-pictures of the README (below).
+`VOXA_CAPTURE` and were kept in the builder's scratch folder, not in the repository, and are not
+retained: this record's descriptions are what remains of them, except for the five pictures of the
+README (below), which are in the repository.
 
 **What this record does not say.** It does not say that the success test is passed (section 3 of
 the design): no person has used the redesigned window, and the builder's walk-through (below) is
-not a participant. It does not say that every requirement is met: three rows are partly met and one
-is met with a known limitation (below), and one risk row has no check on this branch. What needs a
+not a participant. It does not say that every requirement is met without qualification: two rows are met with a
+known limitation (UI-13 and UI-25, below), and two risk rows have no check on this branch
+(R-UI-11, and the replacement of labels in R-UI-12). What needs a
 person at the window is listed as not checked at the end.
 
 **Linux and macOS were neither built nor run**, and continuous integration on GitHub was not run
@@ -53,48 +55,41 @@ function, and `cargo test --workspace --all-features -- --list` lists a test of 
 tests are listed: the 1,923 that passed and the 17 ignored). **Four references were wrong** (cited in the
 rows UI-26, UI-30, UI-32 and UI-36), naming files the tests had since moved out of
 (`ui/tabs/labels/tests.rs` to `ui/tabs/labels/tests/short.rs`, and `prefs/tests.rs` to
-`prefs/carried_tests.rs`). They are corrected in this commit.
+`prefs/carried_tests.rs`). They are corrected in this commit. These are the figures of `fe4976a`;
+the gate on the head after the final review is under "After the final review".
 
 ## The requirements
 
-There are 39 rows, UI-01 to UI-39. **Every row has something in "Shown by".** What is in it is not
-all of the same strength:
+There are 39 rows, UI-01 to UI-39. **Every row has something in "Shown by".** As the rows now
+stand, counted from them:
 
-- **Met, shown by tests, 35 rows:** UI-01, UI-02, UI-04 to UI-06, UI-08 to UI-12, UI-14 to UI-29
-  and UI-31 to UI-39. Three of these rest on a capture looked at by eye as well as on tests: UI-01
-  (the whole window), UI-25 (labels placed apart) and UI-29 (themes); UI-30, below, does too. This
-  record describes those pictures.
-- **Partly met, as the rows say:**
-  - **UI-03** (every action is in one list). The buttons of the bars, the strip, and the View,
-    Measure, 3D and Tools tabs read the list. Still drawn by hand and not in it: the labelling
-    strip's Stop, Options, Show, Make again and Delete, the Labels tab's own switches (Show all,
-    Close, Names…, Save as CSV…, Off, Outline, Filled), and the menu buttons Views, Export and
-    Size. UI-04's walk lets these through by lists it states. So "every action is described once"
-    is not true yet.
-  - **UI-07** (an action that throws work away asks first or can be undone). Clearing the
-    measurements can be taken back, from a button or from search. Closing the labels, a button of
-    the Labels tab that is not in the list, does neither: it closes without asking and cannot be
-    taken back. (A search of the window's code for a confirmation found none.) Search
-    cannot run it, since it is not in the list.
-  - **UI-13** (patient details appear nowhere while off, and never in a saved thing). The rail, the
-    viewports' corners, the tags, the documents and a card's hover and screen-reader words are
-    shown by tests. Shown too, by this record: no log line holds the name, identifier, date,
-    description or path of a made-up export
-    (`crates/voxa-app/src/log/tests.rs::the_log_says_what_happened_and_never_who_it_happened_to`). **Not shown
-    by a test:** that a saved picture and a saved file's name hold none. A name written another
-    way inside a report's free text (an initial, a title, a different spelling, a surname alone)
-    cannot be found reliably and may show; the row says so.
-- **Met, with one known limitation:** UI-30 (the window works down to 640×480). At 640×480 with the
-  interface at 200% the folded panel's strip of tab icons is cut off at the bottom and a thin line
-  crosses the bottom line. See "Known limitations".
-- **UI-05** was marked partly met in the file as this task found it, "the help topics are Task 19's".
-  They have been added since (UI-39), so the row now says the box finds actions in the list, parts, scans and help topics,
-  and names the test that finds the seven topics. It carries UI-03's qualification: an action that
-  is not in the list is not found.
+- **Met, shown by tests, 37 rows:** UI-01 to UI-12, UI-14 to UI-24, UI-26 to UI-39. Four of these
+  rest on a capture looked at by eye as well as on tests: UI-01 (the whole window), UI-29
+  (themes), UI-30 (the smallest window) and UI-02 (the disclaimer at twice the size, looked at
+  again after the final review's fix). UI-25, below, does too. This record describes those
+  pictures.
+- **Met, with a known limitation, 2 rows:**
+  - **UI-13** (patient details appear nowhere while off, and never in a saved thing): met within
+    the limits the row states. A name written another way inside a report's free text (an
+    initial, a title, a different spelling, a surname alone) cannot be found reliably and may
+    show, and an identifier of fewer than four letters or digits is not looked for, so that it
+    cannot change a number. The rail, the viewports' corners, the tags, the documents, the
+    notices, a card's hover and screen-reader words, the log, and every saved picture, table and
+    file name are shown by tests.
+  - **UI-25** (measurement labels never overlap): shown by tests with room to move them and by
+    the pictures at the sizes above, and not by the smallest window at twice the size, where the
+    labels cover one another (below, Known limitations).
+- **Partly met: none.** Three rows were partly met when this record was first written (UI-03,
+  UI-07 and UI-13); the final review's fixes made each of them met, UI-13 within its limits.
+  UI-04 and UI-05 were counted met while UI-03 was not; now that the labelling strip's buttons,
+  the Labels tab's, the notices, About's, the report's Close and Save a copy as PDF…, and the
+  slice Loop switch are all in the list, they are met as they say, with the exceptions they
+  state (a row that belongs to one item, the answers to a question, and the turntable's Cancel).
 - Things a row's evidence does not reach, so as not to be read as more: the call into the window
   library that sets the window's size and place on first start is not run by a test (UI-31); the
   names a screen reader would say are tested as the accessibility tree and were not listened to
-  (UI-33); the frame cost (UI-37) was measured on this computer only and says what it does not show.
+  (UI-33); the frame cost (UI-37) was measured on this computer only and says what it does not
+  show; and the turntable's progress window is outside the walk of buttons (UI-03, UI-04).
 
 ## The risks
 
@@ -103,14 +98,18 @@ all of the same strength:
 | R-UI-01 | tests of the naming | filled earlier |
 | R-UI-02 | tests with made-up CT, with and without a rescale type, and with MONOCHROME1 | filled earlier |
 | R-UI-03 | tests on made-up files with each kind of spacing | filled earlier |
-| R-UI-04 | **filled now:** five tests of label placement, and captures with `measured` | label placement shown; the labels touch in the smallest window at 200% (below) |
+| R-UI-04 | seven tests of label placement, and captures with `measured` | label placement shown; the labels still cover one another in the smallest window at 200% (below) |
 | R-UI-05 | tests of an export of two people, and of who is one person | filled earlier |
 | R-UI-06 | tests of the card's mark and the notice | filled earlier |
-| R-UI-07 | **filled now:** clearing the measurements through search, and every action through search | the one action in the list that throws work away is covered; closing the labels is not in the list and is not covered (UI-07 partly met) |
+| R-UI-07 | clearing the measurements through search and its undo, the three questions asked before work is thrown away, and every action through search | shown; why the other actions search reaches throw no work away is in the register |
 | R-UI-08 | the wording test over text kept in constants, and a reading against the register | filled earlier; text written in drawing code and not kept in a constant is outside the test, as UI-38 says |
-| R-UI-09 | **filled now:** the contrast test and three tests that the pictures stay dark, a capture test, and captures in both themes | shown |
-| R-UI-10 | tests on made-up reports, including deep and long ones | filled earlier |
+| R-UI-09 | the contrast test, three tests that the pictures stay dark, a test that the edge letters and the scale bar are the same colours in both themes, a capture test, and captures in both themes | shown |
+| R-UI-10 | tests on made-up reports, including deep and long ones, and on what hiding a name does to a number | shown |
 | R-UI-11 | **None yet, and it stays so on this branch.** | see below |
+| R-UI-12 | **None yet** for the replacement of labels that Voxa made and did not keep; the question before closing them is tested | open: nothing asks when another run, file or export replaces them |
+| R-UI-13 | tests of the edge letters in both conventions, of the corner that says orientation is unavailable, of the default, and of the topic | shown |
+| R-UI-14 | the three tests of UI-26 and of the check in plain words | shown |
+| R-UI-15 | the tests of UI-02 | shown |
 
 **R-UI-11** (a deeply nested file stops Voxa) has no check on this branch. It is guarded on the
 `release` branch: `e3a5477` makes the index refuse a file nested too deeply before the DICOM
@@ -125,7 +124,9 @@ mitigated, with those tests' names, when `release` is merged in.
 Pictures of the real window, `--release`, made-up studies, at 640×480, 800×600 and 1400×900, in
 both themes (`VOXA_CAPTURE_SHOW=light` for the light one; a picture is dark otherwise, whatever the
 system is set to). Sizes are in points; the files are twice as many pixels. Each was looked at, most
-in contact sheets of four. What the pictures showed, by group:
+in contact sheets of four. These are the pictures as they were taken, before the final review's
+fixes (see "After the final review" for what has changed since, among it the Loop box that is now
+a switch, the empty window's words and the notice's). What the pictures showed, by group:
 
 **Each tab, at each size, in each theme: 42 pictures** (the phantom with its made-up labels; capture
 words `tab-view`, `tab-measure` with `measured`, `tab-3d` with `3d`, `tab-labels` with the labels
@@ -141,7 +142,7 @@ opened, `tab-tools`, `search`, `other`).
   the date and name in a corner, a 20 mm scale bar, "Slice 21 of 40 · 48.0 mm" and "W 591 L 316".
   At the right the panel with the tabs **View, Measure, 3D, Labels, Tools** and a **»** that folds it.
   The bottom line: "Voxa is not a medical device and is not for diagnostic use." at the left, and
-  "2 files skipped" with an information mark at the right.
+  "2 files skipped" with an information mark at the right (now "2 files are not scans or documents Voxa lists").
 - *View:* Brightness (W 590.97, L 315.60, Auto, Soft, Hard), Orientation ("Patient's left on the right"),
   Slices (Play, 10 /s, Loop), Picture (Mirror across, Mirror down, Turn, Fit), Display (Smooth the planes,
   Link the views, Show patient details).
@@ -195,14 +196,14 @@ opened, `tab-tools`, `search`, `other`).
   "Made-up phantom report · 2 January 2020", **Show the file's tags** and **Close**, and
   "Shown as text. The original report is the reference.", then the report's items in its order:
   "Description: A made-up ball, written to try Voxa. It is nobody's scan.", "Measurements" with
-  "Diameter: 96 mm", "Volume: 463 ml" and "Shape: Sphere" indented under it, "Written on: 20200102"
+  "Diameter: 96 mm", "Volume: 463 ml" and "Shape: Sphere" indented under it, "Written on: 20200102" (now "2 January 2020")
   and "Picture the report refers to: an image, not shown". The top bar shows no study's name for an
   export of documents alone. In the light theme the report's page is white. In the smallest window the
   line under the title is cut ("Made-up phant…") and the buttons stay inside.
 - *A PDF open* (1400×900, dark): "Report (PDF)", "This report is a PDF. Voxa does not show PDFs." and
   the button **Save a copy as PDF…**.
 - *Notices* (1400×900, dark, `notices`): the list open above the bottom line at the right, with
-  "2 files skipped", **Dismiss**, and the names of the two files, "labels/labels.nii.gz" and
+  "2 files skipped" (now "2 files are not scans or documents Voxa lists"), **Dismiss**, and the names of the two files, "labels/labels.nii.gz" and
   "labels/regions.json" (the made-up labels, which the phantom keeps in the study's folder).
 - *Other files open at 1000×700 and 1366×768:* the rail stays open at both, with the same two cards.
 
@@ -236,8 +237,8 @@ labels from the phantom's `labels` folder, read with `--labels`):
 | `voxa-phantom-labels.png` | `planes,solids,filled,chosen,tab-labels` | the made-up labels filled over the planes and as solids, the shell's left half chosen, and the Labels tab. |
 | `voxa-phantom-kinds.png` | `other,stepped,tab-view` with `VOXA_CAPTURE_SERIES="two echoes"` | the second of the two volumes, Other files open. |
 
-The study had its `labels` folder taken out for these, so that the bottom line does not say "2 files
-skipped"; the scans are the phantom's. The pictures were made smaller with a lossless re-encoding (no
+The study had its `labels` folder taken out for these, so that the bottom line does not say that two files
+are not scans or documents Voxa lists; the scans are the phantom's. The pictures were made smaller with a lossless re-encoding (no
 pixel changes), to between 355 KB and 760 KB each, which is smaller than the ones they replace (0.6 to
 1.3 MB). The README's captions and alt text are rewritten to say what each picture shows, in the
 redesign's names for the parts of the window. `write_phantom head` was not used: it needs a model
@@ -257,31 +258,72 @@ it and claims no pass. It found:
 - **S-07 cannot be done as written:** no key places or moves the end of a measurement, so S-02 cannot
   be done by keyboard alone (D-07);
 - what would trip a first-time user, D-01 to D-08: the empty window's one instruction in small grey
-  type, the rail folded to an unlabelled strip below 800 points, plain names cut in the rail and "Cspine"
+  type, the rail folded to an unlabelled strip below 960 points as the window opens, plain names cut in the rail and "Cspine"
   reading as a typing mistake, no on-screen word on how to draw once the Ruler is chosen, "2 files
-  skipped" on the first screen, the View tab's controls beside a report, and that the test script's
+  skipped" on the first screen (now "2 files are not scans or documents Voxa lists"), the View tab's controls beside a report, and that the test script's
   made-up study has no brain scan in it.
+
+## After the final review
+
+The final review read the whole branch in three parts (the window, the scans and their data, and
+the documents) and its fixes were made test first, each with the tests that were written for it. What
+they changed in what this record says, and what the user sees:
+
+- **One list of actions, with its last exceptions stated.** Every button that does something is an
+  entry of the list: the labelling strip's, the Labels tab's, the notice area's, About's, the
+  report's Close and Save a copy as PDF…, and the slice Loop switch, which is now the **Start again
+  after the last slice** switch of the View tab. A walk of the window in a labelling run, with a
+  kept result, with Voxa's own labels, with a notice, with a PDF open, with About open, with a
+  question open and with each menu open fails on a button that is not in the list. The
+  turntable's progress window is outside the walk, and its Cancel is by hand on purpose.
+- **Questions before work is thrown away.** Closing the labels, deleting the labels kept for a
+  scan and deleting a saved view each ask first, from the button and from search; Clear all can be
+  undone after another scan was looked at and this one is shown again.
+- **Keys.** After Tab the letter keys of the window still work, and on a picture the arrows step
+  through its slices, with a ring; Tab reaches the notices last; Space and Enter stay a focused
+  button's; a letter pressed while a menu is open belongs to the menu, and the Esc that closes it
+  does not also close a window (new in the last fix: before it, such a letter reached the picture
+  behind the menu).
+- **Patient details.** A document-only export hides the name its own file gives; the notices
+  never name the patient while details are hidden and name a skipped file by its last part only;
+  masking never changes a figure of a report and says under the heading when it replaced
+  something; each report scrolls on its own; nothing a saved picture, table or file name holds
+  names the patient, with details shown or not (tests).
+- **Words.** The model's own check is said in plain words with no score on the screen; a report's
+  dates are said in words; body parts such as "Cspine" are spelled out; the notice of files that
+  are not scans reads "N files are not scans or documents Voxa lists"; search says where an action
+  lives and ranks a spelt-out word of an action with a word of its name; a card says a distance
+  only when the files gave it; the empty window says in its middle how to begin.
+- **The smallest window at 200%.** The folded panel's icons share the height there is, so none is
+  cut off. A capture of that window with the phantom, taken for this record after the fix and
+  looked at, shows the five icons whole, the disclaimer whole with no line across it, and the
+  search box showing "Fi…" with its shortcut. See Known limitations for what is still not right.
+- **Gate.** The gate was run again on the head of the branch after these fixes: `cargo xtask check`, in the shell's ordinary
+  environment, exited 0 in about three and a half minutes: formatting, lints (pedantic, as errors),
+  the 400-line limit, the notices file, **2,001 tests passed, 0 failed, 17 ignored** (1,186 of them
+  `voxa-app`'s own; the 17 ignored are the ones that need a model folder and ONNX Runtime), `cargo
+  deny` and the documentation build. Every test named in `docs/quality/requirements.md` and
+  `docs/quality/risk-register.md` was checked again to exist: 514 references to 407 distinct test
+  names, for each of which the source file holds the function and `cargo test --workspace
+  --all-features -- --list` lists a test of that name (2,018 tests are listed); none is wrong.
 
 ## Known limitations
 
-- **R45: the smallest window (640×480) with the interface at 200%.** The folded panel's strip of tab
-  icons is cut off at the bottom: the first three icons are whole, the fourth is cut by the bottom line
-  and the fifth is not seen. A thin vertical line, the strip's edge, crosses the bottom line between
-  "diagnostic" and "use."; every word of the disclaimer is there, and the gate's test of the
-  disclaimer at twice the size passes, with the line there in the picture all the same. The search box shows only "F…" and
-  its shortcut. This is older than Task 20. **The final review decides whether to fix it.** It is also
-  in the usability file.
-- **Measurement labels touch in that window.** With the four measurements of the phantom on a slice,
-  the smallest window at 200% leaves a picture just over 200 points of the interface across. The
-  labels of Ruler 1 and Region 3 stand on adjacent lines with their letters touching, and the
-  angle's arms cross the scale bar's "20 mm". UI-25 says labels never overlap; it is shown by tests
-  with room to move them and by the pictures at the sizes above, and not by this one. The tests also
-  cover a label that has nowhere clear to go, which "is still written inside the picture".
-- The View tab's brightness, orientation and picture controls stay offered beside a report, a PDF and
-  with nothing open, though they act on none of them (D-01, D-06).
-- A date inside a report is shown as the file writes it ("20200102").
+- **Measurement labels cover one another in the smallest window at 200%.** With the four
+  measurements of the phantom on a slice (`VOXA_CAPTURE_SHOW=measured`, `VOXA_CAPTURE_SIZE=320x240`,
+  `VOXA_CAPTURE_ZOOM=2`), the picture is just over 200 points of the interface across. Looked at
+  again after the final review's fixes: the region's words ("Region 3: mean 404.7, SD 28.8") cover
+  the scale bar's "20 mm" and touch the angle's words; the ruler's and the marker's labels are
+  clear. UI-25 says labels never overlap; it is shown by tests with room to move them and by the
+  pictures at the sizes above, and not by this one. The tests also cover a label that has nowhere
+  clear to go, which "is still written inside the picture".
+- **R45, the folded panel's strip of tab icons cut off at 640×480 at 200%, is no longer one**
+  (fixed after the dry run; see above).
+- A name written another way inside a report's free text may show, and so may an identifier of
+  fewer than four letters or digits (UI-13).
+- Labels that Voxa made and did not keep are replaced without a question by another run, another
+  label file or another export (R-UI-12).
 - No keyboard way to place a measurement (D-07).
-- Closing the labels asks nothing and cannot be taken back (UI-07).
 
 ## Not checked
 

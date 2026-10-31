@@ -28,7 +28,9 @@ pictures or counts. Write what the person did and said about Voxa, not about the
 - Which scan and whose: the scan's name and description; patient details when shown.
 - The disclaimer.
 
-The risk register (`risk-register.md`) holds what could go wrong with each.
+The risk register (`risk-register.md`) holds what could go wrong with each: orientation in
+R-UI-13 and R-UI-09, scale in R-UI-03, values in R-UI-02, labels in R-UI-08, R-UI-12 and
+R-UI-14, which scan and whose in R-UI-01 and R-UI-05, and the disclaimer in R-UI-15.
 
 ## 3. Problems seen in 0.6.0
 
@@ -58,12 +60,19 @@ From captures of 0.6.0 with made-up studies (2026-10-27, 2026-10-28 and 2026-10-
 
 For each participant, on their own computer, with Voxa's zip and either their own export or
 a made-up study handed to them as a folder (written beforehand with
-`cargo run -p voxa-app --example write_phantom`):
+`cargo run -p voxa-app --example write_phantom`). That study is a ball: it has **no brain scan**
+(D-08), and `write_phantom head` needs a model folder this work does not have. So with the made-up
+study, step 3 asks for the finer of the ball's scans, as it is named in the rail ("ball, fine");
+it is a weaker test of finding "the brain scan" among others, since the scans differ in their
+descriptions only. For the test as designed, the study handed over must hold a brain scan beside
+others (a mode of `write_phantom` that writes one is not made yet); until it is, the formative
+sessions use participants' own exports.
 
 1. Say: "This is a viewer for scans. Please think aloud. I can't help, but there are no
    wrong answers: if something is hard, that is Voxa's fault."
 2. Ask them to open the export (S-01). Start a timer when Voxa's window first shows.
-3. "Find the scan of the brain." Note the time, and every place they looked first.
+3. "Find the scan of the brain." (With the made-up ball: "Find the scan called ball, fine.")
+   Note the time, and every place they looked first.
 4. "Measure something on it: anything you like." Note the time, and how they found the tool.
 5. Then S-03 to S-06 as time allows; S-07 for a keyboard user.
 6. Ask: what was hardest; what they expected to find and did not; what they thought any
@@ -92,11 +101,14 @@ list of series cost, and says it stays within that with a made-up study of 500 s
   line, the rail and the tab panel on its View tab; 0.6.0's is its toolbar and status line and
   its list of series. Both are the library's own code laid out by a `BareWindow`, the
   redesign's in `crates/voxa-app/src/ui/bare.rs`, 0.6.0's a temporary copy of the same
-  interface over its `bars::show` and `browser::show`, which was never committed.
+  interface over its `bars::show` and `browser::show`, which was never committed and is not
+  kept, so the 0.6.0 figures cannot be run again from this repository (0.6.0 has no
+  `BareWindow`; the example's own header says so).
 - **How.** Release builds. 0.6.0 is commit `ddc5686`, the commit this branch started from, in a
   temporary worktree (removed afterwards), not the `release` branch, which has moved. Nothing
-  else heavy was running on the computer: the two programs were run alternately, five runs
-  each, the 0.6.0 one first of each pair.
+  else heavy was running, as far as was checked; a first pair of runs, made while other work was
+  running, was discarded. The two programs were run alternately, five runs each, the 0.6.0 one
+  first of each pair.
 - **Result.** Median frame time, five runs each:
 
 | | Run 1 | Run 2 | Run 3 | Run 4 | Run 5 |
@@ -148,9 +160,9 @@ anyone's scan:
 
 | Step | What is on the screen, and what a person does | Shown by |
 |---|---|---|
-| 1 | Find the tool: the panel's tabs read **View, Measure, 3D, Labels, Tools**. One click on **Measure**, or **M**, or the search box (Ctrl+K, then "ruler", "length", "distance" or "size", then Enter). | `ui::tabs::measure::tests::m_opens_the_measure_tab_and_unfolds_the_panel`, `ui::search::tests::every_command_is_found_by_its_name_and_each_of_its_words`, `ui::commands::tests::ctrl_k_and_a_slash_open_the_search_and_nothing_else_does` |
+| 1 | Find the tool: the panel's tabs read **View, Measure, 3D, Labels, Tools**. One click on **Measure**, or **M**, or the search box (Ctrl+K, then "ruler", "length" or "distance", then Enter). "size" was found in the dry run to offer "Draw the interface at its usual size" before the ruler (D-09, below). | `ui::tabs::measure::tests::m_opens_the_measure_tab_and_unfolds_the_panel`, `ui::search::tests::every_command_is_found_by_its_name_and_each_of_its_words`, `ui::commands::tests::ctrl_k_and_a_slash_open_the_search_and_nothing_else_does` |
 | 2 | The Measure tab with nothing measured: **Tools** (Move, Ruler, Angle, Region, Marker), Undo and Redo, "On this series", "Nothing has been measured on this series yet.", and Save as CSV…, Save as JSON… and Clear all greyed. Move is the tool in hand. | capture of the tab on the made-up brain export; `ui::tabs::measure::tests::clicking_down_the_tab_finds_everything_it_offers` |
-| 3 | One click on **Ruler**; its button turns blue. The sentence that says how to draw ("Press at one end and let go at the other") is in its hover text only (D-04). | `ui::tabs::measure::tests::the_tab_draws_its_buttons_from_the_list` |
+| 3 | One click on **Ruler**; its button turns blue. The sentence that says how to draw ("Press at one end and let go at the other") was in its hover text only (D-04); since the final review the tab says it under the tools while a tool is in hand, with "Esc puts it down." | `ui::tabs::measure::tests::the_tab_draws_its_buttons_from_the_list` |
 | 4 | Press at one end of the length on the slice, drag, let go at the other end. It works on the slice at once, without waiting for a 3D volume. | `ui::viewport::tools_tests::a_ruler_is_drawn_on_a_slice_from_where_it_is_pressed_to_where_it_is_let_go`, `reducer::annotations_tests::a_ruler_can_be_drawn_on_a_slice_before_the_volume_is_ready`. **Not run:** a real mouse. |
 | 5 | The result: "Ruler 1: 38.4 mm" is written beside the line on the picture, and the tab lists "Ruler 1", "38.4 mm" and "Its ends can be placed to about one voxel: ± 0.6 mm along this line." | capture of the phantom's slice with the capture word `measured`, which makes one of each kind of measurement (the ruler there was not drawn by a pointer) |
 
@@ -166,7 +178,7 @@ the brain scan the one Voxa opens on, the three actions of S-01 step 2 come firs
   `ui::access_tests::rail_keys::enter_opens_the_card_that_has_the_keyboard`). Search opens with
   Ctrl+K or `/`, the arrows move among the results and Enter runs one
   (`ui::search::keys_tests::arrows_move_and_enter_runs_what_is_chosen`). **M** shows the Measure
-  tab. So S-01, and choosing the Ruler, can be done from the keyboard.
+  tab. So S-01, and choosing the Ruler, can be done from the keyboard, as far as the tests reach (the system's folder dialog was not run by keyboard).
 - **Placing the ruler cannot.** No key places or moves the end of a measurement: the keys the
   pictures take step the slices and change brightness, orientation, fit and layout (searched for
   in the window's code, not tried). So S-02 cannot be done by keyboard alone, and S-07 as written
@@ -202,22 +214,37 @@ the brain scan the one Voxa opens on, the three actions of S-01 step 2 come firs
   cannot succeed until a key places a measurement, or the scenario is reworded.
 - D-08. The script's step 3 needs a study with a brain scan among other scans, and `write_phantom`
   writes none. The made-up export used here is not in the repository.
+- D-09. Someone who types "size" into the search to measure a size is offered "Draw the interface
+  at its usual size" first, and Enter resets the interface's size. (Found by reading the ranking.)
 
-### Known limitation (R45): the smallest window with the interface at 200%
+**After the dry run.** The final review of the branch fixed what it could of these, test first:
+D-01 (the empty window says how to begin in its middle, with the buttons that open something);
+D-02 (the folded rail says "Scans" under its icon); D-03 (a body part written as one code, such
+as "Cspine", is spelled out; the plain names stay cut in a narrow rail and whole in the hover
+text); D-04 (a tool in hand says how to draw; a ruler let go within a millimetre of where it was
+pressed was not looked at again); D-05 (the notice reads "2 files are not scans or documents Voxa lists"); D-06 (a date in
+a report is said in words; beside a report or with nothing open the controls of the pictures are
+greyed with their reason, and the View tab shows one line in place of the window and level fields); D-09 (a word an action is searched by, spelt out, ranks with a word
+of its name, so "size" offers the measuring tools first). D-07 (no key places a measurement) and
+D-08 (no brain scan to hand in `write_phantom`) are open, and the script of section 5 says how
+to run it meanwhile. None of this has been seen with a person.
+
+### R45: the smallest window with the interface at 200%
 
 At 640×480 with the interface size at 200% (so that the window is 320 points of the interface
-across), taken with `VOXA_CAPTURE_SIZE=320x240` and `VOXA_CAPTURE_ZOOM=2` on a display at 200%:
+across), taken with `VOXA_CAPTURE_SIZE=320x240` and `VOXA_CAPTURE_ZOOM=2` on a display at 200%, the
+dry run saw the folded panel's strip of tab icons cut off at the bottom (the first three whole, the
+fourth cut by the bottom line, the fifth not seen), the strip's edge crossing the bottom line
+between "diagnostic" and "use.", and the search box showing only "F…".
 
-- the folded panel's strip of tab icons is cut off at the bottom: the first three icons are
-  whole, the fourth is cut by the bottom line and the fifth is not seen;
-- a thin vertical line, the strip's edge, crosses the bottom line between "diagnostic" and "use.";
-  every word of the disclaimer is still there (and the gate's test of the disclaimer at twice the
-  size passes; the line is in the picture);
-- the search box shows only "F…" and the shortcut, and with measurements on the slice the labels
-  of two of them touch.
-
-This is older than the redesign's last task (Task 20). The final review decides whether to fix it.
-It is also in the acceptance record (`docs/acceptance-ui-redesign.md`).
+**What is true now.** The final review's fix sizes the five icons to the height there is, down to
+20 points, so that none runs past the bottom line
+(`crates/voxa-app/src/ui/panel/tests.rs::the_icons_of_a_folded_panel_fit_in_a_window_as_short_as_the_smallest_at_twice_the_size`).
+A capture of that window with the phantom, taken after the fix and looked at, shows the five icons
+whole, the disclaimer whole with no line across it, and the search box showing "Fi…" and its
+shortcut. What is still not right there is the measurement labels: with the four measurements of the
+phantom on the slice, the region's words cover the scale bar's "20 mm" and touch the angle's
+(requirements UI-25, acceptance record, known limitations).
 
 ### Summative: the redesign
 

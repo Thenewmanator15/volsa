@@ -414,8 +414,8 @@ This work starts, and from now on keeps, three documents under `docs/quality/`:
 Also: no new third-party component is planned (if one is added, its risk goes in the
 register and its licence in the notices); security notes for reading reports from
 untrusted files and saving a PDF copy; and the intended-use statement changes from "MRI
-scans" to MRI and CT scans, and other DICOM files at a basic level. That change of wording
-is the owner's to approve.
+scans" to MRI and CT scans, and other DICOM files at a basic level. The owner approved
+that change of wording, with the design, on 2026-10-30.
 
 ## 9. Open for the owner
 
