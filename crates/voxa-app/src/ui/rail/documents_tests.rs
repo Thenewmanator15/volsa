@@ -1,6 +1,7 @@
 //! Documents in the rail: listed with the other files, counted, opened by a click, and kept
 //! with the rows from one frame to the next.
 
+use voxa_dicom::testkit::{DocumentOptions, encapsulated_pdf};
 use voxa_dicom::{DocumentKind, IndexedDocument};
 
 use super::card_tests::right_click;
@@ -11,7 +12,7 @@ use crate::action::Action;
 use crate::documents::Mask;
 use crate::reducer::reduce;
 use crate::testing::documents::{
-    NAMED, NOTE, PDF, REPORT, document_files, documents_alone, scans_and_a_named_report,
+    NAMED, NOTE, PDF, REPORT, document_files, documents_alone, page, scans_and_a_named_report,
     scans_and_documents,
 };
 use crate::testing::{SINGLE, id, indexed, series_files};
@@ -201,6 +202,8 @@ fn the_documents_of_a_study_without_scans_come_last_under_a_heading_that_says_so
         kind: DocumentKind::Report,
         title: entry.to_owned(),
         date: None,
+        patient_name: None,
+        patient_id: None,
     };
     // One of the export's own study, one of a study the export holds no scan of.
     index.documents = vec![document("alone", "1.2.8.99"), document("own", &own)];
@@ -269,4 +272,56 @@ fn a_title_that_holds_the_patients_name_is_hidden_on_the_card_in_its_hover_and_t
         drawn.seen.names
     );
     assert!(document_card::hover_of(&named, &mask).contains("Report on Phantom^Test"));
+}
+
+#[test]
+fn the_title_of_a_pdf_in_an_export_of_documents_alone_hides_the_name_its_file_gives() {
+    // A PDF titled with the made-up patient's name, in an export with no scan at all.
+    let titled = DocumentOptions {
+        title: "Letter about Test Phantom".to_owned(),
+        ..DocumentOptions::default()
+    };
+    let files = vec![("DOCS/L0001".to_owned(), encapsulated_pdf(&titled, &page()))];
+    let mut state = AppState {
+        index: Some(indexed(files)),
+        ..AppState::default()
+    };
+    assert!(
+        state
+            .index
+            .as_ref()
+            .is_some_and(|index| index.studies.is_empty())
+    );
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    rail.other_open = true;
+    let named = document_named(&state, "DOCS/L0001");
+    let mask = Mask::for_document(&state, &named);
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    let name = document_card::card_name(&named, &mask);
+    assert_eq!(name, "Report (PDF), Letter about [hidden]");
+    assert!(
+        drawn.seen.place_starting(&name).is_some(),
+        "{:?}",
+        drawn.seen.names
+    );
+    let said: Vec<String> = drawn
+        .seen
+        .words
+        .iter()
+        .map(|(word, _)| word.to_lowercase())
+        .chain(drawn.seen.names.iter().map(|(name, _)| name.to_lowercase()))
+        .collect();
+    assert!(
+        said.iter().all(|text| !text.contains("phantom")),
+        "{said:?}"
+    );
+    let hover = document_card::hover_of(&named, &mask);
+    assert!(!hover.to_lowercase().contains("phantom"), "{hover}");
+    // With the details on, as written.
+    state.show_patient = true;
+    let shown = Mask::for_document(&state, &named);
+    assert_eq!(
+        document_card::card_name(&named, &shown),
+        "Report (PDF), Letter about Test Phantom"
+    );
 }

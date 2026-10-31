@@ -38,7 +38,9 @@ impl Mask {
     /// The mask for the words of `document`, given what the export says of whose it is: while
     /// `show_patient` is false, the name and identifier of the patient of the study it says it
     /// belongs to; or, when that study holds no scans and so says nothing of whose it is, of
-    /// everyone whose studies the export holds.
+    /// everyone whose studies the export holds; and always the name and identifier the
+    /// document's own file gives, which in an export of documents alone are the only place its
+    /// patient is named.
     pub fn of(index: &Index, document: &IndexedDocument, show_patient: bool) -> Self {
         if show_patient {
             return Self::off();
@@ -51,13 +53,18 @@ impl Mask {
         if studies.is_empty() {
             studies = index.studies.iter().collect();
         }
+        let mut people: Vec<(&Option<String>, &Option<String>)> = studies
+            .iter()
+            .map(|study| (&study.patient_name, &study.patient_id))
+            .collect();
+        people.push((&document.patient_name, &document.patient_id));
         let mut needles: Vec<Vec<char>> = Vec::new();
-        for study in studies {
+        for (name, id) in people {
             let given = |field: &Option<String>| field.as_deref().map(str::trim).map(str::to_owned);
-            let words = given(&study.patient_name)
+            let words = given(name)
                 .into_iter()
                 .flat_map(|name| written_as(&name))
-                .chain(given(&study.patient_id));
+                .chain(given(id));
             needles.extend(
                 words
                     .filter(|word| !word.is_empty())

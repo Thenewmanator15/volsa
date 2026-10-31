@@ -78,6 +78,8 @@ fn a_report_is_listed_as_a_document_not_skipped() {
             kind: DocumentKind::Report,
             title: "Made-up report".to_owned(),
             date: Some("20200102".to_owned()),
+            patient_name: Some("Phantom^Test".to_owned()),
+            patient_id: Some("PHANTOM-001".to_owned()),
         }]
     );
     assert_eq!(found.skipped, Vec::<String>::new());
@@ -98,6 +100,8 @@ fn a_pdf_is_listed_as_a_document() {
             kind: DocumentKind::Pdf,
             title: "A made-up page".to_owned(),
             date: Some("20200102".to_owned()),
+            patient_name: Some("Phantom^Test".to_owned()),
+            patient_id: Some("PHANTOM-001".to_owned()),
         }]
     );
     assert_eq!(found.skipped, Vec::<String>::new());
@@ -345,4 +349,36 @@ fn what_holds_no_pdf_is_an_error_not_a_panic() {
     assert!(pdf_bytes(&report).is_err(), "a report holds no pdf");
     let image = classic_slice(&SliceOptions::default());
     assert!(pdf_bytes(&image).is_err(), "an image holds no pdf");
+}
+
+#[test]
+fn a_document_carries_the_patient_name_and_identifier_its_own_file_gives() {
+    let by = |name: &str, id: &str| DocumentOptions {
+        patient_name: name.to_owned(),
+        patient_id: id.to_owned(),
+        ..DocumentOptions::default()
+    };
+    let files = vec![
+        named("a", a_report(&by("Made^Up", "MADE-UP-1"))),
+        named(
+            "b",
+            encapsulated_pdf(&by("Other^Made", "MADE-UP-2"), &a_page()),
+        ),
+        // A file that gives neither carries neither.
+        named("c", a_report(&by("", ""))),
+    ];
+    let found: Vec<(Option<String>, Option<String>)> = indexed(files)
+        .documents
+        .into_iter()
+        .map(|d| (d.patient_name, d.patient_id))
+        .collect();
+    let said = |name: &str, id: &str| (Some(name.to_owned()), Some(id.to_owned()));
+    assert_eq!(
+        found,
+        [
+            said("Made^Up", "MADE-UP-1"),
+            said("Other^Made", "MADE-UP-2"),
+            (None, None)
+        ]
+    );
 }

@@ -23,6 +23,8 @@ fn document(study_uid: &str) -> IndexedDocument {
         kind: DocumentKind::Report,
         title: String::new(),
         date: None,
+        patient_name: None,
+        patient_id: None,
     }
 }
 
@@ -181,5 +183,51 @@ fn a_study_that_gives_no_name_or_identifier_leaves_nothing_to_find_but_names_are
     assert_eq!(
         mask.words("A: Anyone", true).as_ref(),
         format!("A: {NAME_HIDDEN}")
+    );
+}
+
+/// A document of `study_uid` whose own file names the patient `name` and `id`.
+fn document_naming(study_uid: &str, name: &str, id: &str) -> IndexedDocument {
+    IndexedDocument {
+        patient_name: Some(name.to_owned()),
+        patient_id: Some(id.to_owned()),
+        ..document(study_uid)
+    }
+}
+
+#[test]
+fn the_name_a_documents_own_file_gives_is_hidden_when_the_export_names_nobody() {
+    // An export of documents alone: no study, so no scan to say whose they are.
+    let alone = Index::default();
+    let report = document_naming("1.2.8.0", "Phantom^Test", "PHANTOM-001");
+    let mask = Mask::of(&alone, &report, false);
+    assert_ne!(mask, Mask::off());
+    assert_eq!(
+        mask.apply("Reviewed for Test Phantom (PHANTOM-001), Phantom^Test")
+            .as_ref(),
+        "Reviewed for [hidden] ([hidden]), [hidden]"
+    );
+    // With the details shown, as written.
+    let shown = Mask::of(&alone, &report, true);
+    assert_eq!(shown, Mask::off());
+}
+
+#[test]
+fn the_documents_own_name_is_hidden_beside_the_name_of_the_study_it_is_found_in() {
+    // The document's file gives another person than the scans of its study do: both go.
+    let other = document_naming("1.2.8.0", "Madeup^Visitor", "VISITOR-42");
+    let mask = Mask::of(&export(), &other, false);
+    assert_eq!(
+        mask.apply("Phantom Test, Visitor Madeup and VISITOR-42")
+            .as_ref(),
+        "[hidden], [hidden] and [hidden]"
+    );
+    // And one of a study the scans do not hold: everyone's, and its own.
+    let unplaced = document_naming("1.2.8.99", "Madeup^Visitor", "VISITOR-42");
+    let mask = Mask::of(&export(), &unplaced, false);
+    assert_eq!(
+        mask.apply("Phantom Test, MADEUP-7, Madeup Visitor")
+            .as_ref(),
+        "[hidden], [hidden], [hidden]"
     );
 }

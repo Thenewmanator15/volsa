@@ -100,3 +100,35 @@ fn a_report_of_a_study_whose_patient_the_export_does_not_name_still_hides_the_it
     let by = format!("Seen by: {NAME_HIDDEN}");
     assert!(words.contains(&by.as_str()), "{words:?}");
 }
+
+#[test]
+fn a_report_in_an_export_of_documents_alone_hides_the_name_its_file_gives() {
+    // No scan, so no study: the only place the export says whose report this is, is the report.
+    let mut state = naming_the_patient();
+    if let Some(index) = state.index.as_mut() {
+        index.studies.clear();
+    }
+    let ctx = seen::context(1.0);
+    let (mut kept, mut shown) = (Kept::default(), state);
+    let hidden = pass_with(&ctx, &shown, &mut kept, Vec::new());
+    let words = words_of(&hidden.seen);
+    assert!(
+        words.contains(&"Note: Reviewed for [hidden] ([hidden]) today."),
+        "{words:?}"
+    );
+    assert!(words.contains(&"Again: [hidden], once more"), "{words:?}");
+    assert!(
+        words.contains(&"Report on [hidden] · 2 January 2020"),
+        "the title in the header: {words:?}"
+    );
+    assert!(
+        !names_the_patient(&hidden.seen),
+        "{:?}",
+        everything(&hidden.seen)
+    );
+    // With the details on, as written.
+    shown.show_patient = true;
+    let written = pass_with(&ctx, &shown, &mut kept, Vec::new());
+    let words = words_of(&written.seen);
+    assert!(words.contains(&"Note: Reviewed for Test Phantom (PHANTOM-001) today."));
+}

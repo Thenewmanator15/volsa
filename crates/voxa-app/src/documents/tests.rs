@@ -20,6 +20,8 @@ fn document(entry: &str, study_uid: &str, kind: DocumentKind) -> IndexedDocument
         kind,
         title: String::new(),
         date: None,
+        patient_name: None,
+        patient_id: None,
     }
 }
 

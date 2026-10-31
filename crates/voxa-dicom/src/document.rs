@@ -45,6 +45,12 @@ pub struct IndexedDocument {
     pub title: String,
     /// The date the document was made (`YYYYMMDD`) or, failing that, the study's date.
     pub date: Option<String>,
+    /// The Patient's Name the file itself gives, as it writes it (`Family^Given`), if it does.
+    /// A study that holds documents alone has no scan to say whose it is, so this is the only
+    /// place the name is known to be the document's patient's.
+    pub patient_name: Option<String>,
+    /// The Patient ID the file itself gives, if it does.
+    pub patient_id: Option<String>,
 }
 
 /// The document a file holds, given the start of the file that indexing read: `None` when the
@@ -71,6 +77,8 @@ fn described(entry: &str, start: &[u8]) -> Option<IndexedDocument> {
         study_uid: text(&file, tags::STUDY_INSTANCE_UID)?,
         title: title_of(&file, &kind),
         date: text(&file, tags::CONTENT_DATE).or_else(|| text(&file, tags::STUDY_DATE)),
+        patient_name: text(&file, tags::PATIENT_NAME),
+        patient_id: text(&file, tags::PATIENT_ID),
         kind,
     })
 }
