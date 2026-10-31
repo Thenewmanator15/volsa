@@ -16,8 +16,10 @@ const WHOLE_NAME: u32 = 5_000;
 const NAME_STARTS: u32 = 4_000;
 /// The score of a name with a word the query starts.
 const NAME_WORD: u32 = 3_000;
-/// The score of something one of whose other words, or phrases, is the whole query.
-const OTHER_IS_QUERY: u32 = 2_500;
+/// The score of something one of whose other words, or phrases, is the whole query (or, of a
+/// query of several words, one of them): a word it is searched by, spelt out, is as good a
+/// match as a word of its name.
+const OTHER_IS_QUERY: u32 = NAME_WORD;
 /// The score of something found by one of its other words.
 const OTHER_WORD: u32 = 2_000;
 /// The score of a name holding the query's letters in order, less one for each letter
@@ -85,8 +87,8 @@ fn words_of(text: &str) -> Vec<String> {
 /// higher the better; `None` if it does not match.
 ///
 /// In falling order, the kinds of match are: the whole name is the query; the name starts with
-/// it; a word of the name starts with it; one of `words` is the query, or starts with it; the
-/// query's letters are in the name in order, the better the fewer letters they skip.
+/// it; a word of the name starts with it, or one of `words` is the query; one of `words` starts
+/// with it; the query's letters are in the name in order, the better the fewer letters they skip.
 ///
 /// A query of several words matches only if each word does, and scores as its weakest word
 /// does, unless the whole query is, or starts, the name, or is one of `words`.
@@ -126,6 +128,8 @@ fn word_score(word: &str, name: &str, name_words: &[String], others: &[String]) 
         Some(NAME_STARTS)
     } else if name_words.iter().any(|one| one.starts_with(word)) {
         Some(NAME_WORD)
+    } else if others.iter().any(|one| one == word) {
+        Some(OTHER_IS_QUERY)
     } else if others.iter().any(|one| one.starts_with(word)) {
         Some(OTHER_WORD)
     } else {

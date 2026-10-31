@@ -38,11 +38,11 @@ fn every_command_is_found_by_its_name_and_each_of_its_words() {
     for command in commands::all() {
         for query in std::iter::once(command.name).chain(command.words.iter().copied()) {
             let top = ranked(query, &entries);
-            let among_first_eight = top
+            let listed = top
                 .iter()
                 .take(8)
                 .any(|&place| command_of(&entries[place]) == Some(command.id));
-            assert!(among_first_eight, "{query:?} does not find {}", command.id);
+            assert!(listed, "{query:?} does not find {}", command.id);
         }
     }
 }
@@ -100,7 +100,7 @@ fn the_kinds_of_match_rank_in_the_order_the_design_gives() {
         score("tags of the file", name, &[]),
         score("tag", name, &[]),
         score("fil", name, &[]),
-        score("header", name, &words(&["metadata", "header"])),
+        score("head", name, &words(&["metadata", "header"])),
         score("tgs", name, &[]),
     ];
     let scores: Vec<u32> = scores.into_iter().map(|one| one.expect("found")).collect();
@@ -116,6 +116,9 @@ fn the_kinds_of_match_rank_in_the_order_the_design_gives() {
         scores.len(),
         "each kind is a step of its own"
     );
+    // An other word spelt out whole is as good as a word of the name, not better.
+    let spelt = score("header", name, &words(&["metadata", "header"]));
+    assert_eq!(spelt, score("fil", name, &[]));
     assert_eq!(score("zzz", name, &[]), None);
 }
 
@@ -277,4 +280,40 @@ fn there_are_seven_topics_each_found_by_search() {
             assert!(found_by(word), "{} is not found by {word:?}", topic.id);
         }
     }
+}
+
+#[test]
+fn a_word_of_an_action_that_is_the_query_ranks_with_a_word_of_a_name() {
+    // "size" is a word of a name and a word the ruler is searched by: neither is the better
+    // match, so the shorter name goes first, and Enter does not size the interface.
+    let by_name = score_of(
+        "size",
+        &named(Heading::Actions, "Draw the interface at its usual size", 0),
+    );
+    let ruler = Entry {
+        words: vec!["size".to_owned()],
+        ..named(Heading::Actions, "Measure a length", 1)
+    };
+    assert_eq!(score_of("size", &ruler), by_name);
+    // And by one word of several the query names: the word has to be the whole of one.
+    let longer = Entry {
+        words: vec!["sizes".to_owned()],
+        ..named(Heading::Actions, "Measure a length", 2)
+    };
+    assert!(
+        score_of("size", &longer) < by_name,
+        "only the start of a word"
+    );
+}
+
+#[test]
+fn typing_size_offers_the_measuring_tools_before_the_size_of_the_interface() {
+    let entries = entries_for(&thick_scan_ready());
+    let top = ranked("size", &entries);
+    let first = top.first().map(|&place| &entries[place]);
+    assert_eq!(first.and_then(command_of), Some("measure.ruler"));
+    let usual = top
+        .iter()
+        .position(|&place| command_of(&entries[place]) == Some("size.100"));
+    assert!(usual.is_none_or(|at| at > 0), "{usual:?}");
 }
