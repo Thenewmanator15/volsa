@@ -8,7 +8,8 @@ use crate::decode::unreadable;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
-use crate::header::{Header, Told, read_header_from};
+use crate::header::{Header, Start, Told, read_header_from};
+use crate::nesting::Refused;
 use crate::source::{MAX_ENTRY_BYTES, SeriesSource};
 
 mod volumes;
@@ -48,14 +49,16 @@ pub struct Index {
     pub series: Vec<IndexedSeries>,
     /// Names of the entries that are not DICOM images, in name order.
     pub skipped: Vec<String>,
+    /// The entries that are not read, each with the reason, in name order.
+    pub refused: Vec<Refused>,
 }
 
 /// Read the header of every entry in `source` and group the images into studies and series.
 ///
 /// Only headers are read, never pixels: of each file, no more than its header needs (see
 /// [`SeriesSource::visit_files`]). Entries that are not DICOM images are listed in
-/// [`Index::skipped`]; a `DICOMDIR` is passed over without comment, and without being read.
-/// `on_progress` is given the index so far each time a new series appears, at intervals in
+/// [`Index::skipped`], and files refused unread, with why, in [`Index::refused`]; a `DICOMDIR`
+/// is passed over without comment, and without being read. `on_progress` is given the index so far each time a new series appears, at intervals in
 /// between, and once more with the finished index.
 ///
 /// # Errors
@@ -73,9 +76,19 @@ pub fn index(
         if is_directory_file(name) {
             return Ok(());
         }
-        let Some(header) = read_header_from(contents, MAX_ENTRY_BYTES)? else {
-            found.skipped.push(name.to_owned());
-            return Ok(());
+        let header = match read_header_from(contents, MAX_ENTRY_BYTES)? {
+            Start::Image(header) => *header,
+            Start::NotAnImage => {
+                found.skipped.push(name.to_owned());
+                return Ok(());
+            }
+            Start::Refused(reason) => {
+                found.refused.push(Refused {
+                    entry: name.to_owned(),
+                    reason: reason.to_owned(),
+                });
+                return Ok(());
+            }
         };
         let starts_a_series = found.add(name.to_owned(), header);
         if starts_a_series || at % REPORT_EVERY == 0 {
@@ -127,6 +140,7 @@ struct Found {
     /// Images by series identifier, each list in the order the images arrived.
     series: BTreeMap<String, Vec<Image>>,
     skipped: Vec<String>,
+    refused: Vec<Refused>,
 }
 
 impl Found {
@@ -155,9 +169,11 @@ impl Found {
         });
         let mut index = Index {
             skipped: self.skipped.clone(),
+            refused: self.refused.clone(),
             ..Index::default()
         };
         index.skipped.sort();
+        index.refused.sort_by(|a, b| a.entry.cmp(&b.entry));
         for (mut study, mut listed) in studies {
             listed.sort_by(|a, b| in_the_list(&a.info).cmp(&in_the_list(&b.info)));
             study.series = listed.iter().map(|series| series.info.clone()).collect();

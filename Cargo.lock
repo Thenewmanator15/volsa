@@ -4567,7 +4567,9 @@ version = "0.6.0"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
+ "dicom-encoding",
  "dicom-object",
+ "dicom-parser",
  "dicom-pixeldata",
  "dicom-transfer-syntax-registry",
  "flate2",

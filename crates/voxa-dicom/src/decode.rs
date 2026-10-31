@@ -9,6 +9,7 @@ use dicom_transfer_syntax_registry::{TransferSyntaxIndex, TransferSyntaxRegistry
 use voxa_core::VoxaError;
 
 use crate::index::SliceRef;
+use crate::nesting::{TOO_DEEP, TooDeep, check_nesting};
 use crate::source::SeriesSource;
 
 mod colour;
@@ -119,8 +120,11 @@ impl ImageFile {
     }
 }
 
-/// Parse a whole file, naming the compression when that is what stops it being read.
+/// Parse a whole file, naming the compression when that is what stops it being read. A file
+/// nested too deeply is refused before the library is given it.
 pub(crate) fn open(bytes: &[u8]) -> Result<DefaultDicomObject, VoxaError> {
+    check_nesting(bytes, None)
+        .map_err(|TooDeep| VoxaError::Decode(format!("the file is {TOO_DEEP}")))?;
     dicom_object::from_reader(Cursor::new(bytes)).map_err(|error| match error {
         ReadError::ReadUnrecognizedTransferSyntax { uid, .. } => {
             VoxaError::UnsupportedTransferSyntax(uid.trim_end_matches(['\0', ' ']).to_owned())

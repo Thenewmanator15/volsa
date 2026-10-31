@@ -5,7 +5,7 @@ use dicom_dictionary_std::tags;
 use proptest::prelude::*;
 
 use super::*;
-use crate::header::{NeedMore, read_header, read_header_start};
+use crate::header::{Header, NeedMore, read_header, read_header_start};
 use crate::source::MAX_ENTRY_BYTES;
 use crate::testkit::{
     EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
@@ -28,7 +28,9 @@ impl Read for Counted<'_> {
 /// The header read from the start of `bytes`, and how many of them were read for it.
 fn from_start(bytes: &[u8]) -> (Option<Header>, usize) {
     let mut reader = Counted { bytes, given: 0 };
-    let header = read_header_from(&mut reader, MAX_ENTRY_BYTES).expect("reads");
+    let header = read_header_from(&mut reader, MAX_ENTRY_BYTES)
+        .expect("reads")
+        .image();
     (header, reader.given)
 }
 
@@ -150,7 +152,8 @@ fn every_start_of_a_small_file_says_it_needs_more_or_gives_the_whole_files_heade
         b"%PDF-1.7 a report".to_vec(),
     ];
     for bytes in files {
-        let whole = read_header(&bytes);
+        let whole = read_header_start(&bytes, true).expect("the whole file is enough");
+        assert_eq!(whole.clone().image(), read_header(&bytes));
         for cut in 0..=bytes.len() {
             let reading = read_header_start(&bytes[..cut], false);
             let fine = reading == Err(NeedMore) || reading == Ok(whole.clone());
@@ -160,7 +163,6 @@ fn every_start_of_a_small_file_says_it_needs_more_or_gives_the_whole_files_heade
                 bytes.len()
             );
         }
-        assert_eq!(read_header_start(&bytes, true), Ok(whole));
     }
 }
 
@@ -169,7 +171,9 @@ fn reading_more_than_the_limit_for_a_header_is_refused() {
     let bytes = padded_slice(16, 150_000);
     let refused = read_header_from(&mut bytes.as_slice(), 100_000);
     assert!(matches!(refused, Err(VoxaError::Archive(_))), "{refused:?}");
-    let header = read_header_from(&mut bytes.as_slice(), 1_000_000).expect("within the limit");
+    let header = read_header_from(&mut bytes.as_slice(), 1_000_000)
+        .expect("within the limit")
+        .image();
     assert_eq!(header, read_header(&bytes));
 }
 

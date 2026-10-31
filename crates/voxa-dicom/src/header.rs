@@ -9,6 +9,8 @@ use dicom_dictionary_std::tags;
 use dicom_object::{DefaultDicomObject, InMemDicomObject, OpenFileOptions};
 use voxa_core::ScanFacts;
 
+use crate::nesting::{TOO_DEEP, TooDeep, check_nesting};
+
 mod head;
 mod scan;
 mod told;
@@ -52,10 +54,34 @@ pub(crate) struct Header {
     pub told: Vec<Told>,
 }
 
-/// Parse the header of one whole file, as [`read_header_start`] does.
+/// What the start of a file was found to hold.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Start {
+    /// The header of an image.
+    Image(Box<Header>),
+    /// Not a DICOM image: not DICOM at all, or DICOM without the identifiers and size every
+    /// image has.
+    NotAnImage,
+    /// A file that is not read, for the reason given: one nested too deeply to read safely.
+    Refused(&'static str),
+}
+
+#[cfg(test)]
+impl Start {
+    /// The header, when the start was an image's.
+    pub(crate) fn image(self) -> Option<Header> {
+        match self {
+            Self::Image(header) => Some(*header),
+            Self::NotAnImage | Self::Refused(_) => None,
+        }
+    }
+}
+
+/// Parse the header of one whole file, as [`read_header_start`] does; `None` when it is not
+/// read as an image.
 #[cfg(test)]
 pub(crate) fn read_header(bytes: &[u8]) -> Option<Header> {
-    read_header_start(bytes, true).unwrap_or(None)
+    read_header_start(bytes, true).ok().and_then(Start::image)
 }
 
 /// The start of a file was too short to be sure of its header: more of the file is needed.
@@ -64,36 +90,56 @@ pub(crate) struct NeedMore;
 
 /// Parse the header at the start of a file; `whole` says whether `start` is all of it.
 ///
-/// The header is `None` when the file is not a DICOM image: not DICOM at all, or DICOM without
-/// the identifiers and size every image has. A file the DICOM library panics on is `None` too,
-/// and is skipped like any other file that cannot be read. What is given is what the whole
-/// file gives; when the parse needed more than a start that is not the whole file holds,
-/// [`NeedMore`] is given instead.
-pub(crate) fn read_header_start(start: &[u8], whole: bool) -> Result<Option<Header>, NeedMore> {
+/// A file the DICOM library panics on is [`Start::NotAnImage`], and is skipped like any other
+/// file that cannot be read; a file nested too deeply is [`Start::Refused`] before the library
+/// is given it. What is given is what the whole file gives; when the parse needed more than a
+/// start that is not the whole file holds, [`NeedMore`] is given instead.
+pub(crate) fn read_header_start(start: &[u8], whole: bool) -> Result<Start, NeedMore> {
     let short = Cell::new(false);
     // Only `short` outlives a panic, and it holds a plain flag.
     let parsed = std::panic::catch_unwind(AssertUnwindSafe(|| parse(start, whole, &short)));
     if short.get() {
         return Err(NeedMore);
     }
-    Ok(parsed.ok().flatten())
+    Ok(parsed.unwrap_or(Start::NotAnImage))
 }
 
 /// The file at the start of `bytes`, read up to its pixels: all of the file when `whole`, and
-/// otherwise its start, with `short` set when that was too short to be sure.
-fn up_to_the_pixels(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<DefaultDicomObject> {
+/// otherwise its start, with `short` set when that was too short to be sure. `None` when the
+/// library cannot read it; refused, and not given to the library, when it is nested too deeply.
+fn up_to_the_pixels(
+    bytes: &[u8],
+    whole: bool,
+    short: &Cell<bool>,
+) -> Result<Option<DefaultDicomObject>, TooDeep> {
+    check_nesting(bytes, Some(tags::PIXEL_DATA))?;
     let options = OpenFileOptions::new().read_until(tags::PIXEL_DATA);
     let file = if whole {
         options.from_reader(Cursor::new(bytes))
     } else {
         options.from_reader(head::Watched::new(bytes, short))
     };
-    file.ok()
+    Ok(file.ok())
 }
 
-fn parse(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Option<Header> {
-    let file = up_to_the_pixels(bytes, whole, short)?;
-    let obj: &InMemDicomObject = &file;
+/// What the start of a file holds, read up to its pixels.
+fn parse(bytes: &[u8], whole: bool, short: &Cell<bool>) -> Start {
+    match up_to_the_pixels(bytes, whole, short) {
+        Err(TooDeep) => Start::Refused(TOO_DEEP),
+        Ok(file) => file
+            .and_then(|file| header(&file, bytes, whole, short))
+            .map_or(Start::NotAnImage, |header| Start::Image(Box::new(header))),
+    }
+}
+
+/// The header of a file read up to its pixels; `None` when it is not an image.
+fn header(
+    file: &DefaultDicomObject,
+    bytes: &[u8],
+    whole: bool,
+    short: &Cell<bool>,
+) -> Option<Header> {
+    let obj: &InMemDicomObject = file;
     let groups = items(obj, tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).len();
     let stated = int(obj, tags::NUMBER_OF_FRAMES)
         .and_then(|n| usize::try_from(n).ok())

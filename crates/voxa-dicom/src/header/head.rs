@@ -5,24 +5,22 @@ use std::io::{self, Read};
 
 use voxa_core::VoxaError;
 
-use super::{Header, read_header_start};
+use super::{Start, read_header_start};
 use crate::source::within_limit;
 
 /// How much of a file is read first: enough for the header of nearly every single-frame file.
 const FIRST_READ: u64 = 64 * 1024;
 
-/// The header of the file `contents` reads, reading as little of it as the header needs: its
-/// first 64 KiB, and twice as much again each time that is too little to be sure of the
-/// header. What it gives is what parsing the whole file gives. No more than `limit` bytes are
-/// read.
+/// What the start of the file `contents` reads holds, reading as little of it as the header
+/// needs: its first 64 KiB, and twice as much again each time that is too little to be sure of
+/// the header. What it gives is what parsing the whole file gives, and a file nested too deeply
+/// is refused as soon as as much of it as has been read shows that. No more than `limit` bytes
+/// are read.
 ///
 /// # Errors
 /// An error reading the file, or [`VoxaError::Archive`] when more than `limit` bytes would
 /// have to be read.
-pub(crate) fn read_header_from(
-    contents: &mut dyn Read,
-    limit: u64,
-) -> Result<Option<Header>, VoxaError> {
+pub(crate) fn read_header_from(contents: &mut dyn Read, limit: u64) -> Result<Start, VoxaError> {
     let mut start = Vec::new();
     let mut wanted = FIRST_READ;
     loop {

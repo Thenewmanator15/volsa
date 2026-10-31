@@ -13,10 +13,12 @@ use voxa_core::VoxaError;
 use crate::source::{Entry, SeriesSource};
 
 mod build;
+mod nested;
 #[cfg(test)]
 mod tests;
 
 pub use build::{classic_slice, enhanced_series};
+pub use nested::{IMPLICIT_VR_LITTLE_ENDIAN, Nesting, nested_slice};
 
 /// Transfer syntax the builders write: explicit VR little endian.
 pub const EXPLICIT_VR_LITTLE_ENDIAN: &str = "1.2.840.10008.1.2.1";

@@ -14,7 +14,7 @@ mod scan;
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";
-const IMPLEMENTATION_CLASS: &str = "1.2.826.0.1.3680043.9.9999.0";
+pub(super) const IMPLEMENTATION_CLASS: &str = "1.2.826.0.1.3680043.9.9999.0";
 
 type Element = DataElement<InMemDicomObject>;
 
