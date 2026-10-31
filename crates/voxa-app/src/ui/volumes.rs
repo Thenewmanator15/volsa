@@ -3,7 +3,7 @@
 use egui::Ui;
 use voxa_core::SeriesInfo;
 
-use super::commands;
+use super::commands::{self, Request};
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -19,25 +19,21 @@ pub fn label(info: &SeriesInfo) -> Option<String> {
     })
 }
 
-/// In the toolbar: the volume the active viewport shows, with a button either side to step to
-/// the one before and the one after. Nothing unless that viewport shows a series of several.
-pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+/// The volume the active viewport shows, with a button either side to step to the one before
+/// and the one after. Nothing unless that viewport shows a series of several. Gives what the
+/// buttons ask of the window, if anything.
+pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
     let viewport = state.active;
     let shown = state.viewports.get(viewport);
     let listed = shown
         .and_then(|shown| shown.series.as_ref())
         .and_then(|series| state.series(series));
-    let Some(info) = listed.map(|listed| &listed.info) else {
-        return;
-    };
-    let Some(label) = label(info) else {
-        return;
-    };
-    // The three go onto the next row of the toolbar together when they must.
+    let info = listed.map(|listed| &listed.info)?;
+    let label = label(info)?;
+    // The three go onto the next row together when they must.
     if ui.available_size_before_wrap().x < width_of(ui, &label) {
         ui.end_row();
     }
-    ui.separator();
     // Each button is greyed at its end of the volumes.
     let together = ui.horizontal(|ui| {
         let back = commands::button(ui, "volume.before", state, None);
@@ -45,13 +41,10 @@ pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
         let on = commands::button(ui, "volume.after", state, None);
         back.or(on)
     });
-    if let Some(does) = together.inner {
-        let _ = does.run(state, actions);
-    }
+    together.inner.and_then(|does| does.run(state, actions))
 }
 
-/// How wide the stepper is: a line between it and what is before it, a button either side
-/// and the words between them, with the spaces.
+/// How wide the stepper is: a button either side and the words between them, with the spaces.
 fn width_of(ui: &Ui, label: &str) -> f32 {
     let wide = |text: &str, style: egui::TextStyle| {
         let font = style.resolve(ui.style());
@@ -63,7 +56,7 @@ fn width_of(ui: &Ui, label: &str) -> f32 {
     let spacing = ui.spacing();
     let button = wide("◀", egui::TextStyle::Button) + 2.0 * spacing.button_padding.x;
     let words = wide(label, egui::TextStyle::Body);
-    2.0 * button + words + 4.0 * spacing.item_spacing.x + spacing.icon_spacing
+    2.0 * button + words + 3.0 * spacing.item_spacing.x
 }
 
 #[cfg(test)]

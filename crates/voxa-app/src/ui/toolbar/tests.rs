@@ -68,26 +68,9 @@ fn sweep_with_picks(state: &AppState) -> (Vec<Action>, Asked, Vec<Pick>) {
 fn the_bar_offers_each_thing_once_from_left_to_right() {
     let (actions, asked, picks) = sweep_with_picks(&AppState::default());
     assert_eq!(picks, [Pick::Folder, Pick::File]);
-    let preset = |preset| Action::ApplyPreset {
-        viewport: 0,
-        preset,
-    };
     let expected = vec![
         Action::SetLayout(Layout::TwoAcross),
         Action::SetLayout(Layout::TwoByTwo),
-        preset(0),
-        preset(1),
-        preset(2),
-        Action::ToggleRadiological,
-        Action::TogglePatient,
-        Action::SetLinked(false),
-        Action::SetSmooth(true),
-        Action::CineToggle { viewport: 0 },
-        Action::CineSet {
-            viewport: 0,
-            fps: Cine::DEFAULT_FPS,
-            looping: false,
-        },
     ];
     assert_eq!(
         actions, expected,
@@ -109,27 +92,7 @@ fn the_bar_offers_each_thing_once_from_left_to_right() {
 }
 
 #[test]
-fn the_link_says_what_it_takes_for_granted() {
-    let taken = "Linked views take it that the patient did not move between series.";
-    assert!(LINK_SAYS.ends_with(taken), "{LINK_SAYS}");
-    let mut state = AppState::default();
-    state.planes.linked = false;
-    let (actions, _) = sweep(&state);
-    assert!(actions.contains(&Action::SetLinked(true)), "{actions:?}");
-}
-
-#[test]
-fn the_smooth_switch_says_that_it_adds_no_detail() {
-    let honest = "Smoothed: a curve through the measured values, not more detail.";
-    assert!(SMOOTH_SAYS.ends_with(honest), "{SMOOTH_SAYS}");
-    let mut state = AppState::default();
-    state.planes.smooth = true;
-    let (actions, _) = sweep(&state);
-    assert!(actions.contains(&Action::SetSmooth(false)), "{actions:?}");
-}
-
-#[test]
-fn the_window_controls_act_on_the_active_viewport() {
+fn the_layouts_are_chosen_from_the_bar_and_the_one_in_use_is_not_offered_again() {
     let state = AppState {
         layout: Layout::TwoByTwo,
         active: 2,
@@ -142,21 +105,6 @@ fn the_window_controls_act_on_the_active_viewport() {
         "{actions:?}"
     );
     assert!(!actions.contains(&Action::SetLayout(Layout::TwoByTwo)));
-    for preset in 0..3 {
-        assert!(
-            actions.contains(&Action::ApplyPreset {
-                viewport: 2,
-                preset
-            }),
-            "{actions:?}"
-        );
-    }
-    assert!(
-        !actions
-            .iter()
-            .any(|action| matches!(action, Action::SetWindow { .. })),
-        "a click changes no number"
-    );
 }
 
 #[test]
@@ -175,12 +123,11 @@ fn in_the_smallest_window_the_bars_wrap_onto_lines_and_stand_no_words_on_end() {
             let bars = egui::Panel::top("bars").show(ui, |ui| {
                 let mut actions = Vec::new();
                 let _ = show(ui, &state, false, &mut actions);
-                let _ = super::super::scene_bar::show(ui, &state, &mut actions);
             });
             high = bars.response.rect.height();
         });
         // No renderer is behind these passes to take the font texture.
         output.textures_delta.clear();
     }
-    assert!(high < 140.0, "the bars take {high} of 480 points");
+    assert!(high < 100.0, "the bars take {high} of 480 points");
 }

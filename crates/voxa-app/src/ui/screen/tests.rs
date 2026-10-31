@@ -125,3 +125,43 @@ fn the_series_list_starts_hidden_in_a_narrow_window() {
     );
     assert!(list_starts_shown(1440.0, 0.75));
 }
+
+#[test]
+fn choosing_a_tab_is_remembered() {
+    use super::super::panel::Tab;
+    use crate::prefs::{self, Prefs};
+    use crate::state::AppState;
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    let mut screen = Screen::new(Arrangement::default(), false, false);
+    assert_eq!(screen.panel.tab, Tab::View, "the first tab as Voxa starts");
+    // Chosen, and the panel folded, in this run...
+    screen.panel.show_tab(Tab::Scene);
+    screen.panel.toggle_fold();
+    let kept = Prefs::of(&AppState::default(), screen.arrangement(1.0));
+    assert_eq!((kept.tab.as_str(), kept.panel_folded), ("Scene", true));
+    prefs::save(folder.path(), &kept).expect("saves");
+    // ...and open the same way in the next.
+    let next = Screen::new(prefs::load(folder.path()).arrangement(), false, false);
+    assert_eq!((next.panel.tab, next.panel.folded), (Tab::Scene, true));
+}
+
+#[test]
+fn a_panel_width_is_kept_only_once_it_has_been_dragged() {
+    use crate::prefs::PANEL_SHARE;
+    let mut screen = Screen::new(Arrangement::default(), false, false);
+    assert_eq!(screen.panel.share, PANEL_SHARE);
+    assert_eq!(
+        screen.arrangement(1.0).panel_share,
+        None,
+        "the width Voxa chose is not the person's"
+    );
+    screen.panel.share = 0.33;
+    assert_eq!(screen.arrangement(1.0).panel_share, Some(0.33));
+    let remembered = Arrangement {
+        panel_share: Some(0.3),
+        ..Arrangement::default()
+    };
+    let screen = Screen::new(remembered, false, false);
+    assert_eq!(screen.panel.share, 0.3);
+    assert_eq!(screen.arrangement(1.0).panel_share, Some(0.3));
+}

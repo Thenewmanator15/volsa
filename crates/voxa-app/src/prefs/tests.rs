@@ -14,6 +14,9 @@ fn arranged() -> Arrangement {
         interface_size: 1.25,
         list_share: 0.2,
         column_share: 0.45,
+        panel_share: Some(0.3),
+        panel_folded: true,
+        tab: "Scene".to_owned(),
     }
 }
 
@@ -23,6 +26,9 @@ fn changed() -> Prefs {
         interface_size: 1.25,
         list_share: 0.2,
         column_share: 0.45,
+        panel_share: Some(0.3),
+        panel_folded: true,
+        tab: "Scene".to_owned(),
         viewports: 4,
         radiological: false,
         linked: false,
@@ -164,4 +170,78 @@ fn with_nowhere_to_keep_them_nothing_is_read_or_written() {
     assert!(kept.keep(&changed()), "written once");
     assert!(!kept.keep(&changed()), "and not again while it is the same");
     assert_eq!(load(folder.path()), changed());
+}
+
+#[test]
+fn the_panel_starts_open_on_the_view_tab_at_the_width_voxa_gives_it() {
+    let start = Prefs::default();
+    assert_eq!(
+        start.panel_share, None,
+        "no width of the person's choosing yet"
+    );
+    assert!(!start.panel_folded);
+    assert_eq!(start.tab, "View");
+    // A file from a Voxa that had no panel: all three are as Voxa starts.
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    std::fs::write(folder.path().join(FILE), r#"{"list_share": 0.2}"#).expect("writes");
+    let read = load(folder.path());
+    assert_eq!((read.panel_share, read.panel_folded), (None, false));
+    assert_eq!(read.tab, "View");
+}
+
+#[test]
+fn choosing_a_tab_is_remembered() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    let chosen = Prefs {
+        tab: "Scene".to_owned(),
+        ..Prefs::default()
+    };
+    save(folder.path(), &chosen).expect("saves");
+    let read = load(folder.path());
+    assert_eq!(read.tab, "Scene");
+    assert_eq!(read.arrangement().tab, "Scene");
+    // And the panel being folded, and the width it was dragged to.
+    std::fs::write(
+        folder.path().join(FILE),
+        r#"{"tab": "Labels", "panel_folded": true, "panel_share": 0.33}"#,
+    )
+    .expect("writes");
+    let read = load(folder.path());
+    assert_eq!((read.tab.as_str(), read.panel_folded), ("Labels", true));
+    assert_eq!(read.panel_share, Some(0.33));
+}
+
+#[test]
+fn a_panel_width_that_makes_no_sense_is_not_taken() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    for share in ["0.0", "-0.2", "1.0", "4.0"] {
+        let text = format!(r#"{{"panel_share": {share}}}"#);
+        std::fs::write(folder.path().join(FILE), text).expect("writes");
+        assert_eq!(load(folder.path()).panel_share, None, "{share}");
+    }
+}
+
+#[test]
+fn patient_details_start_off_and_are_not_remembered() {
+    let mut state = AppState::default();
+    assert!(!state.show_patient, "off as Voxa starts");
+    reduce(&mut state, Action::TogglePatient);
+    assert!(state.show_patient);
+    // Kept as the window is at the end of a run with the details shown.
+    let kept = Prefs::of(&state, Arrangement::default());
+    let written = serde_json::to_value(&kept).expect("serialises");
+    let names = written.as_object().expect("a table of settings");
+    assert!(
+        names.keys().all(|name| !name.contains("patient")),
+        "nothing about the patient is kept: {:?}",
+        names.keys().collect::<Vec<_>>()
+    );
+    // And read back into a fresh window, they are off.
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    save(folder.path(), &kept).expect("saves");
+    let mut fresh = AppState::default();
+    for action in load(folder.path()).actions(&fresh) {
+        reduce(&mut fresh, action);
+    }
+    assert!(!fresh.show_patient);
 }

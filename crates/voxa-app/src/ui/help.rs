@@ -175,7 +175,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(keys_listed().len() + MOUSE.len(), 41);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 42);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));

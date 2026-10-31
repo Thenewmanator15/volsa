@@ -11,6 +11,7 @@ use egui::{Button, Key, Ui};
 
 use super::keys::Held;
 use super::measure::Save;
+pub use super::panel::Tab;
 use super::scene::export;
 use super::theme::ThemeChoice;
 use super::toolbar::Pick;
@@ -75,28 +76,14 @@ pub enum Place {
     Menu,
     /// The strip above the pictures that arranges them.
     Strip,
+    /// The row of tabs of the panel at the right, and the button that folds it.
+    Panel,
     /// A tab of the panel at the right.
     Tab(Tab),
     /// The card of a scan.
     Card,
     /// Nowhere but its key.
     Keys,
-}
-
-/// The tabs of the panel at the right of the window.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Tab {
-    /// Brightness, orientation, the slices and how they are shown.
-    View,
-    /// The tools that measure, and what has been measured.
-    Measure,
-    /// The 3D scene.
-    Scene,
-    /// The labelled parts.
-    Labels,
-    /// Tools that work on the scan, such as labelling it.
-    #[expect(dead_code, reason = "Task 8 puts labelling in the Tools tab")]
-    Tools,
 }
 
 /// What an action does.
@@ -142,7 +129,6 @@ pub enum Request {
     /// To fold the column of scans, or unfold it.
     FoldRail,
     /// To fold the panel of tabs, or unfold it.
-    #[expect(dead_code, reason = "Task 6 adds the panel of tabs")]
     FoldPanel,
     /// To draw the window in this theme.
     #[expect(dead_code, reason = "Task 10 adds the theme button")]

@@ -8,6 +8,7 @@ use crate::action::Action;
 use crate::state::AppState;
 
 mod measure;
+mod panel;
 mod scene;
 mod slices;
 mod top;
@@ -18,6 +19,7 @@ pub(super) fn all() -> Vec<Command> {
     [
         slices::COMMANDS,
         window::COMMANDS,
+        panel::COMMANDS,
         measure::COMMANDS,
         scene::COMMANDS,
         top::COMMANDS,

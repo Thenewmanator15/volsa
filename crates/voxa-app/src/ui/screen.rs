@@ -1,6 +1,7 @@
 //! Fitting the window to the screen it opens on, and keeping how the window is set out: its
-//! size, how much of its width the series list and the column take, whether the list is
-//! shown, and the size of the interface.
+//! size, how much of its width the series list, the column and the tab panel take, whether the
+//! list is shown, which tab the panel shows and whether it is folded, and the size of the
+//! interface.
 //!
 //! Sizes and places here are in points at the interface's usual size, which is what Windows
 //! calls the window's size at its display scale: a laptop screen of 1920 by 1080 pixels at
@@ -8,7 +9,8 @@
 
 use egui::{ViewportCommand, pos2, vec2};
 
-use crate::prefs::{Arrangement, SMALLEST_WINDOW};
+use super::panel::PanelState;
+use crate::prefs::{Arrangement, PANEL_SHARE, SMALLEST_WINDOW};
 
 /// What is kept clear along the bottom of a screen for the taskbar. The window library cannot
 /// say how much of a screen the taskbar takes; Windows 11's is 48 points high, at the bottom.
@@ -98,6 +100,8 @@ pub struct Screen {
     arrangement: Arrangement,
     /// Whether the series list is shown.
     pub list_shown: bool,
+    /// The tab panel: which tab it shows, whether it is folded and how wide it is.
+    pub panel: PanelState,
     /// What opening has still to do, until it is done.
     opening: Option<Opening>,
 }
@@ -116,18 +120,31 @@ impl Screen {
     /// A window to be set out as `remembered` has it. It is fitted to its screen as it opens
     /// if `fit`, and the series list is hidden as it opens if `hide_list`.
     pub fn new(remembered: Arrangement, fit: bool, hide_list: bool) -> Self {
+        let panel = PanelState::remembered(
+            remembered.panel_share,
+            remembered.panel_folded,
+            &remembered.tab,
+        );
         Self {
             arrangement: remembered,
             list_shown: false,
+            panel,
             opening: Some(Opening { fit, hide_list }),
         }
     }
 
-    /// How the window is set out now, with the interface at `interface_size`.
+    /// How the window is set out now, with the interface at `interface_size`. The panel's width
+    /// is the person's only once it has been dragged to one, or was kept from a run in which it
+    /// was.
     pub fn arrangement(&self, interface_size: f32) -> Arrangement {
+        let share = self.panel.share;
+        let chosen = self.arrangement.panel_share.is_some() || (share - PANEL_SHARE).abs() > 1e-6;
         Arrangement {
             interface_size,
-            ..self.arrangement
+            panel_share: chosen.then_some(share),
+            panel_folded: self.panel.folded,
+            tab: self.panel.tab.name().to_owned(),
+            ..self.arrangement.clone()
         }
     }
 

@@ -8,7 +8,7 @@ use super::super::{Command, Does, Place, Tab};
 use super::PLAIN;
 use crate::action::Action;
 use crate::state::AppState;
-use crate::ui::toolbar::{LINK_SAYS, SMOOTH_SAYS};
+use crate::ui::tabs::{LINK_SAYS, SMOOTH_SAYS};
 
 /// The words each brightness preset is found by.
 const BRIGHTNESS: &[&str] = &["window", "level", "contrast", "preset", "brightness"];

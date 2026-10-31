@@ -1,4 +1,5 @@
-//! The window: toolbar, series list, the 3D scene, the viewport grid and status line.
+//! The window: toolbar, series list, the 3D scene, the viewport grid, the tab panel and status
+//! line.
 
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
@@ -17,6 +18,8 @@ mod cine;
 mod commands;
 #[cfg(test)]
 mod described_tests;
+#[cfg(test)]
+mod hand;
 mod help;
 mod icon;
 mod keys;
@@ -25,6 +28,7 @@ mod layout;
 pub(crate) mod lost;
 mod measure;
 mod overlay;
+mod panel;
 mod parts;
 mod pen;
 mod pictures;
@@ -33,7 +37,6 @@ mod remembered;
 mod requests;
 mod saving;
 mod scene;
-mod scene_bar;
 mod screen;
 mod scrolled;
 mod search;
@@ -41,6 +44,7 @@ mod shares;
 mod size;
 mod start;
 mod status;
+mod tabs;
 mod tags;
 mod theme;
 mod toolbar;
@@ -90,8 +94,9 @@ pub struct VoxaApp {
     kept: crate::prefs::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
     card: lost::Card,
-    /// How the window is set out: its size, the widths of the series list and the column,
-    /// and whether the list is shown.
+    /// How the window is set out: its size, the widths of the series list, the column and the
+    /// tab panel, whether the list is shown, and which tab the panel shows and whether it is
+    /// folded.
     screen: screen::Screen,
 }
 
@@ -306,15 +311,15 @@ impl eframe::App for VoxaApp {
         let mut actions = Vec::new();
         let list_shown = self.screen.list_shown;
         let shown = bars::show(ui, self.session.state(), list_shown, &mut actions);
-        let ((asked, saving), _disclaimer) = shown;
-        let scene = saving.map(commands::Request::SaveScene);
-        for request in asked.requests().into_iter().chain(scene) {
+        let (asked, _disclaimer) = shown;
+        for request in asked.requests() {
             self.ask(ui.ctx(), request);
         }
         if let Some(path) = toolbar::dropped(ui.ctx()) {
             actions.push(self.labels.opening(path));
         }
         let list = self.list(ui, &mut actions);
+        let panel = self.tab_panel(ui, &mut actions);
         let behind = egui::Frame::NONE
             .fill(theme::BACKGROUND)
             .inner_margin(viewport::GAP);
@@ -322,6 +327,7 @@ impl eframe::App for VoxaApp {
             self.pictures(ui, frame.wgpu_render_state(), &mut actions);
         });
         self.drag_the_list(ui, list);
+        self.drag_the_panel(ui, panel);
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);

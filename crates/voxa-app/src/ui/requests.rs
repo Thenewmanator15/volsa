@@ -22,8 +22,18 @@ impl VoxaApp {
             Request::About => self.about_open = true,
             Request::Tags => self.tags.open = !self.tags.open,
             Request::FullScreen => screen::toggle_full_screen(ctx),
-            // Until measuring is a tab (Task 7), its tab is the measurements window.
-            Request::ShowTab(Tab::Measure) => self.measure.open = !self.measure.open,
+            Request::ShowTab(tab) => {
+                self.screen.panel.show_tab(tab);
+                // Until measuring is in its tab (Task 7), measuring is the measurements window.
+                if tab == Tab::Measure {
+                    self.measure.open = !self.measure.open;
+                }
+                ctx.request_repaint();
+            }
+            Request::FoldPanel => {
+                self.screen.panel.toggle_fold();
+                ctx.request_repaint();
+            }
             Request::FoldRail => self.screen.list_shown = !self.screen.list_shown,
             Request::Size(size) => ctx.set_zoom_factor(size),
             Request::Larger => egui::gui_zoom::zoom_in(ctx),
@@ -43,13 +53,9 @@ impl VoxaApp {
                 }
             }
             Request::Search => self.search.open(),
-            // What the window has no place for yet: the other tabs and folding the panel come
-            // with the panel (Task 6), the theme button (Task 10, applied in Task 17), and the
-            // other files (Task 11).
-            Request::ShowTab(_)
-            | Request::FoldPanel
-            | Request::Theme(_)
-            | Request::ShowOtherFiles => {}
+            // What the window has no place for yet: the theme button (Task 10, applied in Task
+            // 17), and the other files (Task 11).
+            Request::Theme(_) | Request::ShowOtherFiles => {}
         }
     }
 }

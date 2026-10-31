@@ -349,3 +349,23 @@ fn ctrl_k_and_a_slash_open_the_search_and_nothing_else_does() {
     let command = find("search.open").expect("listed");
     assert_eq!(command.key.map(|key| key.shown), Some("Ctrl+K or /"));
 }
+
+#[test]
+fn the_panel_is_folded_by_a_key_as_the_series_list_is_and_each_tab_is_shown_by_its_action() {
+    let state = thick_scan_ready();
+    // `P` for the panel, as `B` is for the series list that sits at the other side.
+    assert_eq!(
+        on(Key::P, NONE, &state),
+        Some(Gives::Ask(Request::FoldPanel))
+    );
+    assert_eq!(on(Key::P, CTRL, &state), None);
+    for tab in Tab::ALL {
+        let command = find(tab.command()).expect("listed");
+        assert_eq!(
+            command.key, None,
+            "{}: a tab has no key of its own",
+            command.id
+        );
+        assert_eq!(command.place, Place::Panel);
+    }
+}

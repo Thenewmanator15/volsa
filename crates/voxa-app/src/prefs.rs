@@ -1,6 +1,7 @@
 //! What Voxa remembers between runs of how the person had it set: the window's size, the size
-//! of the interface, how wide the series list and the column are, how many viewports, and
-//! three switches. Nothing about any scan, and nothing that says which scans were opened.
+//! of the interface, how wide the series list, the column and the tab panel are, which tab is
+//! open and whether the panel is folded, how many viewports, and three switches. Nothing about
+//! any scan, and nothing that says which scans were opened.
 
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
@@ -22,6 +23,11 @@ pub const INTERFACE_SIZES: RangeInclusive<f32> = 0.5..=3.0;
 pub const LIST_SHARE: f32 = 1.0 / 6.0;
 /// The share of the middle of the window the column beside the large part starts with.
 pub const COLUMN_SHARE: f32 = 0.3;
+/// The share of the window's width the tab panel starts with, until the person drags it: what
+/// the column beside the large part took of what the series list left, at its starting widths.
+pub const PANEL_SHARE: f32 = COLUMN_SHARE * (1.0 - LIST_SHARE);
+/// The tab the panel opens on when none is remembered, by the name it is kept under.
+pub const FIRST_TAB: &str = "View";
 
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -36,6 +42,14 @@ pub struct Prefs {
     pub list_share: f32,
     /// The share of the middle of the window the column beside the large part takes.
     pub column_share: f32,
+    /// The share of the window's width the tab panel takes; `None` until the person has dragged
+    /// it to one, so that a settings file of an earlier Voxa can give its column's width.
+    pub panel_share: Option<f32>,
+    /// Whether the tab panel is folded to a strip of icons.
+    pub panel_folded: bool,
+    /// The tab last open, by the name it is kept under: `View`, `Measure`, `Scene`, `Labels` or
+    /// `Tools`. A name that is not one of these opens the first.
+    pub tab: String,
     /// How many viewports: 1, 2 or 4.
     pub viewports: u8,
     /// Whether the patient's left is shown on the right, as radiology has it.
@@ -48,7 +62,7 @@ pub struct Prefs {
 
 /// How the window itself is set out, which the state does not hold: its size, the size of
 /// the interface, and how wide the person dragged the series list and the column.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Arrangement {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
     /// for the size Voxa starts at.
@@ -59,6 +73,12 @@ pub struct Arrangement {
     pub list_share: f32,
     /// The share of the middle of the window the column beside the large part takes.
     pub column_share: f32,
+    /// The share of the window's width the tab panel takes, once the person has chosen one.
+    pub panel_share: Option<f32>,
+    /// Whether the tab panel is folded to a strip of icons.
+    pub panel_folded: bool,
+    /// The tab last open, by the name it is kept under.
+    pub tab: String,
 }
 
 impl Default for Arrangement {
@@ -68,6 +88,9 @@ impl Default for Arrangement {
             interface_size: 1.0,
             list_share: LIST_SHARE,
             column_share: COLUMN_SHARE,
+            panel_share: None,
+            panel_folded: false,
+            tab: FIRST_TAB.to_owned(),
         }
     }
 }
@@ -114,6 +137,9 @@ impl Prefs {
             interface_size: arrangement.interface_size,
             list_share: arrangement.list_share,
             column_share: arrangement.column_share,
+            panel_share: arrangement.panel_share,
+            panel_folded: arrangement.panel_folded,
+            tab: arrangement.tab,
             viewports,
             radiological: state.radiological,
             linked: state.planes.linked,
@@ -128,6 +154,9 @@ impl Prefs {
             interface_size: self.interface_size,
             list_share: self.list_share,
             column_share: self.column_share,
+            panel_share: self.panel_share,
+            panel_folded: self.panel_folded,
+            tab: self.tab.clone(),
         }
     }
 
@@ -172,6 +201,7 @@ impl Prefs {
         if !a_share(self.column_share) {
             self.column_share = start.column_share;
         }
+        self.panel_share = self.panel_share.filter(|share| a_share(*share));
         if layout_of(self.viewports).is_none() {
             self.viewports = start.viewports;
         }

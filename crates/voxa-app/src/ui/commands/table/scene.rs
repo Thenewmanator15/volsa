@@ -10,7 +10,7 @@ use crate::labels::{look_drawn, on_this_series};
 use crate::scene::SceneStatus;
 use crate::state::AppState;
 use crate::ui::scene::export;
-use crate::ui::scene_bar::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
+use crate::ui::tabs::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
 use crate::views::ViewsAction;
 
 /// Why the slice shown in 2D cannot be drawn in the scene while it shows the Parts look.
@@ -41,7 +41,7 @@ pub(super) const COMMANDS: &[Command] = &[
         name: "Show the scan as a surface",
         label: LOOKS[0].1,
         explains: LOOKS[0].2,
-        words: &["surface", "solid", "shaded", "3D"],
+        words: &["surface", "solid", "shaded"],
         place: Place::Tab(Tab::Scene),
         does: Does::Act(|_| Some(Action::SceneLook(Look::Surface))),
         ..PLAIN
@@ -51,7 +51,7 @@ pub(super) const COMMANDS: &[Command] = &[
         name: "Show the scan by volume rendering",
         label: LOOKS[1].1,
         explains: LOOKS[1].2,
-        words: &["vr", "volume rendering", "see-through", "3D"],
+        words: &["vr", "volume rendering", "see-through"],
         place: Place::Tab(Tab::Scene),
         does: Does::Act(|_| Some(Action::SceneLook(Look::Vr))),
         ..PLAIN
