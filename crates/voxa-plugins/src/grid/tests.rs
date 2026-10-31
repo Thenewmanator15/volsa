@@ -11,14 +11,14 @@ use crate::describe::tests::{example, read};
 const OUTSIDE: f32 = -7.0;
 
 /// A volume of `dims` voxels, 1 mm apart along the patient's own axes, valued by `value`.
-pub(super) fn volume_of(dims: [u32; 3], value: impl Fn(u32, u32, u32) -> f32) -> Volume {
+pub(crate) fn volume_of(dims: [u32; 3], value: impl Fn(u32, u32, u32) -> f32) -> Volume {
     let placement =
         Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0; 3]);
     placed(dims, placement, value)
 }
 
 /// A volume of `dims` voxels with this placement, valued by `value`.
-pub(super) fn placed(
+pub(crate) fn placed(
     dims: [u32; 3],
     placement: Affine<voxa_core::Voxel, voxa_core::Patient>,
     value: impl Fn(u32, u32, u32) -> f32,
@@ -36,7 +36,7 @@ pub(super) fn placed(
 }
 
 /// The example's input with these axes and spacing.
-pub(super) fn input(axes: &str, spacing: [f64; 3]) -> Input {
+pub(crate) fn input(axes: &str, spacing: [f64; 3]) -> Input {
     let mut value = example();
     value["input"]["axes"] = json!(axes);
     value["input"]["spacing_mm"] = json!(spacing);
