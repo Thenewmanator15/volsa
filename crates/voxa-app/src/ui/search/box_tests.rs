@@ -10,7 +10,7 @@ use crate::action::Action;
 use crate::state::{Notice, NoticeKind};
 use crate::testing::{labelled_head, thick_scan_ready};
 use crate::ui::keys;
-use crate::ui::measure::NO_VOLUME;
+use crate::ui::tabs::NO_VOLUME;
 use crate::ui::theme;
 
 /// One pass of the window with `events`: what search chose and every piece of text it drew,

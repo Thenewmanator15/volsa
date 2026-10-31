@@ -99,7 +99,7 @@ impl Drawn {
 }
 
 /// The words written beside an annotation on a picture: its name and what it measures. A
-/// marker measures nothing, and where it is can be read in the measurements window, so its
+/// marker measures nothing, and where it is can be read in the Measure tab, so its
 /// name stands alone.
 pub fn beside(item: &Annotation, value: &str) -> String {
     match item.shape {

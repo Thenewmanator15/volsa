@@ -303,7 +303,7 @@ fn a_hint_is_the_name_and_key_then_what_explains_it() {
     assert_eq!(hint_of("open.folder"), "Open a folder of DICOM files");
     assert_eq!(
         hint_of("measure.show"),
-        "Open or close the measurements (M)\n\
+        "Show the measurements (M)\n\
          Rulers, angles, regions and markers, and the list of them"
     );
 }

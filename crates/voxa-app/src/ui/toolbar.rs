@@ -34,7 +34,7 @@ pub struct Asked {
     pub shortcuts: bool,
     /// To open or close the tag browser.
     pub tags: bool,
-    /// To open or close the measurements window.
+    /// To show the Measure tab.
     pub measure: bool,
     /// To show or hide the series list.
     pub list: bool,

@@ -26,7 +26,6 @@ mod keys;
 mod labels;
 mod layout;
 pub(crate) mod lost;
-mod measure;
 mod overlay;
 mod panel;
 mod parts;
@@ -72,7 +71,8 @@ pub struct VoxaApp {
     tags: tags::Panel,
     /// The search box, which finds actions, parts, scans and help topics.
     search: search::Search,
-    measure: measure::Panel,
+    /// What the Measure tab keeps between frames: the name being typed.
+    measure: tabs::MeasureTab,
     parts: parts::PartsView,
     /// The label file to open, and the one that is open.
     labels: labels::Opening,
@@ -175,7 +175,7 @@ impl VoxaApp {
             help_open: false,
             tags: tags::Panel::default(),
             search: search::Search::default(),
-            measure: measure::Panel::default(),
+            measure: tabs::MeasureTab::default(),
             parts: parts::PartsView::default(),
             labels: labels::Opening::waiting_for(labels),
             held: labels::Held::default(),
@@ -331,12 +331,6 @@ impl eframe::App for VoxaApp {
         about::show(ui.ctx(), &mut self.about_open);
         help::show(ui.ctx(), &mut self.help_open);
         self.tags.show(ui.ctx(), self.session.state(), &mut actions);
-        let save = self
-            .measure
-            .show(ui.ctx(), self.session.state(), &mut actions);
-        if let Some(kind) = save {
-            self.ask(ui.ctx(), commands::Request::SaveMeasurements(kind));
-        }
         self.keys(ui.ctx(), &mut actions);
         self.show_search(ui.ctx(), &mut actions);
         let saving = self.scene_asked.take();

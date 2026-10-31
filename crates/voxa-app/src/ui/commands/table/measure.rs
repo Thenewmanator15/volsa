@@ -9,7 +9,7 @@ use crate::action::Action;
 use crate::annotations::Tool;
 use crate::planes::grid;
 use crate::state::AppState;
-use crate::ui::measure::{NO_VOLUME, Save};
+use crate::ui::tabs::{NO_VOLUME, NOTHING_MEASURED, Save};
 
 /// Why a tool cannot be used: there is no volume to measure on.
 fn no_volume(state: &AppState) -> Option<&'static str> {
@@ -19,14 +19,14 @@ fn no_volume(state: &AppState) -> Option<&'static str> {
 /// Why the measurements cannot be saved or cleared: there are none.
 fn none_measured(state: &AppState) -> Option<&'static str> {
     let none = state.annotations.items.is_empty();
-    none.then_some("Nothing has been measured on this series yet.")
+    none.then_some(NOTHING_MEASURED)
 }
 
 /// The entries.
 pub(super) const COMMANDS: &[Command] = &[
     Command {
         id: "measure.show",
-        name: "Open or close the measurements",
+        name: "Show the measurements",
         label: "Measure",
         explains: "Rulers, angles, regions and markers, and the list of them",
         words: &["measure", "measurements", "tools", "list"],

@@ -2,6 +2,7 @@
 
 use std::path::PathBuf;
 
+use super::panel::Tab;
 use super::{VoxaApp, capture, icon};
 use crate::prefs::SMALLEST_WINDOW;
 
@@ -23,7 +24,9 @@ impl VoxaApp {
         let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
         let asked = |word: &str| capture::asks_for(&wanted, word);
         self.tags.open = asked("tags");
-        self.measure.open = asked("list");
+        if asked("measure") {
+            self.screen.panel.show_tab(Tab::Measure);
+        }
         self.help_open = asked("keys");
         self.about_open = asked("about");
         self.pose = capture::pose(&wanted);

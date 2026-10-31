@@ -2,8 +2,8 @@
 //! windows to open or close, the size of the interface, choosing what to open and where to
 //! save.
 
-use super::commands::{Request, Tab};
-use super::{VoxaApp, measure, parts, screen, toolbar};
+use super::commands::Request;
+use super::{VoxaApp, parts, screen, tabs, toolbar};
 use crate::action::Action;
 
 impl VoxaApp {
@@ -24,10 +24,6 @@ impl VoxaApp {
             Request::FullScreen => screen::toggle_full_screen(ctx),
             Request::ShowTab(tab) => {
                 self.screen.panel.show_tab(tab);
-                // Until measuring is in its tab (Task 7), measuring is the measurements window.
-                if tab == Tab::Measure {
-                    self.measure.open = !self.measure.open;
-                }
                 ctx.request_repaint();
             }
             Request::FoldPanel => {
@@ -39,7 +35,7 @@ impl VoxaApp {
             Request::Larger => egui::gui_zoom::zoom_in(ctx),
             Request::Smaller => egui::gui_zoom::zoom_out(ctx),
             Request::SaveMeasurements(kind) => {
-                let saved = measure::save(kind, self.session.state());
+                let saved = tabs::save_measurements(kind, self.session.state());
                 if let Some(notice) = saved {
                     self.dispatch(Action::Post(notice));
                 }

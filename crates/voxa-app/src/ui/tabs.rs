@@ -1,8 +1,8 @@
 //! What each tab of the panel at the right of the window holds, and the window's way of
 //! drawing the panel with the tab that is open.
 //!
-//! The View and 3D tabs are here in full. Measure, Labels and Tools still have their content
-//! elsewhere, until Tasks 7 and 8 bring it in; each says where.
+//! The View, Measure and 3D tabs are here in full. Labels and Tools still have their content
+//! elsewhere, until Task 8 brings it in; each says where.
 
 use egui::{Rect, RichText, Ui};
 
@@ -12,15 +12,14 @@ use super::{VoxaApp, shares, theme};
 use crate::action::Action;
 use crate::state::AppState;
 
+mod measure;
 mod scene;
 mod view;
 
+pub use measure::{MeasureTab, NO_VOLUME, NOTHING_MEASURED, Save, save as save_measurements};
 pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
 pub use view::{LINK_SAYS, SMOOTH_SAYS};
 
-/// What the Measure tab says until measuring is in it.
-const MEASURE_ELSEWHERE: &str =
-    "Measuring is in its own window for now: the Measure button above, or the M key, opens it.";
 /// What the Labels tab says until the labelled parts are in it.
 const LABELS_ELSEWHERE: &str =
     "The labelled parts are in the Parts tab above the column of pictures for now.";
@@ -28,13 +27,19 @@ const LABELS_ELSEWHERE: &str =
 const TOOLS_ELSEWHERE: &str =
     "Labelling a scan is in the Parts tab above the column of pictures for now.";
 
-/// Draw what `tab` holds. Changes of state go onto `actions`; what its buttons ask of the
-/// window is given back.
-pub fn show(ui: &mut Ui, tab: Tab, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
+/// Draw what `tab` holds. `measuring` is what the Measure tab keeps between frames. Changes of
+/// state go onto `actions`; what its buttons ask of the window is given back.
+pub fn show(
+    ui: &mut Ui,
+    tab: Tab,
+    state: &AppState,
+    measuring: &mut MeasureTab,
+    actions: &mut Vec<Action>,
+) -> Vec<Request> {
     match tab {
         Tab::View => view::show(ui, state, actions),
         Tab::Scene => scene::show(ui, state, actions),
-        Tab::Measure => elsewhere(ui, MEASURE_ELSEWHERE),
+        Tab::Measure => measure::show(ui, state, measuring, actions),
         Tab::Labels => elsewhere(ui, LABELS_ELSEWHERE),
         Tab::Tools => elsewhere(ui, TOOLS_ELSEWHERE),
     }
@@ -83,7 +88,8 @@ impl VoxaApp {
     /// is while it is open, for its left edge to be dragged.
     pub(super) fn tab_panel(&mut self, ui: &mut Ui, actions: &mut Vec<Action>) -> Option<Rect> {
         let state = self.session.state();
-        let tab_in = |ui: &mut Ui, tab| show(ui, tab, state, actions);
+        let measuring = &mut self.measure;
+        let tab_in = |ui: &mut Ui, tab| show(ui, tab, state, measuring, actions);
         let shown = panel::show(ui, &mut self.screen.panel, state, tab_in);
         for request in shown.requests {
             self.ask(ui.ctx(), request);
