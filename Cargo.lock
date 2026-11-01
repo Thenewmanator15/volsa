@@ -4527,7 +4527,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "volsa-app"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "criterion",
  "directories",
@@ -4555,7 +4555,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-core"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "proptest",
  "thiserror 2.0.21",
@@ -4563,7 +4563,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-dicom"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
@@ -4582,7 +4582,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-labels"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "flate2",
  "proptest",
@@ -4594,7 +4594,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-models"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "ort",
  "serde",
@@ -4607,7 +4607,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-render"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -4624,7 +4624,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-segment"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "serde_json",
  "thiserror 2.0.21",
@@ -4635,7 +4635,7 @@ dependencies = [
 
 [[package]]
 name = "volsa-volume"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "proptest",
  "serde",
@@ -5517,7 +5517,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.7.0"
+version = "0.7.1"
 dependencies = [
  "serde_json",
  "tempfile",

@@ -267,7 +267,8 @@ them Volsa starts and does everything else, and the button says what is missing.
 
 ## Status
 
-Version 0.7.0, the first public release. It has a new window, made so that someone who has
+Version 0.7.1, the first download. 0.7.0's release build stopped at its checks, so 0.7.0 was
+never offered as a download; 0.7.1 is 0.7.0 with those fixed. It has a new window, made so that someone who has
 never seen Volsa can open an export, find the scan and measure on it; it opens very large scans
 faster and in less memory; and it refuses a damaged file nested too deeply instead of stopping.
 It also brings out 0.6.0, which was made ready and never published: the download for Windows,

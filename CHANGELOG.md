@@ -8,15 +8,28 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-11-01
+
+The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0
+download was ever made: this release is 0.7.0 with the two fixes below. Everything the notes
+of 0.7.0 in CHANGELOG.md describe is in it: a new window, made so that someone who has never
+seen Volsa can open an export, find the brain scan and measure something on it without help;
+very large scans that open faster and in less memory; and a damaged file nested too deeply
+refused instead of stopping Volsa. Volsa is not a medical device and is not for diagnostic
+use.
+
 ### Fixed
 
-- On a computer with no graphics card, Volsa set aside about 180 MiB more memory than it
+- On a computer with no graphics card, Volsa set aside about 200 MiB more memory than it
   needed. The system's software graphics (on Windows, WARP) were given wgpu's own way of
   setting memory aside, which reserves 192 MiB for the first small thing made; a card's
-  device, given small blocks, reserves about 12 MiB. Every device is now given small blocks.
-- The checks failed on Linux: clippy found a needless `return` in the program's build script,
-  which only builds Windows' icon and details and so does nothing on Linux. It is written
-  without one.
+  device, given small blocks, reserves about 12 MiB. Every device is now given small blocks:
+  with the made-up study open on software graphics, Volsa's peak fell from about 540 MiB to
+  about 335 MiB.
+- The checks failed on Linux, which is what stopped 0.7.0's release build: clippy found a
+  needless `return` in the program's build script, which only builds Windows' icon and
+  details and so does nothing on Linux. It is written without one. A test that assumed a
+  graphics card now holds on a computer without one.
 
 ## [0.7.0] - 2026-11-01
 
