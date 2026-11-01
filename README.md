@@ -15,7 +15,7 @@ not for, is in [docs/intended-use.md](docs/intended-use.md).
 
 Volsa was called Voxa while it was being built, before its first public release.
 
-![Volsa's window showing a made-up test study: the rail of scans at the left, the three planes and a 3D view in the middle, and the Measure tab at the right listing a ruler, an angle, a region and a marker](docs/images/voxa-phantom-planes.png)
+![Volsa's window showing a made-up test study: the rail of scans at the left, the three planes and a 3D view in the middle, and the Measure tab at the right listing a ruler, an angle, a region and a marker](docs/images/volsa-phantom-planes.png)
 
 The pictures show a made-up study that Volsa's own example writes, not a scan of anyone. Above:
 at the left, the rail of scans, a card for each; in the middle, **Planes**, a ball in its axial,
@@ -214,7 +214,7 @@ A security vulnerability is reported privately, never in an issue: see
 
 ## A closer look
 
-![Volsa as it opens the made-up study: the rail of scans at the left, one slice of the scan it chose in the middle, and the View tab at the right](docs/images/voxa-phantom.png)
+![Volsa as it opens the made-up study: the rail of scans at the left, one slice of the scan it chose in the middle, and the View tab at the right](docs/images/volsa-phantom.png)
 
 How Volsa opens an export: on the slices of the scan with the most detail (of the stacks of ten
 or more slices, the one with the most voxels), here the finer of the two stacks of the ball, with the **View** tab at the right holding brightness,
@@ -222,13 +222,13 @@ orientation, playing through the slices, and mirroring, turning and fitting the 
 other scans are in the rail at the left, and the search box at the top finds an action by its
 name.
 
-![Volsa showing the made-up study's slice beside its 3D view, cut open with the slice drawn in it, and the 3D tab at the right](docs/images/voxa-phantom-3d.png)
+![Volsa showing the made-up study's slice beside its 3D view, cut open with the slice drawn in it, and the 3D tab at the right](docs/images/volsa-phantom-3d.png)
 
 The same ball turned and cut open in the 3D view, with **Slices + 3D** chosen so that a slice is
 beside it and the slice drawn inside the 3D view. The **3D** tab at the right holds the looks,
 the sides to see it from, the cuts and the saved views.
 
-![Volsa showing the made-up study with made-up labels of its parts, over the planes and as solids, and the Labels tab at the right](docs/images/voxa-phantom-labels.png)
+![Volsa showing the made-up study with made-up labels of its parts, over the planes and as solids, and the Labels tab at the right](docs/images/volsa-phantom-labels.png)
 
 The same ball with the made-up labels that come with it, tinted over the three planes and drawn
 as solids in 3D. The **Labels** tab at the right says first that another program made them,
@@ -238,7 +238,7 @@ it against the right half. The two halves were drawn equal: the 2% between them 
 the labels' own coarse voxels happen to fall, which is the kind of difference Volsa says it
 cannot tell from noise.
 
-![Volsa listing a series of each kind in the made-up study, with Other files open in the rail and the second of two volumes of one shown](docs/images/voxa-phantom-kinds.png)
+![Volsa listing a series of each kind in the made-up study, with Other files open in the rail and the second of two volumes of one shown](docs/images/volsa-phantom-kinds.png)
 
 An export holds more than plain stacks of slices, and the rail says what each is. Here the
 made-up study also holds a series of two volumes of the ball, taken at two echo times, listed
