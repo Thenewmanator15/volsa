@@ -1,4 +1,4 @@
-//! Project tasks for Voxa.
+//! Project tasks for Volsa.
 //!
 //! `cargo xtask check` runs every quality gate in order: formatting, lints, file length, the
 //! third-party notices, tests, licence and advisory checks, documentation. Every test program
@@ -32,20 +32,20 @@ const MAX_FILE_LINES: usize = 400;
 const COVERAGE_FLOOR: &str = "80";
 /// Crates whose tests need no GPU and so carry the coverage floor. See [`NOT_COUNTED`].
 const COVERED_CRATES: [&str; 6] = [
-    "voxa-core",
-    "voxa-dicom",
-    "voxa-volume",
-    "voxa-labels",
-    "voxa-models",
-    "voxa-segment",
+    "volsa-core",
+    "volsa-dicom",
+    "volsa-volume",
+    "volsa-labels",
+    "volsa-models",
+    "volsa-segment",
 ];
 
 /// Source files left out of a crate's count, as a pattern over their paths: what is in them
 /// runs only with the networks' runtime loaded or a graphics card in the computer, and
 /// neither is there when the gate runs. The paths are written with either slash.
 const NOT_COUNTED: [(&str, &str); 1] = [(
-    "voxa-models",
-    r"voxa-models[/\\]src[/\\](runtime|cards)\.rs$",
+    "volsa-models",
+    r"volsa-models[/\\]src[/\\](runtime|cards)\.rs$",
 )];
 
 /// What the gate has cargo test: every crate's tests, each test program run to its end
@@ -55,9 +55,9 @@ const EVERY_TEST: [&str; 4] = ["test", "--workspace", "--all-features", "--no-fa
 
 /// The crates with tests that need a model folder and the runtime. Such a test is marked
 /// `ignore`, so that the other tasks pass it by.
-const WITH_MODELS: [&str; 2] = ["voxa-models", "voxa-segment"];
+const WITH_MODELS: [&str; 2] = ["volsa-models", "volsa-segment"];
 /// The variables that name the model folder and the folder that holds the runtime.
-const FOLDERS: [&str; 2] = ["VOXA_MODELS", "VOXA_RUNTIME"];
+const FOLDERS: [&str; 2] = ["VOLSA_MODELS", "VOLSA_RUNTIME"];
 
 fn main() -> ExitCode {
     let task = std::env::args().nth(1).unwrap_or_default();
@@ -131,7 +131,7 @@ fn coverage() -> Result<(), String> {
 fn check_models() -> Result<(), String> {
     let named = |folder: &&str| std::env::var_os(folder).is_some_and(|name| !name.is_empty());
     if !FOLDERS.iter().all(named) {
-        println!("check-models: skipped, VOXA_MODELS and VOXA_RUNTIME are not both set");
+        println!("check-models: skipped, VOLSA_MODELS and VOLSA_RUNTIME are not both set");
         return Ok(());
     }
     let mut tests = Vec::new();

@@ -1,0 +1,33 @@
+[package]
+name = "volsa-segment"
+description = "Everything SynthSeg does around its networks, step for step as its own code does it: preparing a volume for them, the steps between them, and tidying their answer into a label set."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+volsa-core.workspace = true
+volsa-labels.workspace = true
+volsa-models.workspace = true
+thiserror.workspace = true
+
+[features]
+# The real networks behind `Networks`, for the tests that are given a runtime and a model
+# folder.
+testing = []
+
+[dev-dependencies]
+# Reads the golden cases SynthSeg's own Python made (tools/golden).
+serde_json.workspace = true
+# Stand-ins for the networks.
+volsa-models = { workspace = true, features = ["testkit"] }
+
+# The whole path against SynthSeg's own answers. Its tests are all ignored unless asked for.
+[[test]]
+name = "with_models"
+required-features = ["testing"]
+
+[lints]
+workspace = true

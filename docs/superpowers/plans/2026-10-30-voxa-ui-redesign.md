@@ -1,5 +1,7 @@
 # Voxa's redesigned window: implementation plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Rebuild Voxa's window as layout A (top bar with search, scans rail, pictures in the middle, a tab panel), driven by one list of actions, with MR/CT/basic profiles, measuring on slices, documents, themes and screen-reader names.

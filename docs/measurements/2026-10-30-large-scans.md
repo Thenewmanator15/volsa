@@ -1,5 +1,7 @@
 # Measurements: very large scans
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 What opening very large series costs in time and memory, before this work (0.6.0) and after
 it, measured against the budgets of the design
 (`docs/superpowers/specs/2026-10-30-voxa-large-scans-design.md`, section 4).

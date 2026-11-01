@@ -1,5 +1,7 @@
 # 4. Labels keep their own grid, and Voxa does not make them
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-10. Status: accepted. Its fifth point, that Voxa does not run a labelling model,
 was replaced in 0.5.0 by [record 0006](0006-voxa-runs-a-labelling-model.md); the rest stands.
 

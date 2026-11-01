@@ -1,5 +1,7 @@
 # Very large scans, fast and within a memory budget: design
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-30
 Status: approved by the owner on 2026-10-30 ("Approve, allow spill"): approach A in three
 phases, the 2 GiB default budget, and the spill file past the budget. Choices marked *my

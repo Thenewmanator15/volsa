@@ -1,18 +1,20 @@
 # Changelog
 
-All notable changes to Voxa are recorded here. The format follows
+All notable changes to Volsa are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
+
+Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
 ## [0.7.0] - 2026-11-01
 
-The first public release. A new window, made so that someone who has never seen Voxa can open
+The first public release. A new window, made so that someone who has never seen Volsa can open
 an export, find the brain scan and measure something on it without help; very large scans open
 faster and in less memory; and a damaged file nested too deeply is refused instead of stopping
-Voxa. What Voxa does with a scan is the same; the controls are grouped by what you want to do,
-and more kinds of file open. Voxa is not a medical device and is not for diagnostic use.
+Volsa. What Volsa does with a scan is the same; the controls are grouped by what you want to do,
+and more kinds of file open. Volsa is not a medical device and is not for diagnostic use.
 
 Every version before this one was made in private. 0.6.0 was made ready as the first public
 release and never published, so its work comes out first here, with this release's: the
@@ -31,7 +33,7 @@ needs. Its notes are under 0.6.0, below.
   smallest window at twice the size two can still touch. A table of measurements saved as CSV
   ends with a column, `scale` (`patient`, or `pixel spacing` where the millimetres come from the
   picture's own pixel spacing alone), and measurements saved as JSON say the same in `scale`.
-  The file Voxa keeps them in, `annotations.json`, is written as 0.6.0 wrote it unless a
+  The file Volsa keeps them in, `annotations.json`, is written as 0.6.0 wrote it unless a
   measurement is in a picture's own pixel spacing, and then in a newer form (version 2) that
   0.6.0 does not read: it shows no measurements and, at its first save, sets the file aside as
   `annotations.json.unread`.
@@ -45,30 +47,38 @@ needs. Its notes are under 0.6.0, below.
   opens as text in the middle of the window, headed "Shown as text. The original report is
   the reference." Its dates are written in words ("2 January 2020"), its line breaks are kept,
   and each report scrolls on its own. A PDF stored in DICOM is listed and can be saved as a
-  PDF where you choose (**Save a copy as PDF…**, an action search finds); Voxa starts no other
-  program. Other files Voxa cannot show are listed with their kind in
+  PDF where you choose (**Save a copy as PDF…**, an action search finds); Volsa starts no other
+  program. Other files Volsa cannot show are listed with their kind in
   words and their tags.
 - **Help topics**, a few plain sentences each, found by search: opening an export, finding
   your scan, brightness, measuring and where its millimetres come from, left and right,
-  labels, and what Voxa is not for.
-- `VOXA_CAPTURE_SHOW` gains `tab-view`, `tab-measure`, `tab-3d`, `tab-labels` and `tab-tools`,
+  labels, and what Volsa is not for.
+- `VOLSA_CAPTURE_SHOW` gains `tab-view`, `tab-measure`, `tab-3d`, `tab-labels` and `tab-tools`,
   `search`, `notices`, `light`, `other`, `3d`, `slices3d` and `preview` (the 3D preview of a
   long series while it is decoded); `planes` and `quad` both choose
-  the Planes arrangement. `cargo run --release -p voxa-app --example measure_window` times the
+  the Planes arrangement. `cargo run --release -p volsa-app --example measure_window` times the
   window's bars, rail and panel for a made-up study of 500 series.
 - `docs/quality/` starts three documents kept from now on: the requirements, each traced to the
   test or check that shows it is met; a risk register; and a usability file.
 
 - One memory budget for decoded scans: 2 GiB, or a quarter of the computer's memory if that
   is less, set by hand in `preferences.json` as `memory_mib` (256 to 65,536). Past it, the
-  slabs of a large series wait in a file of Voxa's own in its local folder, which only Voxa
-  can open and which is deleted when the series is closed, when Voxa closes, and at the next
-  start after a stop. If the file cannot be made, Voxa says so and keeps the series in memory.
-- Before building a 3D view Voxa checks that the system can still give it the memory it needs,
+  slabs of a large series wait in a file of Volsa's own in its local folder, which only Volsa
+  can open and which is deleted when the series is closed, when Volsa closes, and at the next
+  start after a stop. If the file cannot be made, Volsa says so and keeps the series in memory.
+- Before building a 3D view Volsa checks that the system can still give it the memory it needs,
   and says so in a sentence when it cannot, in place of running out.
 
 ### Changed
 
+- **Voxa is now Volsa.** A live trade mark made the old name a risk. The program is
+  `volsa.exe`, in a zip named `volsa-0.7.0-windows-x64.zip`; its window, About and notices say
+  Volsa; its crates are `volsa-*`; its environment variables begin `VOLSA_` (`VOLSA_MODELS`,
+  `VOLSA_RUNTIME`, `VOLSA_CAPTURE` and the rest); and its repository is
+  `github.com/Thenewmanator15/volsa`. Volsa keeps what it keeps in folders of its own named
+  `Volsa` and reads nothing Voxa kept in the folders named `Voxa`, so what is said below of
+  files written by 0.6.0 holds only for such files copied into Volsa's folders by hand. A label
+  table or a table of measurements Volsa writes names it as `volsa`, where Voxa wrote `voxa`.
 - **The window has five parts.** A bar across the top (**Open**, the study's name and date, a
   search box, help, the theme and a menu, **⋯**); a rail of scans down the left; the pictures
   in the middle, under a strip that arranges them; a panel of tabs at the right (**View**,
@@ -76,7 +86,7 @@ needs. Its notes are under 0.6.0, below.
   notices. The three rows of buttons that were across the top, the measurements window and
   the Parts tab are gone: what they held is in the tabs, and the Parts tab is the Labels tab
   (what labels there are) and the Tools tab (making them).
-- **Voxa opens on the slices**, not the 3D view. The strip above the pictures chooses
+- **Volsa opens on the slices**, not the 3D view. The strip above the pictures chooses
   **Slices** (with one, two or four viewports), **Slices + 3D**, **Planes** (the three planes
   and the 3D view) or **3D** alone. The arrangement is not kept between runs. The strip says
   which slice is shown while slices are in sight, and in a narrow middle folds its buttons
@@ -94,7 +104,7 @@ needs. Its notes are under 0.6.0, below.
 - **The rail of scans** lists the scans first, each with a plain name made only from what the
   files say and the scanner's own description beneath it; locating images, scanned pages,
   reports and other files are under **Other files**, closed until opened. An export with the
-  studies of more than one person says so and groups them by person. A scan Voxa can only show
+  studies of more than one person says so and groups them by person. A scan Volsa can only show
   as a plain stack, or cannot read, has a small mark on its card; its sentence is in the
   card's hover text and is posted as a notice when it is opened. Only the cards in sight are
   drawn, so the window's bars, rail and panel take about a sixth of the time 0.6.0's bars and list
@@ -129,7 +139,7 @@ needs. Its notes are under 0.6.0, below.
   **Label this scan**, and a place for tools added later.
 - **Notices** are in one place at the bottom right: the newest one, how many there are, and a
   list of all of them, each with **Dismiss**. Nothing is shown in red. A skipped file is
-  counted in words ("2 files are not scans or documents Voxa lists") and no longer reads
+  counted in words ("2 files are not scans or documents Volsa lists") and no longer reads
   "2 files skipped".
 - **Light and dark themes**, and the system's choice, from the top bar. The pictures stay on
   black in both. Every pair of text and background meets the WCAG AA contrast.
@@ -140,7 +150,7 @@ needs. Its notes are under 0.6.0, below.
   rail has a **«**, as **B** does. A fold the window made itself is not kept as yours. At 640
   by 480 with the interface at twice its size, the icons of the folded panel are made smaller
   to fit.
-- Voxa remembers, as before, the window's size, the size of the interface, how wide the rail
+- Volsa remembers, as before, the window's size, the size of the interface, how wide the rail
   and the panel are, how many viewports, the **Patient's left on the right** and **Link the
   views** switches and how labels are drawn; and now also which tab is open, whether you folded the rail or the panel,
   and the theme. A settings file written by 0.6.0 opens with its settings: the width of
@@ -153,23 +163,23 @@ needs. Its notes are under 0.6.0, below.
   A letter pressed while a menu is open belongs to the menu, not to the picture behind it, and
   the Esc that closes a menu does not also close a window. Esc puts the tool down or closes the
   window opened last; it no longer gives the 3D view the large part, as 0.6.0 did.
-- **Voxa asks before it throws work away.** Closing the labels (which parts were hidden, faded
-  or chosen is forgotten, and labels Voxa made and has not kept are lost), deleting the
+- **Volsa asks before it throws work away.** Closing the labels (which parts were hidden, faded
+  or chosen is forgotten, and labels Volsa made and has not kept are lost), deleting the
   labels kept for a scan, and deleting a saved view each ask first, with the safe answer in
   hand, from the button and from the search alike. **Clear all** in the Measure tab can be
   undone after another scan has been looked at and this one is shown again.
 - The turntable's progress window opens over the pictures, like the other windows that float,
   and Esc stops it. A long title on a document no longer pushes its buttons out of the window.
-- **The model's own check** of labels Voxa made is said in plain words, with no scores on the
+- **The model's own check** of labels Volsa made is said in plain words, with no scores on the
   screen (they are in the hover text), and first when it fails.
-- Voxa is for looking at MRI and CT scans, and other DICOM files at a basic level, which the
+- Volsa is for looking at MRI and CT scans, and other DICOM files at a basic level, which the
   owner approved with the design. `docs/intended-use.md` and the About window say so.
 
 - Very large scans open faster and in less memory. A series is decoded straight into one
   copy of its values as stored, at 16 bits where the files are (0.6.0 held two 32-bit copies
   and every decoded slice beside them): the made-up 2,000-slice CT peaked at 4.7 GB in 0.6.0
   and peaks at about 2.3 GB now, of which 1 GB is the graphics card's copy of the volume, which
-  Windows also counts as Voxa's. It is in 3D in full detail in about 1.5 s (0.6.0: 2.9 s,
+  Windows also counts as Volsa's. It is in 3D in full detail in about 1.5 s (0.6.0: 2.9 s,
   halved), and a series of more than 256 slices shows a labelled preview in 3D within about
   half a second while the rest is decoded.
 - Zips open as fast as folders when they are not in the file cache: each reader of a zip
@@ -181,7 +191,7 @@ needs. Its notes are under 0.6.0, below.
   memory again, and the planes say so.
 - The window hands a volume to its graphics card itself, a slab each frame, and says so
   while it does. With Windows' software graphics, resizing the window while a scan loaded
-  could stop Voxa; it no longer does.
+  could stop Volsa; it no longer does.
 - Indexing reads files' headers on several threads: about twice as fast for a folder of
   2,000 files.
 - A picture read back from the graphics card is copied a row at a time, not a byte at a
@@ -197,10 +207,10 @@ needs. Its notes are under 0.6.0, below.
 
 ### Security
 
-- A damaged or crafted DICOM file whose sequences nest very deeply no longer stops Voxa. The
+- A damaged or crafted DICOM file whose sequences nest very deeply no longer stops Volsa. The
   DICOM library builds each level of nesting by calling itself again, with no limit, so a file
   of a few tens of kilobytes could use up the stack of the thread reading it, which ends the
-  program at once and cannot be caught. Voxa now walks every file before the library builds
+  program at once and cannot be caught. Volsa now walks every file before the library builds
   it, with the library's own step-by-step reader, and refuses one nested more than 64 deep
   (real files nest some ten to twenty deep at most): while an export is indexed, and when a
   file is opened whole for its pictures, its tags, its report or its PDF. A refused file is

@@ -1,0 +1,63 @@
+{
+ "what": "tidied the fast way: white matter with cortex on both sides, in faint noise, and an area for every voxel; and two voxels of left cortex apart from the rest, in the right white matter, which stay and take their areas. A box cut from a larger grid, stored as coronal slices",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1"
+ },
+ "fast": true,
+ "chances": {
+  "file": "chances.f32",
+  "holds": "little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's [x, y, z, structure] with the structure fastest: values[((x * padded_y + y) * padded_z + z) * structures + structure]",
+  "padded": [
+   8,
+   8,
+   10
+  ],
+  "structures": 33
+ },
+ "areas": {
+  "file": "areas.u8",
+  "holds": "one byte a voxel of the padded grid: the cortex area there as Volsa's cortex network gives it, 1 plus the place of the largest of the chances of areas 1 to 68; [x, y, z] with z fastest: values[(x * padded_y + y) * padded_z + z]"
+ },
+ "back": {
+  "order": [
+   0,
+   2,
+   1
+  ],
+  "turned_round": [
+   false,
+   true,
+   false
+  ],
+  "padding_before": [
+   1,
+   1,
+   1
+  ],
+  "size": [
+   6,
+   6,
+   8
+  ],
+  "cut_from": [
+   1,
+   2,
+   3
+  ],
+  "grid_dims": [
+   8,
+   12,
+   10
+  ]
+ },
+ "labels": {
+  "file": "labels.i32",
+  "holds": "little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   8,
+   12,
+   10
+  ]
+ }
+}

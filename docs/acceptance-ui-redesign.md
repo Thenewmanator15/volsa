@@ -1,5 +1,7 @@
 # Acceptance record for the redesigned window
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 31 October 2026. Branch `claude/ui-redesign-081656`, from commit `fe4976a`; the version in the
 workspace is still 0.6.0, which this work does not change. Machine: a Windows 11 Pro (10.0.26300)
 desktop with 31.7 GB of memory, a 12th Gen Intel Core i7-12700K, an NVIDIA GeForce RTX 5070 Ti and

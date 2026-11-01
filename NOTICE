@@ -1,16 +1,16 @@
-Voxa
+Volsa
 Copyright (c) 2026 TheNEwmanator15
 
-Voxa is licensed under either the MIT licence (LICENSE-MIT) or the Apache
+Volsa is licensed under either the MIT licence (LICENSE-MIT) or the Apache
 License, Version 2.0 (LICENSE-APACHE), at your option.
 
-Voxa is not a medical device and is not for diagnostic use.
+Volsa is not a medical device and is not for diagnostic use.
 
-Voxa is built on other people's libraries and typefaces, each under its own
+Volsa is built on other people's libraries and typefaces, each under its own
 licence. Their licence and notice texts are in THIRD-PARTY-NOTICES.txt. This
 software is based in part on the work of the Independent JPEG Group.
 
-The voxa.exe a release offers also has Microsoft's C runtime built into it,
+The volsa.exe a release offers also has Microsoft's C runtime built into it,
 so that it needs no Visual C++ redistributable. That runtime comes with
 Microsoft's C++ build tools and is under Microsoft's own licence terms, not
 an open-source licence.
@@ -19,7 +19,7 @@ an open-source licence.
 
 SynthSeg
 
-Labelling in Voxa (the voxa-segment crate) is a port to Rust of SynthSeg's own
+Labelling in Volsa (the volsa-segment crate) is a port to Rust of SynthSeg's own
 code: the steps of predict_synthseg.py that prepare a scan for SynthSeg's
 networks, take the steps between them and tidy their answer into labels, and
 the lab2im functions those steps call.
@@ -30,12 +30,12 @@ the lab2im functions those steps call.
     LICENSE-APACHE).
     https://github.com/BBillot/SynthSeg
 
-Voxa's port changes SynthSeg as docs/models.md (MODELS.md in a download of
-Voxa) describes under "What Voxa does differently from SynthSeg's own
+Volsa's port changes SynthSeg as docs/models.md (MODELS.md in a download of
+Volsa) describes under "What Volsa does differently from SynthSeg's own
 program": a part's volume is counted in voxels, where SynthSeg adds up
 probabilities; the scan may be cut to the head when memory is short; and the
 cortex network's answer is reduced to areas inside the file.
 
-SynthSeg's trained networks are not part of Voxa and do not come with it.
+SynthSeg's trained networks are not part of Volsa and do not come with it.
 SynthSeg's authors ask that work which uses it cite one of the SynthSeg
 papers, listed at the address above.

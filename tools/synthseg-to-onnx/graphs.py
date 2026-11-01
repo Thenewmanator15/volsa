@@ -1,5 +1,5 @@
 """The changes made to what tf2onnx writes, so that each network is a plain graph that takes
-and gives only what Voxa needs. Every function edits a model in place.
+and gives only what Volsa needs. Every function edits a model in place.
 
 A network as tf2onnx leaves it has one input, `[1, x, y, z, channels]` of float32, and one
 output of the same kind. After these changes every free side is named `x`, `y` or `z`, so the
@@ -57,7 +57,7 @@ def prune(model: onnx.ModelProto) -> None:
 
 
 def feed(model: onnx.ModelProto, image: bool, byte: str | None = None, depth: int = 0, box: int | None = None) -> None:
-    """Replace the network's one input by what Voxa hands it: the image (`image`, float32,
+    """Replace the network's one input by what Volsa hands it: the image (`image`, float32,
     one channel), a map of classes (`byte`, one byte a voxel, spread inside the file into
     `depth` channels of 0 and 1), or both joined, the image first. With `box` the three sides
     are fixed at that size."""

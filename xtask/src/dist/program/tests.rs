@@ -28,10 +28,10 @@ fn the_cargo_home_is_where_cargo_home_says_or_dot_cargo_in_the_own_folder() {
 fn the_cargo_home_and_the_workspace_are_taken_out_and_a_target_folder_outside_it() {
     let (home, root) = (
         PathBuf::from("C:\\Users\\someone\\.cargo"),
-        Path::new("G:\\voxa"),
+        Path::new("G:\\volsa"),
     );
     let inside = remaps(Some(home.clone()), root, &root.join("target"));
-    let expected: Vec<Remap> = vec![(home.clone(), "cargo"), (root.to_path_buf(), "voxa")];
+    let expected: Vec<Remap> = vec![(home.clone(), "cargo"), (root.to_path_buf(), "volsa")];
     assert_eq!(inside, expected);
     let outside = remaps(Some(home.clone()), root, Path::new("E:\\builds"));
     assert_eq!(
@@ -45,12 +45,12 @@ fn the_cargo_home_and_the_workspace_are_taken_out_and_a_target_folder_outside_it
 fn the_flags_add_the_c_runtime_and_the_places_to_any_already_given() {
     let remapped: Vec<Remap> = vec![
         (PathBuf::from("C:\\Users\\some one\\.cargo"), "cargo"),
-        (PathBuf::from("G:\\voxa"), "voxa"),
+        (PathBuf::from("G:\\volsa"), "volsa"),
     ];
     let ours = [
         "-Ctarget-feature=+crt-static",
         "--remap-path-prefix=C:\\Users\\some one\\.cargo=cargo",
-        "--remap-path-prefix=G:\\voxa=voxa",
+        "--remap-path-prefix=G:\\volsa=volsa",
     ];
     assert_eq!(flags(None, None, &remapped), ours.join(BETWEEN));
     assert_eq!(flags(Some(""), Some("  "), &remapped), ours.join(BETWEEN));
@@ -83,24 +83,24 @@ fn the_flags_add_the_c_runtime_and_the_places_to_any_already_given() {
 fn a_program_that_still_records_a_place_of_this_computer_is_refused_with_it() {
     let remapped: Vec<Remap> = vec![
         (PathBuf::from("C:\\Users\\someone\\.cargo"), "cargo"),
-        (PathBuf::from("G:\\made\\up\\voxa"), "voxa"),
+        (PathBuf::from("G:\\made\\up\\volsa"), "volsa"),
     ];
-    let clean = b"MZ... cargo\\registry\\src\\egui-0.36.2\\src\\lib.rs voxa\\crates ...";
+    let clean = b"MZ... cargo\\registry\\src\\egui-0.36.2\\src\\lib.rs volsa\\crates ...";
     assert_eq!(without_places(clean, &remapped), Ok(()));
     let leaky = b"MZ... C:\\Users\\someone\\.cargo\\registry\\src\\egui\\lib.rs ...";
     assert_eq!(
         without_places(leaky, &remapped),
         Err(concat!(
-            "voxa.exe still records C:\\Users\\someone\\.cargo, ",
+            "volsa.exe still records C:\\Users\\someone\\.cargo, ",
             "a place on the computer it was built on"
         )
         .to_owned())
     );
     // Written with the other slash, or both places at once.
-    let both = b"G:/made/up/voxa/target/out.rs and C:/Users/someone/.cargo/x";
+    let both = b"G:/made/up/volsa/target/out.rs and C:/Users/someone/.cargo/x";
     let said = without_places(both, &remapped).expect_err("refused");
     assert!(
-        said.contains("C:\\Users\\someone\\.cargo and G:\\made\\up\\voxa"),
+        said.contains("C:\\Users\\someone\\.cargo and G:\\made\\up\\volsa"),
         "{said}"
     );
 }
@@ -114,8 +114,8 @@ fn a_program_without_its_manifest_is_refused() {
     let carrying = format!("MZ... {manifest} ...");
     assert_eq!(with_manifest(carrying.as_bytes()), Ok(()));
     let refused = Err(concat!(
-        "voxa.exe carries no manifest asking for the common controls of version 6 and the ",
-        "scale of each screen: the build did not put crates/voxa-app/voxa.exe.manifest into it"
+        "volsa.exe carries no manifest asking for the common controls of version 6 and the ",
+        "scale of each screen: the build did not put crates/volsa-app/volsa.exe.manifest into it"
     )
     .to_owned());
     assert_eq!(with_manifest(b"MZ... a program with no manifest"), refused);
@@ -140,7 +140,7 @@ fn a_program_that_imports_the_visual_cpp_runtime_is_refused_with_the_names() {
     assert_eq!(
         without_visual_cpp(&needing),
         Err(concat!(
-            "voxa.exe imports VCRUNTIME140.dll, api-ms-win-crt-heap-l1-1-0.dll, so the C ",
+            "volsa.exe imports VCRUNTIME140.dll, api-ms-win-crt-heap-l1-1-0.dll, so the C ",
             "runtime is not inside it and it would need the Visual C++ redistributable"
         )
         .to_owned())

@@ -1,5 +1,7 @@
 # Voxa Milestone 4, second half (Labelling a scan inside the app) Implementation Plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A person presses **Label this scan** in the Parts tab and Voxa labels the brain itself with SynthSeg 2.0, on a graphics card or on the processor, with no Python at run time, and shows the result as the label set of 0.4.0 with the model's own verdict on it.

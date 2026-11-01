@@ -1,10 +1,10 @@
-# repeat.ps1 -Prefix base -Runs @(2,3) [-Exe measure_big.exe] [-App voxa.exe]
+# repeat.ps1 -Prefix base -Runs @(2,3) [-Exe measure_big.exe] [-App volsa.exe]
 # Repeats the headless measurement and the app's picture run over the standard studies.
 param([string]$Prefix = 'base', [int[]]$Runs = @(2, 3), [string]$Exe = '', [string]$App = '',
       [string]$Head = '', [switch]$NoApp, [switch]$NoIntel)
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 if (-not $Exe) { $Exe = Join-Path $Root 'target\release\examples\measure_big.exe' }
-if (-not $App) { $App = Join-Path $Root 'target\release\voxa.exe' }
+if (-not $App) { $App = Join-Path $Root 'target\release\volsa.exe' }
 if (-not $Head) { $Head = Join-Path $Root 'target\big\head300' }
 $Sampler = Join-Path $PSScriptRoot 'sample.ps1'
 $P = Join-Path $Root 'target\measure\pics'
@@ -24,7 +24,7 @@ foreach ($i in $Runs) {
       Start-Sleep 2
     }
     if (-not $NoApp -and $st[1] -in @('head300', 'ct-folder', 'body-zip')) {
-      & $Sampler -Exe $App -Arguments @($st[0]) -Label "app$Prefix-$($st[1])-rtx-$i" -LimitS 120 -Env @{WGPU_POWER_PREF='high'; VOXA_CAPTURE="$P\app$Prefix-$($st[1])-$i.png"; VOXA_CAPTURE_SHOW='vr'; VOXA_CAPTURE_SIZE='1280x800'} | Out-Null
+      & $Sampler -Exe $App -Arguments @($st[0]) -Label "app$Prefix-$($st[1])-rtx-$i" -LimitS 120 -Env @{WGPU_POWER_PREF='high'; VOLSA_CAPTURE="$P\app$Prefix-$($st[1])-$i.png"; VOLSA_CAPTURE_SHOW='vr'; VOLSA_CAPTURE_SIZE='1280x800'} | Out-Null
       Start-Sleep 3
     }
   }

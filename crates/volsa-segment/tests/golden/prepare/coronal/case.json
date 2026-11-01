@@ -1,0 +1,72 @@
+{
+ "what": "1 mm coronal slices: columns to the right, rows to the top, slices to the back (turned round)",
+ "made_with": {
+  "numpy": "2.5.3",
+  "scipy": "1.18.1",
+  "nibabel": "5.4.2"
+ },
+ "to_patient": "voxel (column, row, slice) to the patient in left-posterior-superior millimetres, as Volsa holds it: where a step along each axis leads, and where voxel (0, 0, 0) lies. SynthSeg was given the same with the x and y rows negated (right-anterior-superior). The transform a case starts from holds 32-bit floats, as a NIfTI file does: take each number as one. The transform of a resampled volume is SynthSeg's result, in double precision.",
+ "volume": {
+  "file": "volume.f32",
+  "holds": "little-endian f32; columns fastest, then rows, then slices: values[(slice * rows + row) * cols + col]",
+  "dims": [
+   12,
+   20,
+   16
+  ],
+  "to_patient": {
+   "columns": [
+    [
+     -1.0,
+     0.0,
+     0.0
+    ],
+    [
+     0.0,
+     0.0,
+     1.0
+    ],
+    [
+     0.0,
+     1.0,
+     0.0
+    ]
+   ],
+   "origin": [
+    6.0,
+    -8.0,
+    -9.75
+   ]
+  }
+ },
+ "resampled": null,
+ "image": {
+  "file": "image.f32",
+  "holds": "little-endian f32; the image before padding, as the network's [x, y, z] with z fastest: values[(x * size_y + y) * size_z + z]",
+  "size": [
+   12,
+   16,
+   20
+  ],
+  "padded": [
+   128,
+   128,
+   128
+  ],
+  "padding_before": [
+   58,
+   56,
+   54
+  ],
+  "order": [
+   0,
+   2,
+   1
+  ],
+  "turned_round": [
+   false,
+   true,
+   false
+  ]
+ }
+}

@@ -1,8 +1,8 @@
 //! `cargo xtask notices` writes `THIRD-PARTY-NOTICES.txt` at the root of the repository: the
-//! licence and notice texts of every package built into the Voxa program. `cargo xtask check`
+//! licence and notice texts of every package built into the Volsa program. `cargo xtask check`
 //! holds the committed file to what this would write now.
 //!
-//! The packages are those a release build of `voxa-app` for 64-bit Windows compiles: the
+//! The packages are those a release build of `volsa-app` for 64-bit Windows compiles: the
 //! normal dependencies reachable from it on `x86_64-pc-windows-msvc`, as `cargo tree` resolves
 //! them. Build and dev dependencies are not shipped, except a package whose files another's
 //! build turns into code that is compiled in (the module `upstream` names them). `cargo
@@ -13,7 +13,7 @@
 //!
 //! For each package the file gives its name, version, licence and repository, and the texts in
 //! its folder whose names start with LICENSE, LICENCE, COPYING, NOTICE or COPYRIGHT. Where a
-//! package offers a choice of licences, Voxa takes the most permissive it accepts (the module
+//! package offers a choice of licences, Volsa takes the most permissive it accepts (the module
 //! `choice`), the file says which, and the texts of the licences not taken are left out. A
 //! package that comes with no text of its licence is given the standard text, from
 //! `xtask/licences`, with the copyright lines of the licence file in its repository. The
@@ -50,7 +50,7 @@ pub const FILE: &str = "THIRD-PARTY-NOTICES.txt";
 /// The target the program is built for: the packages compiled for it are the ones shipped.
 pub const TARGET: &str = "x86_64-pc-windows-msvc";
 /// The package that is the program.
-const PROGRAM: &str = "voxa-app";
+const PROGRAM: &str = "volsa-app";
 /// The line that sets each text apart from the next.
 const RULE: &str = "========================================================================";
 
@@ -66,7 +66,7 @@ pub fn write() -> Result<(), String> {
 
 /// Part of `cargo xtask check`: the committed notices must be what [`write()`] would write now.
 pub fn up_to_date() -> Result<(), String> {
-    println!("\n==> {FILE} names every package built into Voxa as it is now");
+    println!("\n==> {FILE} names every package built into Volsa as it is now");
     let now = generate()?;
     let committed = fs::read_to_string(crate::workspace_root().join(FILE)).ok();
     held_to(committed.as_deref(), &now)
@@ -78,7 +78,7 @@ pub fn held_to(committed: Option<&str>, now: &str) -> Result<(), String> {
     let same = committed.is_some_and(|committed| committed.replace("\r\n", "\n") == now);
     let how = match committed {
         _ if same => return Ok(()),
-        Some(_) => "is out of date with the packages Voxa is built from",
+        Some(_) => "is out of date with the packages Volsa is built from",
         None => "is missing",
     };
     Err(format!(
@@ -164,21 +164,21 @@ pub fn notices(
 /// What the file is, before the first section.
 fn heading(count: usize) -> String {
     format!(
-        "THIRD-PARTY NOTICES FOR VOXA\n\
+        "THIRD-PARTY NOTICES FOR VOLSA\n\
          ============================\n\n\
-         Voxa is built from the {count} packages below, other people's work, each under\n\
+         Volsa is built from the {count} packages below, other people's work, each under\n\
          its own licence. For each, this file gives its licence and repository and the\n\
          licence and notice texts that come with it. Where a package offers a choice of\n\
-         licences, Voxa takes the most permissive of those it accepts, which \"Voxa takes\n\
+         licences, Volsa takes the most permissive of those it accepts, which \"Volsa takes\n\
          it under\" names, and the texts of the others are left out. For a package that\n\
          comes with no text of its licence, the standard text stands in, with the\n\
          copyright lines of the licence file in its repository where that file has any.\n\
          Texts that are the same word for word are written once, under TEXTS, and\n\
          referred to by number.\n\n\
-         Voxa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice,\n\
+         Volsa's own licence is in LICENSE-MIT and LICENSE-APACHE, and its own notice,\n\
          with the credit to SynthSeg, is in NOTICE.\n\n\
          `cargo xtask notices` writes this file from the packages compiled into the\n\
-         Voxa program for 64-bit Windows. Do not edit it by hand.\n\n"
+         Volsa program for 64-bit Windows. Do not edit it by hand.\n\n"
     )
 }
 

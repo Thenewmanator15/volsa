@@ -1,5 +1,7 @@
 # Working specs and plans
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 The files in `specs` and `plans` are the designs and the step-by-step plans written while Voxa
 was being built, with the help of an AI coding assistant, one or two for each milestone. The
 acceptance records beside this folder, `docs/acceptance-*.md`, say how each release was

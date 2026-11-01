@@ -1,4 +1,4 @@
-# Window helpers for Voxa's own window (titled "Voxa"), dot-sourced by the measuring scripts.
+# Window helpers for Volsa's own window (titled "Volsa"), dot-sourced by the measuring scripts.
 if (-not ('OpenMeasure5.Win' -as [type])) {
 Add-Type -TypeDefinition @'
 using System;
@@ -19,7 +19,7 @@ public static class Win {
       uint p; GetWindowThreadProcessId(h, out p);
       if (p == pid) {
         var t = new System.Text.StringBuilder(64); GetWindowText(h, t, 64);
-        if (t.ToString() == "Voxa") { found = h; return false; }
+        if (t.ToString() == "Volsa") { found = h; return false; }
       }
       return true; }, IntPtr.Zero);
     return found;
@@ -27,7 +27,7 @@ public static class Win {
   public static bool Shown(uint pid) { var h = Find(pid); return h != IntPtr.Zero && IsWindowVisible(h); }
   public static bool Minimised(uint pid) { var h = Find(pid); return h != IntPtr.Zero && IsIconic(h); }
   public static bool Close(uint pid) { var h = Find(pid); return h != IntPtr.Zero && PostMessage(h, 0x0010, IntPtr.Zero, IntPtr.Zero); }
-  // Put Voxa's window behind the others without activating it.
+  // Put Volsa's window behind the others without activating it.
   public static bool ToBottom(uint pid) { var h = Find(pid); return h != IntPtr.Zero && SetWindowPos(h, new IntPtr(1), 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010); }
 
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]

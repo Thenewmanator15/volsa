@@ -1,51 +1,51 @@
 # The files labelling needs
 
-Since 0.5.0, Voxa labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX
+Since 0.5.0, Volsa labels a brain scan itself, with SynthSeg 2.0's networks run through ONNX
 Runtime on this computer. No Python runs. For that it needs two things: a runtime, and a model
 folder.
-A download of Voxa from the Releases page comes with the runtime; nothing comes with the model
-folder, which you make once. Voxa without them is Voxa as it was at 0.4.0: it starts and does
+A download of Volsa from the Releases page comes with the runtime; nothing comes with the model
+folder, which you make once. Volsa without them is Volsa as it was at 0.4.0: it starts and does
 everything else, and the **Label this scan** button in the Tools tab is greyed and says which
 of the two is missing.
 
-**Voxa is not a medical device and is not for diagnostic use.** A label made by a model is a
-guess that looks certain. What Voxa is for, and what it is not for, is in `INTENDED-USE.txt`,
-beside this file in a download of Voxa, and in
-[docs/intended-use.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/intended-use.md)
-in Voxa's source.
+**Volsa is not a medical device and is not for diagnostic use.** A label made by a model is a
+guess that looks certain. What Volsa is for, and what it is not for, is in `INTENDED-USE.txt`,
+beside this file in a download of Volsa, and in
+[docs/intended-use.md](https://github.com/Thenewmanator15/volsa/blob/main/docs/intended-use.md)
+in Volsa's source.
 
-## What comes with Voxa, and what does not
+## What comes with Volsa, and what does not
 
 - **The runtime comes in the download.** The zip on the Releases page holds a folder called
-  `runtime` beside `voxa.exe`, with ONNX Runtime's `onnxruntime.dll` and
+  `runtime` beside `volsa.exe`, with ONNX Runtime's `onnxruntime.dll` and
   `onnxruntime_providers_shared.dll` and ONNX Runtime's own `LICENSE` and
-  `ThirdPartyNotices.txt`. ONNX Runtime is Microsoft's, under the MIT licence. Voxa looks in
-  that folder first. `DirectML.dll` is not in it: Voxa uses the copy that is part of Windows
-  ([below](#directml-from-windows)). A build of Voxa from source has no `runtime` folder, and
+  `ThirdPartyNotices.txt`. ONNX Runtime is Microsoft's, under the MIT licence. Volsa looks in
+  that folder first. `DirectML.dll` is not in it: Volsa uses the copy that is part of Windows
+  ([below](#directml-from-windows)). A build of Volsa from source has no `runtime` folder, and
   the files are fetched by hand, as [the runtime](#the-runtime) says.
-- **The model never comes with Voxa.** SynthSeg's code is Apache 2.0, but its trained weights
+- **The model never comes with Volsa.** SynthSeg's code is Apache 2.0, but its trained weights
   come with FreeSurfer, under FreeSurfer's licence, which says the software is designed for
   research only and that clinical use is neither recommended nor advised
-  ([below](#the-terms-of-the-models-weights)). Voxa ships none and
+  ([below](#the-terms-of-the-models-weights)). Volsa ships none and
   fetches none: you get the files yourself, under the terms they come with, and turn them
   into a model folder on your own computer.
 
-Voxa uses no network. Nothing here is downloaded by Voxa.
+Volsa uses no network. Nothing here is downloaded by Volsa.
 
 ## What a person does
 
-1. With a download of Voxa, the runtime is in place already. With a build of your own, put
-   the runtime's files in a folder called `runtime` beside Voxa's executable (below).
-2. Make the model folder once, with the converter, and call it `models` beside Voxa's
+1. With a download of Volsa, the runtime is in place already. With a build of your own, put
+   the runtime's files in a folder called `runtime` beside Volsa's executable (below).
+2. Make the model folder once, with the converter, and call it `models` beside Volsa's
    executable (below).
 3. Open a scan that has a 3D view, choose the Tools tab and press **Label this scan**.
 
 If the folders are somewhere else, **Options**, beside the button, has **Folder of the
-models…** and **Folder of the runtime…**. Voxa remembers what was chosen.
+models…** and **Folder of the runtime…**. Volsa remembers what was chosen.
 
 ## The runtime
 
-A download of Voxa has it. A build from source needs these files from Microsoft's ONNX
+A download of Volsa has it. A build from source needs these files from Microsoft's ONNX
 Runtime with DirectML, version 1.24.4, fetched by hand:
 
 - `onnxruntime.dll`
@@ -56,27 +56,27 @@ They are in Microsoft's `Microsoft.ML.OnnxRuntime.DirectML` package, under
 `runtimes/win-x64/native`, and in the Python package `onnxruntime-directml` under
 `onnxruntime/capi`. The zip a release offers carries both, taken from that package on nuget.org,
 with the package's `LICENSE` and `ThirdPartyNotices.txt`. With a build of your own, put them in
-a folder called `runtime` beside Voxa's executable, or anywhere and tell Voxa where. Voxa looks
+a folder called `runtime` beside Volsa's executable, or anywhere and tell Volsa where. Volsa looks
 beside its executable first and then in the folder named under **Options**.
 
 The third file of that package, `DirectML.dll`, is not carried: without it in the folder, ONNX
 Runtime uses the copy Windows has.
 
 ONNX Runtime needs Microsoft's Visual C++ 2015-2022 x64 redistributable, which many computers
-already have and Microsoft gives free ([below](#what-windows-needs-for-it)). The `voxa.exe` in a
+already have and Microsoft gives free ([below](#what-windows-needs-for-it)). The `volsa.exe` in a
 download does not need it for anything else. If ONNX Runtime will not load because a library
-it needs is missing or old, Voxa says that it needs the redistributable.
+it needs is missing or old, Volsa says that it needs the redistributable.
 
-Voxa loads the runtime as it starts, when it checks whether this computer can label a scan,
+Volsa loads the runtime as it starts, when it checks whether this computer can label a scan,
 once it has found a model folder; with no model folder it does not load it. A program can
 hold only one runtime for as long as it lives. If you change the runtime folder
-after Voxa has loaded the runtime, the change takes effect when Voxa is next started.
+after Volsa has loaded the runtime, the change takes effect when Volsa is next started.
 
-Any build of ONNX Runtime from 1.17 on has the interface Voxa asks for and loads; an older
+Any build of ONNX Runtime from 1.17 on has the interface Volsa asks for and loads; an older
 one is refused with a sentence that says so. 1.24.4 is the one the networks were measured
 with.
 
-Microsoft's builds of ONNX Runtime report usage (not images) unless told not to. Voxa tells
+Microsoft's builds of ONNX Runtime report usage (not images) unless told not to. Volsa tells
 the runtime not to, before it asks anything else of it.
 
 1.24.4 was the newest ONNX Runtime found with DirectML. On Linux and macOS there is no
@@ -111,13 +111,13 @@ says it uses DirectML 1.15.2.
 On the Windows 11 this was tried on, Windows' own `DirectML.dll` (1.15.5) was found and gave
 the same answer as the copy in Microsoft's package. Windows 10 and other versions of Windows 11
 were not tried, nor a Windows whose own copy is older than the one ONNX Runtime uses. If
-labelling on a graphics card fails on such a Windows, Voxa moves on to the next device it can
+labelling on a graphics card fails on such a Windows, Volsa moves on to the next device it can
 use, in the end the processor, which is slower; putting `DirectML.dll` 1.15 or later, from
 Microsoft's `Microsoft.AI.DirectML` package, in the `runtime` folder may let the card be used.
 
 Microsoft says DirectML is in sustained engineering: it is still supported, and new work has
 moved to Windows ML. DirectML comes under Microsoft's own licence, not an open-source one;
-Voxa carries no copy of it.
+Volsa carries no copy of it.
 
 ## The model folder
 
@@ -127,24 +127,24 @@ Voxa carries no copy of it.
    `synthseg_robust_2.0.h5`, `synthseg_parc_2.0.h5`, `synthseg_qc_2.0.h5`. They come with
    FreeSurfer, in the folder of its `mri_synthseg` command, under FreeSurfer's terms
    ([below](#the-terms-of-the-models-weights)).
-3. Run the converter, `tools/synthseg-to-onnx`. It is in Voxa's source, not in the download:
-   <https://github.com/Thenewmanator15/voxa/tree/main/tools/synthseg-to-onnx>, where its
-   README says how to run it. It needs Python and TensorFlow, once. Voxa never does. On
+3. Run the converter, `tools/synthseg-to-onnx`. It is in Volsa's source, not in the download:
+   <https://github.com/Thenewmanator15/volsa/tree/main/tools/synthseg-to-onnx>, where its
+   README says how to run it. It needs Python and TensorFlow, once. Volsa never does. On
    NumPy 2, SynthSeg's own code needs four one-line fixes, in two functions that use what
    `np.where` gives, an array, as a single number. The converter's README names them, and
    they are proposed to SynthSeg as
    [pull request 127](https://github.com/BBillot/SynthSeg/pull/127).
-4. Tell Voxa where the folder is, or call it `models` and put it beside Voxa's executable.
-   Voxa looks in the folder named under **Options** first and then beside its executable.
+4. Tell Volsa where the folder is, or call it `models` and put it beside Volsa's executable.
+   Volsa looks in the folder named under **Options** first and then beside its executable.
 
 The folder holds six networks (`standard`, `robust_1`, `robust_2`, `robust_3`, `cortex` and
 `scores`, about 370 MB together), `model.json`, and a `check` folder with a made-up head and
-what SynthSeg's own program made of it, which Voxa's tests use and Voxa itself does not read.
+what SynthSeg's own program made of it, which Volsa's tests use and Volsa itself does not read.
 
 ### What the folder's list shows, and what it does not
 
 `model.json` lists each network with its size and SHA-256, the SHA-256 of each `.h5` it was
-made from, and what the converter's own check measured. Voxa reads a folder only if every
+made from, and what the converter's own check measured. Volsa reads a folder only if every
 file is there with the size and SHA-256 listed, and says which check failed if one does not.
 
 That shows a file is the one the list describes: not damaged, not swapped for another. It
@@ -188,20 +188,20 @@ legal advice; the agreement itself is what holds.
 
 Part C says the agreement is governed by the laws of Massachusetts.
 
-For Voxa this means: Voxa ships none of the weights and fetches none, so it passes on nothing
+For Volsa this means: Volsa ships none of the weights and fetches none, so it passes on nothing
 of FreeSurfer's; you get the files under the agreement yourself, and make the model folder on
 your own computer. Whether, and on what terms, a model folder may be passed on
-is the agreement's to say: Part B covers derivative works and passing them on. Labels Voxa makes
-with the weights are under the agreement's caution as well as Voxa's own: designed for
+is the agreement's to say: Part B covers derivative works and passing them on. Labels Volsa makes
+with the weights are under the agreement's caution as well as Volsa's own: designed for
 research, with clinical use neither recommended nor advised.
 
 ## What a run needs of this computer
 
-Memory is what limits a run, not time. Before a run Voxa works out what the scan needs and
+Memory is what limits a run, not time. Before a run Volsa works out what the scan needs and
 goes only where the system can still promise it, trying in this order:
 
 1. the whole scan on a graphics card with memory of its own, if it fits there: what it needs
-   (below, with its quarter) within what the system lets Voxa use, and what its networks take
+   (below, with its quarter) within what the system lets Volsa use, and what its networks take
    (without the quarter) within what no program holds of the card, so a card that other
    programs have all but filled is passed over;
 2. the whole scan on the processor, if the computer's ordinary memory can back it;
@@ -222,7 +222,7 @@ A GB below is a GiB, as the system shows memory.
 |---|---|---|
 | The networks that label | 1 400 bytes of the card | 700 bytes of ordinary memory (900 with the cortex areas) |
 | The model's check of its own work | 8.2 GB of the card, whatever the scan | 3.1 GB of ordinary memory, whatever the scan |
-| Voxa's own | 200 bytes of ordinary memory | 200 bytes of ordinary memory |
+| Volsa's own | 200 bytes of ordinary memory | 200 bytes of ordinary memory |
 
 A run on a card also asks the system for ordinary memory, since Windows sets some aside behind
 what a program puts on a card: 1 900 bytes a voxel, and 8.4 GB for the check. A run holds no
@@ -231,8 +231,8 @@ moment, the answer that has just arrived: two sets of chances at most. If the ch
 fit on the card, or ordinary memory cannot back it there, that one network runs on the
 processor and the result says so. The figures were measured on made-up volumes and rounded up;
 the decision record
-[0006](https://github.com/Thenewmanator15/voxa/blob/main/docs/adr/0006-voxa-runs-a-labelling-model.md),
-in Voxa's source, gives them.
+[0006](https://github.com/Thenewmanator15/volsa/blob/main/docs/adr/0006-voxa-runs-a-labelling-model.md),
+in Volsa's source, gives them.
 
 For a made-up cube of 160 voxels a side, which is 4 096 000 voxels, the networks need 6.7 GB
 of a card and the check 10.3 GB, and a run on a card asks the system for up to 11.5 GB of
@@ -245,10 +245,10 @@ says which. These are limits a run is held to, not what it was seen to use.
 
 Every result carries its check and its history.
 
-- **The model's check.** SynthSeg scores its own work in groups of structures. Voxa says the
+- **The model's check.** SynthSeg scores its own work in groups of structures. Volsa says the
   check failed when any group scores below 0.65, names the groups that did, and says that
   first, in the warning colour.
-- **Who made the labels.** The caption says Voxa made them, with which model, on which
+- **Who made the labels.** The caption says Volsa made them, with which model, on which
   device, on what day, and "Not for diagnostic use." The day is the date at Greenwich (UTC),
   which late in the evening west of Greenwich, or early in the morning east of it, is not the
   local one. Over the 3D view a failed check is said before who made the labels.
@@ -262,7 +262,7 @@ Every result carries its check and its history.
   divide the cortex into 34 areas a side and are on unless you switch them off.
 
 While a run is on, its stage and a **Stop** button are shown in the Tools tab, and only
-there; everything else in Voxa keeps working. The 3D view may be slow while the card is busy.
+there; everything else in Volsa keeps working. The 3D view may be slow while the card is busy.
 A run belongs to the scan it was started on: if the scene moves to another series, or
 another export is opened, the run is stopped and its result dropped, even one that had just
 finished. Only one run goes at a time, and labels a run made are drawn only once the Labels
@@ -270,8 +270,8 @@ tab lists them.
 
 ## What is kept
 
-A result is kept on this computer, in the folder the system gives Voxa that stays on it
-(`%LOCALAPPDATA%\Voxa\data` on Windows), so that it can be shown again when the same scan is
+A result is kept on this computer, in the folder the system gives Volsa that stays on it
+(`%LOCALAPPDATA%\Volsa\data` on Windows), so that it can be shown again when the same scan is
 opened. It is a label file and a table of names filed under a hash of the series, and holds
 nothing that says whose scan it was. The Tools tab then offers **Show**, **Make again**
 and **Delete**. **Save as…**, in the Labels tab, writes the label file and its table wherever
@@ -279,17 +279,17 @@ you choose, for other programs; the file's name always ends in `.nii.gz`, which 
 leave it out. **Keep results on this computer**, under **Options**, switches keeping off.
 
 If the graphics device is lost, which a driver reset can do, the interface cannot be given
-another. Voxa says so once, in the window and in a message box, and asks to be started again.
+another. Volsa says so once, in the window and in a message box, and asks to be started again.
 Nothing made is lost: the work in hand goes on, and annotations, saved views and kept results
-are written by Voxa's workers and do not depend on the card.
+are written by Volsa's workers and do not depend on the card.
 
-## What Voxa does differently from SynthSeg's own program
+## What Volsa does differently from SynthSeg's own program
 
 Three things, and nothing else: the preparing and tidying steps are SynthSeg's, step for step,
 and each is held against arrays that SynthSeg's own Python made.
 
-- **Volumes are counted voxels.** A part's volume in Voxa is its voxels times the size of
-  one, as for any labels Voxa shows. SynthSeg's own table adds up probabilities, so the two
+- **Volumes are counted voxels.** A part's volume in Volsa is its voxels times the size of
+  one, as for any labels Volsa shows. SynthSeg's own table adds up probabilities, so the two
   differ a little.
 - **The scan may be cut to the head when memory is short**, and never otherwise. The result
   says so when it was. A cut lays the head elsewhere in the box the networks are given, and
@@ -301,7 +301,7 @@ and each is held against arrays that SynthSeg's own Python made.
   same; there is no table of soft volumes for the areas.
 
 SynthSeg's own program stops on a stack of 10 or fewer slices, and on one that is 10 voxels or
-fewer from bottom to top at 1 mm; Voxa refuses the same, with a sentence. The localiser series
+fewer from bottom to top at 1 mm; Volsa refuses the same, with a sentence. The localiser series
 of an ordinary export are in this range.
 
 ## How it was checked
@@ -313,5 +313,5 @@ converter's made-up head. The standard model on the processor gives SynthSeg's l
 voxel. Every other pairing of model and device gives at least 99.99% of voxels the same, a
 Dice of at least 0.999 for every structure and scores within 0.001. The acceptance record of
 0.5.0, the release that brought labelling,
-[docs/acceptance-0.5.0.md](https://github.com/Thenewmanator15/voxa/blob/main/docs/acceptance-0.5.0.md)
-in Voxa's source, says what was run for it and what was not.
+[docs/acceptance-0.5.0.md](https://github.com/Thenewmanator15/volsa/blob/main/docs/acceptance-0.5.0.md)
+in Volsa's source, says what was run for it and what was not.

@@ -1,5 +1,5 @@
 name: Report a fault
-description: Something in Voxa does not work as it should.
+description: Something in Volsa does not work as it should.
 labels: ["bug"]
 body:
   - type: markdown
@@ -11,7 +11,7 @@ body:
   - type: input
     id: version
     attributes:
-      label: Voxa version
+      label: Volsa version
       description: The About window, from the About button in the toolbar, shows it.
       placeholder: "0.7.0"
     validations:
@@ -28,7 +28,7 @@ body:
     id: graphics
     attributes:
       label: Graphics device
-      description: voxa.log names the one Voxa draws with, on a line with "graphics device" in it. Device Manager lists it under Display adapters.
+      description: volsa.log names the one Volsa draws with, on a line with "graphics device" in it. Device Manager lists it under Display adapters.
       placeholder: "NVIDIA GeForce RTX 5070 Ti"
     validations:
       required: true
@@ -59,7 +59,7 @@ body:
   - type: textarea
     id: log
     attributes:
-      label: voxa.log
+      label: volsa.log
       description: The About window shows where the log is, with a button that copies its path. It holds nothing about a patient and none of your file names, but read it before you paste it.
       render: text
   - type: checkboxes

@@ -1,5 +1,7 @@
 # Voxa: labelling a scan inside the app
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-11
 Status: approved by the owner on 2026-10-11
 

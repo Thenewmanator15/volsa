@@ -1,5 +1,7 @@
 # 3. Errors are values; nothing a file contains may crash Voxa
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-05. Status: accepted.
 
 ## Context

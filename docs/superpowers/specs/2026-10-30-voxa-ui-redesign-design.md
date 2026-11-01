@@ -1,5 +1,7 @@
 # Voxa's window, redesigned: design
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-30
 Status: approved by the owner on 2026-10-30, with the calls marked *my call* and the new
 intended-use wording (section 8). Decisions the owner made are marked *owner*, with the day;

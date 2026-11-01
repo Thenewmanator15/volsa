@@ -1,5 +1,7 @@
 # Very large scans: implementation plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A 2,000-slice CT opens with its first slice at once, a 3D preview within a second and full detail after, while Voxa holds each series once at 16 bits and keeps decoded values under a memory budget, spilling past it to a file of its own.

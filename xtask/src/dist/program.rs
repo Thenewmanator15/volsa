@@ -6,7 +6,7 @@
 //! is left as it was.
 //!
 //! The places on the computer it is built on are taken out of the paths the program records,
-//! such as where a panic happened: the cargo home becomes `cargo`, the workspace `voxa`, and
+//! such as where a panic happened: the cargo home becomes `cargo`, the workspace `volsa`, and
 //! a target folder outside the workspace `target`. The built program is then searched for
 //! those places, and the package is refused if any is still there.
 
@@ -17,8 +17,8 @@ use crate::notices::TARGET;
 
 /// The package that is the program, and the program's file as the build names it and as the
 /// package carries it.
-const PACKAGE: &str = "voxa-app";
-pub const PROGRAM: &str = "voxa.exe";
+const PACKAGE: &str = "volsa-app";
+pub const PROGRAM: &str = "volsa.exe";
 /// What the build adds to the flags the compiler is given: the C runtime inside the program.
 const STATIC_RUNTIME: &str = "-Ctarget-feature=+crt-static";
 /// What separates one flag from the next in `CARGO_ENCODED_RUSTFLAGS`, so that a path with a
@@ -37,11 +37,11 @@ const MANIFEST_ASKS: [&str; 2] = ["Microsoft.Windows.Common-Controls", "PerMonit
 pub type Remap = (PathBuf, &'static str);
 
 /// The places taken out of the paths the program records: the cargo home, where the code of
-/// every package Voxa uses is kept, the workspace `root`, and `target` when it is outside the
+/// every package Volsa uses is kept, the workspace `root`, and `target` when it is outside the
 /// workspace. A later one wins where two hold the same path.
 pub fn remaps(cargo_home: Option<PathBuf>, root: &Path, target: &Path) -> Vec<Remap> {
     let mut remaps: Vec<Remap> = cargo_home.into_iter().map(|home| (home, "cargo")).collect();
-    remaps.push((root.to_path_buf(), "voxa"));
+    remaps.push((root.to_path_buf(), "volsa"));
     if !target.starts_with(root) {
         remaps.push((target.to_path_buf(), "target"));
     }
@@ -164,7 +164,7 @@ pub fn with_manifest(image: &[u8]) -> Result<(), String> {
     Err(format!(
         concat!(
             "{} carries no manifest asking for the common controls of version 6 and the ",
-            "scale of each screen: the build did not put crates/voxa-app/voxa.exe.manifest ",
+            "scale of each screen: the build did not put crates/volsa-app/volsa.exe.manifest ",
             "into it"
         ),
         PROGRAM

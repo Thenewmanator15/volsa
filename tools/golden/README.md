@@ -1,15 +1,15 @@
 # golden
 
-Makes the arrays Voxa's tests are held against, with SynthSeg's own Python. Voxa does in Rust
+Makes the arrays Volsa's tests are held against, with SynthSeg's own Python. Volsa does in Rust
 what SynthSeg does around its networks, and "the same as SynthSeg" has to mean something that
 can be checked: these arrays are what SynthSeg's own functions make of small made-up volumes,
-and the tests of `voxa-segment` compare Voxa's answer with them.
+and the tests of `volsa-segment` compare Volsa's answer with them.
 
-It is a tool for a person to run when a case is added or changed; it is no part of Voxa, and
+It is a tool for a person to run when a case is added or changed; it is no part of Volsa, and
 cargo neither builds, runs nor tests it. Nothing here comes from a scan: every volume is made
 up from a seed.
 
-Voxa is not a medical device and is not for diagnostic use, and neither is anything made here.
+Volsa is not a medical device and is not for diagnostic use, and neither is anything made here.
 
 ## What it needs
 
@@ -28,7 +28,7 @@ python make_golden.py PATH\TO\SynthSeg tidy
 ```
 
 The first makes every group of cases, the others only the group named. Each group is written
-under `crates/voxa-segment/tests/golden/<group>/` of the repository this script is in. It
+under `crates/volsa-segment/tests/golden/<group>/` of the repository this script is in. It
 takes under a minute, most of it Python starting.
 
 A second run writes the same bytes, as long as the libraries are the versions that made the
@@ -44,7 +44,7 @@ Each case is a folder holding `case.json` and arrays. An array has no header: a 
 numbers, and one named `.u8` is one byte a number. `case.json` gives its size and repeats its
 order.
 
-- **A volume** (`volume.f32`, `resampled.f32`) is in the order Voxa holds one, which is also
+- **A volume** (`volume.f32`, `resampled.f32`) is in the order Volsa holds one, which is also
   a NIfTI file's: columns fastest, then rows, then slices. With `dims` as
   `[cols, rows, slices]`, the value at a column, row and slice is
   `values[(slice * rows + row) * cols + col]`.
@@ -55,7 +55,7 @@ order.
   voxels along each axis, zeros everywhere but in a block of `size` that begins
   `padding_before` voxels in. The script checks that this is so before it writes.
 - **A transform** (`to_patient`) takes a voxel (column, row, slice) to the patient in
-  left-posterior-superior millimetres, as Voxa holds it: `columns` is where a step along the
+  left-posterior-superior millimetres, as Volsa holds it: `columns` is where a step along the
   columns, the rows and the slices leads, and `origin` where voxel (0, 0, 0) lies. SynthSeg
   works in right-anterior-superior: it was given the same transform with the x and y rows
   negated, and nothing else differs. The transform a case starts from holds 32-bit floats,
@@ -75,7 +75,7 @@ nothing cropped, sides padded to at least 128.
 Every case has eleven or more slices as stored, and eleven or more voxels from bottom to top
 once it is at 1 mm and turned. On fewer of either, `preprocess` stops (it takes a last side of
 ten or fewer for the channels of a flat picture), so no case can be made of such a volume.
-Voxa refuses one for the same reason.
+Volsa refuses one for the same reason.
 
 | Case | What it is |
 |---|---|
@@ -173,9 +173,9 @@ In each case folder:
 | File | What it holds |
 |---|---|
 | `chances.f32` | The made-up chances on the padded grid: `[x, y, z, structure]`, the structure fastest. With `padded` as `[padded_x, padded_y, padded_z]`, the chance of a structure at x, y, z is `values[((x * padded_y + y) * padded_z + z) * 33 + structure]` |
-| `areas.u8` | Only in `cortex` and `robust_cortex`: the area at each voxel of the padded grid as Voxa's cortex network gives it, z fastest. It is 1 plus the place of the largest of the chances of areas 1 to 68. SynthSeg was given the chances themselves, made up for every voxel, and the script stops if the two do not come to the same labels |
+| `areas.u8` | Only in `cortex` and `robust_cortex`: the area at each voxel of the padded grid as Volsa's cortex network gives it, z fastest. It is 1 plus the place of the largest of the chances of areas 1 to 68. SynthSeg was given the chances themselves, made up for every voxel, and the script stops if the two do not come to the same labels |
 | `labels.i32` | SynthSeg's label at each voxel of the grid as stored, in the order of a volume: columns fastest |
-| `case.json` | `fast`: whether SynthSeg's tidying was told so. `chances`: the `padded` size and how many `structures`. `back`: how to come back from the image to the grid, as Voxa remembers it: `order` and `turned_round` as in `prepare`, `padding_before` (the voxels of padding before the image along x, y and z), `size` (the image's size without its padding), `cut_from` (where the image began in the turned grid; all zero when nothing was cut) and `grid_dims` (the grid's columns, rows and slices). `labels`: the same `dims` |
+| `case.json` | `fast`: whether SynthSeg's tidying was told so. `chances`: the `padded` size and how many `structures`. `back`: how to come back from the image to the grid, as Volsa remembers it: `order` and `turned_round` as in `prepare`, `padding_before` (the voxels of padding before the image along x, y and z), `size` (the image's size without its padding), `cut_from` (where the image began in the turned grid; all zero when nothing was cut) and `grid_dims` (the grid's columns, rows and slices). `labels`: the same `dims` |
 
 Beside the cases:
 

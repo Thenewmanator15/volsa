@@ -1,5 +1,7 @@
 # Voxa Milestone 2 (Interactive 3D) Implementation Plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** The series being looked at appears as a 3D volume in the main area of the window, drawn by ray-casting on the graphics device, which the person can turn, move, zoom, cut open at any angle, save views of, and export as a picture or a rotating animation.

@@ -41,7 +41,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = $env:GITHUB_REF_NAME -replace '^v', ''
           $described = cargo metadata --format-version 1 --no-deps --locked | ConvertFrom-Json
-          $declared = ($described.packages | Where-Object name -eq 'voxa-app').version
+          $declared = ($described.packages | Where-Object name -eq 'volsa-app').version
           if ($version -ne $declared) {
             throw "The tag $env:GITHUB_REF_NAME does not name version $declared, which Cargo.toml gives."
           }
@@ -92,14 +92,14 @@ jobs:
           }
           "RUNTIME=$runtime" >> $env:GITHUB_ENV
 
-      - name: Build Voxa and pack it with the runtime
+      - name: Build Volsa and pack it with the runtime
         run: cargo xtask dist --runtime "$env:RUNTIME"
 
       - name: Write the package's SHA-256 beside it
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $name = "voxa-$env:VERSION-windows-x64.zip"
+          $name = "volsa-$env:VERSION-windows-x64.zip"
           $dist = (Resolve-Path 'target/dist').Path
           $sum = (Get-FileHash -Algorithm SHA256 -Path (Join-Path $dist $name)).Hash.ToLowerInvariant()
           # The form sha256sum reads: the sum, two spaces, the file's name, a line feed.
@@ -116,7 +116,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             --draft \
             --verify-tag \
-            --title "Voxa $VERSION" \
+            --title "Volsa $VERSION" \
             --notes-file target/dist/notes.md \
-            "target/dist/voxa-$VERSION-windows-x64.zip" \
-            "target/dist/voxa-$VERSION-windows-x64.zip.sha256"
+            "target/dist/volsa-$VERSION-windows-x64.zip" \
+            "target/dist/volsa-$VERSION-windows-x64.zip.sha256"

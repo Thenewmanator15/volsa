@@ -1,5 +1,7 @@
 # Acceptance record for 0.4.0
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 10 October 2026. Machine: a Windows 11 desktop with integrated graphics and a discrete
 graphics card. Build: `--release`, Rust 1.99.0.
 

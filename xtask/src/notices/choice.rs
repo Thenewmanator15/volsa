@@ -1,10 +1,10 @@
-//! Which of the licences a package offers Voxa takes it under, and which licence a text that
+//! Which of the licences a package offers Volsa takes it under, and which licence a text that
 //! comes with a package is the text of.
 
 use super::package::LICENCE_FILES;
 
-/// The licences Voxa accepts, the ones `deny.toml` allows, from the one that asks least of a
-/// program built from the code to the one that asks most. Of a choice, Voxa takes the first
+/// The licences Volsa accepts, the ones `deny.toml` allows, from the one that asks least of a
+/// program built from the code to the one that asks most. Of a choice, Volsa takes the first
 /// of these on offer.
 ///
 /// A public-domain dedication asks nothing. The Boost and zlib licences ask nothing of a
@@ -55,10 +55,10 @@ enum Expression<'a> {
     Any(Vec<Expression<'a>>),
 }
 
-/// The licences Voxa takes a package under, by the SPDX expression its manifest gives: of
+/// The licences Volsa takes a package under, by the SPDX expression its manifest gives: of
 /// each choice, the alternative whose least permissive licence comes first in
 /// [`PERMISSIVE`], and every licence the package must be taken under besides. `None` when
-/// a choice offers nothing Voxa accepts, or the expression cannot be read.
+/// a choice offers nothing Volsa accepts, or the expression cannot be read.
 pub fn taken(expression: &str) -> Option<Vec<&str>> {
     let mut reader = Reader {
         tokens: tokens(expression),
@@ -202,7 +202,7 @@ impl<'a> Reader<'a> {
 }
 
 /// The licences an expression is taken under, each once, or `None` if it offers nothing
-/// Voxa accepts.
+/// Volsa accepts.
 fn chosen<'a>(expression: &Expression<'a>) -> Option<Vec<&'a str>> {
     match expression {
         Expression::One(id) => rank(id).map(|_| vec![*id]),
@@ -224,7 +224,7 @@ fn chosen<'a>(expression: &Expression<'a>) -> Option<Vec<&'a str>> {
     }
 }
 
-/// Where a licence stands in [`PERMISSIVE`], if Voxa accepts it.
+/// Where a licence stands in [`PERMISSIVE`], if Volsa accepts it.
 fn rank(id: &str) -> Option<usize> {
     PERMISSIVE.iter().position(|each| *each == id)
 }

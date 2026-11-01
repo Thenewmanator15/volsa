@@ -1,11 +1,11 @@
 # Usability file
 
-How Voxa is made easy and safe to use, and the evidence. Kept in the spirit of IEC 62366-1.
+How Volsa is made easy and safe to use, and the evidence. Kept in the spirit of IEC 62366-1.
 Started with the redesign of the window (design:
 `docs/superpowers/specs/2026-10-30-voxa-ui-redesign-design.md`).
 
 Never record anything from a participant's scan here: no names, dates, descriptions,
-pictures or counts. Write what the person did and said about Voxa, not about their body.
+pictures or counts. Write what the person did and said about Volsa, not about their body.
 
 ## 1. Use specification
 
@@ -53,14 +53,14 @@ From captures of 0.6.0 with made-up studies (2026-10-27, 2026-10-28 and 2026-10-
 - S-03. Make the picture brighter or darker.
 - S-04. Find the report among the other files and read it.
 - S-05. Tell the patient's left from their right.
-- S-06. Label a brain scan with Voxa, and say who made the labels.
+- S-06. Label a brain scan with Volsa, and say who made the labels.
 - S-07. Do S-01 and S-02 with the keyboard alone.
 
 ## 5. Test script
 
-For each participant, on their own computer, with Voxa's zip and either their own export or
+For each participant, on their own computer, with Volsa's zip and either their own export or
 a made-up study handed to them as a folder (written beforehand with
-`cargo run -p voxa-app --example write_phantom`). That study is a ball: it has **no brain scan**
+`cargo run -p volsa-app --example write_phantom`). That study is a ball: it has **no brain scan**
 (D-08), and `write_phantom head` needs a model folder this work does not have. So with the made-up
 study, step 3 asks for the finer of the ball's scans, as it is named in the rail ("ball, fine");
 it is a weaker test of finding "the brain scan" among others, since the scans differ in their
@@ -69,8 +69,8 @@ others (a mode of `write_phantom` that writes one is not made yet); until it is,
 sessions use participants' own exports.
 
 1. Say: "This is a viewer for scans. Please think aloud. I can't help, but there are no
-   wrong answers: if something is hard, that is Voxa's fault."
-2. Ask them to open the export (S-01). Start a timer when Voxa's window first shows.
+   wrong answers: if something is hard, that is Volsa's fault."
+2. Ask them to open the export (S-01). Start a timer when Volsa's window first shows.
 3. "Find the scan of the brain." (With the made-up ball: "Find the scan called ball, fine.")
    Note the time, and every place they looked first.
 4. "Measure something on it: anything you like." Note the time, and how they found the tool.
@@ -96,11 +96,11 @@ list of series cost, and says it stays within that with a made-up study of 500 s
 
 - **What was timed.** One frame of the window laid out headless, with no screen and no
   pictures, at 1400 by 900 points, for a made-up study of 500 series of one slice each
-  (`crates/voxa-app/examples/measure_window.rs`: 10 frames to warm up, then 200 timed, each
+  (`crates/volsa-app/examples/measure_window.rs`: 10 frames to warm up, then 200 timed, each
   with the drawing turned into triangles). The redesign's frame is the top bar, the bottom
   line, the rail and the tab panel on its View tab; 0.6.0's is its toolbar and status line and
   its list of series. Both are the library's own code laid out by a `BareWindow`, the
-  redesign's in `crates/voxa-app/src/ui/bare.rs`, 0.6.0's a temporary copy of the same
+  redesign's in `crates/volsa-app/src/ui/bare.rs`, 0.6.0's a temporary copy of the same
   interface over its `bars::show` and `browser::show`, which was never committed and is not
   kept, so the 0.6.0 figures cannot be run again from this repository (0.6.0 has no
   `BareWindow`; the example's own header says so).
@@ -131,9 +131,9 @@ control does. So this is **not** a test with a person: it gives no time for the 
 had done it, and it **does not claim that the success test is passed**. That waits for the
 formative sessions with people (section 5) and the summative one.
 
-**How.** Two ways, step by step. Pictures of the real window were taken with Voxa's capture words
-(`VOXA_CAPTURE`, `VOXA_CAPTURE_SHOW`: what is shown is chosen by the words, not by a click) at
-1400×900, and Voxa's own headless interface tests, which press the same buttons and keys the
+**How.** Two ways, step by step. Pictures of the real window were taken with Volsa's capture words
+(`VOLSA_CAPTURE`, `VOLSA_CAPTURE_SHOW`: what is shown is chosen by the words, not by a click) at
+1400×900, and Volsa's own headless interface tests, which press the same buttons and keys the
 window offers, were run for what lies between the pictures. On two made-up studies, neither
 anyone's scan:
 
@@ -153,7 +153,7 @@ anyone's scan:
 |---|---|---|
 | 1 | The window with nothing open: **Open** at the top left; at the right of the top bar the search box, **?**, the theme and **⋯**; the rail headed **Scans** saying, in small grey type, "Open a scan export to begin: a folder, a zip file or a DICOMDIR."; the middle black and saying "No series is shown here"; the panel at the right on **View**, with the brightness boxes W 1.0 and L 0.0 and the other View controls. | capture of the empty window; `ui::rail::tests::with_nothing_open_the_rail_asks_for_an_export` |
 | 2 | Click **Open**, then **Folder…** (or **Zip file or DICOMDIR…**), then choose in the system's dialog: three actions. Dropping the export on the window also opens it. | `ui::top::tests::the_open_menu_offers_a_folder_and_a_zip_file_or_dicomdir`. **Not run:** the system's dialog, and dropping a file; the pictures were opened from the command line. |
-| 3 | The window opens on **Slices** with one viewport, on the scan Voxa judges best. On the made-up brain export that is the first card, "Brain, 3D T1, a…", selected and shown at once on slice 13 of 24, with the study's name and date in the top bar; the other scans are the cards under it ("Brain, T2 FLAIR…", "Cspine, T2, axial"), and **Other files**, closed, holds the report. On the phantom it opens on "ball, fine". No further click is needed to see the brain scan here. | captures of both studies at 1400×900; `reducer::pictures_tests::an_export_opens_on_slices_with_the_remembered_viewports`, `ui::rail::tests::scans_come_before_other_files_which_start_closed` |
+| 3 | The window opens on **Slices** with one viewport, on the scan Volsa judges best. On the made-up brain export that is the first card, "Brain, 3D T1, a…", selected and shown at once on slice 13 of 24, with the study's name and date in the top bar; the other scans are the cards under it ("Brain, T2 FLAIR…", "Cspine, T2, axial"), and **Other files**, closed, holds the report. On the phantom it opens on "ball, fine". No further click is needed to see the brain scan here. | captures of both studies at 1400×900; `reducer::pictures_tests::an_export_opens_on_slices_with_the_remembered_viewports`, `ui::rail::tests::scans_come_before_other_files_which_start_closed` |
 | 4 | Were the scan shown not the one wanted: one click on another card shows it in the active viewport. | `ui::rail::tests::clicking_a_card_shows_that_series_in_the_active_viewport`, `ui::rail::card_tests::a_card_shows_the_plain_name_and_the_description_beneath` |
 
 **S-02. Measure a length on it.**
@@ -167,7 +167,7 @@ anyone's scan:
 | 5 | The result: "Ruler 1: 38.4 mm" is written beside the line on the picture, and the tab lists "Ruler 1", "38.4 mm" and "Its ends can be placed to about one voxel: ± 0.6 mm along this line." | capture of the phantom's slice with the capture word `measured`, which makes one of each kind of measurement (the ruler there was not drawn by a pointer) |
 
 From an open window the measuring takes two clicks and one drag. Counted from nothing open, with
-the brain scan the one Voxa opens on, the three actions of S-01 step 2 come first.
+the brain scan the one Volsa opens on, the three actions of S-01 step 2 come first.
 
 **S-07. The same by keyboard alone.**
 
@@ -239,7 +239,7 @@ D-01 (the empty window says how to begin in its middle, with the buttons that op
 D-02 (the folded rail says "Scans" under its icon); D-03 (a body part written as one code, such
 as "Cspine", is spelled out; the plain names stay cut in a narrow rail and whole in the hover
 text); D-04 (a tool in hand says how to draw; a ruler let go within a millimetre of where it was
-pressed was not looked at again); D-05 (the notice reads "2 files are not scans or documents Voxa lists"); D-06 (a date in
+pressed was not looked at again); D-05 (the notice reads "2 files are not scans or documents Volsa lists"); D-06 (a date in
 a report is said in words; beside a report or with nothing open the controls of the pictures are
 greyed with their reason, and the View tab shows one line in place of the window and level fields); D-09 (a word an action is searched by, spelt out, ranks with a word
 of its name, so "size" offers the measuring tools first). D-07 (no key placed a measurement) had keys added afterwards on the slices, which
@@ -249,14 +249,14 @@ script of section 5 says how to run it meanwhile. None of this has been seen wit
 ### R45: the smallest window with the interface at 200%
 
 At 640×480 with the interface size at 200% (so that the window is 320 points of the interface
-across), taken with `VOXA_CAPTURE_SIZE=320x240` and `VOXA_CAPTURE_ZOOM=2` on a display at 200%, the
+across), taken with `VOLSA_CAPTURE_SIZE=320x240` and `VOLSA_CAPTURE_ZOOM=2` on a display at 200%, the
 dry run saw the folded panel's strip of tab icons cut off at the bottom (the first three whole, the
 fourth cut by the bottom line, the fifth not seen), the strip's edge crossing the bottom line
 between "diagnostic" and "use.", and the search box showing only "F…".
 
 **What is true now.** The final review's fix sizes the five icons to the height there is, down to
 20 points, so that none runs past the bottom line
-(`crates/voxa-app/src/ui/panel/tests.rs::the_icons_of_a_folded_panel_fit_in_a_window_as_short_as_the_smallest_at_twice_the_size`).
+(`crates/volsa-app/src/ui/panel/tests.rs::the_icons_of_a_folded_panel_fit_in_a_window_as_short_as_the_smallest_at_twice_the_size`).
 A capture of that window with the phantom, taken after the fix and looked at, shows the five icons
 whole, the disclaimer whole with no line across it, and the search box showing "Fi…" and its
 shortcut. What is still not right there is the measurement labels: with the four measurements of the
@@ -269,16 +269,16 @@ The large-scans work (requirements LS-01 to LS-20) put four new sentences on scr
 them about memory and loading, none about the scan's content:
 
 - "Preview: loading full detail (n of m slices)", written over the 3D view while a series of
-  more than 256 slices is decoded (`crates/voxa-app/src/ui/scene/captions.rs`).
+  more than 256 slices is decoded (`crates/volsa-app/src/ui/scene/captions.rs`).
 - "Putting the 3D view on the graphics device", in the 3D view while a volume is handed over a
   slab a frame.
 - "Smooth planes need more memory than this series leaves.", a warning when smooth planes are
   asked for a series the card holds in more than one texture.
-- "Not enough memory to show this series in 3D: it needs n GB, and Windows can promise Voxa m
+- "Not enough memory to show this series in 3D: it needs n GB, and Windows can promise Volsa m
   GB. Close other programs and open it again.", a warning in place of running out.
 
 The two fixed sentences are among the texts of the wording test
-(`crates/voxa-app/src/ui/help/wording_tests.rs::no_text_suggests_a_finding`); the two with
+(`crates/volsa-app/src/ui/help/wording_tests.rs::no_text_suggests_a_finding`); the two with
 figures in them were read by the builder of the merge, and say nothing of a finding. 0.6.0's
 "Shown at half resolution to fit this graphics device" stays for a card that refuses a volume.
 Captures of the made-up CT's preview and of its full detail were looked at during the

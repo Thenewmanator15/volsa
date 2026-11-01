@@ -1,8 +1,8 @@
-# warp_race.ps1 -Study PATH [-Exe voxa.exe] [-Runs 20] [-Seconds 20]
-# Starts Voxa on Windows' software graphics (VOXA_ADAPTER=software, DirectX 12) with a scan
+# warp_race.ps1 -Study PATH [-Exe volsa.exe] [-Runs 20] [-Seconds 20]
+# Starts Volsa on Windows' software graphics (VOLSA_ADAPTER=software, DirectX 12) with a scan
 # opened at launch, without taking focus, and resizes its window every 120 ms while the scan
-# loads: what once stopped Voxa when a worker handed the device work as the window set
-# itself up. Prints one line a run, and how many runs Voxa's log says it stopped in.
+# loads: what once stopped Volsa when a worker handed the device work as the window set
+# itself up. Prints one line a run, and how many runs Volsa's log says it stopped in.
 # Use a made-up study (write_phantom), never a real scan.
 param([string]$Study, [string]$Exe = '', [int]$Runs = 20, [int]$Seconds = 20)
 . (Join-Path $PSScriptRoot 'win.ps1')
@@ -12,21 +12,21 @@ using System; using System.Runtime.InteropServices;
 namespace Resize9 { public static class W { [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr h, IntPtr after, int x, int y, int cx, int cy, uint flags); } }
 '@
 }
-if (-not $Exe) { $Exe = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path 'target\release\voxa.exe' }
-$log = Join-Path $env:LOCALAPPDATA 'Voxa\data\voxa.log'
+if (-not $Exe) { $Exe = Join-Path (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path 'target\release\volsa.exe' }
+$log = Join-Path $env:LOCALAPPDATA 'Volsa\data\volsa.log'
 function SetE($k, $v) { [Environment]::SetEnvironmentVariable($k, $v, 'Process') }
 function Stops() {
   if (-not [IO.File]::Exists($log)) { return 0 }
   $fs = [IO.File]::Open($log, 'Open', 'Read', 'ReadWrite'); $r = New-Object IO.StreamReader($fs)
   $text = $r.ReadToEnd(); $r.Close()
-  ([regex]::Matches($text, 'Voxa stopped at')).Count
+  ([regex]::Matches($text, 'Volsa stopped at')).Count
 }
 $stoppedBefore = Stops
 foreach ($i in 1..$Runs) {
-  SetE 'VOXA_ADAPTER' 'software'; SetE 'WGPU_BACKEND' 'dx12'
+  SetE 'VOLSA_ADAPTER' 'software'; SetE 'WGPU_BACKEND' 'dx12'
   $sw = [Diagnostics.Stopwatch]::StartNew()
   $procId = [OpenMeasure5.Win]::StartQuietly($Exe, $Study, (Split-Path $Exe))
-  SetE 'VOXA_ADAPTER' $null; SetE 'WGPU_BACKEND' $null
+  SetE 'VOLSA_ADAPTER' $null; SetE 'WGPU_BACKEND' $null
   $p = [System.Diagnostics.Process]::GetProcessById($procId)
   $n = 0; $before = Stops
   while (-not $p.HasExited -and $sw.Elapsed.TotalSeconds -lt $Seconds -and (Stops) -eq $before) {

@@ -1,21 +1,21 @@
 # Architecture
 
-Voxa is a Cargo workspace of small crates that talk only through their public interfaces.
+Volsa is a Cargo workspace of small crates that talk only through their public interfaces.
 
 | Crate | Owns | Depends on |
 |---|---|---|
-| `voxa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VoxaError` | nothing in the workspace |
-| `voxa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `voxa-core` |
-| `voxa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `voxa-core` |
-| `voxa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it, and writing both, with who made a label set; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `voxa-core` |
-| `voxa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them. No image mathematics. Its `cards.rs` is the one module outside `voxa-render` that uses `unsafe` | nothing in the workspace |
-| `voxa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between the networks and the mirrored run, tidying the answer into a label grid, the table of names with the model's verdict, and the notes a reader should know | `voxa-core`, `voxa-labels`, `voxa-models` |
-| `voxa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `voxa-core`, `voxa-volume`, `voxa-labels` |
-| `voxa-app` | The window, interface, application state, frame cache and background workers | all of the above |
+| `volsa-core` | Data model (`StudyInfo`, `SeriesInfo`, `Volume`), typed coordinate spaces (`Point<S>`, `Affine<A, B>`), `WindowLevel`, `VolsaError` | nothing in the workspace |
+| `volsa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `volsa-core` |
+| `volsa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `volsa-core` |
+| `volsa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it, and writing both, with who made a label set; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `volsa-core` |
+| `volsa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them. No image mathematics. Its `cards.rs` is the one module outside `volsa-render` that uses `unsafe` | nothing in the workspace |
+| `volsa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between the networks and the mirrored run, tidying the answer into a label grid, the table of names with the model's verdict, and the notes a reader should know | `volsa-core`, `volsa-labels`, `volsa-models` |
+| `volsa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `volsa-core`, `volsa-volume`, `volsa-labels` |
+| `volsa-app` | The window, interface, application state, frame cache and background workers | all of the above |
 | `xtask` | `cargo xtask check`, `cargo xtask coverage` and `cargo xtask check-models` | nothing in the workspace |
 
 Dependencies point downward only: core, then dicom, volume, labels and models, then segment and
-render, then app. `voxa-app` contains no image mathematics; anything that computes on pixels or
+render, then app. `volsa-app` contains no image mathematics; anything that computes on pixels or
 coordinates lives below it, where it can be tested without a window.
 
 ## Data flow
@@ -23,7 +23,7 @@ coordinates lives below it, where it can be tested without a window.
 1. A `SeriesSource` yields named byte streams from a folder, a zip (read in place, nothing is
    extracted to disk) or the folder beside a `DICOMDIR`. An ordinary zip is opened where its
    end record says its directory is, without searching the whole file for it.
-2. `voxa-dicom` parses headers and emits an index of studies and series. Of each file it reads
+2. `volsa-dicom` parses headers and emits an index of studies and series. Of each file it reads
    only as much as the header needs, never the pixels. A folder or a zip says its files'
    names, which are shared out in runs that follow one another, one run a thread with a
    reader of its own; what each thread read is taken in in name order, so the index and its
@@ -41,7 +41,7 @@ coordinates lives below it, where it can be tested without a window.
    by several at once. Decoded frames are cached under the memory budget (below). A slice's
    three preset windows are worked out when it is shown, not when it is decoded for a
    volume.
-4. `voxa-render` uploads the current frame once as a single-channel floating-point texture. A
+4. `volsa-render` uploads the current frame once as a single-channel floating-point texture. A
    shader applies window/level, so changing contrast never decodes or uploads again.
 5. The app draws overlays (orientation letters, scale bar, corner text) with `egui` above the GPU
    viewport.
@@ -49,9 +49,9 @@ coordinates lives below it, where it can be tested without a window.
 The 3D scene follows the series of the active viewport:
 
 1. A worker, on threads of its own so that a slice a viewport asks for never waits behind
-   it, first checks that the system can still give Voxa what the volume will hold, and
+   it, first checks that the system can still give Volsa what the volume will hold, and
    otherwise says so in a sentence. It decodes every slice of the series straight into a
-   `HeldVolume` (`voxa-core`): the values as stored, 16-bit whole numbers with one rescale
+   `HeldVolume` (`volsa-core`): the values as stored, 16-bit whole numbers with one rescale
    (or 32-bit numbers where whole numbers cannot give them exactly), in slabs of whole slices
    of up to 32 MiB, and the transform that places each voxel in the patient. For a series of
    more than 256 slices every eighth slice is decoded first and reduced at once to a small
@@ -64,7 +64,7 @@ The 3D scene follows the series of the active viewport:
    One memory budget (2 GiB, or a quarter of the computer's memory if less, or what
    `preferences.json` says) covers the volume's values in memory, the frame cache and, on a
    card that shares the computer's memory, the card's copy. The frame cache has what the
-   volume leaves of it. Past the budget, finished slabs wait in Voxa's spill file (below),
+   volume leaves of it. Past the budget, finished slabs wait in Volsa's spill file (below),
    the least used first, and come back when read.
 2. The window's own thread, and no other, hands the volume to its graphics device, one slab
    of 32 MiB a frame, so that the window never pauses long and no other thread uses the
@@ -103,7 +103,7 @@ The plane views and measuring hang on one point, the position:
    moves through the volume moves it: a click in a plane view or on a surface in 3D, the wheel
    over a plane, a grip in the scene, and, while Link is on, scrolling a 2D viewport of the
    same study. Linked viewports in turn go to the slice nearest the position.
-2. `voxa-volume` gives the three planes of the volume through the position. They follow the
+2. `volsa-volume` gives the three planes of the volume through the position. They follow the
    volume's own axes, each named by the anatomical plane it is nearest, so the scan's own
    slices are never resampled and a tilted scan is shown tilted.
 3. Each plane is drawn by a small fragment shader that reads the scene's own 3D texture: for
@@ -126,17 +126,17 @@ The plane views and measuring hang on one point, the position:
    never from the screen: a region on a slice from that slice, read in place once
    (`Session::read_slice`). A slice or a plane view shows the ones that lie in its layer; the
    3D scene shows them all, in front of the picture.
-5. The list is written to `annotations.json` in Voxa's local folder (version 2 when a
+5. The list is written to `annotations.json` in Volsa's local folder (version 2 when a
    measurement is in a picture's own millimetres, otherwise version 1, as 0.6.0 wrote it;
    either opens), filed under a hash of the series, and can be saved as a table or
    as JSON, each saying whose millimetres a measurement is in. None of these holds anything
    that says whose scan it was.
 
-Labelled parts come from files made elsewhere, or from a run that Voxa makes itself (the next
+Labelled parts come from files made elsewhere, or from a run that Volsa makes itself (the next
 section), and are kept apart from the scan:
 
 1. A worker reads the label file and, if there is one, the table of names beside it.
-   `voxa-labels` turns them into a label set: for every voxel of the label volume the part it
+   `volsa-labels` turns them into a label set: for every voxel of the label volume the part it
    belongs to, the transform that places those voxels in the patient, and the parts with their
    names, colours, volumes and what the table says of how each was made. The workers keep the
    one set in use, as the volume store keeps the one volume.
@@ -155,20 +155,20 @@ section), and are kept apart from the scan:
    how the part's own voxels slope; cuts shorten the line as they do for the scan. The
    device first finds which blocks of the label volume hold no part at all, and a line of
    sight goes straight to the far side of such a block.
-5. Which part is under the pointer is worked out on the processor by `voxa-labels`, from the
+5. Which part is under the pointer is worked out on the processor by `volsa-labels`, from the
    same label set, so naming and selecting a part read nothing back from the device.
 
 ## Labelling a scan: the path of a run
 
-Voxa labels a brain scan with SynthSeg 2.0's networks, run through ONNX Runtime. It ships no
+Volsa labels a brain scan with SynthSeg 2.0's networks, run through ONNX Runtime. It ships no
 network, and the zip a release offers carries ONNX Runtime but never DirectML or the weights;
 see [models.md](models.md) for what a person provides and
 [adr/0006-voxa-runs-a-labelling-model.md](adr/0006-voxa-runs-a-labelling-model.md) for why it is
-built as it is. Nothing else in Voxa depends on any of it.
+built as it is. Nothing else in Volsa depends on any of it.
 
-1. **Looking.** When Voxa starts, and when the person names another folder, a worker looks
+1. **Looking.** When Volsa starts, and when the person names another folder, a worker looks
    at whether this computer can label a scan: it reads the model folder and checks every
-   network file against the folder's list (`voxa_models::read_model`), loads the runtime from
+   network file against the folder's list (`volsa_models::read_model`), loads the runtime from
    its folder with telemetry switched off (`Runtime::load`), and lists the graphics cards. The
    answer is a `Ready` in the state: yes, or a sentence that says what is missing. The runtime
    is loaded once in a program's life, so a runtime folder changed later takes effect at the
@@ -180,15 +180,15 @@ built as it is. Nothing else in Voxa depends on any of it.
    where the person wants it to go, and how much of its card the window holds itself.
 3. **Where it fits.** The worker takes the volume kept for the series and, once any run before
    it is over (one run goes at a time), works out how many voxels the networks would be given,
-   whole and cut to the head (`voxa_segment::sizes`). It reads what the computer has just
-   now (each card by its identity with what the system lets Voxa use on it, and the ordinary
-   memory the system can still promise) and asks `voxa_models::rungs` for the places that fit,
+   whole and cut to the head (`volsa_segment::sizes`). It reads what the computer has just
+   now (each card by its identity with what the system lets Volsa use on it, and the ordinary
+   memory the system can still promise) and asks `volsa_models::rungs` for the places that fit,
    best first: the whole scan on each discrete card, then the processor, then the scan cut
    to the head on each, where cutting makes it smaller. A run that fits nowhere ends with a
    sentence that says what it needs and what the computer has. The run goes on a thread of
    its own, not on the workers' pool, and waits there for its turn; one that is stopped while
    it waits gives up at once and lets its volume go.
-4. **The networks.** For each place in turn `voxa_segment::label` prepares the volume (resamples
+4. **The networks.** For each place in turn `volsa_segment::label` prepares the volume (resamples
    to 1 mm if need be, turns its axes to the order the networks were trained on, scales
    brightness between its 0.5th and 99.5th percentile, pads each side), finds the structures,
    and tidies them. Finding is SynthSeg's: the standard network twice, once mirrored, and the
@@ -226,8 +226,8 @@ The runtime sits behind a trait, `Network`, so the arithmetic around the network
 stand-ins and no runtime, and another runtime could replace this one. The window draws with
 one graphics device and ONNX Runtime uses its own; the window tells a run how much of its card
 it holds, so that the run leaves room. If the window's device is lost, `eframe` cannot be given
-another: `voxa-app/src/ui/lost.rs` watches for it from the start, the work in hand goes on, and
-the person is told once, in the window and in a message box, to start Voxa again. Annotations,
+another: `volsa-app/src/ui/lost.rs` watches for it from the start, the work in hand goes on, and
+the person is told once, in the window and in a message box, to start Volsa again. Annotations,
 saved views and kept results are written by workers and do not depend on the card.
 
 ## Kinds of series, and volumes of a series
@@ -252,7 +252,7 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 
 ## What is kept on this machine
 
-In two folders the system gives Voxa. The settings folder (`config_dir`, on Windows in the
+In two folders the system gives Volsa. The settings folder (`config_dir`, on Windows in the
 roaming profile, which a managed network may copy to its servers) holds only
 `preferences.json` (the window's size, the interface's size, the shares of the window's width
 the series list and the tab panel take, whether the person folded either, the tab open, the
@@ -261,22 +261,22 @@ theme, the layout, orientation, linking and how labels are drawn). The local fol
 model, the cortex areas, where a run goes by the card's name, whether results are kept, and
 the two folders of the model and the runtime, which are its only paths), a `labels` folder
 holding the result of labelling kept for each series, as a label file and a table named by a
-hash of the series, `voxa.log`, and, only while a volume past the memory budget is open, a
-spill file `cache/spill-<random number>.voxa`: the numbers of that volume's slabs and nothing
-else (no name, no tag, nothing to say whose scan it is), opened by Voxa alone (on Windows no
+hash of the series, `volsa.log`, and, only while a volume past the memory budget is open, a
+spill file `cache/spill-<random number>.volsa`: the numbers of that volume's slabs and nothing
+else (no name, no tag, nothing to say whose scan it is), opened by Volsa alone (on Windows no
 other program can open or delete it meanwhile), deleted when its volume gives way and when
-Voxa closes, and, if a stop left one, when Voxa next starts. Voxa 0.5.0 and earlier kept all
+Volsa closes, and, if a stop left one, when Volsa next starts. 0.5.0 and earlier kept all
 but the log in the
-settings folder; as a newer Voxa starts, `moved.rs` moves what is there into the local folder,
+settings folder; as a newer Volsa starts, `moved.rs` moves what is there into the local folder,
 each file whole and never over a different file of the same name (a result's two files go
-together or not at all), and logs in a sentence what it moved and what it left, by Voxa's own
-file names and a count of result files, whose names are hashes. The log is written by Voxa's
+together or not at all), and logs in a sentence what it moved and what it left, by Volsa's own
+file names and a count of result files, whose names are hashes. The log is written by Volsa's
 own `tracing` subscriber, which takes
-only Voxa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
+only Volsa's crates' events and only the fields named in `log::OWN_WORDS`, so that nothing a
 file says can reach it. Labelling adds no subscriber of its own: its notices are logged by
 kind and key only, and the runtime's own words for a failed network, with every path taken
 out, are logged as a warning by the worker. A picture of the window taken with
-`VOXA_CAPTURE` reads none of these and writes none.
+`VOLSA_CAPTURE` reads none of these and writes none.
 
 ## State
 
@@ -289,7 +289,7 @@ without a window: dispatch actions, assert on state.
 
 ## The window
 
-`voxa-app/src/ui` is the window. It draws from `AppState` and the workers' reports each frame and
+`volsa-app/src/ui` is the window. It draws from `AppState` and the workers' reports each frame and
 holds no scan data of its own: the pictures read their slices and volumes from the session.
 
 ### Its parts
@@ -343,11 +343,11 @@ and its Cancel is by hand.
 
 ### Taking a picture, and timing the window
 
-`VOXA_CAPTURE` makes Voxa save one picture of its window and close (`ui/capture.rs` lists the
-words `VOXA_CAPTURE_SHOW` takes, among them one for each tab, `search` and `notices`).
+`VOLSA_CAPTURE` makes Volsa save one picture of its window and close (`ui/capture.rs` lists the
+words `VOLSA_CAPTURE_SHOW` takes, among them one for each tab, `search` and `notices`).
 `BareWindow` (`ui/bare.rs`) lays out the bar, the bottom line, the rail and the panel with no
 screen and no pictures; the tests of the window's small sizes use it, and
-`cargo run --release -p voxa-app --example measure_window` times it for a made-up study of 500
+`cargo run --release -p volsa-app --example measure_window` times it for a made-up study of 500
 series, the measurement that spec 7.17 holds to 0.6.0's bars and list.
 
 ## Coordinates
@@ -383,11 +383,11 @@ takes more than 256 MiB once decoded (larger than any MRI image: a slice of 1024
 of 16 bits takes 2 MiB), or when its pixels are stored uncompressed and it holds fewer bytes of
 them than its header says (`decode/declared.rs`).
 
-Label files are made the same way for tests, by the `testkit` feature of `voxa-labels`: NIfTI
+Label files are made the same way for tests, by the `testkit` feature of `volsa-labels`: NIfTI
 files of every kind of number labels are stored as, in either byte order, placed either way a
 NIfTI file can place its voxels.
 
-Tests build their files in memory with the `testkit` feature of `voxa-dicom`. They cover
+Tests build their files in memory with the `testkit` feature of `volsa-dicom`. They cover
 uncompressed pixels (unsigned, signed, 8-bit, `MONOCHROME1`, per-frame rescale in a multi-frame
 file), pictures in colour, and RLE, for which the test writes the compressed frame by hand. A
 JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency. A JPEG 2000
@@ -401,8 +401,8 @@ from overflowing it.
 Labelling is tested in layers, none of which needs a runtime or a model folder. Each of
 SynthSeg's preparing and tidying steps is held to arrays that SynthSeg's own Python made from
 small made-up volumes (`tools/golden` makes them; they are kept under
-`crates/voxa-segment/tests/golden`). The steps between the networks, the mirrored run and the
-224 cube are run with stand-in networks (the `testkit` feature of `voxa-models`), the model
+`crates/volsa-segment/tests/golden`). The steps between the networks, the mirrored run and the
+224 cube are run with stand-in networks (the `testkit` feature of `volsa-models`), the model
 folder check with folders made in the test, the sums that say where a run fits with made-up
 cards, and the reducer and the Labels and Tools tabs by actions and state with no window. A label file is
 written and read back. So `cargo xtask check` needs neither on the machine. It is meant to
@@ -411,7 +411,7 @@ or run on Linux. The tests that run the real networks on the converter's made-up
 ignored and run by `cargo xtask check-models`; `runtime.rs` and `cards.rs`, which cannot run
 without a runtime or a card, are left out of the coverage count.
 
-Drawing is tested on a graphics device with no window (`crates/voxa-render/src/gpu.rs` and the
+Drawing is tested on a graphics device with no window (`crates/volsa-render/src/gpu.rs` and the
 modules beside it). Every such device comes from one adapter (the tests that draw in software use
 a second, of their own) and is started in turn with the others. On Windows none tries OpenGL: a
 driver's OpenGL side can stop every thread of the program from starting or ending once a thread
@@ -419,7 +419,7 @@ that used it has ended, which stopped a run of the tests now and then. Vulkan an
 tried, and DirectX 12 brings WARP, the device in software that a computer with no graphics card
 draws with; `WGPU_BACKEND` names others, and is needed on a Windows computer that could draw only
 with OpenGL. The tests of the interface that need the kind of device a window has (egui-wgpu's
-default limits) get it from `voxa_render::render_state_without_a_window`, and
-`crates/voxa-render/tests/one_instance.rs` fails when a source file outside voxa-render's `gpu`
+default limits) get it from `volsa_render::render_state_without_a_window`, and
+`crates/volsa-render/tests/one_instance.rs` fails when a source file outside volsa-render's `gpu`
 modules makes a graphics instance of its own, whether by wgpu's constructors or by egui-wgpu's
 builder. The window's own instance is made by eframe, and is not covered.

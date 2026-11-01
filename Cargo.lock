@@ -4526,7 +4526,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "voxa-app"
+name = "volsa-app"
 version = "0.7.0"
 dependencies = [
  "criterion",
@@ -4542,19 +4542,19 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
- "voxa-core",
- "voxa-dicom",
- "voxa-labels",
- "voxa-models",
- "voxa-render",
- "voxa-segment",
- "voxa-volume",
+ "volsa-core",
+ "volsa-dicom",
+ "volsa-labels",
+ "volsa-models",
+ "volsa-render",
+ "volsa-segment",
+ "volsa-volume",
  "winresource",
  "zip",
 ]
 
 [[package]]
-name = "voxa-core"
+name = "volsa-core"
 version = "0.7.0"
 dependencies = [
  "proptest",
@@ -4562,7 +4562,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "voxa-dicom"
+name = "volsa-dicom"
 version = "0.7.0"
 dependencies = [
  "dicom-core",
@@ -4576,12 +4576,12 @@ dependencies = [
  "jpeg-encoder",
  "proptest",
  "tempfile",
- "voxa-core",
+ "volsa-core",
  "zip",
 ]
 
 [[package]]
-name = "voxa-labels"
+name = "volsa-labels"
 version = "0.7.0"
 dependencies = [
  "flate2",
@@ -4589,11 +4589,11 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.21",
- "voxa-core",
+ "volsa-core",
 ]
 
 [[package]]
-name = "voxa-models"
+name = "volsa-models"
 version = "0.7.0"
 dependencies = [
  "ort",
@@ -4606,7 +4606,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "voxa-render"
+name = "volsa-render"
 version = "0.7.0"
 dependencies = [
  "bytemuck",
@@ -4617,30 +4617,30 @@ dependencies = [
  "proptest",
  "rayon",
  "thiserror 2.0.21",
- "voxa-core",
- "voxa-labels",
- "voxa-volume",
+ "volsa-core",
+ "volsa-labels",
+ "volsa-volume",
 ]
 
 [[package]]
-name = "voxa-segment"
+name = "volsa-segment"
 version = "0.7.0"
 dependencies = [
  "serde_json",
  "thiserror 2.0.21",
- "voxa-core",
- "voxa-labels",
- "voxa-models",
+ "volsa-core",
+ "volsa-labels",
+ "volsa-models",
 ]
 
 [[package]]
-name = "voxa-volume"
+name = "volsa-volume"
 version = "0.7.0"
 dependencies = [
  "proptest",
  "serde",
  "thiserror 2.0.21",
- "voxa-core",
+ "volsa-core",
 ]
 
 [[package]]

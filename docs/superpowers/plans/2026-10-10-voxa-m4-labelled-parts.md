@@ -1,5 +1,7 @@
 # Voxa Milestone 4 (Labelled parts, from files) Implementation Plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A person opens a file of labels made elsewhere for the scan they are looking at, and sees the named parts of the head: outlined over the scan in the three planes, as coloured solids in 3D, and as a list they can search, show, hide, fade and select, with the volume of each part and how far each name can be trusted.

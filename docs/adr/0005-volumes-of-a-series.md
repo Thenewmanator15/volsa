@@ -1,5 +1,7 @@
 # 5. The volumes of a series are listed as series of their own
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-14. Status: accepted.
 
 ## Context

@@ -84,11 +84,11 @@ pub(super) fn packages(root: &Path) -> Vec<Value> {
     gamma["repository"] = Value::Null;
     let mut own = package(
         root,
-        ("voxa-app", "0.5.0"),
+        ("volsa-app", "0.5.0"),
         "MIT OR Apache-2.0",
         &[("LICENSE-MIT", "Ours.\n")],
     );
-    own["id"] = json!("path+file:///made/up/voxa-app#0.5.0");
+    own["id"] = json!("path+file:///made/up/volsa-app#0.5.0");
     own["source"] = Value::Null;
     vec![
         package(root, ("zeta", "1.0.0"), "MIT OR Apache-2.0", &zeta),
@@ -124,13 +124,13 @@ pub(super) fn packages(root: &Path) -> Vec<Value> {
 
 /// What `cargo tree` lists for the made-up program: its own crate, marked by its folder, and
 /// a package met twice, marked `(*)`. `unused` is in the metadata but not in the program.
-pub(super) const LISTED: &str = "voxa-app v0.5.0 (G:\\made\\up\\voxa-app)\nzeta v1.0.0\nbeta v2.1.0\n\
+pub(super) const LISTED: &str = "volsa-app v0.5.0 (G:\\made\\up\\volsa-app)\nzeta v1.0.0\nbeta v2.1.0\n\
                       gamma v0.3.0\ndelta v0.1.0\nzeta v1.0.0 (*)\nepaint_default_fonts v0.36.2\n\
                       iota v0.2.0\n";
 
-/// The metadata of a made-up workspace whose one member is `voxa-app`.
+/// The metadata of a made-up workspace whose one member is `volsa-app`.
 pub(super) fn metadata(packages: &[Value]) -> Value {
-    json!({ "packages": packages, "workspace_members": ["path+file:///made/up/voxa-app#0.5.0"] })
+    json!({ "packages": packages, "workspace_members": ["path+file:///made/up/volsa-app#0.5.0"] })
 }
 
 /// The lines of the entry for one package: from its heading to the blank line after it.
@@ -176,8 +176,8 @@ fn every_package_built_into_the_program_is_named_once_in_order() {
             "{heading}"
         );
     }
-    // Voxa's own crate is not a third party, and a package not built in is not named.
-    assert!(!written.contains("voxa-app 0.5.0") && !written.contains("Ours."));
+    // Volsa's own crate is not a third party, and a package not built in is not named.
+    assert!(!written.contains("volsa-app 0.5.0") && !written.contains("Ours."));
     assert!(!written.contains("unused") && !written.contains("Never built in."));
     // What the metadata says of each.
     let zeta = entry(&written, "zeta 1.0.0");
@@ -185,7 +185,7 @@ fn every_package_built_into_the_program_is_named_once_in_order() {
         zeta[1..4],
         [
             "  Licence: MIT OR Apache-2.0",
-            "  Voxa takes it under: MIT",
+            "  Volsa takes it under: MIT",
             "  Repository: https://example.com/zeta"
         ]
     );
@@ -332,7 +332,7 @@ fn the_list_cargo_tree_gives_names_each_package_once() {
         ("epaint_default_fonts", "0.36.2"),
         ("gamma", "0.3.0"),
         ("iota", "0.2.0"),
-        ("voxa-app", "0.5.0"),
+        ("volsa-app", "0.5.0"),
         ("zeta", "1.0.0"),
     ];
     let wanted: Vec<(String, String)> = pairs
