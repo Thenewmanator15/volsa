@@ -18,6 +18,11 @@ pictures or counts. Write what the person did and said about Volsa, not about th
   sometimes a screen reader.
 - **What they bring**: an export from a hospital (a CD's folder, a zip, a DICOMDIR), which
   may hold several studies, scanned paperwork and reports beside the scans.
+- **Where they read about Volsa**: the window itself (help topics, hints, the search), first.
+  Then the repository's wiki, whose pages are kept in `wiki/` and checked with the code; the
+  README, which is a short front page that points to the wiki; and, offline, the README.txt
+  and INTENDED-USE.txt in the zip. Each says what Volsa is for in the words of
+  `docs/intended-use.md` or points to it, and none suggests a finding (UI-41).
 
 ## 2. Parts of the window that bear on safety
 

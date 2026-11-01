@@ -350,3 +350,35 @@ fn every_word_of_the_trade_is_explained_in_its_sentence_or_left_out() {
         }
     }
 }
+
+/// What a person reads about Volsa outside its window, each with where it is: the README, the
+/// README in the zip and the pages of the wiki, read from the repository.
+fn documents() -> Vec<(String, String)> {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let read = |path: std::path::PathBuf| std::fs::read_to_string(&path).expect("a document");
+    let mut found: Vec<(String, String)> = ["README.md", "packaging/README.txt"]
+        .into_iter()
+        .map(|name| (name.to_owned(), read(root.join(name))))
+        .collect();
+    for entry in std::fs::read_dir(root.join("wiki")).expect("the wiki's folder") {
+        let path = entry.expect("an entry").path();
+        if path.extension().is_some_and(|ending| ending == "md") {
+            let name = format!("wiki/{}", path.file_name().unwrap_or_default().display());
+            found.push((name, read(path)));
+        }
+    }
+    found
+}
+
+#[test]
+fn no_document_a_person_reads_suggests_a_finding() {
+    let documents = documents();
+    assert!(documents.len() > 10, "only {} documents", documents.len());
+    let mut found = Vec::new();
+    for (name, text) in &documents {
+        for word in suggestions_in(text) {
+            found.push(format!("{word:?} in {name}"));
+        }
+    }
+    assert!(found.is_empty(), "{}", found.join("\n"));
+}

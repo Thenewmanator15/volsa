@@ -10,13 +10,13 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [0.7.1] - 2026-11-01
 
-The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0
-download was ever made: this release is 0.7.0 with the two fixes below. Everything the notes
-of 0.7.0 in CHANGELOG.md describe is in it: a new window, made so that someone who has never
-seen Volsa can open an export, find the brain scan and measure something on it without help;
-very large scans that open faster and in less memory; and a damaged file nested too deeply
-refused instead of stopping Volsa. Volsa is not a medical device and is not for diagnostic
-use.
+The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download
+was ever made: this release is 0.7.0 with the two fixes and the shorter READMEs below.
+Everything the notes of 0.7.0 in CHANGELOG.md describe is in it: a new window, made so that
+someone who has never seen Volsa can open an export, find the brain scan and measure something
+on it without help; very large scans that open faster and in less memory; and a damaged file
+nested too deeply refused instead of stopping Volsa. Volsa is not a medical device and is not
+for diagnostic use.
 
 ### Fixed
 
@@ -30,6 +30,15 @@ use.
   needless `return` in the program's build script, which only builds Windows' icon and
   details and so does nothing on Linux. It is written without one. A test that assumed a
   graphics card now holds on a computer without one.
+
+### Changed
+
+- The README is a short front page. What it held is now in the repository's wiki
+  (github.com/Thenewmanator15/volsa/wiki), whose pages are kept in `wiki/` and checked with
+  the code: the wording rule, the statement of what Volsa is for, and every link. The
+  README.txt in the zip holds what is needed with no network (starting Volsa, the SmartScreen
+  warning, checking the download, what it needs, what it keeps and how to remove it) and points
+  to the wiki for the rest.
 
 ## [0.7.0] - 2026-11-01
 
