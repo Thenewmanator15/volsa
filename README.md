@@ -275,10 +275,15 @@ them Voxa starts and does everything else, and the button says what is missing.
 
 ## Status
 
-Version 0.6.0, the first with a download for Windows: the zip, with ONNX Runtime in it for
-labelling, the notices and credits that go with it, a window that fits any screen, keys for the
-slices, the list of series and full screen, and fixes found by an audit of what a public release
-needs. It builds on 0.5.0, which finished the fourth milestone: 0.4.0 showed labels from files,
+Version 0.7.0, the first public release. It has a new window, made so that someone who has
+never seen Voxa can open an export, find the scan and measure on it; it opens very large scans
+faster and in less memory; and it refuses a damaged file nested too deeply instead of stopping.
+It also brings out 0.6.0, which was made ready and never published: the download for Windows,
+the zip with ONNX Runtime in it for labelling, the notices and credits that go with it, a window
+that fits any screen, and fixes found by an audit of what a public release needs. How the new
+window was checked is in [docs/acceptance-ui-redesign.md](docs/acceptance-ui-redesign.md), and
+what large scans cost in [docs/measurements/2026-10-30-large-scans.md](docs/measurements/2026-10-30-large-scans.md).
+Before that came 0.5.0, which finished the fourth milestone: 0.4.0 showed labels from files,
 and 0.5.0 labels a brain scan inside Voxa and reads more kinds of MRI export. What Voxa does
 and what it does not yet do are in the [changelog](CHANGELOG.md); how labelling was checked is in
 [docs/acceptance-0.5.0.md](docs/acceptance-0.5.0.md), and the reading of more kinds of export

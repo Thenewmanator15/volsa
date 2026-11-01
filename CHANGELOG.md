@@ -6,10 +6,19 @@ All notable changes to Voxa are recorded here. The format follows
 
 ## [Unreleased]
 
-A new window, made so that someone who has never seen Voxa can open an export, find the brain
-scan and measure something on it without help. What Voxa does with a scan is the same; the
-controls are grouped by what you want to do, and more kinds of file open. Voxa is not a medical
-device and is not for diagnostic use.
+## [0.7.0] - 2026-11-01
+
+The first public release. A new window, made so that someone who has never seen Voxa can open
+an export, find the brain scan and measure something on it without help; very large scans open
+faster and in less memory; and a damaged file nested too deeply is refused instead of stopping
+Voxa. What Voxa does with a scan is the same; the controls are grouped by what you want to do,
+and more kinds of file open. Voxa is not a medical device and is not for diagnostic use.
+
+Every version before this one was made in private. 0.6.0 was made ready as the first public
+release and never published, so its work comes out first here, with this release's: the
+download for Windows with ONNX Runtime in it for labelling, the notices and credits that go
+with it, a window that fits any screen, and the fixes of an audit of what a public release
+needs. Its notes are under 0.6.0, below.
 
 ### Added
 
@@ -202,6 +211,9 @@ device and is not for diagnostic use.
   The check costs about 3 microseconds a file.
 
 ## [0.6.0] - 2026-10-22
+
+Never published: this version was made ready but not released, and its work came out first in
+0.7.0.
 
 The sixth release, made for a first public release: a download for Windows, the notices and
 credits that go with it, a window that fits any screen, and smaller fixes found by an audit of

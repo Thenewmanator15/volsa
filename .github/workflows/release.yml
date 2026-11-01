@@ -1,6 +1,6 @@
 name: release
 
-# A tag such as v0.6.0 makes a draft release of that version: every check in ci.yml first,
+# A tag such as v0.7.0 makes a draft release of that version: every check in ci.yml first,
 # then the Windows package with ONNX Runtime in it, the package's SHA-256, and that version's
 # section of CHANGELOG.md as the notes. Nothing is published: a person looks at the draft on
 # GitHub and publishes it.
