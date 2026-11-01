@@ -255,13 +255,20 @@ it and claims no pass. It found:
 
 - the steps: from an open window S-02 takes two clicks (the Measure tab, the Ruler) and one drag;
   with Voxa opening on the best scan, S-01 needed no click on the made-up brain export;
-- **S-07 cannot be done as written:** no key places or moves the end of a measurement, so S-02 cannot
-  be done by keyboard alone (D-07);
+- **S-07 could not be done as written:** no key placed or moved the end of a measurement, so S-02 could not
+  be done by keyboard alone (D-07). Keys were added afterwards on the slices (see below); S-07 has
+  still not been done by a person;
 - what would trip a first-time user, D-01 to D-08: the empty window's one instruction in small grey
   type, the rail folded to an unlabelled strip below 960 points as the window opens, plain names cut in the rail and "Cspine"
   reading as a typing mistake, no on-screen word on how to draw once the Ruler is chosen, "2 files
   skipped" on the first screen (now "2 files are not scans or documents Voxa lists"), the View tab's controls beside a report, and that the test script's
   made-up study has no brain scan in it.
+
+Keys that place a measurement were added after this walk, on the slices (Task 22): with a measuring tool
+in hand and the keyboard on a viewport, the arrows move a point and Enter places it. Headless tests show
+that it makes the annotation the mouse makes and that Up and Down then move the point and not the
+slice (`ui::viewport::by_keys_tests` and `by_keys_window_tests`, under UI-22 and UI-33 of the requirements). S-07 has not been done
+again, by anyone, and no pass is claimed; the planes and the 3D view have no such keys.
 
 ## After the final review
 
@@ -323,7 +330,9 @@ they changed in what this record says, and what the user sees:
   fewer than four letters or digits (UI-13).
 - Labels that Voxa made and did not keep are replaced without a question by another run, another
   label file or another export (R-UI-12).
-- No keyboard way to place a measurement (D-07).
+- A measurement can be placed by keyboard on the slices (arrows move a point, Enter places it), shown
+  by headless tests only (`ui::viewport::by_keys_tests`); not tried by a person, with a screen reader or
+  on a real scan, and not on the planes or in 3D, which take the mouse alone (D-07, S-07).
 
 ## Not checked
 

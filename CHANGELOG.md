@@ -124,6 +124,11 @@ device and is not for diagnostic use.
   measurement is in a picture's own pixel spacing, and then in a newer form (version 2) that
   0.6.0 does not read: it shows no measurements and, at its first save, sets the file aside as
   `annotations.json.unread`.
+- **Measuring on a slice by keyboard.** With a measuring tool in hand, Tab to a viewport: a small
+  cross marks a point on the slice, the arrow keys move it (ten pixels with Shift) and Enter
+  places it, so a ruler, angle, region or marker can be made without the mouse; Up and Down then
+  move the point and Page Up and Page Down still change the slice. Esc gives up what was begun.
+  The planes and the 3D view still take the mouse alone.
 - **Reports and other documents.** A DICOM structured report is listed in **Other files** and
   opens as text in the middle of the window, headed "Shown as text. The original report is
   the reference." Its dates are written in words ("2 January 2020"), its line breaks are kept,

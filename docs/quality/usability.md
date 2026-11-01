@@ -179,10 +179,26 @@ the brain scan the one Voxa opens on, the three actions of S-01 step 2 come firs
   Ctrl+K or `/`, the arrows move among the results and Enter runs one
   (`ui::search::keys_tests::arrows_move_and_enter_runs_what_is_chosen`). **M** shows the Measure
   tab. So S-01, and choosing the Ruler, can be done from the keyboard, as far as the tests reach (the system's folder dialog was not run by keyboard).
-- **Placing the ruler cannot.** No key places or moves the end of a measurement: the keys the
-  pictures take step the slices and change brightness, orientation, fit and layout (searched for
-  in the window's code, not tried). So S-02 cannot be done by keyboard alone, and S-07 as written
-  cannot pass for S-02 whatever the participant does (D-07).
+- **Placing the ruler could not, when the dry run was made.** No key placed or moved the end of a
+  measurement: the keys the pictures take stepped the slices and changed brightness, orientation,
+  fit and layout (searched for in the window's code, not tried). So S-02 could not be done by
+  keyboard alone, and S-07 as written could not pass for S-02 whatever the participant did (D-07).
+- **Since then (Task 22, 2026-11-01), on the slices it can be tried.** With the Ruler in hand
+  (search "ruler", the Measure tab, or **M**) and the keyboard on a viewport (Tab), a small cross
+  in the accent colour marks a point at the middle of the slice; the arrows move it a pixel (ten
+  with Shift), Enter begins the ruler at it and Enter again ends it; the Angle takes three Enters,
+  the Region two and the Marker one; Esc gives up what was begun and a second Esc leaves the point.
+  What the tests show, in a headless window with key events and no person: the ruler, angle,
+  region and marker those keys make are the ones the mouse makes for the same pixels, in the list
+  and undone by Undo; the point cannot leave the slice; Up and Down move the point and not the
+  slice while a tool is in hand (and step the slices with Navigate in hand), Page Up and Page Down
+  still change the slice and give up a half-made ruler; no key acts while the search box or a
+  name field has the keyboard; the viewport's value for a screen reader says the tool and the
+  draft's measure (`ui::viewport::by_keys_tests` and `ui::viewport::by_keys_window_tests`, listed under UI-22 and UI-33). What they do
+  not show: that a person finds the keys (the help's measuring topic and the hint of Up and Down
+  say them), or that the cross is easy to see on a real scan, or what a screen reader says.
+  **S-07 has not been done by a person and no pass is claimed.** The planes and the 3D view still
+  take the mouse alone, so a participant who measures there cannot finish S-02 by keyboard.
 - **Not run:** the system's folder dialog by keyboard, and a screen reader. The names it would read
   are tested (UI-33), not listened to.
 
@@ -210,8 +226,9 @@ the brain scan the one Voxa opens on, the three actions of S-01 step 2 come firs
   playing through slices and picture controls, none of which acts on a document. A date inside a
   report shows as the file writes it ("Written on: 20200102"), under a header that says
   "2 January 2020".
-- D-07. S-07 cannot be completed (above). The script has a keyboard user attempt S-02, which
-  cannot succeed until a key places a measurement, or the scenario is reworded.
+- D-07. S-07 could not be completed (above). Since Task 22 keys place a measurement on the
+  slices, shown by headless tests only; it is still open until a person tries it, and the planes
+  and 3D have no such keys.
 - D-08. The script's step 3 needs a study with a brain scan among other scans, and `write_phantom`
   writes none. The made-up export used here is not in the repository.
 - D-09. Someone who types "size" into the search to measure a size is offered "Draw the interface
@@ -225,9 +242,9 @@ text); D-04 (a tool in hand says how to draw; a ruler let go within a millimetre
 pressed was not looked at again); D-05 (the notice reads "2 files are not scans or documents Voxa lists"); D-06 (a date in
 a report is said in words; beside a report or with nothing open the controls of the pictures are
 greyed with their reason, and the View tab shows one line in place of the window and level fields); D-09 (a word an action is searched by, spelt out, ranks with a word
-of its name, so "size" offers the measuring tools first). D-07 (no key places a measurement) and
-D-08 (no brain scan to hand in `write_phantom`) are open, and the script of section 5 says how
-to run it meanwhile. None of this has been seen with a person.
+of its name, so "size" offers the measuring tools first). D-07 (no key placed a measurement) had keys added afterwards on the slices, which
+have been run by tests alone, and D-08 (no brain scan to hand in `write_phantom`) is open; the
+script of section 5 says how to run it meanwhile. None of this has been seen with a person.
 
 ### R45: the smallest window with the interface at 200%
 
