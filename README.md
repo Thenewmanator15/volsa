@@ -13,8 +13,6 @@ their volumes. It runs on your own computer and makes no network connections.
 **Volsa is not a medical device and is not for diagnostic use.** What it is for, and what it is
 not for, is in [docs/intended-use.md](docs/intended-use.md).
 
-Volsa was called Voxa while it was being built, before its first public release.
-
 ![Volsa's window showing a made-up test study: the rail of scans at the left, the three planes and a 3D view in the middle, and the Measure tab at the right listing a ruler, an angle, a region and a marker](docs/images/volsa-phantom-planes.png)
 
 The pictures show a made-up study that Volsa's own example writes, not a scan of anyone. Above:
