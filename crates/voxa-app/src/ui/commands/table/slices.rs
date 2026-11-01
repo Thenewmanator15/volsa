@@ -13,6 +13,11 @@ use crate::state::{AppState, Cine, Layout};
 /// How many slices Page Up and Page Down step.
 const PAGE: i32 = 10;
 
+/// What the hints of Up and Down say of the point: with a measuring tool in hand and the viewport
+/// holding the keyboard, they move it and leave the slice alone.
+const POINT_SAYS: &str = "With a measuring tool in hand and a viewport selected, Up and Down move \
+     the point on the slice and leave the slice alone. Page Up and Page Down still change it";
+
 /// Why the volume before or after cannot be shown: no scan of several volumes is shown, or
 /// the one shown is already the first or the last of them.
 fn volume_at_end(state: &AppState, last: bool) -> Option<Why> {
@@ -177,8 +182,9 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "slice.before",
-        name: "The slice before",
+        name: "The slice before, or the point up with a tool in hand",
         label: "Slice before",
+        explains: POINT_SAYS,
         words: &["previous", "back", "up", "scroll"],
         key: Some(alone(Key::ArrowUp, "Up")),
         why_not: no_picture,
@@ -187,8 +193,9 @@ pub(super) const COMMANDS: &[Command] = &[
     },
     Command {
         id: "slice.after",
-        name: "The slice after",
+        name: "The slice after, or the point down with a tool in hand",
         label: "Slice after",
+        explains: POINT_SAYS,
         words: &["next", "forward", "down", "scroll"],
         key: Some(alone(Key::ArrowDown, "Down")),
         why_not: no_picture,

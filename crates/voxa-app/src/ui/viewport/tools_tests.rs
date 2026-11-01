@@ -8,6 +8,7 @@ use egui::{Event, Modifiers, PointerButton, Pos2, Rect, Sense, pos2, vec2};
 use voxa_core::{Point, SeriesId};
 use voxa_volume::distance_mm;
 
+use super::by_keys;
 use super::tools::{self, Drafts};
 use crate::action::Action;
 use crate::annotations::{Shape, Tool};
@@ -60,6 +61,10 @@ pub(super) struct Rig {
     pub(super) actions: Vec<Action>,
     /// How many times a slice's values were read.
     reads: Cell<usize>,
+    /// Whether the viewport is to be given the keyboard in the next frame.
+    pub(super) wants_keys: bool,
+    /// Whether the viewport had the keyboard in the last frame.
+    pub(super) has_keys: bool,
 }
 
 impl Default for Rig {
@@ -76,6 +81,8 @@ impl Rig {
             drafts: Drafts::default(),
             actions: Vec::new(),
             reads: Cell::new(0),
+            wants_keys: false,
+            has_keys: false,
         }
     }
 
@@ -89,6 +96,7 @@ impl Rig {
     ) -> Seen {
         let cell = self.cell;
         let (drafts, actions, reads) = (&mut self.drafts, &mut self.actions, &self.reads);
+        let (wants, has) = (std::mem::take(&mut self.wants_keys), &mut self.has_keys);
         let read = |_: &SeriesId, _: usize, with: &mut dyn FnMut(SliceValues<'_>)| {
             reads.set(reads.get() + 1);
             with(SliceValues {
@@ -97,11 +105,26 @@ impl Rig {
             });
         };
         hand.pass(events, &mut |ui| {
-            drafts.keep_up(state, false);
+            let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+            drafts.keep_up(state, escape);
             let id = ui.id().with(("viewport", at));
             let response = ui.interact(cell, id, Sense::click_and_drag());
+            if wants {
+                ui.memory_mut(|memory| memory.request_focus(id));
+            }
+            *has = response.has_focus();
+            let keyed = by_keys::take(ui, &response, state, at);
             let pane = super::pane(state, at, cell);
-            actions.extend(tools::measure(ui, &pane, &response, (drafts, &read), &[]));
+
+            actions.extend(tools::measure(
+                ui,
+                &pane,
+                &response,
+                (&mut *drafts, &read),
+                (&[], &keyed),
+            ));
+            by_keys::keep(ui.ctx(), &response, drafts, at);
+            by_keys::announce(&response, state, at, drafts, &keyed);
         })
     }
 

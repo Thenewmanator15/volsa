@@ -17,6 +17,9 @@ pub struct Seen {
     pub lines: Vec<[Pos2; 2]>,
     /// What a screen reader is told of each widget that has a name, and where it is.
     pub names: Vec<(String, Rect)>,
+    /// What a screen reader is told is the value of each widget that has a name and a value,
+    /// by the name.
+    pub values: Vec<(String, String)>,
 }
 
 impl Seen {
@@ -37,6 +40,13 @@ impl Seen {
     pub fn bounds_of(&self, name: &str) -> Option<Rect> {
         let named = self.names.iter().find(|(one, _)| one == name);
         named.map(|(_, bounds)| *bounds)
+    }
+
+    /// The value a screen reader is told of the widget whose name begins with `name`, if it is
+    /// told one.
+    pub fn value_of(&self, name: &str) -> Option<&str> {
+        let found = self.values.iter().find(|(one, _)| one.starts_with(name));
+        found.map(|(_, value)| value.as_str())
     }
 
     /// The names given to widgets, in the order they were told.
@@ -116,6 +126,9 @@ impl Hand {
                 pos2(at.x1 as f32, at.y1 as f32),
             );
             seen.names.push((name.to_owned(), rect));
+            if let Some(value) = node.value() {
+                seen.values.push((name.to_owned(), value.to_owned()));
+            }
         }
         seen
     }

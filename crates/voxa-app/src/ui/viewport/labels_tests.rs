@@ -4,6 +4,7 @@
 use egui::{Pos2, Rect, Sense, pos2, vec2};
 use voxa_core::{Point, SeriesId};
 
+use super::by_keys::Keyed;
 use super::{annotate, tools};
 use crate::action::Action;
 use crate::annotations::Shape;
@@ -58,7 +59,13 @@ fn measurements_on_a_slice_are_written_apart_and_clear_of_the_writing_in_its_cor
         let response = ui.interact(cell, id, Sense::click_and_drag());
         let pane = super::pane(&state, 0, cell);
         corners = annotate::overlays(ui, &pane, None);
-        let _ = tools::measure(ui, &pane, &response, (&mut drafts, &read), &corners);
+        let _ = tools::measure(
+            ui,
+            &pane,
+            &response,
+            (&mut drafts, &read),
+            (&corners, &Keyed::default()),
+        );
     });
     // The rects told are where the corners' writing stands: the slice's place is in one.
     let slice = seen

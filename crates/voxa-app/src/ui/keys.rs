@@ -67,13 +67,16 @@ const PICTURE_HAS_THE_KEYBOARD: &str = "voxa: the pass in which a picture had th
 /// widget beside it with them, and they step through the slices instead. Called for the
 /// response of each picture as it is drawn. A tool in hand can take the arrows from the slices
 /// by consuming them before [`pressed_keys`] looks, in the pass in which the picture is drawn.
-pub fn hold_the_arrows(ctx: &Context, picture: &Response) {
+/// With `keeps_escape`, Esc is the picture's too, and does not take the keyboard from it: it
+/// gives up what is half drawn on the picture, and the next Esc, with nothing begun, leaves it.
+pub fn hold_the_arrows(ctx: &Context, picture: &Response, keeps_escape: bool) {
     if !picture.has_focus() {
         return;
     }
     let arrows = EventFilter {
         horizontal_arrows: true,
         vertical_arrows: true,
+        escape: keeps_escape,
         ..EventFilter::default()
     };
     ctx.memory_mut(|memory| memory.set_focus_lock_filter(picture.id, arrows));

@@ -120,8 +120,9 @@ pub const TOPICS: [Topic; 7] = [
             "pixel spacing",
             "units",
         ],
-        body: "The Measure tab (or the M key) has a Ruler for lengths, an Angle, a Region \
-               that measures inside an ellipse you draw, and a Marker.\n\n\
+        body: "The Measure tab (or the M key) has a Ruler for lengths, an Angle, a Region (an \
+               ellipse) and a Marker; with one in hand, Tab to a picture, then the arrows move \
+               its point and Enter places it.\n\n\
                Millimetres come only from the scan's files: when they give the size of each \
                dot, or pixel, of the picture (the pixel spacing) and say where each slice lies \
                in the patient, lengths are in the patient's millimetres. When they give the \

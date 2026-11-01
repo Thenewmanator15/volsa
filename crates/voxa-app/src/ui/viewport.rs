@@ -3,19 +3,20 @@
 
 use std::sync::{Arc, Mutex, PoisonError};
 
-use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, WidgetInfo, WidgetType, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
 use voxa_dicom::Frame;
 use voxa_render::{SlicePipeline, ViewTransform};
 
 use super::overlay;
-use super::{keys, theme};
+use super::theme;
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
 
 mod annotate;
+mod by_keys;
 mod colour;
 mod mouse;
 mod said;
@@ -212,10 +213,9 @@ pub fn show(
             ui.id().with(("viewport", at)),
             Sense::click_and_drag(),
         );
-        let kind = WidgetType::Image;
-        response.widget_info(|| WidgetInfo::labeled(kind, true, said::said(state, at)));
-        // With the keyboard on a viewport the arrows are Voxa's, to step through its slices.
-        keys::hold_the_arrows(ui.ctx(), &response);
+        // With a measuring tool in hand and the keyboard on the viewport, the arrows and Enter
+        // are the point's: they are taken here, before the keys of the actions look.
+        let keyed = by_keys::take(ui, &response, state, at);
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
         let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
@@ -227,9 +227,12 @@ pub fn show(
             let value = value::under_pointer(&pane, slices.value, response.hover_pos());
             let taken = annotate::overlays(ui, &pane, value);
             let held = (&mut *drafts, slices.read);
-            actions.extend(tools::measure(ui, &pane, &response, held, &taken));
+            actions.extend(tools::measure(ui, &pane, &response, held, (&taken, &keyed)));
         }
         written_over(ui, &pane, drawn);
+        // With the keyboard on a viewport the arrows are Voxa's, to step through its slices.
+        by_keys::keep(ui.ctx(), &response, drafts, at);
+        by_keys::announce(&response, state, at, drafts, &keyed);
         if response.has_focus() {
             focus_ring(ui, cell);
         }
@@ -332,6 +335,10 @@ fn slice(
     true
 }
 
+#[cfg(test)]
+mod by_keys_tests;
+#[cfg(test)]
+mod by_keys_window_tests;
 #[cfg(test)]
 mod in_hand_tests;
 #[cfg(test)]

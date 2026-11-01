@@ -2,9 +2,10 @@
 //! makes with the tool in hand, and the annotations of the series drawn where they lie on the
 //! slice shown. An annotation is begun and finished in the active viewport, on one slice of one
 //! series: a press on another viewport only makes it the active one, and what was begun is
-//! given up as soon as its viewport shows another slice or another series.
+//! given up as soon as its viewport shows another slice or another series. The keys can place the
+//! points too, through the keyboard point of `tools/keyed.rs`, by the same rules.
 
-use egui::{PointerButton, Pos2, Rect, Response, Ui};
+use egui::{PointerButton, Pos2, Rect, Response, Ui, Vec2};
 use voxa_core::{Affine, Patient, Point, Screen, SeriesId, Voxel};
 use voxa_volume::Plane;
 
@@ -13,6 +14,7 @@ use super::super::planes::{
     Draft, Mark, Pointer, beside, drafted, drawn_through, paint_all, preview, shown_on,
 };
 use super::super::theme;
+use super::by_keys::Keyed;
 use super::value::screen_to_image;
 use super::{Pane, ReadSlice, narrowed, pixel_aspect};
 use crate::action::Action;
@@ -21,6 +23,8 @@ use crate::measuring::{
     SlicePlacement, frame_ellipse_stats, half_slice, placement_of, slice_plane,
 };
 use crate::state::{AppState, VIEWPORTS};
+
+mod keyed;
 
 /// How far below the top of a viewport the words beside an annotation begin at the least, in
 /// points: clear of the letter in the middle of the top edge.
@@ -91,18 +95,32 @@ impl<'a> OnSlice<'a> {
     }
 }
 
+/// The number of the last annotation of the list before one the keys finished, if the list had any
+/// (the keys announce the one that follows).
+#[derive(Debug, Clone, Copy)]
+struct After(Option<u64>);
+
 /// What each viewport remembers of an annotation being drawn on its slice.
 #[derive(Debug, Default)]
 pub struct Drafts([Drafting; VIEWPORTS]);
 
 /// What one viewport remembers of an annotation being drawn: the draft, where the pointer
-/// last was over the slice, and the tool, series and slice it is drawn with.
+/// last was over the slice, the tool, series and slice it is drawn with, and the point the
+/// keyboard moves.
 #[derive(Debug, Default)]
 struct Drafting {
     draft: Draft,
     pointer: Option<Point<Patient>>,
     with: Tool,
     on: Option<(SeriesId, usize)>,
+    /// The keyboard point as the column and row of a pixel of the slice, once it has been moved
+    /// or used; kept while the series shown stays the same.
+    point: Option<[u32; 2]>,
+    /// What a screen reader is told of the keyboard point, once it has something to say.
+    said: Option<String>,
+    /// Set when a measurement was finished by the keys: the number of the last annotation
+    /// before it, so that the one that follows can be announced under its name.
+    announce: Option<After>,
 }
 
 impl Drafting {
@@ -124,9 +142,15 @@ impl Drafts {
             let shown = viewport.and_then(|shown| Some((shown.series.as_ref()?, shown.slice)));
             let same = drafting.on.as_ref().map(|(series, slice)| (series, *slice)) == shown;
             if cancel || drafting.with != state.tool || !same {
+                // The keyboard point stays where it is on the series, whatever else is given up.
+                let before = drafting.on.as_ref().map(|(series, _)| series);
+                let point = drafting
+                    .point
+                    .filter(|_| before == shown.map(|(series, _)| series));
                 *drafting = Drafting {
                     with: state.tool,
                     on: shown.map(|(series, slice)| (series.clone(), slice)),
+                    point,
                     ..Drafting::default()
                 };
             }
@@ -234,7 +258,8 @@ fn gather(ui: &Ui, response: &Response, cell: Rect) -> SliceInput {
 }
 
 /// Measure on a viewport's slice: with a tool in hand, in the active viewport, turn what the
-/// mouse did into what adds the annotation it finished, if it finished one; and draw over the
+/// mouse and the keys did into what adds the annotation they finished, if they finished one,
+/// and into the notices that say how the keys fared; and draw over the
 /// slice the annotations of the scene's series that lie on it, and what is being drawn, their
 /// words clear of the places `taken` by the slice's own writing.
 pub(super) fn measure(
@@ -242,18 +267,25 @@ pub(super) fn measure(
     pane: &Pane<'_>,
     response: &Response,
     (drafts, read): (&mut Drafts, &ReadSlice<'_>),
-    taken: &[Rect],
-) -> Option<Action> {
-    let on = OnSlice::of(pane)?;
+    (taken, keyed): (&[Rect], &Keyed),
+) -> Vec<Action> {
+    let Some(on) = OnSlice::of(pane) else {
+        return Vec::new();
+    };
     let state = pane.state;
     let drawing = pane.at == state.active && state.tool != Tool::Navigate;
-    let made = drawing
-        .then(|| {
-            let input = gather(ui, response, pane.cell);
-            drafts.step(pane.at, &on, &input, read)
-        })
-        .flatten();
+    let mut made: Vec<Action> = drafts.announced(pane.at, &on, state).into_iter().collect();
+    if drawing {
+        let input = gather(ui, response, pane.cell);
+        made.extend(drafts.step(pane.at, &on, &input, read));
+        let moved = response.hovered() && ui.input(|i| i.pointer.delta() != Vec2::ZERO);
+        let last = state.annotations.items.last().map(|item| item.id);
+        made.extend(drafts.by_keys(pane.at, &on, keyed, (moved, last), read));
+    }
     draw(ui, pane, &on, (drafts.so_far(pane.at, &on), taken));
+    if keyed.in_use {
+        drafts.paint_point(ui, pane.cell, pane.at, &on);
+    }
     made
 }
 
