@@ -16,13 +16,14 @@ mod found;
 /// the grey read back is the grey the shader wrote.
 pub(crate) const TARGET: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
-/// How a graphics device is asked to set its memory aside, on a graphics card and on the
-/// system's software graphics alike: in blocks of a few megabytes, each large texture or
-/// buffer in exactly its own size. wgpu's default sets aside 192 MiB for the first small thing
-/// made (on a card, 128 MiB of its memory and 64 MiB of the computer's; with software
-/// graphics, all of it the computer's), and a block of 256 MiB for a 150 MiB volume, and
-/// Windows counts all of it as the program's. Volsa holds a few large things, which the
-/// smaller blocks suit.
+/// How a graphics device with no window is asked to set its memory aside, on a graphics card
+/// and on the system's software graphics alike, and the window's on a card: in blocks of a few
+/// megabytes, each large texture or buffer in exactly its own size. wgpu's default sets aside
+/// 192 MiB for the first small thing made (on a card, 128 MiB of its memory and 64 MiB of the
+/// computer's; with software graphics, all of it the computer's), and a block of 256 MiB for a
+/// 150 MiB volume, and Windows counts all of it as the program's. Volsa holds a few large
+/// things, which the smaller blocks suit. The window on software graphics keeps wgpu's
+/// default, for a reason its own device setup gives.
 pub const fn memory_hints() -> wgpu::MemoryHints {
     wgpu::MemoryHints::MemoryUsage
 }

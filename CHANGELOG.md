@@ -18,19 +18,6 @@ on it without help; very large scans that open faster and in less memory; and a 
 nested too deeply refused instead of stopping Volsa. Volsa is not a medical device and is not
 for diagnostic use.
 
-### Fixed
-
-- On a computer with no graphics card, Volsa set aside about 200 MiB more memory than it
-  needed. The system's software graphics (on Windows, WARP) were given wgpu's own way of
-  setting memory aside, which reserves 192 MiB for the first small thing made; a card's
-  device, given small blocks, reserves about 12 MiB. Every device is now given small blocks:
-  with the made-up study open on software graphics, Volsa's peak fell from about 540 MiB to
-  about 335 MiB.
-- The checks failed on Linux, which is what stopped 0.7.0's release build: clippy found a
-  needless `return` in the program's build script, which only builds Windows' icon and
-  details and so does nothing on Linux. It is written without one. A test that assumed a
-  graphics card now holds on a computer without one.
-
 ### Changed
 
 - The README is a short front page. What it held is now in a user guide on GitHub Pages,
@@ -41,6 +28,28 @@ for diagnostic use.
   README.txt in the zip holds what is needed with no network (starting Volsa, the SmartScreen
   warning, checking the download, what it needs, what it keeps and how to remove it) and points
   to the guide for the rest.
+
+### Fixed
+
+0.7.0's release build stopped at two checks.
+
+- On Linux, clippy found a needless `return` in the program's build script, which only builds
+  Windows' icon and details and so does nothing on Linux. It is written without one.
+- On GitHub's Windows machine, which has no graphics card and so only the system's software
+  graphics (WARP), a test that assumed a card failed. It holds a device with no window (the
+  tests', and the checking and measuring tools') to the small memory blocks a card's device
+  is given, and with software graphics such a device was given wgpu's own way, which sets
+  aside 192 MiB for the first small thing made where small blocks set aside about 12 MiB.
+  Every device with no window is now given small blocks. The window is not changed: on
+  software graphics it keeps wgpu's own way, as in 0.7.0 (see Known limits).
+
+### Known limits
+
+- On a computer with no graphics card, Volsa's window sets aside about 200 MiB more memory
+  than it needs: with the made-up study open on software graphics, its peak is about 540 MiB,
+  against about 335 MiB with the small blocks a card's device is given. It keeps wgpu's own
+  way there because, with small blocks, one run in 31 of the made-up study stayed busy and
+  never drew; why is still to be found.
 
 ## [0.7.0] - 2026-11-01
 

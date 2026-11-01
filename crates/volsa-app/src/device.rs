@@ -27,7 +27,7 @@ pub(crate) fn ask_for_what_volumes_need(options: &mut egui_wgpu::WgpuConfigurati
 }
 
 /// What is asked of a device on `adapter`: what egui asks for, with the card's own limits
-/// for volumes, its 16-bit normalised textures, and memory set aside in small blocks.
+/// for volumes, its 16-bit normalised textures, and memory set aside as [`memory_hints`] says.
 fn descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
     let base = if adapter.get_info().backend == wgpu::Backend::Gl {
         wgpu::Limits::downlevel_webgl2_defaults()
@@ -38,8 +38,22 @@ fn descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
         label: Some("egui wgpu device"),
         required_limits: limits(&base, &adapter.limits()),
         required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
-        memory_hints: volsa_render::memory_hints(),
+        memory_hints: memory_hints(adapter.get_info().device_type),
         ..Default::default()
+    }
+}
+
+/// How the window's device on an adapter of `kind` is asked to set its memory aside: in small
+/// blocks on a graphics card, as every device with no window is; with the system's software
+/// graphics, as wgpu does by default, as in 0.7.0. Small blocks there set aside about 200 MiB
+/// less, but one run in 31 of the made-up study with them stayed busy and never drew, and none
+/// in 31 with wgpu's own way did; until that is understood the window keeps wgpu's own way
+/// there (risk R-LS-05).
+pub(crate) fn memory_hints(kind: wgpu::DeviceType) -> wgpu::MemoryHints {
+    if kind == wgpu::DeviceType::Cpu {
+        wgpu::MemoryHints::Performance
+    } else {
+        volsa_render::memory_hints()
     }
 }
 
@@ -57,6 +71,27 @@ pub(crate) fn limits(base: &wgpu::Limits, card: &wgpu::Limits) -> wgpu::Limits {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_window_sets_memory_aside_in_small_blocks_on_a_card_and_as_wgpu_does_on_software_graphics()
+     {
+        let small = |kind| matches!(memory_hints(kind), wgpu::MemoryHints::MemoryUsage);
+        for card in [
+            wgpu::DeviceType::DiscreteGpu,
+            wgpu::DeviceType::IntegratedGpu,
+            wgpu::DeviceType::VirtualGpu,
+            wgpu::DeviceType::Other,
+        ] {
+            assert!(small(card), "{card:?}");
+        }
+        assert!(
+            matches!(
+                memory_hints(wgpu::DeviceType::Cpu),
+                wgpu::MemoryHints::Performance
+            ),
+            "software graphics keep wgpu's own way, as in 0.7.0"
+        );
+    }
 
     #[test]
     fn the_cards_own_longest_side_and_largest_buffer_are_asked_for() {
