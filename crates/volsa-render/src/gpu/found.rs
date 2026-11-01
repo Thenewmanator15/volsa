@@ -33,7 +33,7 @@ impl Found {
             required_limits: self.adapter.limits(),
             // Volumes of 16-bit whole numbers are held exactly as stored where it can.
             required_features: self.adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
-            memory_hints: super::memory_hints(self.adapter.get_info().device_type),
+            memory_hints: super::memory_hints(),
             ..Default::default()
         };
         self.start_device(&wanted)

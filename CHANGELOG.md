@@ -8,6 +8,16 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+### Fixed
+
+- On a computer with no graphics card, Volsa set aside about 180 MiB more memory than it
+  needed. The system's software graphics (on Windows, WARP) were given wgpu's own way of
+  setting memory aside, which reserves 192 MiB for the first small thing made; a card's
+  device, given small blocks, reserves about 12 MiB. Every device is now given small blocks.
+- The checks failed on Linux: clippy found a needless `return` in the program's build script,
+  which only builds Windows' icon and details and so does nothing on Linux. It is written
+  without one.
+
 ## [0.7.0] - 2026-11-01
 
 The first public release. A new window, made so that someone who has never seen Volsa can open

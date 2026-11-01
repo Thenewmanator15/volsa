@@ -2,9 +2,13 @@
 //! adapter was found with is the one that choice made; how such a device sets memory aside,
 //! and how a picture is read back from it.
 
-use egui_wgpu::wgpu::{self, Backend, Backends};
+#[cfg(windows)]
+use egui_wgpu::wgpu::Backend;
+use egui_wgpu::wgpu::{self, Backends};
 
-use super::found::{backends_to_search, backends_without_a_window, find_adapter};
+use super::found::backends_without_a_window;
+#[cfg(windows)]
+use super::found::{backends_to_search, find_adapter};
 use super::*;
 
 /// Every backend that can be named, and some pairs, for what `WGPU_BACKEND` may have asked for.
@@ -107,36 +111,48 @@ fn only_the_whole_rows_held_are_copied() {
     );
 }
 
-#[test]
-fn the_device_reserves_memory_in_small_blocks() {
-    // wgpu's default reserves 128 MiB or more of the card's memory, and 64 MiB of the
-    // computer's, for the first small thing made, and Windows counts it as the program's.
-    let Ok(gpu) = super::Gpu::start() else {
-        return;
-    };
+/// A way of starting a device with no window.
+type Start = fn() -> Result<super::Gpu, RenderError>;
+
+/// What a device reserves once one small buffer is made on it, in bytes; `None` when there
+/// is no such device here, or it does not say.
+fn reserved_for_a_small_buffer(gpu: Result<super::Gpu, RenderError>) -> Option<u64> {
+    let gpu = gpu.ok()?;
     let _small = gpu.device.create_buffer(&wgpu::BufferDescriptor {
         label: Some("small"),
         size: 1 << 20,
         usage: wgpu::BufferUsages::STORAGE,
         mapped_at_creation: false,
     });
-    let Some(report) = gpu.device.generate_allocator_report() else {
-        return;
-    };
-    assert!(
-        report.total_reserved_bytes <= 64 << 20,
-        "{} MiB reserved",
-        report.total_reserved_bytes >> 20
-    );
+    Some(gpu.device.generate_allocator_report()?.total_reserved_bytes)
 }
 
 #[test]
-fn a_card_sets_memory_aside_in_small_blocks_and_software_graphics_as_wgpu_would() {
-    let small = |kind| matches!(super::memory_hints(kind), wgpu::MemoryHints::MemoryUsage);
-    assert!(small(wgpu::DeviceType::DiscreteGpu));
-    assert!(small(wgpu::DeviceType::IntegratedGpu));
-    assert!(
-        !small(wgpu::DeviceType::Cpu),
-        "software graphics keep wgpu's own"
-    );
+fn a_device_reserves_memory_in_small_blocks_on_a_card_and_on_software_graphics_alike() {
+    // wgpu's default reserves 192 MiB for the first small thing made, and Windows counts it
+    // as the program's; with software graphics, the only device a computer with no card has,
+    // all of it is the computer's own memory. One device at a time, as the window has one.
+    let starts: [(&str, Start); 2] = [
+        ("the adapter devices with no window use", super::Gpu::start),
+        ("software graphics", super::Gpu::start_in_software),
+    ];
+    for (which, start) in starts {
+        let Some(reserved) = reserved_for_a_small_buffer(start()) else {
+            eprintln!("skipped for {which}: no such device here, or it says nothing");
+            continue;
+        };
+        assert!(
+            reserved <= 64 << 20,
+            "{which}: {} MiB reserved",
+            reserved >> 20
+        );
+    }
+}
+
+#[test]
+fn every_device_is_asked_to_set_memory_aside_in_small_blocks() {
+    assert!(matches!(
+        super::memory_hints(),
+        wgpu::MemoryHints::MemoryUsage
+    ));
 }

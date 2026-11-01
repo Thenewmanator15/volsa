@@ -38,7 +38,7 @@ fn descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
         label: Some("egui wgpu device"),
         required_limits: limits(&base, &adapter.limits()),
         required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
-        memory_hints: volsa_render::memory_hints(adapter.get_info().device_type),
+        memory_hints: volsa_render::memory_hints(),
         ..Default::default()
     }
 }

@@ -24,14 +24,24 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/ui/icon/drawing.rs");
     println!("cargo:rerun-if-changed={MANIFEST}");
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
-        return;
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        for_windows();
     }
-    #[cfg(windows)]
+}
+
+/// The icon, the details and the manifest of a program built for Windows, on Windows; a
+/// warning if they cannot be put into it.
+#[cfg(windows)]
+fn for_windows() {
     if let Err(why) = resources() {
         println!("cargo:warning=volsa.exe is built without its icon and version details: {why}");
     }
 }
+
+/// Built for Windows on another system, the program goes without them: the resource compiler
+/// is Windows'. The same function on every system keeps `main` the same on every system.
+#[cfg(not(windows))]
+fn for_windows() {}
 
 /// Writes the icon file, and has the resource compiler put it, the details and the manifest
 /// into the program `volsa`.
