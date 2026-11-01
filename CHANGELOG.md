@@ -33,12 +33,14 @@ for diagnostic use.
 
 ### Changed
 
-- The README is a short front page. What it held is now in the repository's wiki
-  (github.com/Thenewmanator15/volsa/wiki), whose pages are kept in `wiki/` and checked with
-  the code: the wording rule, the statement of what Volsa is for, and every link. The
+- The README is a short front page. What it held is now in a user guide on GitHub Pages,
+  https://thenewmanator15.github.io/volsa/, an mdBook built from `book/` and checked with the
+  code: the wording rule, every page in its table of contents, and every link. Its page on
+  what Volsa is for, and its page on the files labelling needs, include `docs/intended-use.md`
+  and `docs/models.md` themselves, so they cannot drift from the copies in the zip. The
   README.txt in the zip holds what is needed with no network (starting Volsa, the SmartScreen
   warning, checking the download, what it needs, what it keeps and how to remove it) and points
-  to the wiki for the rest.
+  to the guide for the rest.
 
 ## [0.7.0] - 2026-11-01
 

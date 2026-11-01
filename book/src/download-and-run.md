@@ -82,4 +82,4 @@ written in words. A PDF stored in the export is not shown, since Volsa has no PD
 starts no other program; **Save a copy as PDF…** writes a copy where you choose. Another kind of
 file is named, with its kind in words, and its tags can be shown.
 
-See also [[A closer look]], [[System requirements]] and [[Removing Volsa]].
+See also [A closer look](a-closer-look.md), [System requirements](system-requirements.md) and [Removing Volsa](removing-volsa.md).

@@ -22,4 +22,4 @@ A security vulnerability is reported privately, never in an issue: see the
 [security policy](https://github.com/Thenewmanator15/volsa/blob/main/SECURITY.md), or report it
 [here](https://github.com/Thenewmanator15/volsa/security/advisories/new). To work on Volsa, see
 [CONTRIBUTING.md](https://github.com/Thenewmanator15/volsa/blob/main/CONTRIBUTING.md) and
-[[Building from source]].
+[Building from source](building-from-source.md).

@@ -1,7 +1,7 @@
 # Trying it without a scan
 
 Volsa's own example writes made-up studies, which are nobody's scans. From the source (see
-[[Building from source]]):
+[Building from source](building-from-source.md)):
 
 ```
 cargo run -p volsa-app --example write_phantom -- phantom
@@ -14,7 +14,7 @@ a bead near the front, with a series of two volumes of it at two echo times, thr
 images and a picture in colour) to the folder `phantom`; the second opens it. The third opens it
 with the made-up labels the first command wrote beside it: the ball's shell in two halves, its
 core and the bead. Volsa then says that two files are not scans or documents it lists, which are
-the labels and their table: they are not part of the scan. The pictures on [[A closer look]] are
+the labels and their table: they are not part of the scan. The pictures on [A closer look](a-closer-look.md) are
 of this study.
 
 ## Larger made-up studies
@@ -42,7 +42,7 @@ cargo run -p volsa-app --example write_phantom -- head path/to/model-folder/chec
 
 The second puts the head in the middle of a grid of air as large as a scan of a whole head
 (176 x 256 x 256 voxels). With `VOLSA_MODELS` and `VOLSA_RUNTIME` set as on
-[[Building from source]],
+[Building from source](building-from-source.md),
 
 ```
 cargo run --release -p volsa-app --example check_labelling -- head [standard|robust] [no-areas]

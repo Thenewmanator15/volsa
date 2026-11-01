@@ -24,7 +24,7 @@ cargo run --release -p volsa-app -- path/to/export.zip --labels path/to/labels.n
 
 To label a brain scan in a build of your own, put the `runtime` and `models` folders beside the
 executable the build makes, or name them under **Options**, as
-[docs/models.md](https://github.com/Thenewmanator15/volsa/blob/main/docs/models.md) says.
+[The files labelling needs](setting-up-labelling.md) says.
 
 ## The release zip
 
@@ -54,10 +54,11 @@ runs, in order: formatting, lints, the 400-line limit on source files, that
 advisory checks (`cargo deny`), and the documentation build. Every test program runs even when
 one fails, so all failures are reported together; any other failing step stops it there.
 `cargo deny` is installed with `cargo install --locked cargo-deny`. Among the tests, the words
-of the README, the zip's `README.txt` and these wiki pages are held to the rule the window's
-words are held to (no word that reads as a verdict on anyone's body), the statement of what
-Volsa is for is held to `docs/intended-use.md`, every link between wiki pages must lead to a
-page in `wiki/`, and every link into the repository to a file in it.
+of the README, the zip's `README.txt` and this guide's pages are held to the rule the window's
+words are held to (no word that reads as a verdict on anyone's body); the guide's page on what
+Volsa is for includes `docs/intended-use.md` itself; every page is in `SUMMARY.md`; and every
+link between the guide's pages leads to a page in `book/src`, and every link into the
+repository to a file in it. ci.yml also builds the guide with mdBook.
 
 ```bash
 cargo xtask coverage
@@ -97,8 +98,8 @@ no longer maintained, each with its reason. GitHub runs it on Windows and on Lin
 Beside the crates, `tools/synthseg-to-onnx` turns SynthSeg's files into a model folder (Python,
 run once by a person; cargo neither builds nor runs it), `tools/golden` makes the arrays that
 SynthSeg's own program gives for small made-up volumes, which the tests hold Volsa's steps to,
-and `tools/fixtures` makes a small made-up JPEG 2000 picture for the decoding test. `wiki/`
-holds these pages.
+and `tools/fixtures` makes a small made-up JPEG 2000 picture for the decoding test. `book/`
+holds this guide, an mdBook (`mdbook build book`), which `.github/workflows/docs.yml` publishes.
 
 Crates depend only downward: core, then dicom, volume, labels and models, then segment and
 render, then app. See
@@ -106,4 +107,4 @@ render, then app. See
 and the decision records in [docs/adr](https://github.com/Thenewmanator15/volsa/tree/main/docs/adr).
 
 Scan data never belongs in this repository: tests build synthetic images. To try Volsa with no
-scan of your own, see [[Trying it without a scan]].
+scan of your own, see [Trying it without a scan](trying-it-without-a-scan.md).

@@ -34,11 +34,11 @@ cargo run -p volsa-app -- phantom
 ```
 
 The second command writes a small made-up study to the folder `phantom` (which git ignores) and
-the third opens it. The wiki's pages
-[Building from source](https://github.com/Thenewmanator15/volsa/wiki/Building-from-source) and
-[Trying it without a scan](https://github.com/Thenewmanator15/volsa/wiki/Trying-it-without-a-scan)
-say more: labels, the made-up head, and the tasks below. The wiki's pages are kept in
-[wiki/](wiki), checked with the code, and changed in the same way as it.
+the third opens it. The user guide's pages
+[Building from source](https://thenewmanator15.github.io/volsa/building-from-source.html) and
+[Trying it without a scan](https://thenewmanator15.github.io/volsa/trying-it-without-a-scan.html)
+say more: labels, the made-up head, and the tasks below. The guide is the mdBook in
+[book/](book), checked with the code, and changed in the same way as it.
 
 The gate needs `cargo deny`, and the coverage task `cargo llvm-cov`:
 

@@ -45,5 +45,5 @@ or a viewport, even with **Show patient details** off.
 A file is named in Volsa's notices by its own name, without the folders it lies in, since a
 folder can be named for the patient.
 
-What Volsa keeps on this computer is on [[What Volsa keeps on your computer]]. When asking for
-help, see [[Getting help and reporting a fault]] for what never to post.
+What Volsa keeps on this computer is on [What Volsa keeps on your computer](what-volsa-keeps-on-your-computer.md). When asking for
+help, see [Getting help and reporting a fault](getting-help-and-reporting-a-fault.md) for what never to post.

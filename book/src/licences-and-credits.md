@@ -38,7 +38,7 @@ Each is under its own licence:
   terms they come with and turn them into a model folder on your own computer. FreeSurfer's
   licence says the software is designed for research only and that clinical use is neither
   recommended nor advised; the
-  [intended-use page](https://github.com/Thenewmanator15/volsa/blob/main/docs/intended-use.md)
+  [intended-use page](intended-use.md)
   says what that means for labels Volsa makes.
 
 ## Typefaces

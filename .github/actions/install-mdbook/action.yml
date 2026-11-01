@@ -1,0 +1,31 @@
+name: Install mdBook
+description: >-
+  mdBook from its release on GitHub, for x86-64 Linux, taken only if its SHA-256 is the one
+  written here; ci.yml and docs.yml both install it this way.
+
+runs:
+  using: composite
+  steps:
+    - name: Take mdBook from its release, if its SHA-256 is the one pinned
+      shell: bash
+      env:
+        # mdBook 0.5.4 for x86-64 Linux, from rust-lang/mdBook's release of 6 July 2026. The
+        # SHA-256 is the digest GitHub lists for that file on the release (read on
+        # 2026-11-01), in lower-case hexadecimal; the file is 4,822,940 bytes.
+        MDBOOK_VERSION: "0.5.4"
+        MDBOOK_SHA256: "3f28de05dafca9d0f2eab99c662116b0e37b89b1d96a08f8f430b9eeae958cd7"
+      run: |
+        set -euo pipefail
+        if [[ ! "$MDBOOK_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+          echo "MDBOOK_SHA256 in install-mdbook/action.yml is not a SHA-256" >&2
+          exit 1
+        fi
+        name="mdbook-v${MDBOOK_VERSION}-x86_64-unknown-linux-gnu.tar.gz"
+        url="https://github.com/rust-lang/mdBook/releases/download/v${MDBOOK_VERSION}/${name}"
+        folder="${RUNNER_TEMP}/mdbook"
+        mkdir -p "$folder"
+        curl --fail --silent --show-error --location --output "$folder/$name" "$url"
+        echo "${MDBOOK_SHA256}  $folder/$name" | sha256sum --check --strict
+        tar -xzf "$folder/$name" -C "$folder"
+        "$folder/mdbook" --version
+        echo "$folder" >> "$GITHUB_PATH"

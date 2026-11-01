@@ -67,5 +67,5 @@ the sentence as `notice`. The table of parts also says on every line which model
 model) and how the model's own check of its work went (`model_check`: `passed`, `failed`, or
 `not given`).
 
-What Volsa hides of a patient, and what it does not, is on [[Patient details and privacy]]. To
-delete these folders, see [[Removing Volsa]].
+What Volsa hides of a patient, and what it does not, is on [Patient details and privacy](patient-details-and-privacy.md). To
+delete these folders, see [Removing Volsa](removing-volsa.md).

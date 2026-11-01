@@ -1,0 +1,25 @@
+# Volsa's user guide, published on GitHub Pages at https://thenewmanator15.github.io/volsa/ by
+# .github/workflows/docs.yml. Every key is one mdBook 0.5 knows: since 0.5 an unknown key is an
+# error. Two pages include files of docs/ (intended-use.md and models.md) rather than copying
+# them, so that the guide and the files that come in the zip say the same.
+
+[book]
+title = "Volsa"
+authors = ["TheNEwmanator15"]
+description = "A viewer for MRI and CT scans on your own computer. Volsa is not a medical device and is not for diagnostic use."
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+# A page SUMMARY.md names that is not there is an error, not a page made empty.
+create-missing = false
+
+[output.html]
+site-url = "/volsa/"
+git-repository-url = "https://github.com/Thenewmanator15/volsa"
+no-section-label = true
+sidebar-header-nav = true
+
+[output.html.search]
+enable = true

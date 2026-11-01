@@ -8,5 +8,5 @@ Volsa has no installer. To remove it:
 3. Do the same for `%LOCALAPPDATA%\Volsa`.
 
 The last two are the folders where Volsa keeps things between runs, which
-[[What Volsa keeps on your computer]] describes. The second holds the views, measurements and
+[What Volsa keeps on your computer](what-volsa-keeps-on-your-computer.md) describes. The second holds the views, measurements and
 labelling results you kept, so copy out anything you want to keep first.

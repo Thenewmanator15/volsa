@@ -323,6 +323,6 @@ fn workspace_root() -> PathBuf {
 }
 
 #[cfg(test)]
-mod tests;
+mod book_tests;
 #[cfg(test)]
-mod wiki_tests;
+mod tests;

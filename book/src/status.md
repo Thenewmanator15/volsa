@@ -29,4 +29,4 @@ labelling is built as it is in
 [decision record 0006](https://github.com/Thenewmanator15/volsa/blob/main/docs/adr/0006-voxa-runs-a-labelling-model.md).
 
 Volsa runs on Windows only for now, and has been tried on Windows 11 alone; see
-[[System requirements]].
+[System requirements](system-requirements.md).

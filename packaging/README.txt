@@ -84,7 +84,7 @@ and do the same for %LOCALAPPDATA%\Volsa.
 
 MORE
 
-The rest is in Volsa's wiki, https://github.com/Thenewmanator15/volsa/wiki :
+The rest is in Volsa's user guide, https://thenewmanator15.github.io/volsa/ :
 getting round the window, what patient details Volsa hides and
 which it does not, what each saved file holds, labelling a brain scan, and
 building Volsa yourself.

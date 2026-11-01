@@ -18,14 +18,13 @@ three things:
    <https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist>.
 3. **A model folder**, which Volsa does not come with and never downloads. You make it once,
    from your own copy of SynthSeg's files, as a `models` folder beside `volsa.exe` (or a folder
-   named under **Options**).
-   [docs/models.md](https://github.com/Thenewmanator15/volsa/blob/main/docs/models.md), which
+   named under **Options**). [The files labelling needs](setting-up-labelling.md), which also
    comes in the zip as `MODELS.md`, says where the files come from, how to make the model
    folder, how much memory a run needs, and why.
 
 Without them Volsa starts and does everything else, and the button says what is missing.
 
 Labels made by a model are not clinical results; see the
-[intended-use page](https://github.com/Thenewmanator15/volsa/blob/main/docs/intended-use.md).
+[intended-use page](intended-use.md).
 Labels Volsa made are kept to be shown again unless you switch that off; see
-[[What Volsa keeps on your computer]].
+[What Volsa keeps on your computer](what-volsa-keeps-on-your-computer.md).
