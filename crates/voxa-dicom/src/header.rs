@@ -47,6 +47,10 @@ pub(crate) struct Header {
     pub positions: Vec<Option<[f64; 3]>>,
     /// True when the images are stored in colour: three samples for every pixel.
     pub colour: bool,
+    /// The `RescaleType`, such as `HU`: what the rescaled values are in.
+    pub rescale_type: Option<String>,
+    /// True when the photometric interpretation is `MONOCHROME1`: bright stored values are dark.
+    pub inverted: bool,
     /// What the file says about how the series was acquired.
     pub scan: ScanFacts,
     /// What each frame says that sets it apart from others at its position; one entry
@@ -182,6 +186,10 @@ fn header(
             vec![position(obj)]
         },
         colour: int(obj, tags::SAMPLES_PER_PIXEL) == Some(3),
+        rescale_type: stated_or_grouped(obj, tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, |from| {
+            text(from, tags::RESCALE_TYPE)
+        }),
+        inverted: text(obj, tags::PHOTOMETRIC_INTERPRETATION).as_deref() == Some("MONOCHROME1"),
         scan: scan::facts(obj, orientation),
         told: if multi_frame {
             told::of_frames(obj, frames)
@@ -197,13 +205,23 @@ const IMAGE_ORIENTATION: Tag = tags::IMAGE_ORIENTATION_PATIENT;
 /// frames keeps it in a functional group, shared by every frame or repeated for each, in which
 /// case the first frame's is taken.
 fn of_the_plane(obj: &InMemDicomObject, group: Tag, wanted: Tag) -> Option<Vec<f64>> {
+    stated_or_grouped(obj, group, |from| floats(from, wanted))
+}
+
+/// What `read` finds in the file itself or, failing that, in the first item of `group` among
+/// the shared functional groups, then among those of the first frame.
+fn stated_or_grouped<T>(
+    obj: &InMemDicomObject,
+    group: Tag,
+    read: impl Fn(&InMemDicomObject) -> Option<T>,
+) -> Option<T> {
     let shared = first_item(obj, tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE);
     let first_frame = first_item(obj, tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE);
-    floats(obj, wanted).or_else(|| {
+    read(obj).or_else(|| {
         [shared, first_frame]
             .into_iter()
             .flatten()
-            .find_map(|groups| first_item(groups, group).and_then(|item| floats(item, wanted)))
+            .find_map(|groups| first_item(groups, group).and_then(&read))
     })
 }
 
@@ -221,7 +239,7 @@ fn frame_positions(obj: &InMemDicomObject, frames: usize) -> Vec<Option<[f64; 3]
 }
 
 /// A text value with padding removed; `None` when absent or empty.
-fn text(obj: &InMemDicomObject, tag: Tag) -> Option<String> {
+pub(crate) fn text(obj: &InMemDicomObject, tag: Tag) -> Option<String> {
     let value = obj.get(tag)?.to_str().ok()?;
     let trimmed = value.trim_matches(|c: char| c == '\0' || c.is_whitespace());
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
@@ -242,101 +260,15 @@ fn position(obj: &InMemDicomObject) -> Option<[f64; 3]> {
 }
 
 /// The items of a sequence; empty when the element is absent or not a sequence.
-fn items(obj: &InMemDicomObject, tag: Tag) -> &[InMemDicomObject] {
+pub(crate) fn items(obj: &InMemDicomObject, tag: Tag) -> &[InMemDicomObject] {
     obj.get(tag)
         .and_then(|element| element.items())
         .unwrap_or(&[])
 }
 
-fn first_item(obj: &InMemDicomObject, tag: Tag) -> Option<&InMemDicomObject> {
+pub(crate) fn first_item(obj: &InMemDicomObject, tag: Tag) -> Option<&InMemDicomObject> {
     items(obj, tag).first()
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::testkit::{
-        EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
-    };
-    use dicom_core::{DataElement, PrimitiveValue, VR};
-
-    #[test]
-    fn a_classic_header_is_read_without_its_pixels() {
-        let header = read_header(&classic_slice(&SliceOptions::default())).expect("is an image");
-        assert_eq!(header.series_uid, "1.2.826.0.1.3680043.9.9999.1.1");
-        assert_eq!((header.rows, header.cols), (4, 4));
-        assert_eq!(header.orientation, Some([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-        assert_eq!(header.pixel_spacing, Some([0.9, 0.9]));
-        assert_eq!(header.slice_thickness, Some(5.0));
-        assert_eq!(header.positions, vec![Some([-100.0, -120.0, 0.0])]);
-        assert!(!header.multi_frame);
-    }
-
-    #[test]
-    fn an_enhanced_header_gives_a_position_for_every_frame() {
-        let frames = (0..3)
-            .map(|i| EnhancedFrame::at([0.0, 0.0, f64::from(i) * 2.5]))
-            .collect();
-        let bytes = enhanced_series(&EnhancedOptions {
-            common: SliceOptions::default(),
-            frames,
-        });
-        let header = read_header(&bytes).expect("is an image");
-        assert!(header.multi_frame);
-        assert_eq!(
-            header.positions,
-            vec![
-                Some([0.0, 0.0, 0.0]),
-                Some([0.0, 0.0, 2.5]),
-                Some([0.0, 0.0, 5.0])
-            ]
-        );
-        assert_eq!(header.orientation, Some([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-        assert_eq!(header.pixel_spacing, Some([0.9, 0.9]));
-        assert_eq!(header.slice_thickness, Some(5.0));
-    }
-
-    #[test]
-    fn bytes_that_are_not_an_image_give_nothing() {
-        assert_eq!(read_header(b""), None);
-        assert_eq!(read_header(b"%PDF-1.7 a report"), None);
-        let mut magic_then_noise = vec![0u8; 128];
-        magic_then_noise.extend_from_slice(b"DICM\xff\xff\xff\xff\xff\xff\xff\xff");
-        assert_eq!(read_header(&magic_then_noise), None);
-    }
-
-    #[test]
-    fn missing_geometry_is_absent_not_an_error() {
-        let opts = SliceOptions {
-            position: None,
-            orientation: None,
-            pixel_spacing: None,
-            ..SliceOptions::default()
-        };
-        let header = read_header(&classic_slice(&opts)).expect("is an image");
-        assert_eq!(header.positions, vec![None]);
-        assert_eq!(header.orientation, None);
-        assert_eq!(header.pixel_spacing, None);
-    }
-
-    #[test]
-    fn a_header_cannot_claim_more_frames_than_the_file_has_bytes() {
-        let honest = classic_slice(&SliceOptions::default());
-        let mut file = dicom_object::from_reader(Cursor::new(honest)).expect("parses");
-        file.put(DataElement::new(
-            tags::NUMBER_OF_FRAMES,
-            VR::IS,
-            PrimitiveValue::from("100000"),
-        ));
-        let mut bytes = Vec::new();
-        file.write_all(&mut bytes).expect("writes to memory");
-        let header = read_header(&bytes).expect("is an image");
-        assert!(header.multi_frame);
-        assert!(
-            header.positions.len() <= bytes.len(),
-            "{} frames claimed by a file of {} bytes",
-            header.positions.len(),
-            bytes.len()
-        );
-    }
-}
+mod tests;

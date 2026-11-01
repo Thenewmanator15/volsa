@@ -2,7 +2,7 @@
 //! 2D. Where they are and what a drag on them means is worked out in `voxa-render`; here they
 //! are drawn and the drags are turned into actions.
 
-use egui::{Pos2, Rect, Sense, Shape, Stroke, Ui, vec2};
+use egui::{Pos2, Rect, Response, Sense, Shape, Stroke, Ui, WidgetInfo, WidgetType, vec2};
 use voxa_render::{
     MAX_CUTS, SlicePlane, box_section, cut_handle, drag_to_mm, on_screen, position_cross,
     slice_drag_to_scroll, slice_outline,
@@ -59,6 +59,7 @@ pub fn show(
         painter.line_segment([centre, knob], Stroke::new(LINE, theme::ACCENT));
         let grip = Rect::from_center_size(centre, vec2(GRIP, GRIP));
         let moved = ui.interact(grip, ui.id().with(("cut", cut)), Sense::drag());
+        named(&moved, &format!("Move cut {}", cut + 1));
         painter.rect_filled(grip, 2, theme::ACCENT);
         if let Some(by) = dragged(&moved.on_hover_text("Drag to move this cut")) {
             // The cut goes with the pointer along its normal; to remove more is to go
@@ -68,6 +69,7 @@ pub fn show(
         }
         let end = Rect::from_center_size(knob, vec2(2.0 * KNOB, 2.0 * KNOB));
         let turned = ui.interact(end, ui.id().with(("cut knob", cut)), Sense::drag());
+        named(&turned, &format!("Turn cut {}", cut + 1));
         painter.circle_filled(knob, KNOB, theme::ACCENT);
         if let Some(by) = dragged(&turned.on_hover_text("Drag to turn this cut")) {
             actions.push(Action::CutTurn { cut, by });
@@ -124,6 +126,7 @@ fn planes(
         let moved = ui.interact(grip, ui.id().with(("plane grip", kind)), Sense::drag());
         painter.circle_filled(front, GRIP / 2.0, plane_colour(kind));
         let name = kind.name().to_lowercase();
+        named(&moved, &format!("Move the {name} plane through its layers"));
         let hover = format!("Drag to move the {name} plane through its layers");
         let dragged = dragged(&moved.on_hover_text(hover));
         let layers = dragged
@@ -174,6 +177,7 @@ fn slice(
         .find(|at| area.contains(*at))?;
     let grip = Rect::from_center_size(centre, vec2(GRIP, GRIP));
     let moved = ui.interact(grip, ui.id().with("slice"), Sense::drag());
+    named(&moved, "Move through the slices");
     painter.rect_filled(grip, 2, theme::WARNING);
     let by = dragged(&moved.on_hover_text("Drag to move through the slices"))?;
     let [_, _, between_slices] = info.spacing_mm;
@@ -185,6 +189,11 @@ fn slice(
         });
     }
     Some(())
+}
+
+/// Tell a screen reader what a handle is: a grip to drag, with this name.
+fn named(handle: &Response, name: &str) {
+    handle.widget_info(|| WidgetInfo::labeled(WidgetType::Other, true, name));
 }
 
 /// A place in the scene's picture as a place in the window.

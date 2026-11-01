@@ -130,16 +130,23 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
 }
 
 #[test]
-fn finishing_an_index_with_no_series_fit_to_open_shows_nothing() {
+fn finishing_an_index_with_no_volume_fit_to_open_shows_the_scan_it_holds() {
+    // Three slices are too few to be the best volume; with no other scan, they are shown.
     let mut state = AppState::default();
-    reduce(
-        &mut state,
-        Action::IndexProgress(crate::testing::indexed(series_files(SCOUT, 3, 3, 4))),
-    );
-    assert_eq!(
-        reduce(&mut state, Action::IndexDone),
-        vec![Effect::RequestThumbnails]
-    );
+    let scout = crate::testing::indexed(series_files(SCOUT, 3, 3, 4));
+    reduce(&mut state, Action::IndexProgress(scout));
+    let effects = reduce(&mut state, Action::IndexDone);
+    assert_eq!(effects.first(), Some(&Effect::RequestThumbnails));
+    assert_eq!(state.viewports[0].series, Some(id(SCOUT)));
+    // An export of no images at all shows nothing.
+    let mut state = AppState::default();
+    let nothing = voxa_dicom::Index {
+        skipped: vec!["notes/readme.txt".to_owned()],
+        ..voxa_dicom::Index::default()
+    };
+    reduce(&mut state, Action::IndexProgress(nothing));
+    let effects = reduce(&mut state, Action::IndexDone);
+    assert_eq!(effects, vec![Effect::RequestThumbnails]);
     assert_eq!(state.viewports[0].series, None);
 }
 
@@ -153,9 +160,13 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
     let notice = &state.notices[0];
     assert_eq!(
         (notice.kind, notice.text.as_str()),
-        (NoticeKind::Info, "2 files skipped")
+        (
+            NoticeKind::Info,
+            "2 files are not scans or documents Voxa lists"
+        )
     );
-    assert_eq!(notice.details, index.skipped);
+    // Each by its last part alone: the folders it lies in can be named for the patient.
+    assert_eq!(notice.details, ["readme.txt", "report.pdf"]);
 
     index.skipped.truncate(1);
     reduce(&mut state, Action::IndexProgress(index.clone()));
@@ -164,7 +175,7 @@ fn skipped_files_are_one_notice_that_keeps_up_with_the_count() {
         .iter()
         .map(|notice| notice.text.as_str())
         .collect();
-    assert_eq!(texts, vec!["1 file skipped"]);
+    assert_eq!(texts, vec!["1 file is not a scan or a document Voxa lists"]);
 
     index.skipped.clear();
     reduce(&mut state, Action::IndexProgress(index));
@@ -178,7 +189,7 @@ fn files_refused_unread_are_one_warning_that_says_why_each_was() {
         reason: "nested too deeply to read safely".to_owned(),
     };
     let mut index = three_series();
-    index.refused = vec![refused("IMAGES/DEEP")];
+    index.refused = vec![refused("MADE^PATIENT_0042/IMAGES/DEEP")];
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(index.clone()));
     assert_eq!(state.notices.len(), 1);
@@ -189,7 +200,7 @@ fn files_refused_unread_are_one_warning_that_says_why_each_was() {
     );
     assert_eq!(
         notice.details,
-        vec!["IMAGES/DEEP: nested too deeply to read safely".to_owned()]
+        vec!["DEEP: nested too deeply to read safely".to_owned()]
     );
 
     index.refused.push(refused("IMAGES/DEEPER"));
@@ -200,6 +211,22 @@ fn files_refused_unread_are_one_warning_that_says_why_each_was() {
     index.refused.clear();
     reduce(&mut state, Action::IndexProgress(index));
     assert_eq!(state.notices, Vec::new());
+}
+
+#[test]
+fn a_skipped_file_is_named_by_its_last_part_whatever_the_folders_it_lies_in_are_called() {
+    let mut index = three_series();
+    index.skipped = vec![
+        "MADE^PATIENT_0042/STUDY/SERIES/notes.txt".to_owned(),
+        "MADE^PATIENT_0042\\labels\\table.json".to_owned(),
+        "plain.bin".to_owned(),
+        "folder/".to_owned(),
+    ];
+    let mut state = AppState::default();
+    reduce(&mut state, Action::IndexProgress(index));
+    let details = &state.notices[0].details;
+    assert_eq!(*details, ["notes.txt", "table.json", "plain.bin", "folder"]);
+    assert!(details.iter().all(|detail| !detail.contains("MADE")));
 }
 
 #[test]

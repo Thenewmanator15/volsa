@@ -38,12 +38,21 @@ fn a_picture_in_colour_says_nothing_of_a_window() {
         "it is shown in its own colours"
     );
     let grey = corner_text(&study(), &series(), 0, Some(1.0), wl, false);
-    assert_eq!(grey[3], ["W 1  L 0"]);
+    assert_eq!(grey[3], ["W 1.00  L 0"], "three figures that matter");
 }
 
 #[test]
 fn the_square_brackets_step_between_volumes() {
+    use super::super::commands::{Does, for_key};
+    let state = crate::state::AppState {
+        active: 1,
+        ..crate::state::AppState::default()
+    };
+    let on = |key| match for_key(key, super::super::keys::Held::default(), &state)?.does {
+        Does::Act(act) => act(&state),
+        Does::Ask(_) => None,
+    };
     let step = |by| Some(Action::StepVolume { viewport: 1, by });
-    assert_eq!(shortcut_action(Key::OpenBracket, 1), step(-1));
-    assert_eq!(shortcut_action(Key::CloseBracket, 1), step(1));
+    assert_eq!(on(Key::OpenBracket), step(-1));
+    assert_eq!(on(Key::CloseBracket), step(1));
 }

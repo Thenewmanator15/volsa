@@ -199,6 +199,93 @@ mod tests {
         assert_eq!(SUGGESTED_NAME, "voxa-3d");
     }
 
+    /// The kinds of chunk a PNG file holds, in order.
+    fn png_chunks(file: &[u8]) -> Vec<String> {
+        let mut kinds = Vec::new();
+        let mut at = 8;
+        while let Some(head) = file.get(at..at + 8) {
+            let (length, kind) = head.split_at(4);
+            let length = u32::from_be_bytes(length.try_into().expect("four bytes"));
+            kinds.push(String::from_utf8_lossy(kind).into_owned());
+            // The length, the kind, the data and the check value.
+            at += 12 + usize::try_from(length).expect("a small chunk");
+        }
+        kinds
+    }
+
+    /// Skip the sub-blocks that begin at `at` in a GIF file, to the byte after the last.
+    fn after_sub_blocks(file: &[u8], mut at: usize) -> usize {
+        loop {
+            let size = usize::from(file.get(at).copied().expect("a block ends"));
+            at += 1 + size;
+            if size == 0 {
+                return at;
+            }
+        }
+    }
+
+    /// The label of each extension block a GIF file holds, in order.
+    fn gif_extensions(file: &[u8]) -> Vec<u8> {
+        let table = |flags: u8| {
+            if flags & 0x80 == 0 {
+                0
+            } else {
+                3 << ((flags & 7) + 1)
+            }
+        };
+        // After the signature and the screen description, and its colour table if it has one.
+        let screen = file.get(10).copied().expect("a screen description");
+        let mut at = 13 + table(screen);
+        let mut labels = Vec::new();
+        loop {
+            match file.get(at).copied().expect("the file ends with a trailer") {
+                0x21 => {
+                    labels.push(file.get(at + 1).copied().expect("a label"));
+                    at = after_sub_blocks(file, at + 2);
+                }
+                0x2C => {
+                    let flags = file.get(at + 9).copied().expect("a picture description");
+                    // Ten bytes, the picture's own colour table, then its code size.
+                    at = after_sub_blocks(file, at + 10 + table(flags) + 1);
+                }
+                _ => return labels,
+            }
+        }
+    }
+
+    #[test]
+    fn a_saved_picture_and_a_saved_turntable_hold_nothing_but_pixels() {
+        let size = [8, 8];
+        let frames: Vec<Vec<u8>> = (0..3).map(|frame| greys(size, frame)).collect();
+        // A PNG holds its header, its pixels and its end: no text, no time, no camera.
+        let file = png(&frames[0], size).expect("encodes");
+        assert_eq!(&file[..8], b"\x89PNG\r\n\x1a\n");
+        let chunks = png_chunks(&file);
+        for kind in ["tEXt", "zTXt", "iTXt", "eXIf", "tIME"] {
+            assert!(!chunks.iter().any(|one| one == kind), "{chunks:?}");
+        }
+        assert_eq!(chunks.first().map(String::as_str), Some("IHDR"));
+        assert_eq!(chunks.last().map(String::as_str), Some("IEND"));
+        // A GIF holds no comment or text, only what makes it play over and over.
+        let file = gif(&frames, size, 2.0).expect("encodes");
+        assert_eq!(&file[..3], b"GIF");
+        let labels = gif_extensions(&file);
+        assert!(!labels.contains(&0xFE), "a comment: {labels:?}");
+        assert!(!labels.contains(&0x01), "a text: {labels:?}");
+        assert!(labels.contains(&0xF9), "its frames have delays: {labels:?}");
+        // The look-outs do see what they look for: a text put in a PNG after its header, and a
+        // comment put in a GIF before its trailer, are found.
+        let plain = png(&frames[0], size).expect("encodes");
+        let (head, rest) = plain.split_at(33);
+        let text = [&[0, 0, 0, 3][..], b"tEXtabc", &[0; 4]].concat();
+        let dirty_png = [head, &text[..], rest].concat();
+        assert!(png_chunks(&dirty_png).contains(&"tEXt".to_owned()));
+        let (head, trailer) = file.split_at(file.len() - 1);
+        let comment = [0x21, 0xFE, 3, b'a', b'b', b'c', 0];
+        let dirty_gif = [head, &comment[..], trailer].concat();
+        assert!(gif_extensions(&dirty_gif).contains(&0xFE));
+    }
+
     #[test]
     fn each_reason_reads_as_a_sentence() {
         assert_eq!(

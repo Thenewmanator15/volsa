@@ -9,7 +9,9 @@ use crate::view::ViewTransform;
 /// Why a slice could not be drawn.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RenderError {
-    /// The machine has no graphics adapter, not even one emulated in software.
+    /// The machine has no graphics adapter, not even one emulated in software. A device with no
+    /// window leaves OpenGL out on Windows unless `WGPU_BACKEND` is set, so a Windows machine
+    /// that could draw only with OpenGL has none until `WGPU_BACKEND=gl` says to try it.
     #[error("No graphics adapter is available, not even a software one.")]
     NoAdapter,
     /// An adapter was found but would not start.

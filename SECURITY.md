@@ -28,7 +28,7 @@ The faults that matter are those where something Voxa is handed makes it do what
   issue with a made-up file is welcome, and if you are not sure, report it here.
 - **The runtime library.** To label a scan, Voxa loads ONNX Runtime (`onnxruntime.dll`, which
   in turn loads `onnxruntime_providers_shared.dll` and `DirectML.dll`) from a folder called
-  `runtime` beside `voxa.exe`, or from the folder named under **Options** in the Parts tab. A
+  `runtime` beside `voxa.exe`, or from the folder named under **Options** in the Tools tab. A
   way to make Voxa load a library from anywhere else, or one the person did not put there,
   counts. Voxa runs whatever library is in a folder the person names, with the person's own
   rights: that is how it is meant to work, so name only a folder that holds Microsoft's files.
@@ -48,6 +48,38 @@ These are not for this form:
 - A fault in ONNX Runtime or DirectML themselves, which goes to Microsoft, or in a library Voxa
   is built on, which goes to that library. If it reaches Voxa, tell us too.
 
+## Reading reports
+
+Security note S-UI-01. An export can hold structured reports (DICOM SR) and PDFs stored in
+DICOM, and both come from anywhere. Voxa shows a report as plain text and saves a PDF as the
+bytes it holds, and does nothing else with either.
+
+- **Limits.** What Voxa turns into text is limited: a report is read no deeper than 16
+  sections, into no more than 5,000 lines and 1,000,000 characters, whichever comes first.
+  Where it goes past one, Voxa stops reading, keeps what it has, and says the report was cut
+  short, so the lines shown are always the start of the report, in order. A line cut at the
+  character limit ends in an ellipsis. The original report is the reference. These limits
+  apply to Voxa's own reading of the report, after the DICOM library has read the file; see
+  the last point.
+- **Text only.** What a report says is turned into text. A link, a reference to an image or
+  another object, or a waveform is never followed or fetched. Voxa writes a line that says
+  what the item was and that it is not shown, so that nothing is left out without a word.
+- **No PDF is drawn or opened.** Voxa has no PDF reader in it and starts no other program for
+  a PDF. Its bytes are only written, whole, to the place the person chooses.
+- **Nothing is executed.** A report or a PDF is read as data. No script, macro or embedded
+  file in either is run, and none is written anywhere except the copy of the PDF the person
+  asks for.
+- **A damaged file is an error for that file.** A report or PDF that cannot be read is
+  refused with an error, and so is one that makes the DICOM library panic, and Voxa goes on.
+  A fault that stops the whole program is not caught; the one known, a file nested too
+  deeply, is refused before the library reads it (see Files nested too deeply).
+- **What the limits do not cover.** The DICOM library reads the whole file before Voxa walks
+  the report, as it does for every file Voxa opens, so a file Voxa is given is still read
+  into memory up to the size limit for one file (4 GiB). How deeply a file nests its
+  sequences is checked before the DICOM library reads it, as for every file Voxa opens; see
+  Files nested too deeply. A file that stops Voxa, or that makes the library run out of
+  memory or time, is a fault to report here.
+
 ## Files nested too deeply
 
 Security note S-DICOM-01. A DICOM file can hold sequences of items, and sequences inside those
@@ -62,9 +94,10 @@ enough, and a deflated file could be smaller still.
   the stack, set up as the library sets up its own read, a deflated file inflated as the
   library would inflate it. A file whose sequences nest more than 64 deep is refused unread.
   Real files nest far less: structured reports, the deepest, some ten to twenty.
-- **Everywhere a file is read.** The check is made in both places Voxa hands the library a
-  file: reading headers while an export is indexed, and opening a file whole to show its
-  pictures or list its tags. Nesting after the pixels, which a header read never reaches, is
+- **Everywhere a file is read.** The check is made everywhere Voxa hands the library a file:
+  reading headers while an export is indexed, reading what a document is (a report or a PDF)
+  while it is listed, and opening a file whole to show its pictures, list its tags, read a
+  report or save a PDF. Nesting after the pixels, which a header read never reaches, is
   checked when the file is opened whole.
 - **What the person sees.** A refused file is named, with the reason "nested too deeply to read
   safely", in a warning that some files were not read, and the rest of the export opens. A file

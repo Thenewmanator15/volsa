@@ -1,7 +1,9 @@
 //! How wide the series list is, and the lines between the parts of the window that the
 //! person drags to give one part more of the width and another less.
 
-use egui::{CursorIcon, Id, LayerId, Order, Rangef, Rect, Sense, Stroke, Ui};
+use egui::{
+    CursorIcon, Id, LayerId, Order, Rangef, Rect, Sense, Stroke, Ui, WidgetInfo, WidgetType,
+};
 
 use super::theme;
 
@@ -32,17 +34,18 @@ pub fn list_dragged(window: f32, share: f32, by: f32) -> f32 {
 /// A line down the window at `x`, over the rows `along`, that the pointer can take hold of
 /// and drag across: how far it was dragged this frame, in points, rightwards. It is drawn
 /// only while the pointer is over it or dragging it. Made after what lies beneath it, it
-/// takes the drag from them.
-pub fn divider(ui: &Ui, id: Id, x: f32, along: Rangef) -> f32 {
+/// takes the drag from them. A screen reader calls it `name`.
+pub fn divider(ui: &Ui, id: Id, x: f32, along: Rangef, name: &str) -> f32 {
     let grip = Rect::from_x_y_ranges(Rangef::new(x - GRAB, x + GRAB), along);
     let response = ui.interact(grip, id, Sense::drag());
+    response.widget_info(|| WidgetInfo::labeled(WidgetType::ResizeHandle, true, name));
     let held = response.dragged();
     if held || response.hovered() {
         ui.ctx().set_cursor_icon(CursorIcon::ResizeHorizontal);
         let colour = if held {
-            theme::ACCENT
+            theme::palette(ui.ctx()).accent
         } else {
-            theme::QUIET_TEXT
+            theme::palette(ui.ctx()).quiet_text
         };
         let painter = ui.ctx().layer_painter(LayerId::new(Order::Foreground, id));
         painter.vline(x, along, Stroke::new(2.0, colour));

@@ -1,11 +1,15 @@
 //! Actions about one viewport: what it shows, which slice, the view and the window.
 
-use voxa_core::{SeriesId, WindowLevel};
+use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, WindowLevel};
 use voxa_render::ViewTransform;
 
 use super::settle_window;
 use crate::action::{Action, Effect};
-use crate::state::{AppState, Cine, PresetWindows, ViewportState};
+use crate::naming::plain_name;
+use crate::state::{AppState, Cine, Notice, NoticeKind, PresetWindows, ViewportState};
+
+/// The key of the notice that says what stops the series opened being shown in full.
+pub(super) const SERIES: &str = "series";
 
 pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     match action {
@@ -67,10 +71,46 @@ fn select(state: &mut AppState, at: usize, series: SeriesId) -> Vec<Effect> {
     if at < state.layout.count() {
         state.active = at;
     }
+    // A scan shown takes the place of a document that was open in the middle of the window.
+    state.document = None;
+    say_what_is_wrong(state, &series);
     vec![Effect::RequestFrames {
         series,
         around: slice,
     }]
+}
+
+/// Say in a notice what stops `series`, just opened, being shown in full, in place of what was
+/// said of the series opened before. A series with nothing wrong takes that away, once no
+/// viewport shows a series with something wrong.
+fn say_what_is_wrong(state: &mut AppState, series: &SeriesId) {
+    let notice = state
+        .series(series)
+        .and_then(|listed| fault_notice(&listed.info));
+    let shown = state.viewports.iter().take(state.layout.count());
+    let at_fault = |id: &SeriesId| state.series(id).is_some_and(|l| l.info.kind().is_fault());
+    let still = shown.filter_map(|v| v.series.as_ref()).any(at_fault);
+    if notice.is_some() || !still {
+        super::post(state, SERIES, notice);
+    }
+}
+
+/// The notice of a series that cannot be shown in full: the sentence of what stops it, then,
+/// beneath, the series' plain name and any other reasons. `None` for any other series.
+fn fault_notice(info: &SeriesInfo) -> Option<Notice> {
+    let first = match info.kind() {
+        SeriesKind::Stack(problem) => problem,
+        SeriesKind::Unreadable(name) => SeriesProblem::UnsupportedTransferSyntax(name),
+        _ => return None,
+    };
+    let others = info.problems.iter().filter(|other| **other != first);
+    let details = std::iter::once(plain_name(info)).chain(others.map(ToString::to_string));
+    Some(Notice {
+        kind: NoticeKind::Warning,
+        text: first.to_string(),
+        details: details.collect(),
+        key: Some(SERIES),
+    })
 }
 
 /// A slice number moved by `delta`, never below zero.

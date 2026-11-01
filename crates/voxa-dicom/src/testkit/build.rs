@@ -10,7 +10,10 @@ use super::{
 };
 
 mod colour;
+mod document;
 mod scan;
+
+pub use document::{encapsulated_pdf, structured_report};
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";
@@ -35,6 +38,9 @@ pub fn classic_slice(opts: &SliceOptions) -> Vec<u8> {
     }
     obj.put(decimal(tags::RESCALE_INTERCEPT, &[opts.intercept]));
     obj.put(decimal(tags::RESCALE_SLOPE, &[opts.slope]));
+    if let Some(rescale_type) = &opts.rescale_type {
+        obj.put(element(tags::RESCALE_TYPE, VR::LO, rescale_type.as_str()));
+    }
     let count = usize::from(opts.rows) * usize::from(opts.cols);
     let mut stored = if opts.stored.is_empty() {
         ramp(count)
@@ -61,7 +67,12 @@ pub fn enhanced_series(opts: &EnhancedOptions) -> Vec<u8> {
     ));
     let shared = vec![shared_groups(common)];
     obj.put(sequence(tags::SHARED_FUNCTIONAL_GROUPS_SEQUENCE, shared));
-    let per_frame = opts.frames.iter().map(frame_groups).collect();
+    let rescale_type = common.rescale_type.as_deref();
+    let per_frame = opts
+        .frames
+        .iter()
+        .map(|frame| frame_groups(frame, rescale_type))
+        .collect();
     obj.put(sequence(
         tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE,
         per_frame,
@@ -100,14 +111,18 @@ fn shared_groups(common: &SliceOptions) -> InMemDicomObject {
     shared
 }
 
-/// The functional groups of one frame: its position and its rescale.
-fn frame_groups(frame: &EnhancedFrame) -> InMemDicomObject {
+/// The functional groups of one frame: its position and its rescale, with the rescale type
+/// when there is one.
+fn frame_groups(frame: &EnhancedFrame, rescale_type: Option<&str>) -> InMemDicomObject {
     let mut groups = InMemDicomObject::new_empty();
     let position = one(decimal(tags::IMAGE_POSITION_PATIENT, &frame.position));
     groups.put(sequence(tags::PLANE_POSITION_SEQUENCE, vec![position]));
     let mut rescale = InMemDicomObject::new_empty();
     rescale.put(decimal(tags::RESCALE_INTERCEPT, &[frame.intercept]));
     rescale.put(decimal(tags::RESCALE_SLOPE, &[frame.slope]));
+    if let Some(rescale_type) = rescale_type {
+        rescale.put(element(tags::RESCALE_TYPE, VR::LO, rescale_type));
+    }
     let rescale = vec![rescale];
     groups.put(sequence(tags::PIXEL_VALUE_TRANSFORMATION_SEQUENCE, rescale));
     scan::put_frame(&mut groups, frame);
@@ -165,6 +180,9 @@ fn common_elements(opts: &SliceOptions, sop_class: &str) -> InMemDicomObject {
     if let Some(date) = &opts.study_date {
         obj.put(element(tags::STUDY_DATE, VR::DA, date.as_str()));
     }
+    if let Some(spacing) = opts.imager_pixel_spacing {
+        obj.put(decimal(tags::IMAGER_PIXEL_SPACING, &spacing));
+    }
     scan::put(&mut obj, &opts.scan, sop_class == ENHANCED_MR_IMAGE_STORAGE);
     obj
 }
@@ -203,6 +221,11 @@ fn ramp(count: usize) -> Vec<u16> {
 /// Serialise as a file. The data are always explicit VR little endian; when the options name
 /// another transfer syntax, only the file header says so.
 fn write(obj: InMemDicomObject, opts: &SliceOptions) -> Vec<u8> {
+    write_labelled(obj, &opts.transfer_syntax)
+}
+
+/// Serialise as a file whose header names `labelled` as its transfer syntax.
+fn write_labelled(obj: InMemDicomObject, labelled: &str) -> Vec<u8> {
     let header = |syntax: &str| {
         FileMetaTableBuilder::new()
             .transfer_syntax(syntax)
@@ -210,7 +233,7 @@ fn write(obj: InMemDicomObject, opts: &SliceOptions) -> Vec<u8> {
     };
     let labelled = obj
         .clone()
-        .with_meta(header(&opts.transfer_syntax))
+        .with_meta(header(labelled))
         .expect("the synthetic object has its identifiers");
     let honest = obj
         .with_meta(header(EXPLICIT_VR_LITTLE_ENDIAN))

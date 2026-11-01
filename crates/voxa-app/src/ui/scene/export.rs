@@ -10,8 +10,13 @@ use crate::export::{
     ExportError, SUGGESTED_NAME, TURNTABLE_FRAMES, TURNTABLE_SECONDS, gif, png, turntable_size,
     write,
 };
-use crate::state::{Notice, NoticeKind};
+use crate::state::{AppState, Notice, NoticeKind};
+use crate::ui::commands::{self, Does, Request};
 use crate::worker::Workers;
+
+mod progress;
+
+pub use progress::{is_open as turntable_is_open, progress, stop as stop_turntable};
 
 /// The key of the notice that says how saving went.
 const SAVING: &str = "saving";
@@ -25,21 +30,14 @@ pub enum Asked {
     Turntable,
 }
 
-/// What the Export menu holds: a button for each kind of file. Greyed until there is a 3D
-/// view to save.
-pub fn contents(ui: &mut Ui, there: bool) -> Option<Asked> {
-    let not_yet = "There is no 3D view to save yet";
-    let picture = ui.add_enabled(there, egui::Button::new("Save picture…"));
-    let picture = picture.on_hover_text("The 3D view as it is now, as a PNG file");
-    let turning = ui.add_enabled(there, egui::Button::new("Save turntable…"));
-    let turning =
-        turning.on_hover_text("The 3D view going once round the patient, as an animated GIF");
-    if picture.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Picture)
-    } else if turning.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Turntable)
-    } else {
-        None
+/// What the Export menu holds: a button for each kind of file, each an action of the list of
+/// actions. Greyed until there is a 3D view to save.
+pub fn contents(ui: &mut Ui, state: &AppState) -> Option<Asked> {
+    let picture = commands::button(ui, "scene.save.picture", state, None);
+    let turning = commands::button(ui, "scene.save.turntable", state, None);
+    match picture.or(turning)? {
+        Does::Ask(Request::SaveScene(asked)) => Some(asked),
+        _ => None,
     }
 }
 
@@ -170,27 +168,6 @@ impl Turntable {
     }
 }
 
-/// Show how far a turntable has got, with a way to stop it. True when the person stops it.
-pub fn progress(ctx: &egui::Context, making: &Turntable) -> bool {
-    let (done, of) = making.progress();
-    let mut stop = false;
-    egui::Window::new("Saving a turntable")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .show(ctx, |ui| {
-            ui.label(format!("Drawing picture {} of {of}", (done + 1).min(of)));
-            let share = if of == 0 {
-                1.0
-            } else {
-                done as f32 / of as f32
-            };
-            ui.add(egui::ProgressBar::new(share).desired_width(240.0));
-            stop = ui.button("Cancel").clicked();
-        });
-    stop
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -218,13 +195,17 @@ mod tests {
     /// Click down the menu and gather what was asked for, in the order met.
     fn sweep(there: bool) -> Vec<Asked> {
         let ctx = egui::Context::default();
+        let mut state = AppState::default();
+        if there {
+            state.scene.status = crate::scene::SceneStatus::Ready;
+        }
         let mut asked = Vec::new();
         let mut pass = |events: Vec<Event>| {
             let input = RawInput {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, there)));
+            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, &state)));
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         };
@@ -359,17 +340,5 @@ mod tests {
         let file = Cursor::new(std::fs::read(&path).expect("reads"));
         let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
         assert_eq!(frames, 72);
-    }
-
-    #[test]
-    fn the_progress_window_draws_and_is_not_stopped_unless_asked() {
-        let ctx = egui::Context::default();
-        let making = Turntable::new(PathBuf::from("voxa-3d.gif"), &scene(), [400.0, 300.0]);
-        let mut stopped = true;
-        let mut output = ctx.run_ui(RawInput::default(), |ui| {
-            stopped = progress(ui.ctx(), &making);
-        });
-        output.textures_delta.clear();
-        assert!(!stopped);
     }
 }

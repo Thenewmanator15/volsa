@@ -1,10 +1,10 @@
 //! The three plane views as the application remembers them: the one point they all pass
-//! through, how each panel is zoomed and moved, and what the column beside the 3D scene shows.
+//! through, and how each panel is zoomed and moved.
 
 use voxa_core::{Affine, Patient, Point, SeriesId, Voxel};
 use voxa_volume::{Plane, PlaneKind, plane_of, position_on_slice};
 
-use crate::scene::{MainPanel, SceneStatus};
+use crate::scene::SceneStatus;
 use crate::state::{AppState, Notice, NoticeKind};
 
 /// How one plane's panel is zoomed and moved.
@@ -26,18 +26,6 @@ impl Default for PlanePanel {
     }
 }
 
-/// What the column beside the 3D scene shows.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ColumnShows {
-    /// The 2D viewports: the series' own slices.
-    #[default]
-    Slices,
-    /// The axial, coronal and sagittal planes through the position.
-    Planes,
-    /// The list of labelled parts.
-    Parts,
-}
-
 /// The plane views.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Planes {
@@ -46,8 +34,6 @@ pub struct Planes {
     pub position: Option<Point<Patient>>,
     /// Each plane's panel, in the order of [`PlaneKind::ALL`].
     pub panels: [PlanePanel; 3],
-    /// What the column beside the 3D scene shows.
-    pub column: ColumnShows,
     /// Whether the 2D viewports of the same study follow the position.
     pub linked: bool,
     /// Whether the planes are drawn smoothed between voxels.
@@ -59,7 +45,6 @@ impl Default for Planes {
         Self {
             position: None,
             panels: [PlanePanel::default(); 3],
-            column: ColumnShows::default(),
             linked: true,
             smooth: false,
         }
@@ -88,35 +73,29 @@ impl Planes {
     }
 }
 
+/// What the planes say when they cannot be drawn smooth for want of memory.
+pub const SMOOTHING_NEEDS_MORE: &str = "Smooth planes need more memory than this series leaves.";
+
 /// Why the planes are not drawn smooth for a series too long for the graphics device to hold
 /// in one piece: the curve they would be drawn from takes as much room again.
 pub fn too_long_to_smooth() -> Notice {
     Notice {
         kind: NoticeKind::Warning,
-        text: "Smooth planes need more memory than this series leaves.".to_owned(),
+        text: SMOOTHING_NEEDS_MORE.to_owned(),
         details: Vec::new(),
         key: Some("smoothing"),
     }
 }
 
-/// Whether the plane views are on the screen: in the column beside the 3D scene, or with the
-/// large part of the window.
+/// Whether the plane views are on the screen: only in the arrangement of the three planes
+/// with the 3D view, which a scan with no 3D view does not have.
 pub fn in_sight(state: &AppState) -> bool {
-    match state.main.given(&state.scene.status) {
-        MainPanel::Planes => true,
-        MainPanel::Scene => state.planes.column == ColumnShows::Planes,
-        MainPanel::Stack => false,
-    }
+    state.pictures.given(&state.scene.status).has_planes()
 }
 
-/// Whether the 2D viewports are on the screen: with the large part, or in the column when it
-/// is not given to the planes or the parts.
+/// Whether the 2D viewports are on the screen: alone, or beside the 3D view.
 pub fn slices_in_sight(state: &AppState) -> bool {
-    let shown = (state.main.given(&state.scene.status), state.planes.column);
-    matches!(
-        shown,
-        (MainPanel::Stack, _) | (_, ColumnShows::Slices) | (MainPanel::Planes, ColumnShows::Planes)
-    )
+    state.pictures.given(&state.scene.status).has_slices()
 }
 
 /// Where the volume in the scene lies in the patient, and its columns, rows and slices.

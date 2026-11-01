@@ -7,7 +7,7 @@ use voxa_render::{Camera, on_screen};
 use voxa_volume::distance_mm;
 
 use super::super::pen::Pen;
-use super::super::planes::{Drawn, beside, paint};
+use super::super::planes::{Drawn, Mark, beside, drawn_through, paint_all};
 use super::super::theme;
 use crate::action::Action;
 use crate::annotations::{Shape, Tool, measured};
@@ -18,16 +18,14 @@ use crate::state::{AppState, Notice, NoticeKind};
 const MEASURING: &str = "measuring";
 /// What is said of a click that met nothing.
 pub const NO_SURFACE: &str = "There is no surface there to measure from.";
-/// What the scene says while a tool that only draws in the plane views is in hand.
-pub const PLANE_TOOLS: &str = "Angles and regions are drawn in the plane views.";
+/// What the scene says while a tool that only draws on flat pictures is in hand.
+pub const PLANE_TOOLS: &str = "Angles and regions are drawn on the slices and the plane views.";
 /// What the scene says of the annotations drawn over it.
 pub const IN_FRONT: &str =
     "Measurements are drawn in front of the picture, even where tissue would hide them.";
 /// The shortest a ruler can be, in millimetres: a second click nearer than this to the first
 /// is taken as the same click.
 const LEAST_RULER_MM: f64 = 1.0;
-/// How many straight pieces a region's outline is drawn in.
-const PIECES: u8 = 48;
 
 /// What a click in the scene means with the tool in hand. `surface` is the point of the
 /// patient on the surface under the pointer, if there is one; `begun` is the first end of a
@@ -36,7 +34,7 @@ const PIECES: u8 = 48;
 /// Navigating, a click on a surface moves the planes' position there. With the ruler, two
 /// clicks on surfaces give the distance between them; with the marker, one click places it.
 /// Where there is nothing under the pointer those two say so and place nothing. Angles and
-/// regions are drawn in the plane views: here a click with them does nothing.
+/// regions are drawn on the slices and the plane views: here a click with them does nothing.
 pub fn clicked(
     tool: Tool,
     begun: Option<Point<Patient>>,
@@ -76,31 +74,7 @@ fn no_surface() -> Notice {
 /// points as the camera sees them, whatever lies between them and the eye. A region, which
 /// may be seen at any slant, is the outline of its ellipse.
 pub fn scene_drawn(shape: &Shape, camera: &Camera, viewport: [f32; 2]) -> Drawn {
-    let seen = |at: [f64; 3]| on_screen(camera, viewport, point(at));
-    match shape {
-        Shape::Ruler { a, b } => Drawn::Line([seen(*a), seen(*b)]),
-        Shape::Angle { a, vertex, b } => Drawn::Arms([seen(*a), seen(*vertex), seen(*b)]),
-        Shape::Marker { at } => Drawn::Dot(seen(*at)),
-        Shape::Region {
-            centre,
-            across,
-            down,
-            radii_mm: [wide, high],
-            ..
-        } => {
-            let round = (0..PIECES).map(|piece| {
-                let turn = std::f64::consts::TAU * f64::from(piece) / f64::from(PIECES);
-                let (along, up) = (wide * turn.cos(), high * turn.sin());
-                let at = [0, 1, 2].map(|part| {
-                    part_of(*centre, part)
-                        + along * part_of(*across, part)
-                        + up * part_of(*down, part)
-                });
-                seen(at)
-            });
-            Drawn::Outline(round.collect())
-        }
-    }
+    drawn_through(shape, |at| on_screen(camera, viewport, point(at)))
 }
 
 /// What the scene says about measuring: that annotations are drawn in front of everything,
@@ -117,28 +91,32 @@ pub fn said(state: &AppState) -> Vec<&'static str> {
 }
 
 /// Draw the series' annotations over the scene's picture at `area`, each with its name and
-/// what it measures, and the first end of a ruler that has been begun.
-pub fn draw(ui: &Ui, area: Rect, state: &AppState, begun: Option<Point<Patient>>) {
+/// what it measures, and the first end of a ruler that has been begun. The words are kept
+/// clear of the places `taken` by the picture's own writing.
+pub fn draw(ui: &Ui, area: Rect, state: &AppState, begun: Option<Point<Patient>>, taken: &[Rect]) {
     let pen = Pen::over(ui, area);
     let viewport = [area.width(), area.height()];
     let camera = &state.scene.camera;
     let placement = grid(state).map(|(placement, _)| placement);
-    for item in &state.annotations.items {
-        let value = measured(&item.shape, placement.as_ref()).value;
-        let words = beside(item, &value);
-        let drawn = scene_drawn(&item.shape, camera, viewport);
-        paint(&pen, (area, 0.0), &drawn, theme::ACCENT, &words);
-    }
-    if let Some(from) = begun {
-        let drawn = Drawn::Dot(on_screen(camera, viewport, from));
-        paint(
-            &pen,
-            (area, 0.0),
-            &drawn,
-            theme::WARNING,
-            "Click the other end",
-        );
-    }
+    let mut marks: Vec<Mark> = state
+        .annotations
+        .items
+        .iter()
+        .map(|item| Mark {
+            drawn: scene_drawn(&item.shape, camera, viewport),
+            colour: theme::ACCENT,
+            words: beside(
+                item,
+                &measured(&item.shape, placement.as_ref(), item.scale).shown(),
+            ),
+        })
+        .collect();
+    marks.extend(begun.map(|from| Mark {
+        drawn: Drawn::Dot(on_screen(camera, viewport, from)),
+        colour: theme::WARNING,
+        words: "Click the other end".to_owned(),
+    }));
+    paint_all(&pen, (area, 0.0), taken, &marks);
 }
 
 fn point([x, y, z]: [f64; 3]) -> Point<Patient> {
@@ -147,14 +125,6 @@ fn point([x, y, z]: [f64; 3]) -> Point<Patient> {
 
 fn xyz(point: Point<Patient>) -> [f64; 3] {
     [point.x, point.y, point.z]
-}
-
-fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
-    match part {
-        0 => x,
-        1 => y,
-        _ => z,
-    }
 }
 
 #[cfg(test)]
@@ -345,5 +315,61 @@ mod tests {
         assert_eq!(said(&state), [IN_FRONT, PLANE_TOOLS]);
         reduce(&mut state, Action::SetTool(Tool::Ruler));
         assert_eq!(said(&state), [IN_FRONT]);
+    }
+
+    /// The scene of the 30-slice series with four markers placed at the middle of its volume,
+    /// which the camera sees as one point.
+    fn four_markers_at_one_point() -> (AppState, Vec<String>) {
+        use crate::reducer::reduce;
+        let mut state = thick_scan_ready();
+        let corners = state.scene.corners.expect("the volume is built");
+        let middle = corners.iter().fold([0.0; 3], |sum, corner| {
+            [sum[0] + corner.x, sum[1] + corner.y, sum[2] + corner.z]
+        });
+        let at = middle.map(|sum| sum / 8.0);
+        for _ in 0..4 {
+            reduce(&mut state, Action::AnnotationAdd(Shape::Marker { at }));
+        }
+        let names = state
+            .annotations
+            .items
+            .iter()
+            .map(|item| item.label.clone());
+        let names = names.collect();
+        (state, names)
+    }
+
+    #[test]
+    fn measurements_in_the_scene_are_written_apart_and_clear_of_the_pictures_own_writing() {
+        use crate::ui::hand::Hand;
+        let (state, names) = four_markers_at_one_point();
+        let area = Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(400.0, 300.0));
+        let hand = Hand::new(400.0, 300.0);
+        let drawn = |taken: &[Rect]| hand.settle(&mut |ui| draw(ui, area, &state, None, taken));
+        let seen = drawn(&[]);
+        let rects: Vec<Rect> = names
+            .iter()
+            .map(|name| seen.ink_bounds(name).expect("written"))
+            .collect();
+        for (one, rect) in rects.iter().enumerate() {
+            for other in &rects[one + 1..] {
+                assert!(!rect.intersects(*other), "{rect:?} meets {other:?}");
+            }
+        }
+        assert_eq!(
+            seen.lines.len(),
+            3,
+            "each but the first is joined to its point"
+        );
+        // The picture's own writing is where the first of them would stand: it moves.
+        let taken = [rects[0].expand(1.0)];
+        let seen = drawn(&taken);
+        for name in &names {
+            let at = seen.ink_bounds(name).expect("written");
+            assert!(
+                !at.intersects(taken[0]),
+                "{name} is over the picture's writing"
+            );
+        }
     }
 }

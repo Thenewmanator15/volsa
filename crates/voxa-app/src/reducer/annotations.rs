@@ -6,7 +6,7 @@ use voxa_core::SeriesId;
 use super::post;
 use crate::action::{Action, Effect};
 use crate::annotations::{Annotation, Annotations, MAX_ANNOTATIONS, Tool};
-use crate::planes::grid;
+use crate::measuring::{scale_now, why_not_measurable};
 use crate::state::{AppState, Notice, NoticeKind};
 
 /// The key of the notice that says the list of measurements is full.
@@ -31,33 +31,34 @@ pub(super) fn concerns(action: &Action) -> bool {
 }
 
 /// Apply an action about annotations. A tool is taken up, and an annotation added, only
-/// while there is a volume ready to measure on. Every change to the list asks for the list
-/// to be kept.
+/// while there is something to measure on: a volume ready, or a slice shown whose files give
+/// it a scale. What is added is kept with that scale. Every change to the list asks for the
+/// list to be kept.
 pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
-    let measurable = grid(state).is_some();
+    let scale = scale_now(state);
     let list = &mut state.annotations;
-    let changed = match action {
-        Action::SetTool(tool) if measurable => {
+    let changed = match (action, scale) {
+        (Action::SetTool(tool), Some(_)) => {
             state.tool = tool;
             false
         }
-        Action::AnnotationAdd(shape) if measurable => {
-            let added = list.add(shape);
+        (Action::AnnotationAdd(shape), Some(scale)) => {
+            let added = list.add(shape, scale);
             if !added {
                 post(state, MEASUREMENTS, Some(full()));
             }
             added
         }
-        Action::AnnotationRemove(id) => list.remove(id),
-        Action::AnnotationRename { id, label } => list.rename(id, &label),
-        Action::AnnotationsClear => list.clear(),
-        Action::Undo => list.undo(),
-        Action::Redo => list.redo(),
-        Action::AnnotationsLoaded { series, items } => {
+        (Action::AnnotationRemove(id), _) => list.remove(id),
+        (Action::AnnotationRename { id, label }, _) => list.rename(id, &label),
+        (Action::AnnotationsClear, _) => list.clear(),
+        (Action::Undo, _) => list.undo(),
+        (Action::Redo, _) => list.redo(),
+        (Action::AnnotationsLoaded { series, items }, _) => {
             read(state, &series, items);
             false
         }
-        Action::AnnotationsNotStored { reason } => {
+        (Action::AnnotationsNotStored { reason }, _) => {
             post(state, NOT_KEPT, Some(not_kept(reason)));
             false
         }
@@ -86,13 +87,23 @@ fn read(state: &mut AppState, series: &SeriesId, mut items: Vec<Annotation>) {
 }
 
 /// Keep the annotations with their series: when the scene has moved to another series than
-/// `was`, the list and its history start afresh. And put the tool down whenever there is no
-/// volume ready to use it on.
+/// `was`, the list and its history are put away, to be taken back if the scene comes back to
+/// that series in this run, and the series it has come to has the list it was left with or a
+/// fresh one, and the tool is put down. The tool is put down too whenever there is nothing to use
+/// it on: no volume ready, and no slice shown with a scale.
 pub(super) fn settle(state: &mut AppState, was: Option<&SeriesId>) {
     if state.scene.series.as_ref() != was {
-        state.annotations = Annotations::default();
+        // What was done to the list of the series left can be undone when the series is back.
+        let left = std::mem::take(&mut state.annotations);
+        if let Some(was) = was {
+            state.annotations_left.put_away(was.clone(), left);
+        }
+        let arrived = state.scene.series.clone();
+        let back = arrived.and_then(|series| state.annotations_left.take_back(&series));
+        state.annotations = back.unwrap_or_default();
+        state.tool = Tool::Navigate;
     }
-    if grid(state).is_none() {
+    if why_not_measurable(state).is_some() {
         state.tool = Tool::Navigate;
     }
 }

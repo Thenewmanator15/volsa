@@ -21,6 +21,7 @@ mod card;
 mod choices;
 mod csv;
 mod device;
+mod documents;
 mod effect;
 mod export;
 mod kept_labels;
@@ -28,10 +29,15 @@ mod labelling;
 mod labels;
 mod log;
 mod measurements;
+mod measuring;
 mod moved;
+mod naming;
 mod parts_table;
+mod people;
+mod pictures;
 mod planes;
 mod prefs;
+mod profile;
 mod reducer;
 mod said;
 mod scene;
@@ -41,6 +47,7 @@ mod spill;
 mod state;
 #[cfg(test)]
 mod testing;
+mod tools;
 mod ui;
 mod views;
 mod volume_store;
@@ -61,15 +68,20 @@ pub use labels::{
     on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
-pub use planes::{ColumnShows, PlanePanel, Planes};
+pub use measuring::Scale;
+pub use naming::{Group, group_of, plain_name};
+pub use pictures::Pictures;
+pub use planes::{PlanePanel, Planes};
+pub use profile::{CT_WINDOWS, NamedWindow, Profile, Unit, readout, unit_of};
 pub use reducer::reduce;
 pub use said::{Outcome, WINDOWED, outcome, tell};
-pub use scene::{MainPanel, Scene, SceneStatus};
+pub use scene::{Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
-pub use ui::{VoxaApp, run, thumbnail};
+pub use tools::{ADDED_BY_YOU, MadeBy, ToolInfo};
+pub use ui::{BareLayout, BareWindow, VoxaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, ViewsAction, series_key};
 pub use volume_store::VolumeStore;
 pub use worker::labelling::Labeller;

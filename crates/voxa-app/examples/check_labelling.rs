@@ -10,7 +10,7 @@
 //!
 //! `VOXA_MODELS` names a model folder and `VOXA_RUNTIME` the folder that holds the runtime.
 //! Left to itself the model is the one Voxa picks for the series, with the cortex divided into
-//! its areas, as the button in the Parts tab does. The places are those that
+//! its areas, as the button in the Tools tab does. The places are those that
 //! `voxa_models::rungs` offers this computer when Voxa is left to choose: the whole scan on
 //! each discrete card, then on the processor, then the scan cut to the head on each, then on
 //! the processor. A card the system lists twice is tried once. The seconds are counted from

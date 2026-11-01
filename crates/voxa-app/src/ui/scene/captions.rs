@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use egui::{WidgetInfo, WidgetType};
 use voxa_render::{Camera, SceneParams, SlicePlane};
 
 use super::super::overlay::{EdgeLabels, letter};
@@ -9,6 +10,7 @@ use super::super::parts::labelling::solids_in_words;
 use super::super::pen::LETTER_ROOM;
 use super::parts::CAPTION;
 use crate::labels::look_drawn;
+use crate::naming::plain_name;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
@@ -116,6 +118,17 @@ pub fn until_full_quality(since_moved: Duration) -> Option<Duration> {
     SETTLING
         .checked_sub(since_moved)
         .filter(|left| !left.is_zero())
+}
+
+/// What a screen reader is told of the 3D scene, a picture with no words of its own: that it is
+/// the 3D view, and of which scan.
+pub fn widget(state: &AppState) -> WidgetInfo {
+    let scan = state.scene.series.as_ref().and_then(|id| state.series(id));
+    let said = match scan {
+        Some(listed) => format!("3D view of {}", plain_name(&listed.info)),
+        None => "3D view, no scan".to_owned(),
+    };
+    WidgetInfo::labeled(WidgetType::Image, true, said)
 }
 
 /// What to write in the middle of the scene when there is no picture of a volume to show:

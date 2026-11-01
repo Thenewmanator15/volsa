@@ -17,6 +17,8 @@ mod pe;
 mod program;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod words_tests;
 mod zipped;
 
 use std::fs;

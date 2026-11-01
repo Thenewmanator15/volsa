@@ -12,6 +12,7 @@
 )]
 #![cfg_attr(test, allow(clippy::float_cmp))] // tests compare against exactly representable values
 
+mod dates;
 mod error;
 mod grid;
 mod held;
@@ -23,6 +24,7 @@ mod space;
 mod volume;
 mod window;
 
+pub use dates::date_in_words;
 pub use error::VoxaError;
 pub use grid::Grid;
 pub use held::{HeldError, HeldVolume, SlabRaw, SlabStore, SliceIn, Stored};

@@ -11,9 +11,10 @@ use voxa_core::{HeldError, HeldVolume, Rescale, SeriesId, SliceIn, Stored};
 use voxa_dicom::{ImageFile, IndexedSeries, StoredSamples};
 use voxa_volume::{VolumeError, can_be_volume};
 
+use super::opened::batches;
 use super::preview::preview_slices;
 use super::volume::Build;
-use super::{Batch, Shared, batches, lock};
+use super::{Batch, Shared, lock};
 use crate::action::Action;
 
 /// The most bytes in one slab of a held volume.

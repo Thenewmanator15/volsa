@@ -4,6 +4,12 @@ use voxa_core::SeriesId;
 use voxa_dicom::testkit::{MemorySource, SliceOptions, classic_slice};
 use voxa_dicom::{Index, index};
 
+pub mod documents;
+pub mod patient;
+mod volumes;
+
+pub use volumes::{cube, held_of};
+
 /// Thirty 4 × 4 slices, series number 1.
 pub const THICK_SCAN: &str = "1.2.3.1";
 /// Sixty-four 8 × 8 slices, series number 2: the most detailed.
@@ -278,21 +284,97 @@ pub fn lose(device: &egui_wgpu::wgpu::Device) {
     let _ = device.poll(egui_wgpu::wgpu::PollType::wait_indefinitely());
 }
 
-/// The same values as `volume`, held as 32-bit numbers, as the store holds a series.
-pub fn held_of(volume: &voxa_core::Volume) -> voxa_core::HeldVolume {
-    use voxa_core::{HeldVolume, Rescale, SliceIn, Stored};
-    let [_, _, slices] = volume.dims();
-    let held = HeldVolume::new(
-        volume.dims(),
-        volume.voxel_to_patient(),
-        Stored::Float32,
-        Rescale::default(),
-        1 << 20,
-    )
-    .expect("the same placement");
-    for slice in 0..slices {
-        let values = volume.slice_values(slice).expect("a slice");
-        held.put_slice(slice, SliceIn::Float(values)).expect("fits");
+/// A made-up picture of 16 x 16 pixels, series number 9, whose file says nothing of where it
+/// lies in the patient.
+pub const PICTURE: &str = "1.2.3.9";
+
+/// The file of [`PICTURE`], giving this Pixel Spacing (between rows, then between columns) and
+/// this detector's spacing, each if any.
+pub fn picture_file(
+    pixel_spacing: Option<[f64; 2]>,
+    imager_pixel_spacing: Option<[f64; 2]>,
+) -> (String, Vec<u8>) {
+    let options = SliceOptions {
+        position: None,
+        orientation: None,
+        pixel_spacing,
+        imager_pixel_spacing,
+        ..slice_options(PICTURE, 9, 0, 16)
+    };
+    ("S9/I0000.dcm".to_owned(), classic_slice(&options))
+}
+
+/// A state showing [`PICTURE`] in the first viewport, its file as [`picture_file`] makes it,
+/// with its one slice decoded and shown.
+pub fn showing_a_picture(
+    pixel_spacing: Option<[f64; 2]>,
+    imager_pixel_spacing: Option<[f64; 2]>,
+) -> crate::state::AppState {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let file = picture_file(pixel_spacing, imager_pixel_spacing);
+    let mut state = crate::state::AppState::default();
+    reduce(&mut state, Action::IndexProgress(indexed(vec![file])));
+    let (viewport, series) = (0, id(PICTURE));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    shown(&mut state);
+    state
+}
+
+/// Say that the slice the active viewport shows has been decoded, as the worker says once it
+/// has: it is then shown.
+pub fn shown(state: &mut crate::state::AppState) {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let Some(viewport) = state.viewports.get(state.active) else {
+        return;
+    };
+    let Some(series) = viewport.series.clone() else {
+        return;
+    };
+    let windows = [voxa_core::WindowLevel::new(50.0, 100.0); voxa_volume::PRESETS.len()];
+    let slice = viewport.slice;
+    reduce(
+        state,
+        Action::FrameReady {
+            series,
+            slice,
+            windows,
+        },
+    );
+}
+
+/// A made-up single slice, series number 8, that says what kind of scan it is.
+pub const KIND_SCAN: &str = "1.2.3.8";
+
+/// A state showing a made-up single 4 x 4 slice of this modality in the first viewport, whose
+/// file gives this Rescale Type, if any.
+pub fn showing_a_scan_of(modality: &str, rescale_type: Option<&str>) -> crate::state::AppState {
+    use crate::action::Action;
+    use crate::reducer::reduce;
+    let options = SliceOptions {
+        modality: modality.to_owned(),
+        rescale_type: rescale_type.map(str::to_owned),
+        ..slice_options(KIND_SCAN, 8, 0, 4)
+    };
+    let files = vec![("S8/I0000.dcm".to_owned(), classic_slice(&options))];
+    let mut state = crate::state::AppState::default();
+    reduce(&mut state, Action::IndexProgress(indexed(files)));
+    let (viewport, series) = (0, id(KIND_SCAN));
+    reduce(&mut state, Action::SelectSeries { viewport, series });
+    state
+}
+
+/// The graphics device as the window has it, made on the one adapter every device with no window
+/// shares; `None` with a printed notice on a computer with no graphics adapter, not even a
+/// software one. An adapter that will not start is not a reason to skip a test, and stops it.
+pub fn a_render_state() -> Option<egui_wgpu::RenderState> {
+    match voxa_render::render_state_without_a_window() {
+        Ok(render) => Some(render),
+        Err(voxa_render::RenderError::NoAdapter) => {
+            eprintln!("skipped: no graphics adapter here, not even a software one");
+            None
+        }
+        Err(other) => panic!("{other}"),
     }
-    held
 }

@@ -2,10 +2,15 @@
 
 use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 
-use egui_wgpu::wgpu;
+use egui_wgpu::{
+    RenderState, RendererOptions, WgpuConfiguration, WgpuSetupCreateNew, WgpuSetupExisting, wgpu,
+};
 
+use self::found::{Found, found_in};
 use crate::lost::{self, DeviceWatch};
 use crate::slice_pipeline::RenderError;
+
+mod found;
 
 /// The format of the picture drawn: 8-bit red, green, blue and alpha, with no gamma curve, so
 /// the grey read back is the grey the shader wrote.
@@ -31,16 +36,22 @@ pub fn memory_hints(kind: wgpu::DeviceType) -> wgpu::MemoryHints {
 /// adapter of its own and starting a device on it, stopped for good on one machine's
 /// driver. One adapter was enough to cure it there; taking turns as well costs little,
 /// since starting a device on an adapter already found is quick.
+///
+/// On Windows such a device does not try OpenGL either, see [`found::backends_without_a_window`]:
+/// with it, a run of the tests stopped for good now and then on a machine with an NVIDIA
+/// card, since the driver's OpenGL side can stop every thread of the program from starting
+/// or ending once a thread that used it has ended. For the same reason no test makes a
+/// graphics instance of its own: [`render_state_without_a_window`] hands out this one.
 static STARTING: Mutex<()> = Mutex::new(());
 
 /// The adapter those devices come from, looked for once: the search is most of the time a
 /// start would otherwise take.
-static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static ADAPTER: OnceLock<Option<Found>> = OnceLock::new();
 
 /// The adapter emulated in software, looked for once, for the tests that draw on it even on
 /// a machine with a graphics card of its own.
 #[cfg(test)]
-static SOFTWARE: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static SOFTWARE: OnceLock<Option<Found>> = OnceLock::new();
 
 /// A graphics device with no window.
 pub(crate) struct Gpu {
@@ -119,24 +130,11 @@ impl Gpu {
     /// of those asked for in turn, looked for the first time a device is started on it.
     /// `false` asks for the machine's own adapter, `true` for one emulated in software.
     fn start_on(
-        found: &OnceLock<Option<wgpu::Adapter>>,
+        found: &OnceLock<Option<Found>>,
         in_software: &[bool],
     ) -> Result<Self, RenderError> {
         let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
-        let adapter = found
-            .get_or_init(|| find_adapter(in_software))
-            .as_ref()
-            .ok_or(RenderError::NoAdapter)?;
-        let wanted = wgpu::DeviceDescriptor {
-            label: Some("voxa headless"),
-            required_limits: adapter.limits(),
-            // Volumes of 16-bit whole numbers are held exactly as stored where it can.
-            required_features: adapter.features() & wgpu::Features::TEXTURE_FORMAT_16BIT_NORM,
-            memory_hints: memory_hints(adapter.get_info().device_type),
-            ..Default::default()
-        };
-        let (device, queue) = pollster::block_on(adapter.request_device(&wanted))
-            .map_err(|error| RenderError::Device(error.to_string()))?;
+        let (device, queue) = found_in(found, in_software)?.start_headless_device()?;
         let watch = Some(DeviceWatch::on(&device, || {}));
         Ok(Self {
             device,
@@ -291,28 +289,37 @@ fn unpadded(bytes: &[u8], row_bytes: usize, padded_row: usize, rows: usize) -> V
     picture
 }
 
-/// The first adapter found of those asked for in turn: `false` asks for the machine's own,
-/// `true` for one emulated in software. Which backend and which adapter can be chosen from
-/// outside, to try more than one graphics device on a machine: `WGPU_BACKEND` and
-/// `WGPU_POWER_PREF`.
-fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
-    let mut from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-    if cfg!(windows) && in_software == [true] {
-        // Windows' software graphics is a DirectX 12 adapter. Looking for it on every kind
-        // of graphics woke the card's other drivers while it was drawing for another device,
-        // and now and then that never finished.
-        from_outside.backends = wgpu::Backends::DX12;
-    }
-    let instance = wgpu::Instance::new(from_outside);
-    let adapter = |force_fallback_adapter| {
-        let wanted = wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::from_env().unwrap_or_default(),
-            force_fallback_adapter,
-            ..Default::default()
-        };
-        pollster::block_on(instance.request_adapter(&wanted)).ok()
+/// What a window has to draw with, made without a window: a device started on the adapter
+/// the other devices with no window come from, and the instance that adapter was found with,
+/// set up for egui-wgpu to draw the interface on. The device is asked for as egui-wgpu asks
+/// for a window's on that adapter (its default limits, not all the adapter could give), so it
+/// is the kind a window has. For the tests of the interface; nothing else in Voxa uses it.
+/// It is started in turn with every other device, and makes no graphics instance of its own.
+///
+/// # Errors
+///
+/// [`RenderError::NoAdapter`] when the machine has no graphics adapter, not even one
+/// emulated in software (on Windows, with `WGPU_BACKEND` not set, there is none where only
+/// OpenGL could draw), and [`RenderError::Device`] when the adapter found will not start or
+/// egui-wgpu cannot be set up on it.
+pub fn render_state_without_a_window() -> Result<RenderState, RenderError> {
+    let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
+    let found = found_in(&ADAPTER, &[false, true])?;
+    let windows_kind = WgpuSetupCreateNew::without_display_handle();
+    let wanted = (windows_kind.device_descriptor)(&found.adapter);
+    let (device, queue) = found.start_device(&wanted)?;
+    let existing = WgpuSetupExisting {
+        instance: found.instance.clone(),
+        adapter: found.adapter.clone(),
+        device,
+        queue,
     };
-    in_software.iter().find_map(|&software| adapter(software))
+    let config = WgpuConfiguration {
+        wgpu_setup: existing.into(),
+        ..Default::default()
+    };
+    let made = RenderState::create(&config, &found.instance, None, RendererOptions::default());
+    pollster::block_on(made).map_err(|error| RenderError::Device(error.to_string()))
 }
 
 /// One render pass that clears the picture to black and lets `draw` draw over it.

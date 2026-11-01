@@ -14,18 +14,28 @@ const PICTURE: [f32; 2] = [1440.0, 900.0];
 
 impl VoxaApp {
     /// Make ready what a picture of the window wants: the interface at the size it asks for,
-    /// everything at rest rather than fading in, and the windows it wants open in it.
+    /// everything at rest rather than fading in, the windows and the tab it wants open in it,
+    /// and the pictures arranged as it asks.
     pub(super) fn set_up_a_picture(&mut self, ctx: &egui::Context) {
         ctx.set_zoom_factor(capture::zoom().unwrap_or(1.0));
         // A picture is of things as they come to rest, not part-way through fading in.
         ctx.all_styles_mut(|style| style.animation_time = 0.0);
         // A picture for the documentation may want one of the windows open in it.
         let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
-        let asked = |word: &str| capture::asks_for(&wanted, word);
-        self.tags.open = asked("tags");
-        self.measure.open = asked("list");
-        self.help_open = asked("keys");
-        self.about_open = asked("about");
+        let opens = capture::opens(&wanted);
+        self.tags.open = opens.tags;
+        self.rail.other_open = opens.other;
+        if opens.search {
+            self.search.open();
+        }
+        if let Some(tab) = capture::tab_asked(&wanted) {
+            self.screen.show_tab(tab);
+        }
+        if let Some(pictures) = capture::arrangement_asked(&wanted) {
+            self.dispatch(crate::action::Action::SetPictures(pictures));
+        }
+        self.help_open = opens.keys;
+        self.about_open = opens.about;
         self.pose = capture::pose(&wanted);
         self.label_pose = capture::label_pose(&wanted);
     }

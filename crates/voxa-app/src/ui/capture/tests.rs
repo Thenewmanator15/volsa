@@ -82,6 +82,7 @@ fn a_picture_can_ask_for_the_first_series_listed_once_the_index_is_finished() {
 
 #[test]
 fn a_picture_can_ask_for_the_labelled_parts_to_be_posed_once_they_are_read() {
+    use voxa_render::Look;
     assert_eq!(
         label_pose("parts, filled, mip"),
         [],
@@ -127,7 +128,7 @@ fn what_a_picture_asks_for_is_read_word_by_word() {
     assert!(asks_for("keys, nolist", "keys"));
     assert!(
         !asks_for("nolist", "list"),
-        "the series list hidden is not the list of measurements"
+        "a word is read whole: `nolist`, which folds the rail of scans, is not `list`"
     );
     assert!(!asks_for("", "keys"));
 }
@@ -286,4 +287,69 @@ fn a_picture_does_not_wait_for_a_run_that_this_computer_cannot_make() {
         "a run takes longer"
     );
     assert_eq!(Run::Not.patience(usual), usual);
+}
+
+#[test]
+fn a_picture_can_ask_for_a_tab_of_the_panel_to_be_open() {
+    use crate::ui::panel::Tab;
+    assert_eq!(tab_asked("tags, vr"), None);
+    assert_eq!(tab_asked("measure"), Some(Tab::Measure));
+    assert_eq!(
+        tab_asked("labelling"),
+        Some(Tab::Tools),
+        "the strip that labels a scan is in the Tools tab"
+    );
+    assert_eq!(
+        tab_asked("labelled, parts"),
+        Some(Tab::Labels),
+        "the parts are in the Labels tab"
+    );
+    assert_eq!(
+        tab_asked("labelling, parts"),
+        Some(Tab::Labels),
+        "the labels, when both are asked for"
+    );
+}
+
+#[test]
+fn the_parts_are_no_longer_a_pose_of_the_column() {
+    assert_eq!(pose("parts"), [], "they are a tab of the panel now");
+}
+
+#[test]
+fn a_picture_can_ask_for_an_arrangement_of_the_pictures() {
+    use crate::pictures::Pictures;
+    assert_eq!(arrangement_asked(""), None, "the slices, as Voxa opens");
+    assert_eq!(arrangement_asked("tags, vr"), None);
+    assert_eq!(arrangement_asked("planes"), Some(Pictures::Planes));
+    assert_eq!(arrangement_asked("quad"), Some(Pictures::Planes));
+    assert_eq!(arrangement_asked("3d"), Some(Pictures::Scene));
+    assert_eq!(
+        arrangement_asked("vr, slices3d"),
+        Some(Pictures::SlicesAndScene)
+    );
+    assert_eq!(
+        arrangement_asked("3d, planes"),
+        Some(Pictures::Planes),
+        "the last of those asked for"
+    );
+    for word in ["planes", "quad", "3d", "slices3d"] {
+        assert_eq!(pose(word), [], "{word} is set at once, not as a pose");
+    }
+}
+
+#[test]
+fn a_picture_is_dark_unless_it_asks_for_the_light_theme() {
+    use crate::ui::theme::ThemeChoice::{Dark, Light, System};
+    // A picture is the same wherever it is made, so the system's choice is not followed.
+    assert_eq!(theme_for("", true, System), Dark);
+    assert_eq!(theme_for("keys,about", true, System), Dark);
+    assert_eq!(theme_for("light", true, System), Light);
+    assert_eq!(theme_for("about, light", true, Dark), Light);
+    assert_eq!(theme_for("lighter", true, System), Dark, "whole words");
+    // A window that is not a picture is drawn as the person left it, whatever the words say.
+    assert_eq!(theme_for("light", false, Dark), Dark);
+    assert_eq!(theme_for("", false, System), System);
+    assert_eq!(theme_for("", false, Light), Light);
+    assert_eq!(theme_for("", false, Dark), Dark);
 }

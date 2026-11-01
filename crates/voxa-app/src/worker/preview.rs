@@ -9,8 +9,9 @@ use rayon::prelude::*;
 use voxa_core::{Grid, HeldVolume, SeriesId};
 use voxa_dicom::IndexedSeries;
 
+use super::opened::batches;
 use super::volume::Build;
-use super::{Shared, batches, lock};
+use super::{Shared, lock};
 use crate::action::Action;
 
 /// A series of more slices than this is shown as a preview while it is built.

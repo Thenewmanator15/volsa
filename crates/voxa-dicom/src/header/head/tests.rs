@@ -8,7 +8,8 @@ use super::*;
 use crate::header::{Header, NeedMore, read_header, read_header_start};
 use crate::source::MAX_ENTRY_BYTES;
 use crate::testkit::{
-    EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
+    DocumentOptions, EnhancedFrame, EnhancedOptions, ReportItem, SliceOptions, classic_slice,
+    enhanced_series, structured_report,
 };
 
 /// A reader of `bytes` that counts how many of them it has given.
@@ -28,9 +29,8 @@ impl Read for Counted<'_> {
 /// The header read from the start of `bytes`, and how many of them were read for it.
 fn from_start(bytes: &[u8]) -> (Option<Header>, usize) {
     let mut reader = Counted { bytes, given: 0 };
-    let header = read_header_from(&mut reader, MAX_ENTRY_BYTES)
-        .expect("reads")
-        .image();
+    let (start, _) = read_header_from(&mut reader, MAX_ENTRY_BYTES).expect("reads");
+    let header = start.image();
     (header, reader.given)
 }
 
@@ -171,10 +171,21 @@ fn reading_more_than_the_limit_for_a_header_is_refused() {
     let bytes = padded_slice(16, 150_000);
     let refused = read_header_from(&mut bytes.as_slice(), 100_000);
     assert!(matches!(refused, Err(VoxaError::Archive(_))), "{refused:?}");
-    let header = read_header_from(&mut bytes.as_slice(), 1_000_000)
-        .expect("within the limit")
-        .image();
+    let (start, _) = read_header_from(&mut bytes.as_slice(), 1_000_000).expect("within the limit");
+    let header = start.image();
     assert_eq!(header, read_header(&bytes));
+}
+
+#[test]
+fn a_dicom_file_that_is_not_an_image_is_handed_back_whole() {
+    // Longer than the first read, so that the read is repeated with more of the file.
+    let long = "A made-up remark that goes on. ".repeat(8_000);
+    let content = [ReportItem::text("Comment", &long)];
+    let bytes = structured_report(&DocumentOptions::default(), &content);
+    assert!(bytes.len() > 3 * 64 * 1024);
+    let (header, start) = read_header_from(&mut bytes.as_slice(), MAX_ENTRY_BYTES).expect("reads");
+    assert_eq!(header, Start::NotAnImage);
+    assert_eq!(start, bytes);
 }
 
 proptest! {

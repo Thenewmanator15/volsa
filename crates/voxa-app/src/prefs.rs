@@ -1,6 +1,8 @@
 //! What Voxa remembers between runs of how the person had it set: the window's size, the size
-//! of the interface, how wide the series list and the column are, how many viewports, and
-//! three switches. Nothing about any scan, and nothing that says which scans were opened.
+//! of the interface, how wide the series list and the tab panel are, which tab is open and
+//! whether either column is folded, whether the window is light, dark or as the system is set,
+//! how many viewports, and three switches. Nothing about any scan, and nothing that says which
+//! scans were opened.
 
 use std::ops::RangeInclusive;
 use std::path::{Path, PathBuf};
@@ -20,14 +22,30 @@ pub const SMALLEST_WINDOW: [f32; 2] = [640.0, 480.0];
 pub const INTERFACE_SIZES: RangeInclusive<f32> = 0.5..=3.0;
 /// The share of the window's width the series list starts with.
 pub const LIST_SHARE: f32 = 1.0 / 6.0;
-/// The share of the middle of the window the column beside the large part starts with.
+/// The share of the middle of the window the column beside the large part started with in
+/// Voxa 0.6.0, whose window had a column of pictures where the tab panel is now.
 pub const COLUMN_SHARE: f32 = 0.3;
 /// The memory budgets, in mebibytes, a remembered one is held between.
 pub const MEMORY_MIB: RangeInclusive<u32> = 256..=65_536;
+/// The share of the window's width the tab panel starts with, until the person drags it: what
+/// the column beside the large part took of what the series list left, at its starting widths.
+pub const PANEL_SHARE: f32 = COLUMN_SHARE * (1.0 - LIST_SHARE);
+/// The most of the window's width the tab panel takes, however wide it was dragged.
+pub const PANEL_MOST_SHARE: f32 = 0.4;
+/// The tab the panel opens on when none is remembered, by the name it is kept under.
+pub const FIRST_TAB: &str = "View";
+/// The theme the window starts in, by the name it is kept under: the system's.
+pub const START_THEME: &str = "system";
+/// The themes a remembered one is held between, by the names they are kept under.
+pub const THEMES: [&str; 3] = [START_THEME, "light", "dark"];
 
 /// What is remembered. A file that lacks a part has that part as Voxa starts.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "a settings file of independent switches, each kept by its own name"
+)]
 pub struct Prefs {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
     /// for the size Voxa starts at.
@@ -36,8 +54,21 @@ pub struct Prefs {
     pub interface_size: f32,
     /// The share of the window's width the series list takes.
     pub list_share: f32,
-    /// The share of the middle of the window the column beside the large part takes.
-    pub column_share: f32,
+    /// The share of the middle of the window the column beside the large part took, in a
+    /// settings file of Voxa 0.6.0: read to give the tab panel its width, and never written.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub column_share: Option<f32>,
+    /// The share of the window's width the tab panel takes; `None` until the person has dragged
+    /// it to one, or a settings file of Voxa 0.6.0 gave its column's width.
+    pub panel_share: Option<f32>,
+    /// Whether the tab panel is folded to a strip of icons.
+    pub panel_folded: bool,
+    /// Whether the series list is folded to its strip, as the person left it: a fold the window
+    /// made because it was narrow is not kept.
+    pub rail_folded: bool,
+    /// The tab last open, by the name it is kept under: `View`, `Measure`, `Scene`, `Labels` or
+    /// `Tools`. A name that is not one of these opens the first.
+    pub tab: String,
     /// How many viewports: 1, 2 or 4.
     pub viewports: u8,
     /// Whether the patient's left is shown on the right, as radiology has it.
@@ -49,11 +80,15 @@ pub struct Prefs {
     /// The memory budget for decoded scans, in mebibytes; `None` for the default (see
     /// [`crate::budget`]). Nothing in the window sets it yet: it is set in the file by hand.
     pub memory_mib: Option<u32>,
+    /// The theme the window is drawn in: `system`, `light` or `dark`. A name that is not one of
+    /// these is the system's.
+    pub theme: String,
 }
 
 /// How the window itself is set out, which the state does not hold: its size, the size of
-/// the interface, and how wide the person dragged the series list and the column.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// the interface, how wide the person dragged the series list and the tab panel, which tab
+/// is open, and which theme it is drawn in.
+#[derive(Debug, Clone, PartialEq)]
 pub struct Arrangement {
     /// The window's size inside its frame, in points at the interface's usual size; `None`
     /// for the size Voxa starts at.
@@ -62,8 +97,16 @@ pub struct Arrangement {
     pub interface_size: f32,
     /// The share of the window's width the series list takes.
     pub list_share: f32,
-    /// The share of the middle of the window the column beside the large part takes.
-    pub column_share: f32,
+    /// The share of the window's width the tab panel takes, once the person has chosen one.
+    pub panel_share: Option<f32>,
+    /// Whether the tab panel is folded to a strip of icons.
+    pub panel_folded: bool,
+    /// Whether the series list is folded to its strip, as the person left it.
+    pub rail_folded: bool,
+    /// The tab last open, by the name it is kept under.
+    pub tab: String,
+    /// The theme the window is drawn in, by the name it is kept under.
+    pub theme: String,
 }
 
 impl Default for Arrangement {
@@ -72,7 +115,11 @@ impl Default for Arrangement {
             window: None,
             interface_size: 1.0,
             list_share: LIST_SHARE,
-            column_share: COLUMN_SHARE,
+            panel_share: None,
+            panel_folded: false,
+            rail_folded: false,
+            tab: FIRST_TAB.to_owned(),
+            theme: START_THEME.to_owned(),
         }
     }
 }
@@ -118,7 +165,12 @@ impl Prefs {
             window: arrangement.window,
             interface_size: arrangement.interface_size,
             list_share: arrangement.list_share,
-            column_share: arrangement.column_share,
+            column_share: None,
+            panel_share: arrangement.panel_share,
+            panel_folded: arrangement.panel_folded,
+            rail_folded: arrangement.rail_folded,
+            tab: arrangement.tab,
+            theme: arrangement.theme,
             viewports,
             radiological: state.radiological,
             linked: state.planes.linked,
@@ -133,7 +185,11 @@ impl Prefs {
             window: self.window,
             interface_size: self.interface_size,
             list_share: self.list_share,
-            column_share: self.column_share,
+            panel_share: self.panel_share,
+            panel_folded: self.panel_folded,
+            rail_folded: self.rail_folded,
+            tab: self.tab.clone(),
+            theme: self.theme.clone(),
         }
     }
 
@@ -175,9 +231,12 @@ impl Prefs {
         if !a_share(self.list_share) {
             self.list_share = start.list_share;
         }
-        if !a_share(self.column_share) {
-            self.column_share = start.column_share;
-        }
+        self.panel_share = self.panel_share.filter(|share| a_share(*share));
+        // The column of pictures of 0.6.0 gives the tab panel in its place its width, unless the
+        // person has dragged the panel: what the column took of what the series list left.
+        let column = self.column_share.take().filter(|share| a_share(*share));
+        let carried = column.map(|share| (share * (1.0 - self.list_share)).min(PANEL_MOST_SHARE));
+        self.panel_share = self.panel_share.or(carried);
         if layout_of(self.viewports).is_none() {
             self.viewports = start.viewports;
         }
@@ -186,6 +245,9 @@ impl Prefs {
         }
         let (least, most) = MEMORY_MIB.into_inner();
         self.memory_mib = self.memory_mib.map(|mib| mib.clamp(least, most));
+        if !THEMES.contains(&self.theme.as_str()) {
+            self.theme = start.theme;
+        }
         self
     }
 }
@@ -262,5 +324,7 @@ impl Kept {
     }
 }
 
+#[cfg(test)]
+mod carried_tests;
 #[cfg(test)]
 mod tests;

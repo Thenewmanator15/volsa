@@ -12,10 +12,12 @@ use crate::annotations::{Annotation, Shape, Tool};
 pub use crate::effect::Effect;
 use crate::labelling::LabellingAction;
 use crate::labels::NamesFrom;
-use crate::planes::ColumnShows;
-use crate::scene::MainPanel;
+use crate::pictures::Pictures;
 use crate::state::{Layout, Notice, PresetWindows};
 use crate::views::ViewsAction;
+
+mod document;
+pub use document::DocumentAction;
 
 /// One thing that happened: something the person did, or something a worker finished.
 /// [`reduce`](crate::reduce) is the only code that acts on these.
@@ -169,8 +171,8 @@ pub enum Action {
     /// Tell the person something the window itself has to say, such as how saving a file
     /// went. A notice with a key takes the place of the last with that key.
     Post(Notice),
-    /// Give the 3D scene or the 2D viewports the large part of the window.
-    SetMain(MainPanel),
+    /// Arrange the pictures in the middle of the window.
+    SetPictures(Pictures),
     /// The scene's picture has a new size.
     SceneResized {
         /// Its width and height, in pixels.
@@ -291,8 +293,6 @@ pub enum Action {
     },
     /// Show the whole of a plane again, undoing zoom and pan.
     PlaneFit(PlaneKind),
-    /// Choose what the column beside the 3D scene shows.
-    SetColumn(ColumnShows),
     /// Link the stack viewports to the planes' position, or let them go.
     SetLinked(bool),
     /// Draw the plane views from a curve through the measured values, or plainly.
@@ -393,4 +393,6 @@ pub enum Action {
     },
     /// Something about labelling the scan with Voxa's own networks.
     Labelling(LabellingAction),
+    /// Something about the document open in the place of the pictures.
+    Document(DocumentAction),
 }

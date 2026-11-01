@@ -7,6 +7,10 @@ use super::VoxaApp;
 use super::scene::{self, export};
 use crate::action::Action;
 
+/// The most steps a volume is handed to the graphics device in before a picture of it is
+/// drawn: more than a volume as large as any card holds takes, a slab a step.
+const MOST_STEPS: usize = 4096;
+
 impl VoxaApp {
     /// Save the 3D scene as the person asked: a picture at once, a turntable a picture a frame
     /// with its progress shown and a way to stop. How it went is posted as a notice.
@@ -17,6 +21,9 @@ impl VoxaApp {
         asked: Option<export::Asked>,
         actions: &mut Vec<Action>,
     ) {
+        if asked.is_some() || self.turntable.is_some() {
+            self.hold_the_scene(render, ctx, actions);
+        }
         let state = self.session.state();
         let viewport = state.scene.viewport;
         let wanted = asked.zip(scene::scene_params(state, 1.0));
@@ -61,4 +68,30 @@ impl VoxaApp {
             None => {}
         }
     }
+
+    /// Put the scene's volume on the graphics device for a picture of it to be drawn: the
+    /// arrangement shown may have no 3D view in it, which is what puts it there otherwise. A
+    /// picture is drawn from the whole volume, so what is still to be handed over goes now,
+    /// at once, not a slab a frame.
+    fn hold_the_scene(
+        &mut self,
+        render: Option<&RenderState>,
+        ctx: &egui::Context,
+        actions: &mut Vec<Action>,
+    ) {
+        let shown = self.session.state().scene.series.as_ref();
+        let volume = shown.and_then(|series| self.session.volume(series));
+        for _ in 0..MOST_STEPS {
+            if let Some(halved) = self.scene.keep_on_card(render, volume.as_ref(), ctx) {
+                actions.push(Action::SceneUploaded { halved });
+                return;
+            }
+            if !self.scene.is_uploading() {
+                return;
+            }
+        }
+    }
 }
+
+#[cfg(test)]
+mod tests;

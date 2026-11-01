@@ -6,8 +6,7 @@ use voxa_render::ViewTransform;
 
 use super::browser::date_in_words;
 use crate::action::Action;
-use crate::scene::MainPanel;
-use crate::state::Layout;
+use crate::profile::{Unit, readout};
 
 /// How much one wheel notch with Ctrl held magnifies.
 pub(super) const ZOOM_PER_NOTCH: f32 = 1.1;
@@ -17,47 +16,6 @@ pub(super) const WINDOW_PER_PIXEL: f32 = 1.0 / 256.0;
 const BAR_LENGTHS_MM: [f32; 7] = [100.0, 50.0, 20.0, 10.0, 5.0, 2.0, 1.0];
 /// Said in a corner when the files do not say where the slices are.
 pub const NO_POSITION: &str = "No position data: orientation and scale are unavailable";
-
-/// How many slices Page Up and Page Down step.
-const PAGE: i32 = 10;
-/// The keys egui itself answers to for the size of the interface, as the reference names them.
-pub const SIZE_KEYS: &str = "Ctrl+= / Ctrl+- / Ctrl+0";
-
-/// Every key Voxa answers to, with what it does, in the order the reference shows them.
-pub const SHORTCUTS: [(&str, &str); 20] = [
-    ("H", "Mirror the picture left to right"),
-    ("V", "Mirror the picture top to bottom"),
-    ("R", "Turn the picture a quarter turn clockwise"),
-    (
-        "F",
-        "Fit the whole picture in the viewport, and the whole volume in 3D",
-    ),
-    ("1", "One viewport"),
-    ("2", "Two viewports side by side"),
-    ("4", "Four viewports"),
-    ("Space", "Play or pause through the slices"),
-    ("Up and Down", "The slice before and the slice after"),
-    ("Page Up and Page Down", "Ten slices back and ten on"),
-    ("Home and End", "The first slice and the last"),
-    (
-        "[ and ]",
-        "The volume before and the volume after, of a series that holds several",
-    ),
-    ("M", "Open or close the measurements"),
-    ("Ctrl+Z", "Take back the last change to the measurements"),
-    ("Ctrl+Y", "Do it again (Ctrl+Shift+Z too)"),
-    (
-        "Esc",
-        "Put the tool down; with none in hand, give 3D the large part of the window",
-    ),
-    ("B", "Show or hide the series list"),
-    ("F11", "Full screen, or back to a window"),
-    (
-        SIZE_KEYS,
-        "Draw the interface larger, smaller, or at its usual size",
-    ),
-    ("?", "Show this list"),
-];
 
 /// The letter at each edge of a viewport saying which way in the patient that edge lies:
 /// `L`eft, `R`ight, `A`nterior (front), `P`osterior (back), `S`uperior (head), `I`nferior.
@@ -218,9 +176,41 @@ pub fn corner_text(
     let window = if series.colour {
         Vec::new()
     } else {
-        vec![format!("W {:.0}  L {:.0}", wl.width, wl.center)]
+        vec![format!(
+            "W {}  L {}",
+            window_number(wl.width),
+            window_number(wl.center)
+        )]
     };
     [who_and_when, what, which, window]
+}
+
+/// A width or a level of a window as it is written, in the corner of a picture and in the View
+/// tab alike: no decimals from 100 up, one from 10, and below that three figures that matter,
+/// so that a map of small values is not written as `W 0  L 0`.
+pub fn window_number(value: f32) -> String {
+    if !value.is_finite() {
+        return String::new();
+    }
+    let size = value.abs();
+    if size == 0.0 {
+        return "0".to_owned();
+    }
+    let (mut decimals, mut next) = (0_usize, 100.0_f32);
+    while size < next && decimals < MOST_DECIMALS {
+        decimals += 1;
+        next /= 10.0;
+    }
+    format!("{value:.decimals$}")
+}
+
+/// The most decimals a window's width or level is written with.
+const MOST_DECIMALS: usize = 6;
+
+/// What a corner of a picture says of the value under the pointer: `Value -12 HU`, or with the
+/// unit the scan's files give it, or with none. `None` for a value that is not a number.
+pub fn value_line(value: f32, unit: &Unit<'_>) -> Option<String> {
+    readout(value, unit).map(|said| format!("Value {said}"))
 }
 
 /// What the mouse did over one viewport since the last frame.
@@ -295,52 +285,6 @@ pub fn steps_slices(key: Key) -> bool {
         key,
         Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown
     )
-}
-
-/// What a key asks of the active viewport or the layout. `None` for a key Voxa does not use,
-/// and for `?`, which opens the reference without changing any state. Down and Page Down
-/// move on to later slices, as the wheel does turned towards the person; End asks for the
-/// largest slice there is, which stops at the last.
-pub fn shortcut_action(key: Key, active: usize) -> Option<Action> {
-    let viewport = active;
-    Some(match key {
-        Key::H => Action::Flip {
-            viewport,
-            horizontal: true,
-        },
-        Key::V => Action::Flip {
-            viewport,
-            horizontal: false,
-        },
-        Key::R => Action::Rotate { viewport },
-        Key::F => Action::Fit { viewport },
-        Key::Num1 => Action::SetLayout(Layout::One),
-        Key::Num2 => Action::SetLayout(Layout::TwoAcross),
-        Key::Num4 => Action::SetLayout(Layout::TwoByTwo),
-        Key::Space => Action::CineToggle { viewport },
-        Key::ArrowDown => Action::Scroll { viewport, delta: 1 },
-        Key::ArrowUp => Action::Scroll {
-            viewport,
-            delta: -1,
-        },
-        Key::PageDown => Action::Scroll {
-            viewport,
-            delta: PAGE,
-        },
-        Key::PageUp => Action::Scroll {
-            viewport,
-            delta: -PAGE,
-        },
-        Key::Home => Action::SetSlice { viewport, slice: 0 },
-        Key::End => Action::SetSlice {
-            viewport,
-            slice: usize::MAX,
-        },
-        Key::OpenBracket => Action::StepVolume { viewport, by: -1 },
-        Key::CloseBracket => Action::StepVolume { viewport, by: 1 },
-        Key::Escape => Action::SetMain(MainPanel::Scene),
-        _ => return None,
-    })
 }
 
 #[cfg(test)]

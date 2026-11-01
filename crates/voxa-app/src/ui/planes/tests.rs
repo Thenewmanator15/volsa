@@ -7,6 +7,7 @@ use voxa_volume::{Plane, PlaneKind, plane_of};
 use super::mouse::{PlaneInput, plane_input_to_actions};
 use super::overlay::{
     Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_letters,
+    value_under,
 };
 use crate::action::Action;
 
@@ -294,4 +295,93 @@ fn the_curve_is_asked_for_only_while_smoothing_is_wanted() {
     assert_eq!(view.smooth(None, Some(&volume), None, take), nothing);
     assert_eq!(view.smooth(None, Some(&volume), None, take), nothing);
     assert_eq!(asked.get(), 2, "looked for each frame until it is there");
+}
+
+/// A state whose scene shows the made-up single slice of this modality.
+fn scene_of(modality: &str, rescale_type: Option<&str>) -> crate::state::AppState {
+    let mut state = crate::testing::showing_a_scan_of(modality, rescale_type);
+    state.scene.series = Some(crate::testing::id(crate::testing::KIND_SCAN));
+    state
+}
+
+/// A volume of two voxels along x, holding -12 and 8, one millimetre apart, held as a
+/// series' volume is.
+fn two_voxels() -> voxa_core::HeldVolume {
+    let placement =
+        Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0], [0.0; 3]);
+    let volume = voxa_core::Volume::new([2, 1, 1], vec![-12.0, 8.0], placement).expect("adds up");
+    crate::testing::held_of(&volume)
+}
+
+#[test]
+fn the_value_under_the_pointer_on_a_plane_is_read_from_the_volume_in_the_scans_unit() {
+    let scan = two_voxels();
+    let at = Some(Point::new(0.0, 0.0, 0.0));
+    let said = |state: &crate::state::AppState, at| value_under(state, Some(&scan), at);
+    assert_eq!(
+        said(&scene_of("CT", None), at).as_deref(),
+        Some("Value -12 HU")
+    );
+    let unspecified = scene_of("CT", Some("US"));
+    assert_eq!(
+        said(&unspecified, at).as_deref(),
+        Some("Value -12 (no unit)")
+    );
+    let named = scene_of("CT", Some("MGML"));
+    assert_eq!(said(&named, at).as_deref(), Some("Value -12 MGML"));
+    let mr = scene_of("MR", None);
+    assert_eq!(said(&mr, at).as_deref(), Some("Value -12 (no unit)"));
+}
+
+#[test]
+fn between_two_voxels_the_value_is_the_nearest_voxels_never_a_blend() {
+    // The planes may be drawn smooth, but a value read off them is one a voxel holds, as it is
+    // on a slice: -12 and 8 are in the volume, and -2 between them is in neither.
+    let scan = two_voxels();
+    let state = scene_of("CT", None);
+    let said = |x: f64| value_under(&state, Some(&scan), Some(Point::new(x, 0.0, 0.0)));
+    assert_eq!(said(0.4).as_deref(), Some("Value -12 HU"));
+    assert_eq!(said(0.6).as_deref(), Some("Value 8 HU"));
+    // Within half a voxel beyond an edge the edge voxel is read; further, nothing is.
+    assert_eq!(said(-0.4).as_deref(), Some("Value -12 HU"));
+    assert_eq!(said(1.4).as_deref(), Some("Value 8 HU"));
+    assert_eq!(said(-0.6), None);
+    assert_eq!(said(1.6), None);
+    assert_eq!(said(f64::NAN), None);
+}
+
+#[test]
+fn off_the_volume_or_with_nothing_to_read_the_plane_says_no_value() {
+    let scan = two_voxels();
+    let state = scene_of("CT", None);
+    let away = Some(Point::new(40.0, 0.0, 0.0));
+    assert_eq!(value_under(&state, Some(&scan), away), None, "outside it");
+    let at = Some(Point::new(0.0, 0.0, 0.0));
+    assert_eq!(value_under(&state, None, at), None, "no volume yet");
+    assert_eq!(value_under(&state, Some(&scan), None), None, "no pointer");
+    let unplaced = crate::state::AppState::default();
+    assert_eq!(
+        value_under(&unplaced, Some(&scan), at),
+        None,
+        "no scan in the scene"
+    );
+}
+
+#[test]
+fn the_value_is_written_in_the_top_right_corner_of_a_panel_and_nothing_without_one() {
+    use crate::ui::hand::Hand;
+    let cell = egui::Rect::from_min_size(egui::pos2(0.0, 0.0), egui::vec2(300.0, 300.0));
+    let hand = Hand::new(300.0, 300.0);
+    let line = Some("Value -12 HU".to_owned());
+    let seen = hand.settle(&mut |ui| super::write_value(ui, cell, line.clone()));
+    // Each is written twice, the second time as a shadow beneath.
+    assert_eq!(seen.words, ["Value -12 HU", "Value -12 HU"]);
+    let at = seen.text_bounds("Value -12 HU").expect("written");
+    assert!(
+        at.right() > cell.center().x && at.top() < cell.center().y / 2.0,
+        "in the top right corner: {at:?}"
+    );
+    assert!(cell.contains_rect(at));
+    let seen = hand.settle(&mut |ui| super::write_value(ui, cell, None));
+    assert_eq!(seen.words, Vec::<String>::new());
 }

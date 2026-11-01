@@ -1,15 +1,16 @@
-//! The tag browser: every element of the file behind the slice being shown.
-
-use std::sync::mpsc::{Receiver, Sender, channel};
+//! The tag browser: every element of one file, the one behind the slice being shown, the
+//! first of a series whose card asked for it, or a document's file.
 
 use egui::RichText;
-use voxa_core::SeriesId;
 use voxa_dicom::{TagRow, is_patient_identifying};
 
-use super::theme;
+use super::{access, floating, theme};
 use crate::action::Action;
 use crate::state::AppState;
-use crate::worker::Workers;
+
+mod panel;
+
+pub use panel::Panel;
 
 /// What stands in for the value of an element that could identify the patient.
 pub const HIDDEN: &str = "hidden";
@@ -18,7 +19,10 @@ const HIDDEN_KINDS: &str = "that could identify the patient: the patient's own, 
                             the place of the scan, the numbers of its order, and makers' \
                             private values.";
 /// Where the patient's details are shown again.
-const SHOWS_THEM: &str = "\"Patient details\" in the toolbar shows them.";
+const SHOWS_THEM: &str = "\"Show patient details\" in the View tab shows them.";
+
+/// The title of the tag browser window.
+const TITLE: &str = "DICOM tags";
 
 /// The rows of a file, or why they could not be listed.
 pub type Listing = Result<Vec<TagRow>, String>;
@@ -74,65 +78,9 @@ pub fn hidden_note(rows: &[TagRow]) -> String {
     }
 }
 
-/// The tag browser's window and the listing it shows. The rows hold the patient's details,
-/// so they are kept here and never put into the application state or an action.
-pub struct Panel {
-    /// Whether the window is open.
-    pub open: bool,
-    /// The slice whose file was last asked for.
-    asked: Option<(SeriesId, usize)>,
-    listing: Listing,
-    send: Sender<((SeriesId, usize), Listing)>,
-    replies: Receiver<((SeriesId, usize), Listing)>,
-}
-
-impl Default for Panel {
-    fn default() -> Self {
-        let (send, replies) = channel();
-        Self {
-            open: false,
-            asked: None,
-            listing: Ok(Vec::new()),
-            send,
-            replies,
-        }
-    }
-}
-
-impl Panel {
-    /// While the window is open, ask a worker for the tags of the file behind the slice the
-    /// active viewport shows whenever that slice changes, and take in any answer.
-    pub fn refresh(&mut self, state: &AppState, workers: &Workers, ctx: &egui::Context) {
-        if !self.open {
-            self.asked = None;
-            return;
-        }
-        let viewport = state.viewports.get(state.active);
-        let wanted = viewport.and_then(|v| v.series.clone().map(|series| (series, v.slice)));
-        if wanted != self.asked {
-            self.asked.clone_from(&wanted);
-            self.listing = Ok(Vec::new());
-            let listed = wanted.as_ref().and_then(|(series, _)| state.series(series));
-            if let (Some(listed), Some(key)) = (listed, wanted) {
-                let (send, ctx, slice) = (self.send.clone(), ctx.clone(), key.1);
-                workers.list_tags(listed, slice, move |rows| {
-                    // If the window has gone there is no one left to tell.
-                    let _ = send.send((key, rows));
-                    ctx.request_repaint();
-                });
-            }
-        }
-        while let Ok((key, rows)) = self.replies.try_recv() {
-            if self.asked.as_ref() == Some(&key) {
-                self.listing = rows;
-            }
-        }
-    }
-
-    /// Draw the window if it is open.
-    pub fn show(&mut self, ctx: &egui::Context, state: &AppState, actions: &mut Vec<Action>) {
-        show(ctx, &mut self.open, state, &self.listing, actions);
-    }
+/// The interface's own name for the tag browser window, which it keeps its place under.
+pub(super) fn id() -> egui::Id {
+    egui::Id::new("voxa: tags")
 }
 
 /// The tag browser window: a search field, then the rows that match it.
@@ -143,24 +91,31 @@ pub fn show(
     listing: &Listing,
     actions: &mut Vec<Action>,
 ) {
-    egui::Window::new("DICOM tags")
+    floating::over(egui::Window::new(TITLE), ctx)
+        .id(id())
         .open(open)
         .default_size([620.0, 440.0])
         .show(ctx, |ui| {
             let mut filter = state.tag_filter.clone();
             ui.horizontal(|ui| {
                 ui.label("Search");
-                if ui.text_edit_singleline(&mut filter).changed() {
+                let field = ui.text_edit_singleline(&mut filter);
+                access::call(&field, "Search the tags");
+                if field.changed() {
                     actions.push(Action::SetTagFilter(filter.clone()));
                 }
             });
             if !state.show_patient {
                 let note = hidden_note(listing.as_deref().unwrap_or_default());
-                ui.label(RichText::new(note).small().color(theme::QUIET_TEXT));
+                ui.label(
+                    RichText::new(note)
+                        .small()
+                        .color(theme::palette(ui.ctx()).quiet_text),
+                );
             }
             match listing {
                 Err(why) => {
-                    ui.label(RichText::new(why).color(theme::WARNING));
+                    ui.label(RichText::new(why).color(theme::palette(ui.ctx()).warning));
                 }
                 Ok(rows) if rows.is_empty() => {
                     ui.label("Show a series to see the tags of the file behind the slice.");
@@ -185,7 +140,11 @@ fn table(ui: &mut egui::Ui, shown: &[ShownTag<'_>]) {
                     for tag in shown {
                         ui.label(RichText::new(tag.tag).monospace());
                         ui.label(tag.keyword);
-                        ui.label(RichText::new(tag.vr).monospace().color(theme::QUIET_TEXT));
+                        ui.label(
+                            RichText::new(tag.vr)
+                                .monospace()
+                                .color(theme::palette(ui.ctx()).quiet_text),
+                        );
                         ui.label(tag.value);
                         ui.end_row();
                     }
@@ -315,7 +274,7 @@ mod tests {
 
     #[test]
     fn the_window_says_how_many_values_are_hidden() {
-        let shows = "\"Patient details\" in the toolbar shows them.";
+        let shows = "\"Show patient details\" in the View tab shows them.";
         let kinds = "that could identify the patient: the patient's own, the people and the place \
                      of the scan, the numbers of its order, and makers' private values.";
         assert_eq!(

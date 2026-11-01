@@ -2,7 +2,8 @@
 //!
 //! Real scans never enter the repository, so every test builds the files it needs here: a
 //! single-frame MR slice ([`classic_slice`]), a whole series in one multi-frame file
-//! ([`enhanced_series`]), and a source held in memory ([`MemorySource`]).
+//! ([`enhanced_series`]), a structured report ([`structured_report`]), a PDF in a DICOM file
+//! ([`encapsulated_pdf`]), and a source held in memory ([`MemorySource`]).
 //!
 //! This is test support code: a mistake in a builder should stop the test at once, so unlike
 //! the rest of the crate it is allowed to panic.
@@ -14,11 +15,13 @@ use crate::source::{Entry, SeriesSource};
 
 mod build;
 mod nested;
+mod report_item;
 #[cfg(test)]
 mod tests;
 
-pub use build::{classic_slice, enhanced_series};
+pub use build::{classic_slice, encapsulated_pdf, enhanced_series, structured_report};
 pub use nested::{IMPLICIT_VR_LITTLE_ENDIAN, Nesting, nested_slice};
+pub use report_item::ReportItem;
 
 /// Transfer syntax the builders write: explicit VR little endian.
 pub const EXPLICIT_VR_LITTLE_ENDIAN: &str = "1.2.840.10008.1.2.1";
@@ -57,6 +60,9 @@ pub struct SliceOptions {
     pub orientation: Option<[f64; 6]>,
     /// `PixelSpacing` (between rows, between columns), or absent.
     pub pixel_spacing: Option<[f64; 2]>,
+    /// `ImagerPixelSpacing` (a detector's spacing, which says nothing about the body), or
+    /// absent.
+    pub imager_pixel_spacing: Option<[f64; 2]>,
     /// `SliceThickness`, or absent.
     pub slice_thickness: Option<f64>,
     /// Stored 16-bit values, row by row. Empty means a ramp 0, 1, 2, … For signed pixels give
@@ -71,6 +77,9 @@ pub struct SliceOptions {
     pub slope: f64,
     /// `RescaleIntercept`.
     pub intercept: f64,
+    /// `RescaleType`, or absent. A multi-frame file writes it in each frame's pixel value
+    /// transformation, beside that frame's slope and intercept.
+    pub rescale_type: Option<String>,
     /// Write `MONOCHROME1` (bright stored values are dark) instead of `MONOCHROME2`.
     pub monochrome1: bool,
     /// Transfer syntax named in the file header. The data are always written as explicit VR
@@ -161,12 +170,14 @@ impl Default for SliceOptions {
             position: Some([-100.0, -120.0, 0.0]),
             orientation: Some([1.0, 0.0, 0.0, 0.0, 1.0, 0.0]),
             pixel_spacing: Some([0.9, 0.9]),
+            imager_pixel_spacing: None,
             slice_thickness: Some(5.0),
             stored: Vec::new(),
             signed: false,
             bits_stored: 16,
             slope: 1.0,
             intercept: 0.0,
+            rescale_type: None,
             monochrome1: false,
             transfer_syntax: EXPLICIT_VR_LITTLE_ENDIAN.to_owned(),
             drop_pixels: 0,
@@ -214,11 +225,55 @@ impl EnhancedFrame {
 #[derive(Debug, Clone)]
 pub struct EnhancedOptions {
     /// The values shared with single-frame files: study, patient, series, size, orientation,
-    /// pixel spacing and thickness. Its `position`, `stored`, `slope` and `intercept` are
-    /// ignored in favour of each frame's own.
+    /// pixel spacing, thickness and rescale type. Its `position`, `stored`, `slope` and
+    /// `intercept` are ignored in favour of each frame's own.
     pub common: SliceOptions,
     /// The frames, in the order they are stored in the file.
     pub frames: Vec<EnhancedFrame>,
+}
+
+/// What a made-up document, a report or a PDF, says about itself. Start from
+/// [`DocumentOptions::default`], which is in the same study as the default slice.
+#[derive(Debug, Clone)]
+pub struct DocumentOptions {
+    /// `StudyInstanceUID`.
+    pub study_uid: String,
+    /// `StudyDate` as `YYYYMMDD`, or absent.
+    pub study_date: Option<String>,
+    /// `ContentDate` as `YYYYMMDD`, or absent.
+    pub content_date: Option<String>,
+    /// `SeriesInstanceUID`.
+    pub series_uid: String,
+    /// `SeriesDescription`, or absent when empty.
+    pub series_description: String,
+    /// `InstanceNumber`; also the last part of the `SOPInstanceUID`.
+    pub instance_number: i32,
+    /// `PatientName`; the default is an obviously made-up phantom.
+    pub patient_name: String,
+    /// `PatientID`.
+    pub patient_id: String,
+    /// A report's title, which is the meaning of its first concept name, or a PDF's
+    /// `DocumentTitle`; absent when empty.
+    pub title: String,
+    /// The `SOPClassUID` to write in place of the one the builder would write.
+    pub sop_class: Option<String>,
+}
+
+impl Default for DocumentOptions {
+    fn default() -> Self {
+        Self {
+            study_uid: "1.2.826.0.1.3680043.9.9999.1".to_owned(),
+            study_date: Some("20200102".to_owned()),
+            content_date: None,
+            series_uid: "1.2.826.0.1.3680043.9.9999.1.900".to_owned(),
+            series_description: String::new(),
+            instance_number: 1,
+            patient_name: "Phantom^Test".to_owned(),
+            patient_id: "PHANTOM-001".to_owned(),
+            title: "Made-up document".to_owned(),
+            sop_class: None,
+        }
+    }
 }
 
 /// A source held in memory: named byte strings.

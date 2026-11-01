@@ -6,6 +6,7 @@ use std::num::NonZero;
 use voxa_core::VoxaError;
 
 use super::{Found, REPORT_EVERY, is_directory_file};
+use crate::document::{self, IndexedDocument};
 use crate::header::{Header, Start, read_header_from};
 use crate::nesting::{READING_STACK_BYTES, Refused};
 use crate::source::{MAX_ENTRY_BYTES, SeriesSource};
@@ -19,8 +20,10 @@ const FEWEST_EACH: usize = 32;
 pub(super) enum Read {
     /// A `DICOMDIR`, passed over without being read.
     Directory,
-    /// Not a DICOM image.
+    /// Not a DICOM image, nor a document.
     NotAnImage,
+    /// A DICOM file with no image but a document: a report, a PDF or the like.
+    Document(Box<IndexedDocument>),
     /// An image's header.
     Header(Box<Header>),
     /// A file that is not read, for the reason given: one nested too deeply to read safely.
@@ -36,9 +39,13 @@ pub(super) fn read_one(name: &str, contents: &mut dyn std::io::Read) -> Result<R
     if is_directory_file(name) {
         return Ok(Read::Directory);
     }
-    Ok(match read_header_from(contents, MAX_ENTRY_BYTES)? {
+    let (start, bytes) = read_header_from(contents, MAX_ENTRY_BYTES)?;
+    Ok(match start {
         Start::Image(header) => Read::Header(header),
-        Start::NotAnImage => Read::NotAnImage,
+        Start::NotAnImage => match document::of(name, &bytes) {
+            Some(document) => Read::Document(Box::new(document)),
+            None => Read::NotAnImage,
+        },
         Start::Refused(why) => Read::Refused(why),
     })
 }
@@ -103,6 +110,10 @@ impl Found {
             Read::Directory => false,
             Read::NotAnImage => {
                 self.skipped.push(name);
+                false
+            }
+            Read::Document(document) => {
+                self.documents.push(*document);
                 false
             }
             Read::Refused(why) => {

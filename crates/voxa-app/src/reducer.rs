@@ -2,15 +2,20 @@
 
 use std::collections::HashMap;
 
-use voxa_core::SeriesId;
-use voxa_dicom::best_series;
+use voxa_core::{SeriesId, SeriesInfo};
+use voxa_dicom::{Index, best_series};
 
-use crate::action::{Action, Effect};
+use crate::action::{Action, DocumentAction, Effect};
+use crate::naming::{Group, group_of};
+use crate::people::first_of;
+use crate::pictures::Pictures;
 use crate::planes::Planes;
-use crate::scene::{MainPanel, Scene};
+use crate::scene::Scene;
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod documents;
+mod found;
 mod frame;
 mod labelling;
 mod labels;
@@ -46,8 +51,9 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let before = link::Before::of(state, &action);
     let smoothed = planes::smoothing(state);
     let mut effects = act(state, action);
-    if fit && state.main == MainPanel::Scene {
-        // The key that shows the whole slice again shows the whole volume again too.
+    if fit && state.pictures.given(&state.scene.status) == Pictures::Scene {
+        // The key that shows the whole slice again shows the whole volume again too, while the
+        // 3D view is shown alone.
         scene::refit(state);
     }
     effects.extend(if rebuild {
@@ -80,7 +86,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::SetTagFilter(_)
         | Action::DismissNotice(_)
         | Action::Post(_)
-        | Action::SetMain(_) => {
+        | Action::SetPictures(_) => {
             window(state, action);
             Vec::new()
         }
@@ -115,6 +121,9 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
             annotations::reduce(state, about_annotations)
         }
         Action::Labelling(about_labelling) => labelling::reduce(state, about_labelling),
+        about_a_document if documents::concerns(&about_a_document) => {
+            documents::reduce(state, about_a_document)
+        }
         about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
@@ -137,9 +146,10 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
                 .collect();
         }
         Action::IndexProgress(index) => {
-            post(state, SKIPPED, skipped_notice(&index.skipped));
-            post(state, REFUSED, refused_notice(&index.refused));
+            post(state, SKIPPED, found::skipped_notice(&index.skipped));
+            post(state, REFUSED, found::refused_notice(&index.refused));
             state.index = Some(index);
+            state.index_changes += 1;
         }
         Action::IndexFailed(why) => {
             let notice = Notice {
@@ -185,17 +195,17 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
 /// and what the person chose to see is kept; everything about the scan is gone.
 fn emptied(state: &AppState) -> AppState {
     AppState {
+        index_changes: state.index_changes + 1,
         layout: state.layout,
         active: state.active,
         radiological: state.radiological,
         show_patient: state.show_patient,
-        main: state.main,
+        pictures: state.pictures,
         scene: Scene {
             viewport: state.scene.viewport,
             ..Scene::default()
         },
         planes: Planes {
-            column: state.planes.column,
             linked: state.planes.linked,
             smooth: state.planes.smooth,
             ..Planes::default()
@@ -219,7 +229,7 @@ fn window(state: &mut AppState, action: Action) {
         Action::ToggleRadiological => state.radiological = !state.radiological,
         Action::TogglePatient => state.show_patient = !state.show_patient,
         Action::SetTagFilter(filter) => state.tag_filter = filter,
-        Action::SetMain(panel) => state.main = panel,
+        Action::SetPictures(pictures) => state.pictures = pictures,
         Action::Post(notice) => match notice.key {
             Some(key) => post(state, key, Some(notice)),
             None => state.notices.push(notice),
@@ -231,7 +241,7 @@ fn window(state: &mut AppState, action: Action) {
     }
 }
 
-/// Show the most detailed series in the first viewport, unless that viewport is in use.
+/// Show the series to open first in the first viewport, unless that viewport is in use.
 fn open_best(state: &mut AppState) -> Vec<Effect> {
     let free = state
         .viewports
@@ -240,8 +250,8 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
     let best = state
         .index
         .as_ref()
-        .and_then(best_series)
-        .map(|series| series.info.id.clone());
+        .and_then(first_to_open)
+        .map(|info| info.id.clone());
     match best {
         Some(series) if free => viewport::reduce(
             state,
@@ -250,48 +260,35 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
                 series,
             },
         ),
-        _ => Vec::new(),
+        // With no series at all, the first document is what there is to show.
+        None => {
+            let index = state.index.as_ref().filter(|index| index.series.is_empty());
+            let first = index.and_then(crate::documents::first);
+            let opened = first
+                .map(|document| Action::Document(DocumentAction::Open(document.entry.clone())));
+            opened.map_or_else(Vec::new, |open| documents::reduce(state, open))
+        }
+        Some(_) => Vec::new(),
     }
+}
+
+/// The series to open first. The scans come first, always: the best of them as the index
+/// chooses it, the most detailed of the volumes; with none, the scan of the most pixels, the
+/// earlier of two as large; and with no scans at all, the first of the other files as the rail
+/// lists them.
+fn first_to_open(index: &Index) -> Option<&SeriesInfo> {
+    let all = || index.series.iter().map(|series| &series.info);
+    let scans = || all().filter(|info| group_of(info) == Group::Scans);
+    let best = best_series(index).map(|series| &series.info);
+    best.filter(|info| group_of(info) == Group::Scans)
+        .or_else(|| scans().rev().max_by_key(|info| info.voxel_count()))
+        .or_else(|| first_of(index, Group::Other))
 }
 
 /// Replace the notice with this key, or remove it when there is nothing to say.
 fn post(state: &mut AppState, key: &'static str, notice: Option<Notice>) {
     state.notices.retain(|notice| notice.key != Some(key));
     state.notices.extend(notice);
-}
-
-fn skipped_notice(skipped: &[String]) -> Option<Notice> {
-    let text = match skipped.len() {
-        0 => return None,
-        1 => "1 file skipped".to_owned(),
-        several => format!("{several} files skipped"),
-    };
-    Some(Notice {
-        kind: NoticeKind::Info,
-        text,
-        details: skipped.to_vec(),
-        key: Some(SKIPPED),
-    })
-}
-
-/// A warning that names each file refused unread, such as one nested too deeply to read
-/// safely, and says why.
-fn refused_notice(refused: &[voxa_dicom::Refused]) -> Option<Notice> {
-    let text = match refused.len() {
-        0 => return None,
-        1 => "1 file was not read".to_owned(),
-        several => format!("{several} files were not read"),
-    };
-    let details = refused
-        .iter()
-        .map(|file| format!("{}: {}", file.entry, file.reason))
-        .collect();
-    Some(Notice {
-        kind: NoticeKind::Warning,
-        text,
-        details,
-        key: Some(REFUSED),
-    })
 }
 
 /// Give a viewport still waiting for its automatic window the one worked out for the slice it
@@ -315,9 +312,13 @@ fn settle_window(
 }
 
 #[cfg(test)]
+mod annotations_left_tests;
+#[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
 mod colour_tests;
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod frame_tests;
 #[cfg(test)]
@@ -340,6 +341,8 @@ mod labels_open_tests;
 mod labels_tests;
 #[cfg(test)]
 mod link_tests;
+#[cfg(test)]
+mod pictures_tests;
 #[cfg(test)]
 mod planes_tests;
 #[cfg(test)]

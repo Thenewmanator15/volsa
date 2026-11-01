@@ -76,7 +76,9 @@ fn named(nesting: &Nesting) -> String {
 
 /// What a header read, as indexing makes it, finds at the start of `bytes`.
 fn header_of(bytes: &[u8]) -> Start {
-    read_header_from(&mut &bytes[..], MAX_ENTRY_BYTES).expect("the bytes are read")
+    read_header_from(&mut &bytes[..], MAX_ENTRY_BYTES)
+        .expect("the bytes are read")
+        .0
 }
 
 /// The file opened whole and its image decoded, as a viewport shows it.

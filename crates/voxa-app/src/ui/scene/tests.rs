@@ -163,7 +163,7 @@ fn dragging_the_slices_handle_moves_through_the_slices() {
 /// The 30-slice series ready in the scene, seen from the patient's left at half a millimetre
 /// a point with the position in the middle of the scene, which is at (410, 320) in the
 /// window. Up the screen is up the stack, and the back of the head is to the right.
-fn with_planes(column: crate::planes::ColumnShows) -> AppState {
+fn with_planes(pictures: crate::pictures::Pictures) -> AppState {
     use voxa_core::Point;
     use voxa_render::{Camera, NamedView};
 
@@ -181,7 +181,7 @@ fn with_planes(column: crate::planes::ColumnShows) -> AppState {
     });
     let series = id(THICK_SCAN);
     reduce(&mut state, Action::VolumeReady { series, corners });
-    reduce(&mut state, Action::SetColumn(column));
+    reduce(&mut state, Action::SetPictures(pictures));
     let position = state.planes.position.expect("the volume is ready");
     state.scene.camera = Camera::looking(NamedView::Left, position, 0.5);
     state
@@ -191,8 +191,8 @@ fn with_planes(column: crate::planes::ColumnShows) -> AppState {
 fn dragging_the_end_of_an_arm_of_the_cross_moves_that_plane_through_its_layers() {
     use voxa_volume::PlaneKind;
 
-    use crate::planes::ColumnShows;
-    let state = with_planes(ColumnShows::Planes);
+    use crate::pictures::Pictures;
+    let state = with_planes(Pictures::Planes);
     // The arm along the axial plane's normal stands 28 points up from the position. Slices
     // are 5 mm apart: 10 points.
     let (grip, half_way, a_layer) = ([410.0, 292.0], [410.0, 287.0], [410.0, 282.0]);
@@ -233,7 +233,7 @@ fn dragging_the_end_of_an_arm_of_the_cross_moves_that_plane_through_its_layers()
 
 #[test]
 fn with_the_planes_out_of_sight_there_is_no_cross_to_take_hold_of() {
-    let state = with_planes(crate::planes::ColumnShows::Slices);
+    let state = with_planes(crate::pictures::Pictures::Scene);
     let asked = after(&state, drag([410.0, 292.0], [410.0, 282.0]));
     assert_eq!(asked, [Action::SceneOrbit { by: [0.0, -10.0] }]);
 }
@@ -250,4 +250,22 @@ fn in_a_narrow_picture_the_words_go_beneath_the_letter_and_take_the_whole_width(
     let (down, wide) = caption_room(376.0);
     assert_eq!(wide, 376.0, "a quarter of the window: the whole width");
     assert!(down >= 18.0, "and beneath the letter: {down}");
+}
+
+#[test]
+fn the_pictures_own_writing_is_told_to_the_measurements_that_keep_clear_of_it() {
+    use crate::testing::thick_scan_ready;
+    use crate::ui::hand::Hand;
+    let state = thick_scan_ready();
+    let area = Rect::from_min_size(pos2(0.0, 0.0), egui::vec2(600.0, 400.0));
+    let hand = Hand::new(600.0, 400.0);
+    let mut taken = Vec::new();
+    let seen = hand.settle(&mut |ui| taken = written_over(ui, area, &state));
+    // Everything written: the letter at each edge, the scale bar's label, and the words.
+    let covered = |at: Rect| taken.iter().any(|rect| rect.expand(1.5).contains_rect(at));
+    for (words, at) in seen.words.iter().zip(&seen.placed) {
+        assert!(covered(*at), "{words:?} at {at:?} is not told: {taken:?}");
+    }
+    // Four letters, a label and some words, each written twice.
+    assert!(seen.words.len() >= 12, "{:?}", seen.words);
 }

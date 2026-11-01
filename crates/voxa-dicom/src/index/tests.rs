@@ -387,6 +387,7 @@ proptest! {
         let count = named.len();
         let result = index(&mut MemorySource::new(named), &mut |_| {});
         let index = result.expect("arbitrary bytes are skipped, not an error");
-        prop_assert_eq!(index.skipped.len() + index.series.iter().map(|s| s.slices.len()).sum::<usize>(), count);
+        let images = index.series.iter().map(|s| s.slices.len()).sum::<usize>();
+        prop_assert_eq!(index.skipped.len() + index.documents.len() + images, count);
     }
 }

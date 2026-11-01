@@ -2,16 +2,17 @@
 
 use std::collections::HashMap;
 
-use voxa_core::{SeriesId, WindowLevel};
-use voxa_dicom::{Index, IndexedSeries};
+use voxa_core::{SeriesId, SeriesInfo, WindowLevel};
+use voxa_dicom::{Index, IndexedSeries, Report};
 use voxa_render::ViewTransform;
 use voxa_volume::PRESETS;
 
-use crate::annotations::{Annotations, Tool};
+use crate::annotations::{Annotations, Left, Tool};
 use crate::labelling::Labelling;
 use crate::labels::Labels;
+use crate::pictures::Pictures;
 use crate::planes::Planes;
-use crate::scene::{MainPanel, Scene};
+use crate::scene::Scene;
 use crate::views::SavedView;
 
 /// How many viewports the window can show at once.
@@ -61,6 +62,12 @@ impl Cine {
     pub const MAX_FPS: f32 = 60.0;
     /// The speed playback starts at.
     pub const DEFAULT_FPS: f32 = 10.0;
+
+    /// Playback as a viewport has it before it is set: at the usual speed, starting again after
+    /// the last slice, and not running.
+    pub fn at_rest() -> Self {
+        Self::new(Self::DEFAULT_FPS, true, false)
+    }
 
     /// Playback at `fps`, held between [`Cine::MIN_FPS`] and [`Cine::MAX_FPS`]; a speed that
     /// is not a number becomes [`Cine::DEFAULT_FPS`].
@@ -136,12 +143,26 @@ pub struct Notice {
     pub key: Option<&'static str>,
 }
 
+/// A document of the export shown in the middle of the window in place of the pictures.
+#[derive(Debug, Clone, PartialEq)]
+pub struct OpenDocument {
+    /// The name of the entry in the source that holds the document's file.
+    pub entry: String,
+    /// What a worker made of the file, once it has: a structured report as text, or the
+    /// sentence that says why it could not be read. `None` while it is being read, and for a
+    /// document that is not read as text.
+    pub report: Option<Result<Report, String>>,
+}
+
 /// Everything the application remembers. It changes only through
 /// [`reduce`](crate::reduce).
 #[derive(Debug, Clone, PartialEq)]
 pub struct AppState {
     /// What was found in the source that is open.
     pub index: Option<Index>,
+    /// How many times in this run the index has been replaced or cleared: what is worked out
+    /// from the index is worked out again when this changes.
+    pub index_changes: u64,
     /// How the viewports are arranged.
     pub layout: Layout,
     /// The viewports; a layout shows the first one, two or four.
@@ -162,26 +183,31 @@ pub struct AppState {
     pub failed: HashMap<(SeriesId, usize), String>,
     /// The 3D scene, which shows the series of the active viewport.
     pub scene: Scene,
-    /// Whether the 3D scene or the 2D viewports have the large part of the window.
-    pub main: MainPanel,
+    /// How the pictures in the middle of the window are arranged.
+    pub pictures: Pictures,
     /// The views saved of the scene's series, oldest first.
     pub views: Vec<SavedView>,
     /// The axial, coronal and sagittal planes through one point of the scene's volume.
     pub planes: Planes,
     /// The measurements and markers made on the scene's series.
     pub annotations: Annotations,
+    /// The measurements of the series the scene has left in this run, with their history.
+    pub annotations_left: Left,
     /// What the main button does in the plane views and the 3D scene.
     pub tool: Tool,
     /// The labelled parts open on a study, and what is shown of them.
     pub labels: Labels,
     /// Labelling a scan with Voxa's own networks: what can be done, what is chosen, what runs.
     pub labelling: Labelling,
+    /// The document of the export that is open in the middle of the window, if one is.
+    pub document: Option<OpenDocument>,
 }
 
 impl Default for AppState {
     fn default() -> Self {
         Self {
             index: None,
+            index_changes: 0,
             layout: Layout::One,
             viewports: Default::default(),
             active: 0,
@@ -192,13 +218,15 @@ impl Default for AppState {
             windows: HashMap::new(),
             failed: HashMap::new(),
             scene: Scene::default(),
-            main: MainPanel::default(),
+            pictures: Pictures::default(),
             views: Vec::new(),
             planes: Planes::default(),
             annotations: Annotations::default(),
+            annotations_left: Left::default(),
             tool: Tool::default(),
             labels: Labels::default(),
             labelling: Labelling::default(),
+            document: None,
         }
     }
 }
@@ -211,6 +239,12 @@ impl AppState {
             .series
             .iter()
             .find(|series| series.info.id == *id)
+    }
+
+    /// What is known of the series a viewport shows; `None` when it shows nothing.
+    pub fn shown_info(&self, viewport: usize) -> Option<&SeriesInfo> {
+        let shown = self.viewports.get(viewport)?.series.as_ref()?;
+        Some(&self.series(shown)?.info)
     }
 
     /// How many slices the series shown in a viewport has; 0 when it shows nothing.

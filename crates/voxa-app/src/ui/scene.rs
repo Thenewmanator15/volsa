@@ -25,6 +25,7 @@ mod handles;
 mod input;
 mod pace;
 mod parts;
+mod picture;
 mod tools;
 pub mod views;
 
@@ -37,7 +38,7 @@ pub use input::{SceneInput, scene_input_to_actions};
 pub(super) const CANNOT_DRAW: &str =
     "The 3D view cannot be drawn on this computer's graphics device.";
 /// What to say while the volume is handed to the graphics device, a little each frame.
-const UPLOADING: &str = "Putting the 3D view on the graphics device";
+pub(crate) const UPLOADING: &str = "Putting the 3D view on the graphics device";
 
 /// What the 3D viewport keeps between frames.
 pub struct SceneView {
@@ -109,6 +110,33 @@ impl SceneView {
         self.room
     }
 
+    /// Go on handing the scene's volume to the graphics device, a slab a frame, as drawing
+    /// the scene does, while no 3D view is drawn: in the slices alone that Voxa opens on, and
+    /// with a document in the middle of the window. The planes draw from what the device holds,
+    /// and saving a picture of the scene needs it there too. With no volume, a hand-over of
+    /// another series is given up. Gives how many times it had to be halved, once the whole of
+    /// it is there.
+    pub fn keep_on_card(
+        &mut self,
+        render: Option<&RenderState>,
+        volume: Option<&Arc<HeldVolume>>,
+        ctx: &egui::Context,
+    ) -> Option<u32> {
+        let (gpu, render) = (self.gpu.as_mut()?, render?);
+        let Some(volume) = volume else {
+            gpu.give_up_upload();
+            self.card = None;
+            return None;
+        };
+        gpu.hold(render, volume, (self.card.take(), self.room), ctx)
+    }
+
+    /// Whether what the device is to hold of a volume waits for the handing over to begin.
+    #[cfg(test)]
+    pub fn has_waiting(&self) -> bool {
+        self.card.is_some()
+    }
+
     /// Whether a picture of a volume has been drawn, so there is something to see.
     pub fn has_picture(&self) -> bool {
         self.gpu.as_ref().is_some_and(gpu::SceneGpu::has_picture)
@@ -145,84 +173,6 @@ impl SceneView {
         let (gpu, render) = (self.gpu.as_mut()?, render?);
         Some(gpu.snapshot(render, params, viewport, pixels))
     }
-
-    /// Draw the scene's picture if there is a volume and a device to draw it with, and give
-    /// the name the interface shows it by. Reports, through `actions`, how often a volume
-    /// just put on the device had to be halved.
-    fn picture(
-        &mut self,
-        ui: &Ui,
-        area: Rect,
-        state: &AppState,
-        volume: Option<&Arc<HeldVolume>>,
-        render: Option<&RenderState>,
-        actions: &mut Vec<Action>,
-    ) -> Option<egui::TextureId> {
-        let shown = state.scene.series.as_ref();
-        if let Some(gpu) = self.gpu.as_mut() {
-            // A preview, and a volume on its way, are of their own series only.
-            if self.preview_of.as_ref() != shown {
-                gpu.drop_preview();
-                self.preview_of = None;
-            }
-            if volume.is_none() {
-                gpu.give_up_upload();
-                self.card = None;
-            }
-        }
-        let ready = scene_params(state, 1.0).zip(self.gpu.as_mut()).zip(render);
-        let Some(((params, gpu), render)) =
-            ready.filter(|_| volume.is_some() || state.scene.preview)
-        else {
-            // Whatever was drawn before is of a volume no longer shown.
-            self.shown = None;
-            if let Some(gpu) = &mut self.gpu {
-                gpu.forget();
-            }
-            return None;
-        };
-        let drawable = if let Some(volume) = volume {
-            let card = (self.card.take(), self.room);
-            if let Some(halved) = gpu.hold(render, volume, card, ui.ctx()) {
-                actions.push(Action::SceneUploaded { halved });
-            }
-            gpu.has_volume()
-        } else {
-            // While its series builds, the preview of it, and only of it.
-            let offered = self.preview.take().filter(|(of, _)| shown == Some(of));
-            let offered = offered.map(|(of, preview)| {
-                self.preview_of = Some(of);
-                preview
-            });
-            gpu.preview(render, offered)
-        };
-        if !drawable {
-            // The device had no room for it at all: there is nothing to draw.
-            gpu.forget();
-            return None;
-        }
-        if self.shown.as_ref() != Some(&params) {
-            self.shown = Some(params.clone());
-            self.changed = Instant::now();
-        }
-        let since = self.changed.elapsed();
-        if let Some(left) = until_full_quality(since) {
-            ui.ctx().request_repaint_after(left);
-        }
-        // While it moves it is drawn as finely as the device has shown it keeps up with.
-        let size = [area.width(), area.height()];
-        let per_point = ui.ctx().pixels_per_point();
-        let in_full = size.map(|side| whole(side * per_point));
-        let quality = quality(since, gpu.full_took(in_full, &params));
-        let pixels = size.map(|side| whole(side * quality * per_point));
-        let params = SceneParams { quality, ..params };
-        let picture = gpu.draw(render, &params, size, pixels);
-        if gpu.wants_timing(in_full, &params) {
-            // It was busy when the full picture was drawn: time one when it is not.
-            ui.ctx().request_repaint_after(pace::TIME_AGAIN);
-        }
-        Some(picture)
-    }
 }
 
 /// Draw the scene into `area` and turn what the mouse does over it into actions. `volume` is
@@ -237,6 +187,7 @@ pub fn show(
     actions: &mut Vec<Action>,
 ) {
     let response = ui.interact(area, ui.id().with("scene"), Sense::click_and_drag());
+    response.widget_info(|| captions::widget(state));
     ui.painter().rect_filled(area, 0, Color32::BLACK);
     let size = [area.width(), area.height()];
     let was = state.scene.viewport;
@@ -249,11 +200,12 @@ pub fn show(
         actions.push(Action::SceneResized { viewport: size });
     }
     let picture = view.picture(ui, area, state, volume, render, actions);
+    let mut taken = Vec::new();
     if let Some(picture) = picture {
         let whole_picture = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
         ui.painter()
             .image(picture, area, whole_picture, Color32::WHITE);
-        written_over(ui, area, state);
+        taken = written_over(ui, area, state);
     } else {
         let ready = state.scene.status == SceneStatus::Ready;
         let uploading = view.is_uploading().then(|| UPLOADING.to_owned());
@@ -269,7 +221,7 @@ pub fn show(
     if state.scene.status == SceneStatus::Ready {
         // Drawn after the scene itself, so a press on a handle takes hold of the handle.
         handles::show(ui, area, state, &mut view.carried, actions);
-        tools::draw(ui, area, state, view.ruler_from);
+        tools::draw(ui, area, state, view.ruler_from, &taken);
     }
     let sources = (volume, labels);
     let twice = pointed(
@@ -346,15 +298,16 @@ fn pointed(
 }
 
 /// Write over the picture: a letter at each edge, a scale bar, and beneath them what the
-/// picture cannot show.
-fn written_over(ui: &Ui, area: Rect, state: &AppState) {
+/// picture cannot show. Says where the scale bar and the words stand, for measurements to be
+/// written clear of them.
+fn written_over(ui: &Ui, area: Rect, state: &AppState) -> Vec<Rect> {
     let scene = &state.scene;
     let pen = Pen::over(ui, area);
     let inside = area.shrink(pen::INSET);
-    pen::letters(&pen, inside, &edge_letters(&scene.camera));
+    let mut taken = pen::letters(&pen, inside, &edge_letters(&scene.camera)).to_vec();
     let mm_per_point = narrowed(scene.camera.mm_per_px);
     if let Some((length, label)) = overlay::scale_bar(mm_per_point, area.width() * pen::BAR_SHARE) {
-        pen::bar(&pen, inside, length, &label);
+        taken.push(pen::bar(&pen, inside, length, &label));
     }
     let spacing = scene.series.as_ref().and_then(|id| state.series(id));
     let spacing = spacing.map_or([1.0; 3], |series| series.info.spacing_mm);
@@ -369,7 +322,9 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) {
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
     let (down, room) = captions::caption_room(inside.width());
-    pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
+    let words = pen.write_wrapped(inside.left_top() + egui::vec2(0.0, down), &said, room);
+    taken.extend((!said.is_empty()).then_some(words));
+    taken
 }
 
 /// The size in pixels of a picture laid out at `viewport` on a screen with this many pixels

@@ -4,7 +4,7 @@
 use std::sync::{Arc, Mutex};
 
 use voxa_core::VoxaError;
-use voxa_dicom::ImageFile;
+use voxa_dicom::{ImageFile, IndexedSeries};
 
 use super::{Batch, Request, Shared, lock};
 
@@ -57,6 +57,25 @@ impl Opened {
     pub(super) fn clear(&self) {
         *lock(&self.held) = None;
     }
+}
+
+/// Group slices by the file that holds them, keeping the order they were asked for in: a
+/// file is read and parsed once however many of its frames are wanted.
+pub(super) fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> {
+    let mut batches: Vec<Batch> = Vec::new();
+    for slice in wanted {
+        let Some(at) = listed.slices.get(slice) else {
+            continue;
+        };
+        match batches.iter_mut().find(|batch| batch.entry == at.entry) {
+            Some(batch) => batch.slices.push((slice, at.frame)),
+            None => batches.push(Batch {
+                entry: at.entry.clone(),
+                slices: vec![(slice, at.frame)],
+            }),
+        }
+    }
+    batches
 }
 
 impl Shared {
