@@ -47,8 +47,8 @@ search box, help, the theme and a menu, marked with three dots), a column
 of scans down the left (the rail), the pictures in the middle and, at the
 right, a panel of tabs: View, Measure, 3D, Labels and Tools. Along the
 bottom are the notice that Voxa is not a medical device and any messages
-from Voxa. The search box, which Ctrl+K or / opens, finds a button by its
-name and by other words for it, and also the parts of open labels, the
+from Voxa. The search box, which Ctrl+K or / opens, finds the actions by
+name and by other words for them, and also the parts of open labels, the
 scans of the export and the help topics. The question mark opens the help:
 seven short topics, then every key.
 
