@@ -48,8 +48,15 @@ impl OnSlice<'_> {
 
     /// Where the middle of a pixel of the slice is in the viewport, in points from its top
     /// left corner.
-    fn seen_pixel(&self, pixel: [u32; 2]) -> [f32; 2] {
-        let at = self.at_pixel(pixel);
+    fn seen_pixel(&self, [col, row]: [u32; 2]) -> [f32; 2] {
+        self.seen_at(f64::from(col), f64::from(row))
+    }
+
+    /// Where the middle of the pixel at this column and row is in the viewport, even when it
+    /// lies off the slice.
+    fn seen_at(&self, col: f64, row: f64) -> [f32; 2] {
+        let slice = self.slice as f64;
+        let at = self.at.placement.apply(Point::new(col, row, slice));
         self.seen([at.x, at.y, at.z])
     }
 
@@ -68,17 +75,19 @@ impl OnSlice<'_> {
     }
 
     /// Which neighbouring pixel, as a step of columns and rows, lies the way an arrow points on
-    /// the screen from the pixel `from`.
+    /// the screen from the pixel `from`. The neighbours are worked out as if the slice went on,
+    /// so that at an edge the way off the slice is still the way the arrow points; only where the
+    /// point ends up is kept on the slice.
     fn direction(&self, from: [u32; 2], toward: [f32; 2]) -> [i32; 2] {
         let [col, row] = from;
         let [x, y] = self.seen_pixel(from);
         let [across, down] = toward;
         let along = |[dcol, drow]: [i32; 2]| {
-            let neighbour = [
-                col.saturating_add_signed(dcol),
-                row.saturating_add_signed(drow),
-            ];
-            let [there_x, there_y] = self.seen_pixel(neighbour);
+            let there = self.seen_at(
+                f64::from(col) + f64::from(dcol),
+                f64::from(row) + f64::from(drow),
+            );
+            let [there_x, there_y] = there;
             (there_x - x) * across + (there_y - y) * down
         };
         let steps = [[1, 0], [-1, 0], [0, 1], [0, -1]];
@@ -126,6 +135,10 @@ impl Drafts {
         let Some(drafting) = self.0.get_mut(at).filter(|_| keyed.in_use) else {
             return Vec::new();
         };
+        if keyed.gained {
+            // The tool and how to use it are said again to a person who comes back.
+            drafting.said = None;
+        }
         if moved {
             drafting.point = None;
         }
@@ -265,5 +278,65 @@ fn too_small(draft: Draft) -> &'static str {
     match draft {
         Draft::RulerFrom(_) => TOO_SHORT,
         _ => TOO_SMALL,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use egui::{Pos2, Rect, vec2};
+
+    use super::*;
+    use crate::action::Action;
+    use crate::annotations::Tool;
+    use crate::reducer::reduce;
+    use crate::ui::viewport::tools_tests::{SIZE, holding};
+
+    #[test]
+    fn an_arrow_never_changes_the_other_coordinate_at_any_edge_or_corner_turned_or_mirrored() {
+        let cell = Rect::from_min_size(Pos2::ZERO, vec2(SIZE, SIZE));
+        let arrows = [[-1.0, 0.0], [1.0, 0.0], [0.0, -1.0], [0.0, 1.0]];
+        let mut moves = 0;
+        for turns in 0..4 {
+            for (across, down) in [(false, false), (true, false), (false, true), (true, true)] {
+                let mut state = holding(Tool::Marker);
+                for _ in 0..turns {
+                    reduce(&mut state, Action::Rotate { viewport: 0 });
+                }
+                for horizontal in [true, false] {
+                    if (horizontal && across) || (!horizontal && down) {
+                        reduce(
+                            &mut state,
+                            Action::Flip {
+                                viewport: 0,
+                                horizontal,
+                            },
+                        );
+                    }
+                }
+                let pane = crate::ui::viewport::pane(&state, 0, cell);
+                let on = OnSlice::of(&pane).expect("placed");
+                for col in 0..on.size[0] {
+                    for row in 0..on.size[1] {
+                        for toward in arrows {
+                            for by in [1, 10] {
+                                let to = on.moved([col, row], toward, by);
+                                let [x, y] = on.seen_pixel([col, row]);
+                                let [there_x, there_y] = on.seen_pixel(to);
+                                let (dx, dy) = (there_x - x, there_y - y);
+                                let along = dx * toward[0] + dy * toward[1];
+                                let aside = dx * toward[1] - dy * toward[0];
+                                let what = format!(
+                                    "{turns} turns {across}/{down} ({col}, {row}) {toward:?} by {by} -> {to:?}"
+                                );
+                                assert!(aside.abs() < 1.0e-3, "slid sideways: {what}");
+                                assert!(along > -1.0e-3, "went the wrong way: {what}");
+                                moves += usize::from(to != [col, row]);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert!(moves > 1000, "the arrows do move the point: {moves}");
     }
 }

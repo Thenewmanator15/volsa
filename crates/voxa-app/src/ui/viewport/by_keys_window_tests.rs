@@ -17,18 +17,21 @@ use crate::ui::hand::Hand;
 use crate::ui::hand::Seen;
 use crate::ui::keys;
 
-/// What the window asks for when these keys are pressed with the viewport holding the keyboard
-/// and `tool` in hand: the viewport as it is drawn, then the keys as the window answers them.
-fn asked_by(tool: Tool, pressed: Key) -> Vec<Action> {
+/// What the window asks for in the last of these passes, with `tool` in hand: the viewport as it
+/// is drawn, then the keys as the window answers them. The first pass gives the viewport the
+/// keyboard, as Tab does, if `tab` is true.
+fn window(tool: Tool, tab: bool, passes: Vec<Vec<Event>>) -> Vec<Action> {
     let state = holding(tool);
     let hand = Hand::new(SIZE, SIZE);
     let mut drafts = Drafts::default();
     let mut asked = Vec::new();
-    for events in [Vec::new(), Vec::new(), tap(pressed, false)] {
+    for (at, events) in passes.into_iter().enumerate() {
         asked.clear();
         let mut draw = |ui: &mut Ui| {
             let here = ui.id().with(("viewport", 0_usize));
-            ui.memory_mut(|memory| memory.request_focus(here));
+            if tab && at == 0 {
+                ui.memory_mut(|memory| memory.request_focus(here));
+            }
             let area = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(SIZE, SIZE));
             let frame = |_: &voxa_core::SeriesId, _: usize| None;
             let value = |_: &voxa_core::SeriesId, _: usize, _: (usize, usize)| None;
@@ -52,6 +55,93 @@ fn asked_by(tool: Tool, pressed: Key) -> Vec<Action> {
         let _ = hand.pass(events, &mut draw);
     }
     asked
+}
+
+/// What the window asks for when this key is pressed with the viewport holding the keyboard
+/// and `tool` in hand.
+fn asked_by(tool: Tool, pressed: Key) -> Vec<Action> {
+    window(
+        tool,
+        true,
+        vec![Vec::new(), Vec::new(), tap(pressed, false)],
+    )
+}
+
+/// A press and release of the main button at the middle of the viewport, as two passes.
+fn click() -> Vec<Vec<Event>> {
+    let at = egui::pos2(200.0, 200.0);
+    let button = |pressed| Event::PointerButton {
+        pos: at,
+        button: egui::PointerButton::Primary,
+        pressed,
+        modifiers: egui::Modifiers::NONE,
+    };
+    vec![
+        vec![Event::PointerMoved(at), button(true)],
+        vec![button(false)],
+    ]
+}
+
+#[test]
+fn a_click_never_gives_the_viewport_the_keyboard_so_a_mouse_user_keeps_the_slices_on_the_arrows() {
+    let scroll = Action::Scroll {
+        viewport: 0,
+        delta: 1,
+    };
+    for tool in [Tool::Ruler, Tool::Marker] {
+        let passes = [vec![Vec::new()], click(), vec![tap(Key::ArrowDown, false)]].concat();
+        assert_eq!(
+            window(tool, false, passes),
+            std::slice::from_ref(&scroll),
+            "{tool:?}"
+        );
+    }
+}
+
+#[test]
+fn a_press_of_the_mouse_gives_the_arrows_back_to_the_slices_until_the_next_tab_into_the_viewport() {
+    let scroll = Action::Scroll {
+        viewport: 0,
+        delta: 1,
+    };
+    let down = tap(Key::ArrowDown, false);
+    // Tab to the viewport, measure with the mouse, press Down: the slice steps.
+    let after_a_press = [vec![Vec::new(), Vec::new()], click(), vec![down.clone()]].concat();
+    assert_eq!(
+        window(Tool::Ruler, true, after_a_press),
+        std::slice::from_ref(&scroll)
+    );
+    // Without the press, Down moves the point.
+    let no_press = vec![Vec::new(), Vec::new(), down.clone()];
+    assert_eq!(window(Tool::Ruler, true, no_press), []);
+    // Esc leaves the viewport (nothing is begun) and the next Tab into it engages the point again.
+    // A second window pass requests the keyboard again as Tab does.
+    let hand = Hand::new(SIZE, SIZE);
+    let state = holding(Tool::Marker);
+    let mut rig = keyed(&hand, &state);
+    rig.click(&hand, &state, 0, egui::pos2(200.0, 200.0));
+    let seen = rig.frame(&hand, &state, 0, Vec::new());
+    assert!(
+        !seen.lines.iter().any(|[from, to]| from.distance(*to) > 4.0),
+        "no cross after a press: {:?}",
+        seen.lines
+    );
+    let _ = press(&mut rig, (&hand, &state), &[Key::Escape]);
+    assert!(!rig.has_keys);
+    rig.wants_keys = true;
+    let seen = rig.frame(&hand, &state, 0, Vec::new());
+    assert!(
+        seen.lines.iter().any(|[from, to]| from.distance(*to) > 4.0),
+        "the cross is back: {:?}",
+        seen.lines
+    );
+    let _ = press(&mut rig, (&hand, &state), &[Key::Enter]);
+    assert_eq!(
+        rig.added().len(),
+        2,
+        "the click placed one, Enter the other: {:?}",
+        rig.actions
+    );
 }
 
 #[test]

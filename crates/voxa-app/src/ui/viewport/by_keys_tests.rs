@@ -346,3 +346,25 @@ fn escape_gives_up_a_half_made_ruler_and_keeps_the_point_a_second_escape_leaves_
     assert!(!rig.has_keys, "the second Escape leaves the point");
     assert_eq!(rig.added().len(), 0);
 }
+
+#[test]
+fn the_tool_and_how_to_use_it_are_said_again_when_the_keyboard_comes_back_to_the_viewport() {
+    let hand = Hand::new(SIZE, SIZE);
+    let state = holding(Tool::Ruler);
+    let mut rig = keyed(&hand, &state);
+    let label = said(&state, 0);
+    let seen = press(&mut rig, (&hand, &state), &[Key::ArrowRight]);
+    let moved = seen.value_of(&label).expect("a value");
+    assert!(moved.starts_with("Point at column"), "{moved}");
+    // Esc with nothing begun leaves the viewport; Tab brings the keyboard back.
+    let _ = press(&mut rig, (&hand, &state), &[Key::Escape]);
+    assert!(!rig.has_keys);
+    rig.wants_keys = true;
+    let seen = rig.frame(&hand, &state, 0, Vec::new());
+    assert_eq!(
+        seen.value_of(&label),
+        Some(HOW_TO_RULE),
+        "{:?}",
+        seen.values
+    );
+}

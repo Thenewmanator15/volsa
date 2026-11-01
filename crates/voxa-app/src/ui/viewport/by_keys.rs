@@ -4,13 +4,16 @@
 //! a screen reader what the viewport is for and what the point measures. The point itself, and
 //! what Enter makes of it, are in `tools/keyed.rs`.
 
-use egui::{Context, Event, Key, Response, Ui, WidgetInfo, WidgetType};
+use egui::{Context, Event, Id, Key, PointerButton, Response, Ui, WidgetInfo, WidgetType};
 
 use super::said::said;
 use super::tools::Drafts;
 use crate::annotations::Tool;
 use crate::state::AppState;
 use crate::ui::{keys, typing};
+
+/// Where it is noted, for a viewport, that the keyboard point is engaged.
+const ENGAGED: &str = "voxa: the keyboard point is engaged on this viewport";
 
 /// How many pixels an arrow moves the point with Shift held.
 const WITH_SHIFT: u32 = 10;
@@ -36,6 +39,8 @@ pub(super) struct Keyed {
     /// viewport and it has the keyboard, and nothing else (a text field, the search, a question
     /// or a menu) has the keys.
     pub in_use: bool,
+    /// Whether the viewport gained the keyboard in this pass.
+    pub gained: bool,
     /// The keys of the point, in the order they were pressed.
     pub steps: Vec<Step>,
 }
@@ -94,12 +99,32 @@ fn is_ours(event: &Event) -> bool {
     }
 }
 
+/// Whether the keyboard point is engaged on the viewport: it is when the viewport gains the keyboard
+/// (by Tab, or a screen reader asking for it; egui never gives it with a click), and a press of the
+/// main button over the viewport disengages it, which gives the arrows back to the slices. Only the
+/// next Tab into the viewport engages it again.
+fn engaged(ui: &Ui, response: &Response) -> bool {
+    let noted = Id::new(ENGAGED).with(response.id);
+    let mut engaged = ui
+        .data(|data| data.get_temp::<bool>(noted))
+        .unwrap_or(false);
+    engaged |= response.gained_focus();
+    let main = PointerButton::Primary;
+    let pressed =
+        response.is_pointer_button_down_on() && ui.input(|i| i.pointer.button_pressed(main));
+    engaged &= !pressed;
+    ui.data_mut(|data| data.insert_temp(noted, engaged));
+    engaged
+}
+
 /// Take the keys of the point from the frame's events, when the point is in use, so that
 /// neither egui nor the keys of the actions see them: Up and Down then move the point and not
 /// the slice.
 pub(super) fn take(ui: &Ui, response: &Response, state: &AppState, at: usize) -> Keyed {
+    let engaged = engaged(ui, response);
     let measuring = at == state.active && state.tool != Tool::Navigate;
-    let in_use = measuring && response.has_focus() && !typing::keys_are_taken(ui.ctx());
+    let held = response.has_focus() && engaged && !typing::keys_are_taken(ui.ctx());
+    let in_use = measuring && held;
     if !in_use {
         return Keyed::default();
     }
@@ -112,7 +137,12 @@ pub(super) fn take(ui: &Ui, response: &Response, state: &AppState, at: usize) ->
         });
         steps
     });
-    Keyed { in_use, steps }
+    let gained = response.gained_focus();
+    Keyed {
+        in_use,
+        gained,
+        steps,
+    }
 }
 
 /// Keep the arrows for a viewport that has the keyboard, and Esc too while something is half

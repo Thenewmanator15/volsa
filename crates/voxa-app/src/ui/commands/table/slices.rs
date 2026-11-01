@@ -15,8 +15,9 @@ const PAGE: i32 = 10;
 
 /// What the hints of Up and Down say of the point: with a measuring tool in hand and the viewport
 /// holding the keyboard, they move it and leave the slice alone.
-const POINT_SAYS: &str = "With a measuring tool in hand and a viewport selected, Up and Down move \
-     the point on the slice and leave the slice alone. Page Up and Page Down still change it";
+const POINT_SAYS: &str = "With a measuring tool in hand and the keyboard on a viewport (Tab to it), \
+     Up and Down move the point on the slice and leave the slice alone. Using the mouse there \
+     gives them back to the slices. Page Up and Page Down still change the slice";
 
 /// Why the volume before or after cannot be shown: no scan of several volumes is shown, or
 /// the one shown is already the first or the last of them.

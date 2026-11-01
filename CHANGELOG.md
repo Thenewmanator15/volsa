@@ -127,7 +127,8 @@ device and is not for diagnostic use.
 - **Measuring on a slice by keyboard.** With a measuring tool in hand, Tab to a viewport: a small
   cross marks a point on the slice, the arrow keys move it (ten pixels with Shift) and Enter
   places it, so a ruler, angle, region or marker can be made without the mouse; Up and Down then
-  move the point and Page Up and Page Down still change the slice. Esc gives up what was begun.
+  move the point and Page Up and Page Down still change the slice; a press of the mouse on the
+  viewport gives the arrows back to the slices until the next Tab into it. Esc gives up what was begun.
   The planes and the 3D view still take the mouse alone.
 - **Reports and other documents.** A DICOM structured report is listed in **Other files** and
   opens as text in the middle of the window, headed "Shown as text. The original report is

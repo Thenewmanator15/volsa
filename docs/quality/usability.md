@@ -187,7 +187,7 @@ the brain scan the one Voxa opens on, the three actions of S-01 step 2 come firs
   (search "ruler", the Measure tab, or **M**) and the keyboard on a viewport (Tab), a small cross
   in the accent colour marks a point at the middle of the slice; the arrows move it a pixel (ten
   with Shift), Enter begins the ruler at it and Enter again ends it; the Angle takes three Enters,
-  the Region two and the Marker one; Esc gives up what was begun and a second Esc leaves the point.
+  the Region two and the Marker one; Esc gives up what was begun and a second Esc leaves the point (and, as Esc always did, puts the tool down); a press of the mouse on the viewport gives the arrows back to the slices until the next Tab into it.
   What the tests show, in a headless window with key events and no person: the ruler, angle,
   region and marker those keys make are the ones the mouse makes for the same pixels, in the list
   and undone by Undo; the point cannot leave the slice; Up and Down move the point and not the
