@@ -24,6 +24,7 @@ mod kept;
 pub(crate) mod labelling;
 mod labels;
 mod memory;
+mod newest;
 mod opened;
 mod pool;
 mod post;
@@ -86,12 +87,12 @@ struct Shared {
     /// The folder views, annotations and labelling are kept in, if there is one.
     settings: Option<PathBuf>,
     /// How many times the saved views have been asked to be written, and the newest of
-    /// those requests that has been.
+    /// those requests that has been, for each series.
     stores: AtomicU64,
-    stored: Mutex<u64>,
+    stored: Mutex<newest::Newest>,
     /// The same two counts for the kept annotations.
     notes: AtomicU64,
-    noted: Mutex<u64>,
+    noted: Mutex<newest::Newest>,
     /// The labels kept, and how many reads (and runs) of labels have been asked for or given up.
     labels: Mutex<Option<Arc<LabelSet>>>,
     label_reads: AtomicU64,
@@ -153,9 +154,9 @@ impl Workers {
             wanted_volume: Mutex::new(None),
             settings,
             stores: AtomicU64::new(0),
-            stored: Mutex::new(0),
+            stored: Mutex::new(newest::Newest::default()),
             notes: AtomicU64::new(0),
-            noted: Mutex::new(0),
+            noted: Mutex::new(newest::Newest::default()),
             labels: Mutex::new(None),
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),

@@ -51,8 +51,8 @@ pub struct RegionStats {
 /// from the middle of the plane, its half-widths `radii_mm` along the plane's sides.
 ///
 /// The ellipse is sampled on a square grid half the volume's finest voxel spacing apart, each
-/// sample blended from the eight voxels round it, and only samples inside the volume are
-/// counted. `None` when a radius is not above zero or no sample falls inside the volume.
+/// sample blended from the eight voxels round it, and only samples inside the volume that
+/// are finite numbers are counted. `None` when a radius is not above zero or no sample is.
 pub fn ellipse_stats(
     volume: &(impl Grid + ?Sized),
     plane: &Plane,
@@ -82,7 +82,9 @@ pub fn ellipse_stats(
         for col in spread(left, right, apart) {
             let inside = ((col - across) / wide).powi(2) + ((row - down) / high).powi(2) <= 1.0;
             let value = inside.then(|| sample(volume, plane.at([col, row])));
-            if let Some(value) = value.flatten() {
+            // A value that is not a finite number is no value of the scan: counted, it would
+            // make the mean and the spread not numbers either.
+            if let Some(value) = value.flatten().filter(|value| value.is_finite()) {
                 seen.take(value);
             }
         }

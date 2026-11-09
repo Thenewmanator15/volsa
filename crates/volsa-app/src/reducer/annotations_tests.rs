@@ -182,6 +182,9 @@ fn a_ruler_can_be_drawn_on_a_slice_before_the_volume_is_ready() {
     let mut state = showing(THICK_SCAN);
     shown(&mut state);
     assert!(matches!(state.scene.status, SceneStatus::Building { .. }));
+    // The measurements kept for the series have been read: there were none.
+    let (series, items) = (id(THICK_SCAN), Vec::new());
+    reduce(&mut state, Action::AnnotationsLoaded { series, items });
     reduce(&mut state, Action::SetTool(Tool::Ruler));
     assert_eq!(state.tool, Tool::Ruler);
     let effects = reduce(&mut state, Action::AnnotationAdd(ruler(5.0)));
@@ -212,7 +215,10 @@ fn another_series_or_another_scan_starts_with_no_annotations_and_no_tool() {
     add(&mut state, marker());
     reduce(&mut state, Action::SetTool(Tool::Angle));
     select(&mut state, 0, FINE_SCAN);
-    assert_eq!(state.annotations, Annotations::default());
+    // A list of its own, waiting for what is kept for that series.
+    let mut fresh = Annotations::default();
+    fresh.await_kept();
+    assert_eq!(state.annotations, fresh);
     assert_eq!(state.tool, Tool::Navigate);
     // Even back on a series whose slice was shown before, and so can be measured on at once,
     // the tool is to be taken up again.

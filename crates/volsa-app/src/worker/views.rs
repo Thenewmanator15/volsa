@@ -26,8 +26,9 @@ impl Workers {
         });
     }
 
-    /// Write the views of a series to the file. Of two writes asked for close together, the
-    /// later is the one left in the file, whichever a worker gets to first.
+    /// Write the views of a series to the file. Of two writes of one series asked for close
+    /// together, the later is the one left in the file, whichever a worker gets to first. A
+    /// write of another series leaves this one's alone.
     pub(super) fn store_views(&self, series: &SeriesId, views: Vec<SavedView>) {
         let Some(folder) = self.shared.settings.clone() else {
             return;
@@ -36,10 +37,9 @@ impl Workers {
         let (shared, key) = (Arc::clone(&self.shared), series_key(series));
         self.spawn(move || {
             let mut newest_written = lock(&shared.stored);
-            if number < *newest_written {
+            if !newest_written.takes(&key, number) {
                 return;
             }
-            *newest_written = number;
             if let Err(why) = settings::save(&folder, &key, &views) {
                 let reason = why.to_string();
                 shared.report(Action::Views(ViewsAction::NotStored { reason }));

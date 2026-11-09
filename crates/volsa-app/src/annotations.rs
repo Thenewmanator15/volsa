@@ -133,6 +133,8 @@ pub struct Annotations {
     redo: Vec<Vec<Annotation>>,
     /// The highest number given out so far.
     numbered: u64,
+    /// Whether what is kept for the series has been asked for and has not come yet.
+    awaited: bool,
 }
 
 impl Annotations {
@@ -375,6 +377,7 @@ fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
     }
 }
 
+mod awaited;
 mod kept;
 mod left;
 

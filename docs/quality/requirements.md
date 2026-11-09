@@ -95,3 +95,16 @@ Decided by the owner on 31 October 2026:
   it from a 32-bit copy of the whole series on its own thread. That copy goes against LS-01
   for as long as it lasts and can freeze the window for seconds (R-LS-09). No card measured
   refuses a volume.
+
+## KF: what Volsa keeps between runs (code review of 9 November 2026)
+
+| No. | Requirement | Design | Risk | Shown by |
+|---|---|---|---|---|
+| KF-01 | The measurements kept for a series are never written over before they have been read: a list changed while they were being read is written only once they have come, with them before its own, numbered on from theirs, at every step that can be undone. This holds for a series left before they came. | | R-KF-01 | `crates/volsa-app/src/annotations/awaited.rs::tests::what_was_measured_before_the_kept_ones_came_is_put_after_them_and_numbered_on`; `crates/volsa-app/src/reducer/annotations_awaited_tests.rs::a_measurement_made_before_the_kept_ones_are_read_waits_for_them_and_is_written_with_them`; `crates/volsa-app/src/reducer/annotations_awaited_tests.rs::a_series_left_before_its_kept_measurements_were_read_has_them_put_with_its_own_when_they_are` |
+| KF-02 | A file of saved views that cannot be read is put aside under another name before a new one is written; it is never written over. | | R-KF-02 | `crates/volsa-app/src/settings.rs::tests::a_file_that_cannot_be_read_holds_nothing_and_is_put_aside_not_written_over`; `crates/volsa-app/src/settings.rs::tests::a_file_that_is_not_even_text_is_put_aside_too` |
+| KF-03 | The measurements' file is never written in a form Volsa cannot read back: a value that is not a finite number is left out of a region's statistics, and a list holding one is not written and is said not to have been. | | R-KF-03 | `crates/volsa-volume/src/measure/tests.rs::values_that_are_not_finite_numbers_are_left_out_of_a_region`; `crates/volsa-app/src/annotations/kept.rs::tests::a_list_with_a_value_that_is_not_a_number_is_not_written_and_the_file_stays_readable` |
+| KF-04 | Of two saves of one series the later is the one left in the file; a save of another series never leaves this series' out. | | R-KF-04 | `crates/volsa-app/src/worker/newest.rs::tests::a_later_write_of_another_series_does_not_leave_this_ones_out`; `crates/volsa-app/src/worker/newest.rs::tests::of_two_writes_of_one_series_the_later_is_the_one_left` |
+
+Known limits, not fixed here: a joined list holds at most 200 measurements, so with 200 kept
+the ones made before they were read are left out; and the files of preferences and of
+labelling's choices are still read as empty when they cannot be read.

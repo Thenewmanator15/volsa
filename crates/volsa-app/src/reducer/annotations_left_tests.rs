@@ -19,11 +19,10 @@ fn clearing_the_measurements_can_still_be_taken_back_after_another_series_is_sho
     assert_eq!(state.annotations.items.len(), 0);
     // Another card is clicked, and then this one again.
     select(&mut state, 0, FINE_SCAN);
-    assert_eq!(
-        state.annotations,
-        Annotations::default(),
-        "another series' own"
-    );
+    // A list of its own, waiting for what is kept for that series.
+    let mut fresh = Annotations::default();
+    fresh.await_kept();
+    assert_eq!(state.annotations, fresh, "another series' own");
     shown(&mut state);
     select(&mut state, 0, THICK_SCAN);
     assert!(

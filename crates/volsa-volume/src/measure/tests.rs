@@ -113,6 +113,33 @@ fn a_region_half_outside_the_scan_counts_only_what_is_inside() {
 }
 
 #[test]
+fn values_that_are_not_finite_numbers_are_left_out_of_a_region() {
+    // One voxel in the middle holds no number, as a damaged or unusual file's may.
+    let holed = filled([21; 3], |x, y, z| {
+        if (x, y, z) == (10, 10, 10) {
+            f32::NAN
+        } else {
+            7.0
+        }
+    });
+    let stats = ellipse_stats(&holed, &axial(&holed), [0.0, 0.0], [5.0, 5.0]).expect("some");
+    assert!((stats.mean - 7.0).abs() < 1.0e-6, "{}", stats.mean);
+    assert!(stats.sd.is_finite() && stats.min == 7.0 && stats.max == 7.0);
+    let whole = filled([21; 3], |_, _, _| 7.0);
+    let all = ellipse_stats(&whole, &axial(&whole), [0.0, 0.0], [5.0, 5.0]).expect("some");
+    assert!(
+        stats.samples < all.samples,
+        "those about the hole are not counted"
+    );
+    // Where nothing is a number there is nothing to say, as outside the scan.
+    let none = filled([21; 3], |_, _, _| f32::INFINITY);
+    assert_eq!(
+        ellipse_stats(&none, &axial(&none), [0.0, 0.0], [5.0, 5.0]),
+        None
+    );
+}
+
+#[test]
 fn a_very_large_region_is_sampled_more_coarsely_not_for_ever() {
     let even = filled([21; 3], |_, _, _| 7.0);
     let stats = ellipse_stats(&even, &axial(&even), [0.0, 0.0], [5.0e4, 5.0e4]).expect("some");

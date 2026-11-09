@@ -22,6 +22,8 @@ const FILE: &str = "annotations.json";
 /// The name a file Volsa cannot read is given before a new one is written in its place, so
 /// that what a newer Volsa wrote, or what was damaged, is not thrown away.
 const SET_ASIDE: &str = "annotations.json.unread";
+/// Why a list is not written when one of its numbers is not finite.
+const NOT_A_NUMBER: &str = "A measurement holds a value that is not a number.";
 
 /// What the file holds: its version, and every series' annotations under that series' key.
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -73,13 +75,10 @@ pub fn load_annotations(folder: &Path, key: &str) -> Vec<Annotation> {
 /// When the folder cannot be made or the file cannot be written.
 pub fn save_annotations(folder: &Path, key: &str, items: &[Annotation]) -> std::io::Result<()> {
     let (file, aside) = (folder.join(FILE), folder.join(SET_ASIDE));
-    let mut all = match read(folder) {
-        Read::Held(kept) => kept,
-        Read::Missing => Kept::default(),
-        Read::NotUnderstood => {
-            std::fs::rename(&file, aside)?;
-            Kept::default()
-        }
+    let (mut all, unread) = match read(folder) {
+        Read::Held(kept) => (kept, false),
+        Read::Missing => (Kept::default(), false),
+        Read::NotUnderstood => (Kept::default(), true),
     };
     if items.is_empty() {
         all.series.remove(key);
@@ -97,10 +96,22 @@ pub fn save_annotations(folder: &Path, key: &str, items: &[Annotation]) -> std::
         FIRST_VERSION
     };
     let text = serde_json::to_string_pretty(&all)?;
+    // A number that is not finite is written as nothing, and nothing is not read back as a
+    // number: a file with one in it would hold no series' measurements the next time. Such a
+    // file is not written, and the one there stays as it is.
+    if serde_json::from_str::<Kept>(&text).is_err() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            NOT_A_NUMBER,
+        ));
+    }
     std::fs::create_dir_all(folder)?;
     // Written beside the file and then moved over it, so a failure half way leaves the old one.
     let beside = folder.join(format!("{FILE}.new"));
     std::fs::write(&beside, text)?;
+    if unread {
+        std::fs::rename(&file, aside)?;
+    }
     std::fs::rename(beside, file)
 }
 
@@ -245,6 +256,27 @@ mod tests {
                 "kept aside"
             );
             assert_eq!(load_annotations(folder.path(), "two"), [marker(1, "B")]);
+        }
+    }
+
+    #[test]
+    fn a_list_with_a_value_that_is_not_a_number_is_not_written_and_the_file_stays_readable() {
+        let folder = tempfile::tempdir().expect("a temporary folder");
+        save_annotations(folder.path(), "one", &[marker(1, "A")]).expect("saves");
+        for not_a_number in [f64::NAN, f64::INFINITY] {
+            let mut odd = region(2);
+            if let Shape::Region { stats, .. } = &mut odd.shape {
+                *stats = stats.take().map(|stats| RegionStats {
+                    mean: not_a_number,
+                    ..stats
+                });
+            }
+            let refused = save_annotations(folder.path(), "two", &[odd]).expect_err("refused");
+            assert_eq!(refused.kind(), std::io::ErrorKind::InvalidData);
+            assert_eq!(refused.to_string(), NOT_A_NUMBER);
+            // What was kept before is all still there, for every series.
+            assert_eq!(load_annotations(folder.path(), "one"), [marker(1, "A")]);
+            assert_eq!(load_annotations(folder.path(), "two"), []);
         }
     }
 

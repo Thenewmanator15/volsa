@@ -65,6 +65,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     effects.extend(labelling::keep(state));
     planes::settle(state);
     annotations::settle(state, was.as_ref());
+    annotations::awaited(state, &effects);
     effects.extend(link::keep(state, &before));
     effects.extend(planes::keep_curve(state, &smoothed));
     frame::keep(state);
@@ -311,6 +312,8 @@ fn settle_window(
     }
 }
 
+#[cfg(test)]
+mod annotations_awaited_tests;
 #[cfg(test)]
 mod annotations_left_tests;
 #[cfg(test)]

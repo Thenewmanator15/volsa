@@ -8,6 +8,26 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+### Fixed
+
+Four ways measurements or saved 3D views kept from an earlier run could be lost, found by
+reading the code on 9 November 2026. None was reported by anyone using Volsa.
+
+- A measurement made in the moment before a scan's kept measurements had been read was
+  written in their place. Nothing is now written until they have been read; what was measured
+  meanwhile is put after them, numbered on from them, and both are written together.
+- A file of saved views that could not be read (damaged, cut short, or written by another
+  version) was treated as empty, and the next view saved was written over it, losing every
+  other scan's views. It is now put aside as `views.json.unread` first, as the measurements'
+  file already was.
+- A region measured over a value that is not a number (which only a damaged or unusual file
+  holds) had a mean that was not a number, and the measurements' file written with it could
+  not be read again for any scan. Such values are now left out of a region, and a list that
+  still holds one is not written: Volsa says the measurements could not be written, and the
+  file stays as it was.
+- Two saves made close together for two different scans could leave the earlier one out.
+  Each scan's saves are now counted by themselves, for measurements and for saved views.
+
 ## [0.7.1] - 2026-11-01
 
 The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download

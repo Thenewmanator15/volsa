@@ -35,4 +35,12 @@ impl Left {
         let at = self.lists.iter().position(|(left, _)| left == series)?;
         Some(self.lists.remove(at).1)
     }
+
+    /// The list put away for a series while what is kept for it had still to come, if there
+    /// is one: what was measured on it has not been written yet.
+    pub fn awaiting(&mut self, series: &SeriesId) -> Option<&mut Annotations> {
+        let mut lists = self.lists.iter_mut();
+        let found = lists.find(|(left, list)| left == series && list.awaits_kept());
+        found.map(|(_, list)| list)
+    }
 }

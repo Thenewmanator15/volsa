@@ -42,11 +42,21 @@ pub(super) fn corners() -> [Point<Patient>; 8] {
     })
 }
 
-/// A state whose scene shows the 30-slice series, with its volume built.
-pub(super) fn ready() -> AppState {
+/// A state whose scene shows the 30-slice series, with its volume built, before the
+/// measurements kept for the series have been read.
+pub(super) fn built() -> AppState {
     let mut state = showing(THICK_SCAN);
     let (series, corners) = (id(THICK_SCAN), corners());
     reduce(&mut state, Action::VolumeReady { series, corners });
+    state
+}
+
+/// A state whose scene shows the 30-slice series, with its volume built and the measurements
+/// kept for it read: there were none.
+pub(super) fn ready() -> AppState {
+    let mut state = built();
+    let (series, items) = (id(THICK_SCAN), Vec::new());
+    reduce(&mut state, Action::AnnotationsLoaded { series, items });
     state
 }
 
