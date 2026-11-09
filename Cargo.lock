@@ -1052,13 +1052,13 @@ checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
 
 [[package]]
 name = "dicom-core"
-version = "0.10.0"
+version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cc2f5e27e1395515510d3c71ad3d86f8f3c1597b23659f7df8cc933f94b92a2"
+checksum = "aa143c4f4294379852028025b897d398b0d4735a5694e7c46c92d80c5ad68e85"
 dependencies = [
  "chrono",
  "either",
- "itertools 0.14.0",
+ "itertools 0.15.0",
  "num-traits",
  "safe-transmute",
  "smallvec",
@@ -4258,7 +4258,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.3",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.5",
  "windows-sys 0.61.2",
