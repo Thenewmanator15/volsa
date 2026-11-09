@@ -1,0 +1,16 @@
+# Keeps the pinned Actions, the Rust workspace's crates and the model converter's
+# Python packages up to date.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+  - package-ecosystem: "pip"
+    directory: "/tools/synthseg-to-onnx"
+    schedule:
+      interval: "weekly"
