@@ -1,15 +1,15 @@
 [workspace]
 resolver = "3"
 members = [
-    "crates/voxa-core",
-    "crates/voxa-dicom",
-    "crates/voxa-volume",
-    "crates/voxa-labels",
-    "crates/voxa-models",
-    "crates/voxa-segment",
-    "crates/voxa-plugins",
-    "crates/voxa-render",
-    "crates/voxa-app",
+    "crates/volsa-core",
+    "crates/volsa-dicom",
+    "crates/volsa-volume",
+    "crates/volsa-labels",
+    "crates/volsa-models",
+    "crates/volsa-segment",
+    "crates/volsa-plugins",
+    "crates/volsa-render",
+    "crates/volsa-app",
     "xtask",
 ]
 
@@ -22,14 +22,14 @@ publish = false
 
 # One place for every version. A crate opts in with `name.workspace = true`.
 [workspace.dependencies]
-voxa-core = { path = "crates/voxa-core" }
-voxa-dicom = { path = "crates/voxa-dicom" }
-voxa-volume = { path = "crates/voxa-volume" }
-voxa-labels = { path = "crates/voxa-labels" }
-voxa-models = { path = "crates/voxa-models" }
-voxa-segment = { path = "crates/voxa-segment" }
-voxa-plugins = { path = "crates/voxa-plugins" }
-voxa-render = { path = "crates/voxa-render" }
+volsa-core = { path = "crates/volsa-core" }
+volsa-dicom = { path = "crates/volsa-dicom" }
+volsa-volume = { path = "crates/volsa-volume" }
+volsa-labels = { path = "crates/volsa-labels" }
+volsa-models = { path = "crates/volsa-models" }
+volsa-segment = { path = "crates/volsa-segment" }
+volsa-plugins = { path = "crates/volsa-plugins" }
+volsa-render = { path = "crates/volsa-render" }
 
 thiserror = "2"
 tracing = "0.1"
@@ -65,8 +65,8 @@ directories = "6"
 # The sum that tells a network file is the one its list names.
 sha2 = "0.11"
 
-# ONNX Runtime, which runs the networks. Its library is loaded when Voxa runs, from a folder
-# the person names: nothing is linked or fetched when Voxa is built. Pinned to one release,
+# ONNX Runtime, which runs the networks. Its library is loaded when Volsa runs, from a folder
+# the person names: nothing is linked or fetched when Volsa is built. Pinned to one release,
 # the one the networks were measured with. The crate that uses it adds `directml` on Windows.
 ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
 # The system's own list of graphics adapters, how much of each card's memory every program
@@ -74,7 +74,7 @@ ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "
 # already brings.
 windows = { version = "0.62.2", features = ["Wdk_Graphics_Direct3D", "Win32_Foundation", "Win32_Graphics_Dxgi", "Win32_Graphics_Dxgi_Common", "Win32_Security", "Win32_System_JobObjects", "Win32_System_SystemInformation", "Win32_System_Threading"] }
 
-# The icon and the details Explorer shows for voxa.exe, put into it as the program is built,
+# The icon and the details Explorer shows for volsa.exe, put into it as the program is built,
 # with the resource compiler of the Windows SDK that building for Windows already needs.
 winresource = { version = "0.1", default-features = false }
 
@@ -90,7 +90,7 @@ jpeg-encoder = "0.7"
 pedantic = { level = "warn", priority = -1 }
 too_many_lines = "deny"
 # Pedantic lints switched off, each for a stated reason:
-module_name_repetitions = "allow" # `voxa_dicom::DicomSource`-style names read better at the call site
+module_name_repetitions = "allow" # `volsa_dicom::DicomSource`-style names read better at the call site
 must_use_candidate = "allow"      # would put #[must_use] on nearly every getter
 cast_precision_loss = "allow"     # counts and indices become f64 for geometry; values stay far below 2^52
 

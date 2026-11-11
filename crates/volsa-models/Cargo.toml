@@ -1,0 +1,43 @@
+[package]
+name = "volsa-models"
+description = "The networks Volsa labels a scan with: reading and checking a model folder, listing the graphics cards, and running a network through ONNX Runtime."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+ort.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tempfile = { workspace = true, optional = true }
+
+# A network runs on a graphics card through DirectML, and the cards are listed by DXGI: both
+# are there only on Windows. Elsewhere the crate builds without them and says so when asked.
+[target.'cfg(windows)'.dependencies]
+ort = { workspace = true, features = ["directml"] }
+windows.workspace = true
+
+[features]
+# Builders of made-up model folders, for this crate's tests and for the crates above it.
+testkit = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile.workspace = true
+
+# A program that asks for memory, for the tests of the helper's job object only.
+[[bin]]
+name = "volsa-test-eater"
+required-features = ["testkit"]
+test = false
+doc = false
+
+[[test]]
+name = "helper"
+required-features = ["testkit"]
+
+[lints]
+workspace = true

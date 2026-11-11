@@ -1,49 +1,49 @@
-# What Voxa is for
+# What Volsa is for
 
-Voxa is for looking at MRI scans on your own computer: your own scans, and scans used for
+Volsa is for looking at MRI scans on your own computer: your own scans, and scans used for
 learning, teaching or research. It shows the images, lets you measure them and can show labels
 made by a model, but it does not diagnose, screen for or rule out anything, and its measurements
 and labels are not clinical results. Questions about anyone's health belong with a qualified
-clinician. Voxa is not a medical device and is not for diagnostic use.
+clinician. Volsa is not a medical device and is not for diagnostic use.
 
 ## What it is not for
 
 - **Deciding anything about anyone's care.** Not a diagnosis, a screening, a second opinion
   or a reason to wait. A scan's own report is written by a qualified person who has seen the
-  whole of it, with the reason it was taken; Voxa knows neither.
-- **Clinical work.** Voxa has not been made, tested or reviewed as a medical device, and no
+  whole of it, with the reason it was taken; Volsa knows neither.
+- **Clinical work.** Volsa has not been made, tested or reviewed as a medical device, and no
   regulator has looked at it. It is not for reading scans in a clinic or a hospital, or for
   planning a treatment or an operation.
-- **Measurements that something rests on.** A length, an angle, an area or a volume in Voxa is
+- **Measurements that something rests on.** A length, an angle, an area or a volume in Volsa is
   worked out from the numbers in the files. It is as good as those numbers, and as the line
   or region you drew. Nobody has checked it against a clinical standard.
 - **Taking a model's labels as facts.** A label made by a model is a guess that looks
-  certain. Voxa says which labels a model made, shows the model's own check of its work and
+  certain. Volsa says which labels a model made, shows the model's own check of its work and
   says first when that check fails; a check that passes does not make the labels right.
 - **Anything urgent.** If you are worried about what a scan shows, or about how you feel,
-  ask a clinician. Do not wait for, or rely on, anything Voxa shows.
+  ask a clinician. Do not wait for, or rely on, anything Volsa shows.
 
-Voxa comes with no warranty, as its licences say: LICENSE-MIT and LICENSE-APACHE, at the top
-of the source and beside this file in a download of Voxa.
+Volsa comes with no warranty, as its licences say: LICENSE-MIT and LICENSE-APACHE, at the top
+of the source and beside this file in a download of Volsa.
 
 ## The labelling model's terms
 
-Voxa labels a brain scan with SynthSeg 2.0's networks, which you make from SynthSeg's files
-on your own computer; Voxa ships none and fetches none. Their trained weights come with
+Volsa labels a brain scan with SynthSeg 2.0's networks, which you make from SynthSeg's files
+on your own computer; Volsa ships none and fetches none. Their trained weights come with
 FreeSurfer, under the FreeSurfer Software License Agreement. That agreement says the software
 is designed for research purposes only, that it has not been reviewed or approved by the US
 Food and Drug Administration or any other agency, and that clinical applications are neither
 recommended nor advised. Labels made with those weights come under the same caution.
-docs/models.md in the source (MODELS.md in a download of Voxa) says more, under "The terms
+docs/models.md in the source (MODELS.md in a download of Volsa) says more, under "The terms
 of the model's weights", with where the agreement can be read.
 
 ## Plugins you add
 
 You can add a model that someone else made, as a plugin. A plugin is added by you and is not
-part of Voxa: Voxa has not checked what it does, recommends none, links to none and downloads
-none. Whatever a plugin gives is shown under "Added by you, not part of Voxa", with its maker's
+part of Volsa: Volsa has not checked what it does, recommends none, links to none and downloads
+none. Whatever a plugin gives is shown under "Added by you, not part of Volsa", with its maker's
 name, its source and its licence as its maker gives them, and is not for diagnostic use. Its
-licence, and whether it may be used for what you want, are between you and its maker. Voxa runs
+licence, and whether it may be used for what you want, are between you and its maker. Volsa runs
 a plugin only on the kind of scan it says it is for, warns before running it on a scan whose
 description names another contrast, and says so on the result. docs/plugins.md in the source
-says what a plugin is and what Voxa does with one.
+says what a plugin is and what Volsa does with one.

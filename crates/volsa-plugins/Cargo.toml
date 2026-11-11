@@ -1,0 +1,48 @@
+[package]
+name = "volsa-plugins"
+description = "Models people add to Volsa themselves: reading and checking a plugin folder, preparing a scan by the plugin's description, running its network in a helper process, and making its answer a label set."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+volsa-core.workspace = true
+volsa-labels.workspace = true
+volsa-models.workspace = true
+volsa-segment.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+thiserror.workspace = true
+tempfile = { workspace = true, optional = true }
+
+[features]
+# Builders of made-up plugin folders, for this crate's tests and for the crates above it.
+testkit = ["dep:tempfile", "volsa-models/testkit"]
+
+[dev-dependencies]
+proptest.workspace = true
+tempfile.workspace = true
+# Stand-ins for the networks.
+volsa-models = { workspace = true, features = ["testkit"] }
+
+# The plugin helper as a program, for this crate's tests; Volsa itself is started as one.
+[[bin]]
+name = "volsa-plugin-helper"
+test = false
+doc = false
+
+# Real runs through the helper and ONNX Runtime. Its tests are all ignored unless asked for.
+[[test]]
+name = "with_runtime"
+required-features = ["testkit"]
+
+# Two budgets of the design measured without a model; ignored unless asked for.
+[[test]]
+name = "budgets"
+required-features = ["testkit"]
+
+[lints]
+workspace = true

@@ -1,7 +1,7 @@
 //! What the notices must know of a package that its folder does not say: who holds the
 //! copyright of a package that comes with no licence file, as its repository's licence file
 //! says; licence texts its repository keeps for code in it that its package leaves out; and
-//! packages whose files another package's build turns into code compiled into Voxa.
+//! packages whose files another package's build turns into code compiled into Volsa.
 //!
 //! Each line here is copied from the file it names, at the commit or tag the package was
 //! published from (the commit is in the package's `.cargo_vcs_info.json`).
@@ -38,10 +38,10 @@ pub struct Extra {
     pub text: &'static str,
 }
 
-/// A package whose build turns files of another package into code compiled into Voxa, so
-/// that the other's notice goes with Voxa too though it is only a build dependency.
+/// A package whose build turns files of another package into code compiled into Volsa, so
+/// that the other's notice goes with Volsa too though it is only a build dependency.
 pub struct Generated {
-    /// The package that is built into Voxa.
+    /// The package that is built into Volsa.
     pub package: &'static str,
     /// The package, a dependency of its build, whose files the code is made from.
     pub from: &'static str,
@@ -55,11 +55,11 @@ pub struct Known {
     pub holders: &'static [Holders],
     /// Texts that packages leave out.
     pub extra: &'static [Extra],
-    /// Packages whose files another's build compiles into Voxa.
+    /// Packages whose files another's build compiles into Volsa.
     pub generated: &'static [Generated],
 }
 
-/// What is known of the packages Voxa is built from now.
+/// What is known of the packages Volsa is built from now.
 pub const KNOWN: Known = Known {
     holders: &HOLDERS,
     extra: &EXTRA,
@@ -71,7 +71,7 @@ pub const KNOWN: Known = Known {
 const EGUI: &str =
     "https://github.com/emilk/egui/blob/49682f8baa058bf49e011035cfbd6e825f88a5ef/LICENSE-MIT";
 
-/// Who holds the copyright of each package Voxa is built from that comes with no licence file.
+/// Who holds the copyright of each package Volsa is built from that comes with no licence file.
 const HOLDERS: [Holders; 10] = [
     Holders {
         packages: &["accesskit 0.24.1"],
@@ -153,7 +153,7 @@ const HOLDERS: [Holders; 10] = [
     },
 ];
 
-/// Texts packages Voxa is built from leave out. AccessKit's code derived from Chromium's says
+/// Texts packages Volsa is built from leave out. AccessKit's code derived from Chromium's says
 /// that it is under the BSD-style licence in the repository's `LICENSE.chromium`.
 const EXTRA: [Extra; 1] = [Extra {
     packages: &[
@@ -216,7 +216,7 @@ pub fn with_holders(text: &str, holders: &Holders, of: &str) -> Option<(String, 
 }
 
 /// The packages `shipped` names, with each package whose files the build of a shipped
-/// package turns into code compiled into Voxa, by [`Known::generated`]. That package must be
+/// package turns into code compiled into Volsa, by [`Known::generated`]. That package must be
 /// in `metadata` once.
 pub fn with_generated(
     metadata: &Value,
@@ -238,7 +238,7 @@ pub fn with_generated(
         let [version] = versions.as_slice() else {
             let (package, from) = (generated.package, generated.from);
             return Err(format!(
-                "{package} is built into Voxa with code made from {from}, and cargo metadata \
+                "{package} is built into Volsa with code made from {from}, and cargo metadata \
                  describes {} packages called {from}",
                 versions.len()
             ));
