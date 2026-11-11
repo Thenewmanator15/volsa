@@ -129,14 +129,16 @@ labelling's choices are still read as empty when they cannot be read.
 | SW-04 | The tags window never lists a file of an export that is no longer the one open: a file named for it is let go of when another export is opened. | | R-SW-04 | `crates/volsa-app/src/ui/tags/panel/tests.rs::a_file_named_for_the_window_is_let_go_of_when_another_export_is_opened` |
 | SW-05 | Once a volume is on the graphics card, by whichever way it was put there, it is the volume that is drawn and not the preview before it. | | R-SW-05 | By reading only: it takes a card that turns a volume down. |
 | SW-06 | The window is not changed by a drag until the slice shown has given its own; the automatic window is then still taken. | | R-SW-06 | `crates/volsa-app/src/reducer/window_tests.rs::a_window_dragged_before_the_slice_has_given_its_own_waits_for_it` |
+| SW-07 | A slice is shown by one convention however its file stores it, the same as the plane views': from above or from the front the patient's left is on the right of the screen while Radiological is on and on the left otherwise, with the front of the head at the top from above and the head at the top from the front; from the side the front of the head is on the left and the head at the top. The person's own flips and turns are made to that picture. A slice with no geometry, or lying too far askew to say which it is, is shown as its file holds it. | | R-UI-13 | `crates/volsa-app/src/ui/overlay/upright_tests.rs::a_slice_from_above_has_the_patients_left_on_the_right_however_its_file_stores_it`; `crates/volsa-app/src/ui/overlay/upright_tests.rs::a_slice_from_the_front_or_the_side_is_the_way_round_the_plane_views_have_it`; `crates/volsa-app/src/ui/overlay/upright_tests.rs::the_persons_own_flips_and_turns_do_to_every_slice_what_they_do_to_one_stored_upright` |
+
+Decided by the owner on 11 November 2026: one convention for which way round the patient is
+shown, kept everywhere (SW-07). Before, a slice was shown as its file stored it and the
+Radiological switch only mirrored it, so a scan stored with its rows to the patient's right
+(a patient lying face down, say) had the patient's left on the left with the switch on. Such
+a scan is now shown turned half round from how its file holds it.
 
 Found by the same review and not changed, for the owner to decide:
 
-- The Radiological switch leaves a slice as its file stores it when on, and mirrors it when
-  off. For a scan whose rows run to the patient's right (a patient lying face down, say)
-  that is the other way round from what the switch says. The letters at the edges are right
-  either way, and the plane views place the patient's left by the patient, not by the file.
-  Changing it changes which way round such scans are shown (R-UI-13).
 - A window is never narrower than 1, so a map whose values span less than 1 is one grey. The
   floor is what stops a window dragged shut from staying shut, so it cannot simply be
   lowered: it would have to follow the scale of the scan's values.

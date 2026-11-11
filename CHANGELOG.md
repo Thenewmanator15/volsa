@@ -67,6 +67,21 @@ reading. None was reported by anyone using Volsa.
 - Dragging for brightness and contrast before a scan's first slice had appeared set a window
   worked out from nothing and gave up the automatic one. The drag now waits for the slice.
 
+### Changed
+
+- A slice is now shown the same way round whatever way its file stores it, by the one
+  convention the three plane views already kept. From above or from the front, the patient's
+  left is on the right of the screen with Radiological on and on the left with it off; the
+  front of the head is at the top of a slice from above, and the head at the top of one from
+  the front. From the side, the front of the head is on the left and the head at the top.
+  Before, a slice was shown as its file stored it, and the switch only mirrored it: a scan
+  taken with the patient lying face down had the patient's left on the left with
+  Radiological on, the other way from what the switch says and from the plane views beside
+  it. Such a scan is now turned half round. A scan stored the usual way looks as it did, the
+  letters at the edges were and are right, and your own flips and turns are made to the
+  picture as before. The owner decided this on 11 November 2026: one convention, kept
+  everywhere.
+
 ## [0.7.1] - 2026-11-01
 
 The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download

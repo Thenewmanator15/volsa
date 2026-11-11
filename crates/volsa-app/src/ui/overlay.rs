@@ -31,27 +31,65 @@ pub struct EdgeLabels {
     pub bottom: String,
 }
 
-/// The view a slice is drawn with: the person's own view, mirrored in neurological convention
-/// along whichever way across the screen the patient's left and right lie. A picture with
-/// front and back across it, or with no geometry, is the same in both conventions.
+/// The view a slice is drawn with: the slice the way round the convention has it, and the
+/// person's own flips and turns made to that.
+///
+/// The convention is one, and the same as the plane views' (`volsa_volume::plane_of`),
+/// however the file stores the slice. A slice from above or from the front has the patient's
+/// left on the right of the screen while `radiological` is true and on the left otherwise,
+/// with the front of the head at the top of one from above and the head at the top of one
+/// from the front. A slice from the side has the front of the head on the left and the head
+/// at the top either way. A slice lying too far askew to say which it is, or with no
+/// geometry, is drawn as its file holds it.
 pub fn display_view(
     voxel_to_patient: Option<&Affine<Voxel, Patient>>,
     view: &ViewTransform,
     radiological: bool,
 ) -> ViewTransform {
-    let (false, Some(placement)) = (radiological, voxel_to_patient) else {
-        return *view;
+    let upright = voxel_to_patient.and_then(|placement| upright(placement, radiological));
+    upright.map_or(*view, |upright| made_to(upright, view))
+}
+
+/// The flip and the turns that show a slice as its file holds it the way round the
+/// convention has it. `None` when no flip and turn does: the slice lies askew.
+fn upright(placement: &Affine<Voxel, Patient>, radiological: bool) -> Option<ViewTransform> {
+    let [[ax, ay, az], [bx, by, bz], _] = placement.columns();
+    let facing = [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx];
+    let across = if radiological { "L" } else { "R" };
+    let (rightwards, downwards) = match letter(facing) {
+        "S" | "I" => (across, "P"),
+        "A" | "P" => (across, "I"),
+        _ => ("P", "I"),
     };
-    let Some((rightwards, downwards)) = screen_directions(placement, view) else {
-        return *view;
-    };
-    let left_to_right = |direction| matches!(letter(direction), "L" | "R");
-    if left_to_right(rightwards) {
-        view.flipped(true)
-    } else if left_to_right(downwards) {
-        view.flipped(false)
+    let ways = [false, true].into_iter().flat_map(|flip_h| {
+        (0..4).map(move |quarter_turns| ViewTransform {
+            flip_h,
+            quarter_turns,
+            ..ViewTransform::fit()
+        })
+    });
+    ways.into_iter().find(|way| {
+        screen_directions(placement, way)
+            .is_some_and(|(right, down)| letter(right) == rightwards && letter(down) == downwards)
+    })
+}
+
+/// The view that shows what `first` shows with the person's own view made to it: their flips,
+/// then their turns, their zoom and where they moved it. A flip is of the image before it is
+/// turned, so a flip made to a picture that `first` has laid on its side is the other flip
+/// of the image.
+fn made_to(first: ViewTransform, own: &ViewTransform) -> ViewTransform {
+    let on_its_side = first.quarter_turns % 2 == 1;
+    let (own_h, own_v) = if on_its_side {
+        (own.flip_v, own.flip_h)
     } else {
-        *view
+        (own.flip_h, own.flip_v)
+    };
+    ViewTransform {
+        flip_h: first.flip_h != own_h,
+        flip_v: first.flip_v != own_v,
+        quarter_turns: (first.quarter_turns % 4 + own.quarter_turns % 4) % 4,
+        ..*own
     }
 }
 
@@ -291,5 +329,7 @@ pub fn steps_slices(key: Key) -> bool {
 mod slice_keys_tests;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod upright_tests;
 #[cfg(test)]
 mod volumes_tests;
