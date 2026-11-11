@@ -105,9 +105,15 @@ Decided by the owner on 31 October 2026:
 | KF-03 | The measurements' file is never written in a form Volsa cannot read back: a value that is not a finite number is left out of a region's statistics, and a list holding one is not written and is said not to have been. | | R-KF-03 | `crates/volsa-volume/src/measure/tests.rs::values_that_are_not_finite_numbers_are_left_out_of_a_region`; `crates/volsa-app/src/annotations/kept.rs::tests::a_list_with_a_value_that_is_not_a_number_is_not_written_and_the_file_stays_readable` |
 | KF-04 | Of two saves of one series the later is the one left in the file; a save of another series never leaves this series' out. | | R-KF-04 | `crates/volsa-app/src/worker/newest.rs::tests::a_later_write_of_another_series_does_not_leave_this_ones_out`; `crates/volsa-app/src/worker/newest.rs::tests::of_two_writes_of_one_series_the_later_is_the_one_left` |
 
-Known limits, not fixed here: a joined list holds at most 200 measurements, so with 200 kept
-the ones made before they were read are left out; and the files of preferences and of
-labelling's choices are still read as empty when they cannot be read.
+| KF-05 | Every file Volsa keeps between runs (saved views, measurements, preferences, what was chosen for labelling) is read and written by one rule, kept in one place: a file that is missing holds nothing; one that cannot be read holds nothing, is left alone, and is put aside under its own name with `.unread` after it before another is written in its place; a file is written beside itself and moved over the old one. | | R-KF-02 | `crates/volsa-app/src/kept_file.rs::tests::every_kind_of_file_that_cannot_be_read_is_left_alone_then_put_aside_when_written_over`; `crates/volsa-app/src/kept_file.rs::every_file_tests::each_of_the_four_kept_files_puts_one_it_cannot_read_aside_before_writing_another` |
+
+Decided by the owner on 11 November 2026: where two parts of Volsa do the same thing they do
+it the same way, and the odd one out is changed, not written down as a limit. KF-05 is that
+for the kept files: the preferences and labelling's choices were at first left to be written
+over when they could not be read, and noted here as a known limit.
+
+Known limit, not fixed here: a joined list holds at most 200 measurements, so with 200 kept
+the ones made before they were read are left out.
 
 ## SF: not stopping or standing still on large or unusual files (code review of 9 November 2026)
 

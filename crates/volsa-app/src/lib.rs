@@ -24,6 +24,7 @@ mod device;
 mod documents;
 mod effect;
 mod export;
+mod kept_file;
 mod kept_labels;
 mod labelling;
 mod labels;

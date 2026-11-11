@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use volsa_render::Overlay;
 
 use crate::action::Action;
+use crate::kept_file;
 use crate::state::{AppState, Layout};
 
 /// The name of the file within the settings folder.
@@ -252,27 +253,27 @@ impl Prefs {
     }
 }
 
+/// The file as it is read. It says no version: whatever reads as preferences is understood.
+fn read(folder: &Path) -> kept_file::Read<Prefs> {
+    kept_file::read(&folder.join(FILE), |_: &Prefs| true)
+}
+
 /// The preferences kept in `folder`. A file that is missing, cannot be read or is not what
 /// Volsa wrote gives the preferences Volsa starts with.
 pub fn load(folder: &Path) -> Prefs {
-    let text = std::fs::read_to_string(folder.join(FILE)).unwrap_or_default();
-    serde_json::from_str::<Prefs>(&text)
-        .unwrap_or_default()
-        .sound()
+    read(folder).held().unwrap_or_default().sound()
 }
 
-/// Keep these preferences in `folder`, which is made if it is not there.
+/// Keep these preferences in `folder`, which is made if it is not there. A file already there
+/// that cannot be read is first put aside, as every kept file is (see the module `kept_file`).
 ///
 /// # Errors
 ///
 /// When the folder cannot be made or the file cannot be written.
 pub fn save(folder: &Path, prefs: &Prefs) -> std::io::Result<()> {
     let text = serde_json::to_string_pretty(prefs)?;
-    std::fs::create_dir_all(folder)?;
-    // Written beside the file and then moved over it, so a failure half way leaves the old one.
-    let (file, beside) = (folder.join(FILE), folder.join(format!("{FILE}.new")));
-    std::fs::write(&beside, text)?;
-    std::fs::rename(beside, file)
+    let unread = read(folder).is_unread();
+    kept_file::write(&folder.join(FILE), &text, unread)
 }
 
 /// The preferences of this run and where they are kept: read once as Volsa starts, and

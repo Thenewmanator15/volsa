@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use volsa_models::{Card, CardKind, RunsOn};
 use volsa_segment::ModelChoice;
 
-use crate::kept_labels::write_whole;
+use crate::kept_file;
 use crate::labelling::Labelling;
 
 /// The version of the file. A file of another version is not read.
@@ -205,26 +205,31 @@ impl Written {
     }
 }
 
+/// The file as it is read: one of another version than this Volsa's is not understood.
+fn read(folder: &Path) -> kept_file::Read<Written> {
+    kept_file::read(&folder.join(FILE), |written: &Written| {
+        written.version == CHOICES_VERSION
+    })
+}
+
 /// The choices kept in `folder`. A file that is missing, cannot be read, is not what Volsa
 /// wrote or is of another version gives the choices Volsa starts with.
 pub fn load_choices(folder: &Path) -> Choices {
-    let text = std::fs::read_to_string(folder.join(FILE)).unwrap_or_default();
-    match serde_json::from_str::<Written>(&text) {
-        Ok(written) if written.version == CHOICES_VERSION => written.into_choices(),
-        _ => Choices::default(),
-    }
+    let written = read(folder).held();
+    written.map_or_else(Choices::default, Written::into_choices)
 }
 
 /// Keep these choices in `folder`, in place of any kept before. The folder is made if it is
-/// not there.
+/// not there. A file already there that cannot be read is first put aside, as every kept file
+/// is (see the module `kept_file`).
 ///
 /// # Errors
 ///
 /// When the folder cannot be made or the file cannot be written.
 pub fn save_choices(folder: &Path, choices: &Choices) -> std::io::Result<()> {
     let text = serde_json::to_string_pretty(&Written::of(choices))?;
-    std::fs::create_dir_all(folder)?;
-    write_whole(&folder.join(FILE), text.as_bytes())
+    let unread = read(folder).is_unread();
+    kept_file::write(&folder.join(FILE), &text, unread)
 }
 
 #[cfg(test)]

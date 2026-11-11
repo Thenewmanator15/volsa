@@ -19,7 +19,9 @@ reading the code on 9 November 2026. None was reported by anyone using Volsa.
 - A file of saved views that could not be read (damaged, cut short, or written by another
   version) was treated as empty, and the next view saved was written over it, losing every
   other scan's views. It is now put aside as `views.json.unread` first, as the measurements'
-  file already was.
+  file already was. The same is now so of the preferences and of what was chosen for
+  labelling: all four files Volsa keeps are read and written by one rule, in one place, and a
+  file that cannot be read is put aside under its own name with `.unread` after it.
 - A region measured over a value that is not a number (which only a damaged or unusual file
   holds) had a mean that was not a number, and the measurements' file written with it could
   not be read again for any scan. Such values are now left out of a region, and a list that
