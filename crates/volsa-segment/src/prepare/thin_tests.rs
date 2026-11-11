@@ -142,3 +142,70 @@ fn the_refusal_says_what_is_needed_and_that_it_is_counted_at_1_mm() {
         "{said}"
     );
 }
+
+/// A scan as it is held, of which only its sizes and its place may be asked: reading a value
+/// is noted.
+struct Unread {
+    dims: [u32; 3],
+    placement: Affine<volsa_core::Voxel, volsa_core::Patient>,
+    read: std::sync::atomic::AtomicBool,
+}
+
+impl volsa_core::Grid for Unread {
+    fn dims(&self) -> [u32; 3] {
+        self.dims
+    }
+
+    fn voxel_to_patient(&self) -> Affine<volsa_core::Voxel, volsa_core::Patient> {
+        self.placement
+    }
+
+    fn patient_to_voxel(&self) -> Affine<volsa_core::Patient, volsa_core::Voxel> {
+        self.placement
+            .inverse()
+            .expect("a placement that can be undone")
+    }
+
+    fn value(&self, _col: u32, _row: u32, _slice: u32) -> Option<f32> {
+        self.read.store(true, std::sync::atomic::Ordering::SeqCst);
+        None
+    }
+}
+
+#[test]
+fn whether_a_scan_fits_is_known_from_its_sizes_without_reading_a_value_and_as_prepare_says() {
+    use super::PrepareError::TooLarge;
+    let asked = |dims: [u32; 3], runs: Runs, steps: [f64; 3]| {
+        let [across, down, through] =
+            [0, 1, 2].map(|axis| runs[axis].map(|part| part * steps[axis]));
+        let scan = Unread {
+            dims,
+            placement: Affine::from_columns(across, down, through, [0.0; 3]),
+            read: std::sync::atomic::AtomicBool::new(false),
+        };
+        let fits = super::fits(&scan);
+        assert!(
+            !scan.read.load(std::sync::atomic::Ordering::SeqCst),
+            "no value is read"
+        );
+        fits
+    };
+    // A long CT, far too large to copy for a run that would refuse it: 3000 slices at 1 mm.
+    assert_eq!(asked([512, 512, 3000], STRAIGHT, ONE_MM), Err(TooLarge));
+    assert_eq!(
+        asked([2600, 64, 64], STRAIGHT, [0.2, 1.0, 1.0]),
+        Err(TooLarge)
+    );
+    // And for sizes small enough to prepare, the same answer as preparing gives.
+    let sizes: [([u32; 3], [f64; 3]); 5] = [
+        ([8, 8, 11], ONE_MM),
+        ([8, 8, 10], ONE_MM),
+        ([3, 8, 11], ONE_MM),
+        ([8, 8, 4], [1.0, 1.0, 3.0]),
+        ([16, 16, 11], [0.25, 0.25, 1.0]),
+    ];
+    for (dims, steps) in sizes {
+        let prepared = made(dims, STRAIGHT, steps).map(|_| ());
+        assert_eq!(asked(dims, STRAIGHT, steps), prepared, "{dims:?} {steps:?}");
+    }
+}

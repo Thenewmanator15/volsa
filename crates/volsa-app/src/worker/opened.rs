@@ -78,6 +78,14 @@ pub(super) fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> 
     batches
 }
 
+impl Batch {
+    /// Whether the file these slices are in holds many frames: such a file can be hundreds of
+    /// megabytes, and is kept once opened so that it is not read and parsed again.
+    pub(super) fn many_frames(&self) -> bool {
+        self.slices.iter().any(|(_, frame)| frame.is_some())
+    }
+}
+
 impl Shared {
     /// Read one file of the source that is open; `None` when none is. A source that gives
     /// readers of their own is held only while one is made, and read through that, so that
@@ -108,8 +116,7 @@ impl Shared {
                 .unwrap_or_else(|| Err(VolsaError::MissingEntry(batch.entry.clone())));
             ImageFile::open(&bytes?)
         };
-        let many_frames = batch.slices.iter().any(|(_, frame)| frame.is_some());
-        let file = if many_frames {
+        let file = if batch.many_frames() {
             self.kept.get(&batch.entry, request.opened, open)
         } else {
             open().map(Arc::new)
@@ -191,6 +198,29 @@ mod tests {
                 .all(|report| matches!(report, Action::FrameReady { .. }));
             assert!(all_ready, "{reports:?}");
         }
+        let reads = reads.lock().expect("no reader panicked");
+        assert_eq!(reads.get("whole.dcm"), Some(&1), "{reads:?}");
+    }
+
+    #[test]
+    fn a_volume_built_from_a_file_of_many_frames_reads_it_once_however_many_slabs_it_fills() {
+        use crate::worker::volume_tests::{build, stored, until_the_volume_ends};
+        let folder = folder_of(&[("whole.dcm".to_owned(), many_frames(12))]);
+        let bench = Bench::with_budget(64 * ONE);
+        let index = bench.index(folder.path()).expect("indexes");
+        let series = index.series[0].info.id.0.clone();
+        // A slab holds two of the series' slices, so the volume is filled in six goes.
+        let in_a_slice = (index.series[0].info.rows * index.series[0].info.cols) as usize;
+        bench
+            .workers
+            .set_slab_bytes(2 * in_a_slice * size_of::<u16>());
+        let reads = counted(&bench);
+        build(&bench, &index, &series);
+        let reports = until_the_volume_ends(&bench);
+        let whole = matches!(reports.last(), Some(Action::VolumeReady { .. }));
+        assert!(whole, "{reports:?}");
+        let held = stored(&bench, &series).expect("the volume is kept");
+        assert_eq!(held.slab_count(), 6);
         let reads = reads.lock().expect("no reader panicked");
         assert_eq!(reads.get("whole.dcm"), Some(&1), "{reads:?}");
     }

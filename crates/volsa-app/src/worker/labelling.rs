@@ -16,7 +16,7 @@ use std::sync::{Arc, Condvar, Mutex};
 
 use volsa_core::{Grid, HeldVolume, SeriesId, Volume};
 use volsa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
-use volsa_segment::{LabelError, Sizes, Stage, label, sizes};
+use volsa_segment::{LabelError, Sizes, Stage, fits, label, sizes};
 
 use super::{Shared, Workers, lock, shielded};
 use crate::action::{Action, Effect};
@@ -246,6 +246,12 @@ impl Shared {
             };
             return self.fail(job, why);
         };
+        // Too thin or too large is known from the scan's sizes alone, and is said before the
+        // copy below is made: a scan too large to label is the one whose copy is largest.
+        let whole = job.slices == (0..held.dims()[2]);
+        if let Some(why) = fits(held.as_ref()).err().filter(|_| whole) {
+            return self.fail(job, &why.to_string());
+        }
         // The networks are given 32-bit values of the slices they ask for: made here, for the
         // run only.
         let Some(volume) = held.to_volume(job.slices.clone()) else {

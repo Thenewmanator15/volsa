@@ -85,3 +85,55 @@ fn the_errors_that_follow_a_loss_are_dropped_without_a_sound() {
     refused_a_buffer(&gpu);
     assert!(watch.is_lost());
 }
+
+#[test]
+fn a_watch_for_room_says_nothing_ran_out_when_nothing_did() {
+    let Some(gpu) = started() else { return };
+    let room = RoomWatch::on(&gpu.device);
+    let made = crate::volume_texture::texture(
+        &gpu.device,
+        "made-up",
+        [4, 4, 4],
+        wgpu::TextureFormat::R16Float,
+    );
+    assert!(!room.ran_out());
+    made.destroy();
+}
+
+#[test]
+fn a_mistake_made_with_room_to_spare_still_stops_the_program_where_the_watch_ends() {
+    let Some(gpu) = started() else { return };
+    let stopped = catch_unwind(AssertUnwindSafe(|| {
+        let room = RoomWatch::on(&gpu.device);
+        refused_a_buffer(&gpu);
+        room.ran_out()
+    }));
+    let why = stopped.expect_err("the program was to stop at the watch's end");
+    let said = why.downcast_ref::<String>().cloned().unwrap_or_default();
+    assert!(said.starts_with("wgpu error: "), "{said}");
+    assert!(said.contains("usage"), "{said}");
+    // And the watch is over: the next mistake is met as any other is.
+    let (_, woken) = watched(&gpu);
+    let again = catch_unwind(AssertUnwindSafe(|| refused_a_buffer(&gpu)));
+    assert!(again.is_err());
+    assert_eq!(woken.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn on_a_lost_device_a_watch_for_room_says_nothing_was_made_and_stops_nothing() {
+    let Some(gpu) = started() else { return };
+    let (watch, _) = watched(&gpu);
+    gpu.lose();
+    let room = RoomWatch::on(&gpu.device);
+    // A lost device makes nothing and says nothing of that; it objects to what is then asked
+    // of what it did not make.
+    let unmade = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("made-up"),
+        size: 16,
+        usage: wgpu::BufferUsages::COPY_DST,
+        mapped_at_creation: false,
+    });
+    gpu.queue.write_buffer(&unmade, 0, &[0; 16]);
+    assert!(room.ran_out(), "what was asked of it was not done");
+    assert!(watch.is_lost());
+}

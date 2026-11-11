@@ -71,11 +71,11 @@ impl Smoothed {
     /// Put the curve on a graphics device. `None` when the device has no room for it.
     pub fn on(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Option<SmoothedTexture> {
         // Watched for running out of room, as the volume itself is.
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let halves = wgpu::TextureFormat::R16Float;
         let coefficients = texture(device, "volsa volume curve", self.dims, halves);
         write(device, queue, &coefficients, self.dims, &self.halves);
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             coefficients.destroy();
             return None;
         }

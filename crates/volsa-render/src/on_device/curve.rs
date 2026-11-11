@@ -70,7 +70,7 @@ impl CurveMaker {
         values: &wgpu::TextureView,
         dims: [u32; 3],
     ) -> Option<SmoothedTexture> {
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let worked_in = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
         let work = texture(
             device,
@@ -116,7 +116,7 @@ impl CurveMaker {
             .draw((device, queue), &work_view, &coefficients, 0..slices);
         // Given back once the device has drawn from it, not before.
         work.destroy();
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             coefficients.destroy();
             return None;
         }

@@ -23,7 +23,7 @@
 
 use std::borrow::Cow;
 
-use volsa_core::{Affine, Patient, Volume, Voxel};
+use volsa_core::{Affine, Grid, Patient, Volume, Voxel};
 use volsa_models::{Cut, Numbers, Tensor};
 
 mod align;
@@ -217,9 +217,21 @@ fn spread(values: &[f32]) -> Result<(f64, f64), PrepareError> {
         .ok_or(PrepareError::NothingToSee)
 }
 
+/// Whether a scan is of a size that can be labelled, from its sizes and its transform alone:
+/// no value is read, so it can be asked of a scan as it is held, before the 32-bit copy a run
+/// is given is made.
+///
+/// # Errors
+///
+/// [`PrepareError::TooFewSlices`] and [`PrepareError::TooLarge`], exactly as [`prepare`] and
+/// [`sizes`] give them for a volume of this size and place.
+pub fn fits(scan: &(impl Grid + ?Sized)) -> Result<(), PrepareError> {
+    turn_if_it_fits(scan).map(|_| ())
+}
+
 /// How the volume's 1 mm grid is turned, or why the volume is refused for its size. Decided
 /// from the sizes and the transform alone: no value is read.
-fn turn_if_it_fits(volume: &Volume) -> Result<Turn, PrepareError> {
+fn turn_if_it_fits(volume: &(impl Grid + ?Sized)) -> Result<Turn, PrepareError> {
     let [_, _, slices] = volume.dims();
     if slices < FEWEST_SLICES || volume.dims().iter().any(|&side| side < FEWEST) {
         return Err(PrepareError::TooFewSlices);

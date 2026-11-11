@@ -145,7 +145,11 @@ fn values(
     voxels: u64,
 ) -> Result<Vec<u32>, NiftiError> {
     let voxels = usize::try_from(voxels).map_err(|_| NiftiError::TooLarge)?;
-    let mut ids = Vec::with_capacity(voxels);
+    // The header alone says how many there are, and it may say far more than the file holds:
+    // memory that is not to be had is a file too large, not the end of the program.
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(voxels)
+        .map_err(|_| NiftiError::TooLarge)?;
     let mut piece = vec![0_u8; PIECE - PIECE % kind.bytes()];
     while ids.len() < voxels {
         let wanted = ((voxels - ids.len()) * kind.bytes()).min(piece.len());

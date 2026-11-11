@@ -3,8 +3,8 @@
 //! stacking. How the values are held is decided from the first slice decoded; a later slice
 //! stored another way makes the build start again holding 32-bit values.
 
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 
 use rayon::prelude::*;
 use volsa_core::{HeldError, HeldVolume, Rescale, SeriesId, SliceIn, Stored};
@@ -77,10 +77,12 @@ impl Shared {
         let Some(slice) = listed.slices.get(first.unwrap_or(0)) else {
             return float;
         };
-        let stored = self.open(&slice.entry).and_then(|file| {
-            file.decode_stored(slice.frame)
-                .map_err(|why| why.to_string())
-        });
+        let stored = self
+            .open(&slice.entry, slice.frame.is_some())
+            .and_then(|file| {
+                file.decode_stored(slice.frame)
+                    .map_err(|why| why.to_string())
+            });
         match stored.map(|frame| frame.samples) {
             Ok(StoredSamples::Unsigned(_, rescale)) => (Stored::Unsigned16, rescale),
             Ok(StoredSamples::Signed(_, rescale)) => (Stored::Signed16, rescale),
@@ -169,7 +171,7 @@ impl Shared {
         (going, ended): (&dyn Fn() -> bool, &dyn Fn(Put, usize)),
     ) {
         // The file is read only if a slice of it is wanted that the cache cannot give.
-        let mut opened: Option<Result<ImageFile, String>> = None;
+        let mut opened: Option<Result<Arc<ImageFile>, String>> = None;
         for (slice, frame) in &file.slices {
             if !going() {
                 return;
@@ -179,7 +181,8 @@ impl Shared {
             let put = cached
                 .and_then(|cached| from_values(held, at, &cached.values))
                 .unwrap_or_else(|| {
-                    let image = opened.get_or_insert_with(|| self.open(&file.entry));
+                    let many = file.many_frames();
+                    let image = opened.get_or_insert_with(|| self.open(&file.entry, many));
                     decoded_into(held, at, image, *frame)
                 });
             ended(put, *slice);
@@ -215,7 +218,7 @@ fn from_values(held: &HeldVolume, slice: u32, values: &[f32]) -> Option<Put> {
 fn decoded_into(
     held: &HeldVolume,
     slice: u32,
-    image: &Result<ImageFile, String>,
+    image: &Result<Arc<ImageFile>, String>,
     frame: Option<u32>,
 ) -> Put {
     let decoded = match image {

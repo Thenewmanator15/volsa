@@ -108,3 +108,13 @@ Decided by the owner on 31 October 2026:
 Known limits, not fixed here: a joined list holds at most 200 measurements, so with 200 kept
 the ones made before they were read are left out; and the files of preferences and of
 labelling's choices are still read as empty when they cannot be read.
+
+## SF: not stopping or standing still on large or unusual files (code review of 9 November 2026)
+
+| No. | Requirement | Design | Risk | Shown by |
+|---|---|---|---|---|
+| SF-01 | Where textures are made on the graphics card and filled, a card with no room for one is answered by giving up what was made and saying so to the caller, never by stopping Volsa; a mistake of the program's own made with room to spare still stops it, and what follows a lost device stops nothing. | | R-SF-01, R-LS-09 | `crates/volsa-render/src/lost/tests.rs::a_watch_for_room_says_nothing_ran_out_when_nothing_did`; `crates/volsa-render/src/lost/tests.rs::a_mistake_made_with_room_to_spare_still_stops_the_program_where_the_watch_ends`; `crates/volsa-render/src/lost/tests.rs::on_a_lost_device_a_watch_for_room_says_nothing_was_made_and_stops_nothing`. Not shown: a card that truly runs out of room, which no test here can make. |
+| SF-02 | Whether a scan is too thin or too large to label is decided from its sizes and its place alone, before the 32-bit copy a run is given is made; memory that is not to be had for that copy is refused, not fatal. | | R-SF-02 | `crates/volsa-segment/src/prepare/thin_tests.rs::whether_a_scan_fits_is_known_from_its_sizes_without_reading_a_value_and_as_prepare_says`. Not shown by a test: the run itself asking first, and the refusal of memory. |
+| SF-03 | A file of many frames is read and parsed once for the volume built from it, however many slabs the volume is filled in. | | R-SF-03 | `crates/volsa-app/src/worker/opened.rs::tests::a_volume_built_from_a_file_of_many_frames_reads_it_once_however_many_slabs_it_fills` |
+| SF-04 | Pairing the left and right parts of a label set takes work in proportion to the number of parts, up to the 65,535 a set may have. | | R-SF-04 | `crates/volsa-labels/src/find_tests.rs::a_set_with_as_many_parts_as_a_set_may_have_is_paired_without_a_wait`; `crates/volsa-labels/src/find_tests.rs::a_second_part_of_the_same_name_and_side_starts_a_pair_of_its_own_and_sides_fill_in_order` |
+| SF-05 | Memory for a label file's values is asked for in a way that can be refused; a header that claims more than can be had is a file too large. | | R-SF-05 | By reading only: no test here can make memory run out. |

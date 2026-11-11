@@ -28,6 +28,25 @@ reading the code on 9 November 2026. None was reported by anyone using Volsa.
 - Two saves made close together for two different scans could leave the earlier one out.
   Each scan's saves are now counted by themselves, for measurements and for saved views.
 
+Five ways Volsa could stop or stand still on a very large or unusual file, found by the same
+reading. None was reported by anyone using Volsa.
+
+- When the graphics card truly had no room for a volume, Volsa stopped, where it was meant to
+  halve the volume and try again. The card calls whatever is then asked of the texture it did
+  not make a mistake of the program's, and only a lack of room was watched for. Both are now
+  watched for together, in every place a volume, its labels or its smooth planes are put on
+  the card.
+- "Label this scan" made its 32-bit copy of the whole scan before it looked at whether the
+  scan was too large to label. A scan too large is now told so from its sizes alone, with no
+  copy made, and a copy there is no memory for is refused in words.
+- A scan stored as one file of many frames was read and parsed again for every 32 MiB of its
+  volume: a 1.5 GB file some fifty times over. It is now opened once for the whole volume.
+- A label file with tens of thousands of different numbers and no table of names made the
+  Labels tab stand still: left and right parts were paired by going through every pair for
+  every part. Pairing now takes one pass.
+- A label file whose header claims far more voxels than it holds asked for all of that memory
+  at once, and Volsa stopped if it was not to be had. That is now a file too large to hold.
+
 ## [0.7.1] - 2026-11-01
 
 The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download

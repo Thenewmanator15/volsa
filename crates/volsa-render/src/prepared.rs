@@ -112,9 +112,9 @@ impl Prepared {
         if self.dims.iter().any(|side| *side == 0 || *side > longest) {
             return false;
         }
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let values = crate::volume_texture::values_on(device, queue, self);
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             values.destroy();
             return false;
         }

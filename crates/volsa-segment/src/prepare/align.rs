@@ -8,7 +8,7 @@
 //! written for a transform to right-anterior-superior millimetres. Volsa's is to
 //! left-posterior-superior, so its x and y rows change sign before the rules are applied.
 
-use volsa_core::Volume;
+use volsa_core::{Grid, Volume};
 
 /// How a volume's axes are turned for the networks.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -40,7 +40,7 @@ impl Turn {
     /// it, judged by the transform back from the patient to the voxels: the largest number,
     /// whatever its sign, in the column of that direction. An axis is turned round when it
     /// runs away from its direction.
-    pub(super) fn of(volume: &Volume, steps: [f64; 3]) -> Self {
+    pub(super) fn of(volume: &(impl Grid + ?Sized), steps: [f64; 3]) -> Self {
         let [across, down, through] = steps;
         // The grid's transform is the volume's with each step made shorter, so its transform
         // back has each number made as many times larger. (Changing the sign of a row of a

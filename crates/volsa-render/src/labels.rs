@@ -82,7 +82,7 @@ impl LabelsOnDevice {
         }
         let rows = u32::try_from(set.parts.len()).ok()? / LOOKS_ACROSS + 1;
         // Watched for running out of room, as the volume itself is.
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let kind = wgpu::TextureFormat::R16Uint;
         let parts = texture(device, "volsa label parts", set.dims, kind);
         write(device, queue, &parts, set.dims, &set.numbers);
@@ -100,7 +100,7 @@ impl LabelsOnDevice {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             parts.destroy();
             looks.destroy();
             return None;

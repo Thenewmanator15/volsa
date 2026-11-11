@@ -83,7 +83,7 @@ impl Placed {
     ) -> Option<Self> {
         // Watched for running out of room from making the textures to the last byte handed
         // over: left unwatched, either would stop the program.
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let halves = wgpu::TextureFormat::R16Float;
         // Handed over ahead of time, on another thread, or handed over here and now.
         let values = match ready.handed.take() {
@@ -104,7 +104,7 @@ impl Placed {
                 largest
             }
         };
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             values.destroy();
             largest.destroy();
             return None;

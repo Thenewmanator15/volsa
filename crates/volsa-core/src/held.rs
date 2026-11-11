@@ -261,12 +261,16 @@ impl HeldVolume {
 
     /// The values of a range of slices that have been put, as a volume of 32-bit numbers
     /// placed where they lie: its first slice is the range's first. `None` for an empty
-    /// range, one past the last slice, or one holding a slice not put.
+    /// range, one past the last slice, or one holding a slice not put; and when there is not
+    /// the memory for it, which is asked for before anything is read and is given or refused
+    /// without stopping the program.
     pub fn to_volume(&self, slices: Range<u32>) -> Option<Volume> {
         if slices.is_empty() || slices.end > self.dims[2] {
             return None;
         }
-        let mut values = Vec::with_capacity(slices.len() * self.in_slice());
+        let mut values = Vec::new();
+        let wanted = slices.len().checked_mul(self.in_slice())?;
+        values.try_reserve_exact(wanted).ok()?;
         for slice in slices.clone() {
             self.extend_with_slice(slice, &mut values)?;
         }

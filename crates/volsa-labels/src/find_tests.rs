@@ -221,3 +221,41 @@ fn the_difference_between_two_sides_is_a_share_of_their_mean() {
     assert_eq!(difference_percent(0.0, 0.0), None);
     assert_eq!(difference_percent(f64::NAN, 1.0), None);
 }
+
+#[test]
+fn a_second_part_of_the_same_name_and_side_starts_a_pair_of_its_own_and_sides_fill_in_order() {
+    let parts = [
+        part("lobe", "Brain", Side::Left),
+        part("lobe", "Brain", Side::Left),
+        part("lobe", "Brain", Side::Right),
+        part("lobe", "Brain", Side::Midline),
+        part("lobe", "Brain", Side::Right),
+        part("lobe", "Brain", Side::Right),
+    ];
+    let said: Vec<_> = pairs(&parts)
+        .iter()
+        .map(|pair| (pair.left, pair.right, pair.midline))
+        .collect();
+    assert_eq!(
+        said,
+        [
+            (Some(0), Some(2), Some(3)),
+            (Some(1), Some(4), None),
+            (None, Some(5), None),
+        ]
+    );
+}
+
+#[test]
+fn a_set_with_as_many_parts_as_a_set_may_have_is_paired_without_a_wait() {
+    // A label file with no table names every number by itself: none pairs with another.
+    let parts: Vec<_> = (0..65_535)
+        .map(|number| part(&format!("Label {number}"), "", Side::Midline))
+        .collect();
+    let began = std::time::Instant::now();
+    let paired = pairs(&parts);
+    assert_eq!(paired.len(), parts.len());
+    assert_eq!(paired.last().and_then(|pair| pair.midline), Some(65_534));
+    // Going through every pair for every part took minutes; this is far inside a second.
+    assert!(began.elapsed().as_secs() < 5, "{:?}", began.elapsed());
+}

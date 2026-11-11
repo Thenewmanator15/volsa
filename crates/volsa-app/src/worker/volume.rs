@@ -4,7 +4,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use volsa_core::{Grid, HeldVolume, SeriesId};
+use volsa_core::{Grid, HeldVolume, SeriesId, VolsaError};
 use volsa_dicom::{Frame, ImageFile, IndexedSeries};
 use volsa_render::{CardRoom, MAX_VOLUME_BYTES, Smoothed, card_mapping};
 use volsa_volume::halved_held;
@@ -256,14 +256,31 @@ impl Shared {
         true
     }
 
-    /// Read and parse one file of the source that is open.
-    pub(super) fn open(&self, entry: &str) -> Result<ImageFile, String> {
-        let Some(bytes) = self.read_entry(entry) else {
-            return Err("No scan is open.".to_owned());
+    /// Read and parse one file of the source that is open, for a volume being built. A file
+    /// of `many` frames is the one kept (see [`super::opened::Opened`]): a volume is filled a
+    /// slab at a time, and each slab of such a file would otherwise read and parse the whole
+    /// of it again.
+    pub(super) fn open(&self, entry: &str, many: bool) -> Result<Arc<ImageFile>, String> {
+        // `None` when no source is open.
+        let open = || {
+            Some(
+                self.read_entry(entry)?
+                    .and_then(|bytes| ImageFile::open(&bytes)),
+            )
         };
-        bytes
-            .and_then(|bytes| ImageFile::open(&bytes))
-            .map_err(|why| why.to_string())
+        let none_open = || "No scan is open.".to_owned();
+        let file = if many {
+            if lock(&self.source).is_none() {
+                return Err(none_open());
+            }
+            let export = self.opened.load(Ordering::SeqCst);
+            let missing = || Err(VolsaError::MissingEntry(entry.to_owned()));
+            self.kept
+                .get(entry, export, || open().unwrap_or_else(missing))
+        } else {
+            open().ok_or_else(none_open)?.map(Arc::new)
+        };
+        file.map_err(|why| why.to_string())
     }
 }
 

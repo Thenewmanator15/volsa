@@ -136,9 +136,9 @@ impl VolumePipeline {
         let Some(mut upload) = self.upload.take() else {
             return UploadState::Idle;
         };
-        let scope = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let scope = crate::lost::RoomWatch::on(device);
         let placed = upload.finish((device, queue), self.blocks_maker(device));
-        if pollster::block_on(scope.pop()).is_some() {
+        if scope.ran_out() {
             return UploadState::Failed(RenderError::NoRoom);
         }
         match placed {
@@ -237,13 +237,13 @@ fn textures(
     (plan, [cols, rows, _]): (&SlabPlan, [u32; 3]),
     format: wgpu::TextureFormat,
 ) -> Option<Vec<wgpu::Texture>> {
-    let scope = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+    let scope = crate::lost::RoomWatch::on(device);
     let made: Vec<wgpu::Texture> = plan
         .depths
         .iter()
         .map(|&depth| texture(device, "volsa volume values", [cols, rows, depth], format))
         .collect();
-    if pollster::block_on(scope.pop()).is_some() {
+    if scope.ran_out() {
         made.iter().for_each(wgpu::Texture::destroy);
         return None;
     }

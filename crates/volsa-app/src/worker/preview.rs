@@ -46,7 +46,7 @@ impl Shared {
             if !self.building(build) {
                 return;
             }
-            let image = self.open(&file.entry);
+            let image = self.open(&file.entry, file.many_frames());
             for (slice, frame) in &file.slices {
                 let cached = lock(&self.cache).get(&listed.info.id, *slice);
                 let values = cached.map(|frame| frame.values.clone()).or_else(|| {
