@@ -66,3 +66,44 @@ fn the_tags_of_a_file_named_by_its_entry_are_listed_and_follow_the_entry() {
     panel.open_on(TagsOf::Entry("DOCS/nothing-like-it".to_owned()));
     until(&mut panel, &mut session, Result::is_err);
 }
+
+#[test]
+fn a_file_named_for_the_window_is_let_go_of_when_another_export_is_opened() {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    for (name, bytes) in document_files() {
+        let path = folder.path().join(name);
+        std::fs::create_dir_all(path.parent().expect("inside")).expect("makes folders");
+        std::fs::write(path, bytes).expect("writes");
+    }
+    let (sender, reports) = channel();
+    let mut session = Session::new(sender, reports, 1 << 24, None);
+    session.dispatch(crate::action::Action::OpenPath(folder.path().to_owned()));
+    let started = Instant::now();
+    while session.state().document.is_none() {
+        assert!(started.elapsed() < Duration::from_secs(60), "still waiting");
+        session.wait(Duration::from_millis(50));
+    }
+    let mut panel = Panel::default();
+    panel.open_on(TagsOf::Entry(REPORT.to_owned()));
+    until(&mut panel, &mut session, |listing| {
+        value_of(listing, "SOPClassUID").is_some()
+    });
+    // Another export is opened with the window still open: the same files, as it happens,
+    // so the entry's name is one the new export has too.
+    session.dispatch(crate::action::Action::OpenPath(folder.path().to_owned()));
+    panel.refresh(
+        session.state(),
+        session.workers(),
+        &egui::Context::default(),
+    );
+    assert_eq!(panel.of, TagsOf::Shown, "back to the slice shown");
+    assert_eq!(
+        panel.listing,
+        Ok(Vec::new()),
+        "the other export's file is gone"
+    );
+    assert_eq!(
+        panel.asked, None,
+        "and nothing is shown, so nothing is asked for"
+    );
+}

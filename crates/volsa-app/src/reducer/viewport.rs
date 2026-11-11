@@ -222,6 +222,9 @@ fn adjust(state: &mut AppState, action: Action) {
 /// window worked out for the slice shown.
 fn set_window(viewport: &mut ViewportState, known: Option<PresetWindows>, action: &Action) {
     let by_hand = match *action {
+        // Until the slice shown has given its window there is only a stand-in to drag from,
+        // and dragging it would give up the automatic window for a picture never seen.
+        Action::AdjustWindow { .. } if viewport.wl_pending => return,
         Action::AdjustWindow {
             d_center, d_width, ..
         } => WindowLevel::new(viewport.wl.center + d_center, viewport.wl.width + d_width),

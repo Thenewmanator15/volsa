@@ -47,6 +47,26 @@ reading. None was reported by anyone using Volsa.
 - A label file whose header claims far more voxels than it holds asked for all of that memory
   at once, and Volsa stopped if it was not to be had. That is now a file too large to hold.
 
+Six ways the window could show something other than what was there, found by the same
+reading. None was reported by anyone using Volsa.
+
+- A scan clicked while its export was still being read could stay black until it was
+  scrolled: its slices were asked for before there was anything to read them from. They are
+  asked for again when the reading ends.
+- A measurement begun in one of the three plane views was kept when the wheel moved that view
+  to another layer, so an angle or a region could be finished across two layers, and then
+  vanish from every view. What is begun on one layer is now given up when the view shows
+  another, as it already was on the slices.
+- A region drawn on a slice was shown in the plane views with its width and height changed
+  over when the scan is stored turned a quarter round in its plane. A region is now drawn
+  along its own two half-widths everywhere.
+- The DICOM tags window, opened from a scan's card or from a document, went on listing that
+  file after another export was opened. It now goes back to the slice shown.
+- When the graphics card turned a volume down and a smaller one was put in its place, the
+  3D view went on drawing the rough preview. It now draws the volume.
+- Dragging for brightness and contrast before a scan's first slice had appeared set a window
+  worked out from nothing and gave up the automatic one. The drag now waits for the slice.
+
 ## [0.7.1] - 2026-11-01
 
 The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download

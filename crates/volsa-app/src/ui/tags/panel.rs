@@ -27,6 +27,8 @@ pub struct Panel {
     pub open: bool,
     /// Whose tags it shows.
     of: TagsOf,
+    /// Which export a file named for it is of, as the state counts them, once that is known.
+    export: Option<u64>,
     /// The file whose tags were last asked for.
     asked: Option<Asked>,
     listing: Listing,
@@ -40,6 +42,7 @@ impl Default for Panel {
         Self {
             open: false,
             of: TagsOf::Shown,
+            export: None,
             asked: None,
             listing: Ok(Vec::new()),
             send,
@@ -52,6 +55,7 @@ impl Panel {
     /// Open the window on the tags `of` a file.
     pub fn open_on(&mut self, of: TagsOf) {
         self.of = of;
+        self.export = None;
         self.open = true;
     }
 
@@ -62,6 +66,13 @@ impl Panel {
         if !self.open {
             self.asked = None;
             return;
+        }
+        // A file named for the window is of the export open when it was named. Once another
+        // export is open the window goes back to the slice shown: it never lists a file of an
+        // export that is no longer the one on the screen.
+        if *self.export.get_or_insert(state.opened) != state.opened {
+            self.of = TagsOf::Shown;
+            self.export = Some(state.opened);
         }
         let wanted = match &self.of {
             TagsOf::Series(series) => Some(Asked::Slice(series.clone(), 0)),

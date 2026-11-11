@@ -120,7 +120,12 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     let annotations = Effect::LoadAnnotations {
         series: id(THICK_SCAN),
     };
-    let expected = vec![Effect::RequestThumbnails, rebuilt, views, annotations];
+    // And its slices are asked for again: chosen while the export was still being read, they
+    // were asked for before there was anything to read them from.
+    let shown = state.viewports[0].slice;
+    let mut expected = vec![Effect::RequestThumbnails];
+    expected.extend(frames_around(THICK_SCAN, shown));
+    expected.extend([rebuilt, views, annotations]);
     assert_eq!(again, expected);
     assert_eq!(
         state.viewports[0].series,

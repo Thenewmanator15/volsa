@@ -380,6 +380,8 @@ fn narrowed(value: f64) -> f32 {
 }
 
 #[cfg(test)]
+mod layer_tests;
+#[cfg(test)]
 mod shapes_tests;
 #[cfg(test)]
 mod tests;

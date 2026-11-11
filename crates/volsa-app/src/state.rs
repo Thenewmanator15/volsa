@@ -163,6 +163,9 @@ pub struct AppState {
     /// How many times in this run the index has been replaced or cleared: what is worked out
     /// from the index is worked out again when this changes.
     pub index_changes: u64,
+    /// How many exports have been opened in this run: what belongs to one export, and is kept
+    /// outside this state, is let go of when this changes.
+    pub opened: u64,
     /// How the viewports are arranged.
     pub layout: Layout,
     /// The viewports; a layout shows the first one, two or four.
@@ -208,6 +211,7 @@ impl Default for AppState {
         Self {
             index: None,
             index_changes: 0,
+            opened: 0,
             layout: Layout::One,
             viewports: Default::default(),
             active: 0,

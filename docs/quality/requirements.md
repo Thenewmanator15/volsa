@@ -118,3 +118,25 @@ labelling's choices are still read as empty when they cannot be read.
 | SF-03 | A file of many frames is read and parsed once for the volume built from it, however many slabs the volume is filled in. | | R-SF-03 | `crates/volsa-app/src/worker/opened.rs::tests::a_volume_built_from_a_file_of_many_frames_reads_it_once_however_many_slabs_it_fills` |
 | SF-04 | Pairing the left and right parts of a label set takes work in proportion to the number of parts, up to the 65,535 a set may have. | | R-SF-04 | `crates/volsa-labels/src/find_tests.rs::a_set_with_as_many_parts_as_a_set_may_have_is_paired_without_a_wait`; `crates/volsa-labels/src/find_tests.rs::a_second_part_of_the_same_name_and_side_starts_a_pair_of_its_own_and_sides_fill_in_order` |
 | SF-05 | Memory for a label file's values is asked for in a way that can be refused; a header that claims more than can be had is a file too large. | | R-SF-05 | By reading only: no test here can make memory run out. |
+
+## SW: showing what is there (code review of 9 November 2026)
+
+| No. | Requirement | Design | Risk | Shown by |
+|---|---|---|---|---|
+| SW-01 | When the reading of an export ends, the slices of every series a viewport shows are asked for again, so a series chosen while it was being read is shown without being scrolled. | | R-SW-01 | `crates/volsa-app/src/reducer/tests.rs::finishing_the_index_opens_the_most_detailed_series_once` |
+| SW-02 | A measurement begun in a plane view is given up when that view shows another layer; every point of a measurement made there lies in one layer. | | R-SW-02 | `crates/volsa-app/src/ui/planes/layer_tests.rs::an_angle_begun_on_one_layer_is_given_up_when_the_panel_shows_another`; `crates/volsa-app/src/ui/planes/layer_tests.rs::a_ruler_or_a_region_held_while_the_layer_changes_is_not_finished_on_the_new_layer` |
+| SW-03 | A region is drawn in a plane view along its own two half-widths, whichever way the view's sides run. | | R-SW-03 | `crates/volsa-app/src/ui/planes/layer_tests.rs::a_region_is_drawn_along_its_own_half_widths_however_the_panel_is_turned` |
+| SW-04 | The tags window never lists a file of an export that is no longer the one open: a file named for it is let go of when another export is opened. | | R-SW-04 | `crates/volsa-app/src/ui/tags/panel/tests.rs::a_file_named_for_the_window_is_let_go_of_when_another_export_is_opened` |
+| SW-05 | Once a volume is on the graphics card, by whichever way it was put there, it is the volume that is drawn and not the preview before it. | | R-SW-05 | By reading only: it takes a card that turns a volume down. |
+| SW-06 | The window is not changed by a drag until the slice shown has given its own; the automatic window is then still taken. | | R-SW-06 | `crates/volsa-app/src/reducer/window_tests.rs::a_window_dragged_before_the_slice_has_given_its_own_waits_for_it` |
+
+Found by the same review and not changed, for the owner to decide:
+
+- The Radiological switch leaves a slice as its file stores it when on, and mirrors it when
+  off. For a scan whose rows run to the patient's right (a patient lying face down, say)
+  that is the other way round from what the switch says. The letters at the edges are right
+  either way, and the plane views place the patient's left by the patient, not by the file.
+  Changing it changes which way round such scans are shown (R-UI-13).
+- A window is never narrower than 1, so a map whose values span less than 1 is one grey. The
+  floor is what stops a window dragged shut from staying shut, so it cannot simply be
+  lowered: it would have to follow the scale of the scan's values.

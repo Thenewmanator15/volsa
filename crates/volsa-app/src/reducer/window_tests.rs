@@ -218,3 +218,29 @@ fn a_tick_does_nothing_while_playback_is_paused_or_was_never_started() {
     reduce(&mut state, Action::CineTick { viewport: 0 });
     assert_eq!(state.viewports[0].slice, 15);
 }
+
+#[test]
+fn a_window_dragged_before_the_slice_has_given_its_own_waits_for_it() {
+    let mut state = showing(THICK_SCAN);
+    let stand_in = state.viewports[0].wl;
+    assert!(state.viewports[0].wl_pending, "no slice is decoded yet");
+    reduce(
+        &mut state,
+        Action::AdjustWindow {
+            viewport: 0,
+            d_center: 30.0,
+            d_width: 120.0,
+        },
+    );
+    let viewport = &state.viewports[0];
+    assert_eq!(viewport.wl, stand_in, "there was nothing to drag from");
+    assert!(
+        viewport.wl_auto && viewport.wl_pending,
+        "the automatic window is still to come"
+    );
+    // A window set outright, or a preset, is still taken: it does not build on the stand-in.
+    let wl = WindowLevel::new(40.0, 80.0);
+    reduce(&mut state, Action::SetWindow { viewport: 0, wl });
+    assert_eq!(state.viewports[0].wl, wl);
+    assert!(!state.viewports[0].wl_pending);
+}

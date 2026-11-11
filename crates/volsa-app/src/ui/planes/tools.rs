@@ -12,6 +12,10 @@ use crate::annotations::{Shape, Tool};
 const LEAST_RULER_MM: f64 = 1.0;
 /// The least either half-width of a region can be, in millimetres.
 const LEAST_RADIUS_MM: f64 = 0.5;
+/// A point further than this from a panel's plane, in millimetres, is not in the layer the
+/// panel shows: far less than any scan's layers are apart, and far more than arithmetic
+/// leaves a point placed in the plane away from it.
+const OFF_THE_LAYER_MM: f64 = 1.0e-3;
 
 /// An annotation that has been begun and not finished.
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -27,6 +31,19 @@ pub enum Draft {
     AngleVertex(Point<Patient>, Point<Patient>),
     /// A region, from its middle.
     RegionFrom(Point<Patient>),
+}
+
+impl Draft {
+    /// Whether everything placed so far lies in a plane, give or take what arithmetic leaves:
+    /// it does until the panel it was begun in shows another layer. Nothing begun lies in any.
+    fn lies_on(self, plane: &Plane) -> bool {
+        let on = |at: Point<Patient>| plane.of(at).1.abs() <= OFF_THE_LAYER_MM;
+        match self {
+            Self::Idle => true,
+            Self::RulerFrom(at) | Self::AngleArm(at) | Self::RegionFrom(at) => on(at),
+            Self::AngleVertex(arm, vertex) => on(arm) && on(vertex),
+        }
+    }
 }
 
 /// What the pointer did, at a point of the plane.
@@ -153,6 +170,11 @@ impl Drawing {
     /// it finished, if it finished one. What is begun in one panel is finished in that panel:
     /// its points lie in that plane.
     pub fn step(&mut self, kind: PlaneKind, input: &PlaneInput, plane: &Plane) -> Option<Shape> {
+        // The panel has gone to another layer since this was begun: nothing begun on one
+        // layer is finished on another, as nothing begun on one slice is.
+        if self.on == Some(kind) && !self.draft.lies_on(plane) {
+            self.draft = Draft::Idle;
+        }
         let mut made = None;
         if let Some(at) = input.pressed_at {
             if self.on != Some(kind) {
@@ -184,6 +206,7 @@ impl Drawing {
     /// is now.
     pub fn so_far(&self, kind: PlaneKind, plane: &Plane) -> Option<Shape> {
         let now = self.pointer.filter(|_| self.on == Some(kind))?;
-        preview(self.draft, now, plane)
+        let here = self.draft.lies_on(plane) && plane.of(now).1.abs() <= OFF_THE_LAYER_MM;
+        preview(self.draft, now, plane).filter(|_| here)
     }
 }

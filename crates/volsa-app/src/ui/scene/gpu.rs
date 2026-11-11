@@ -192,8 +192,7 @@ impl SceneGpu {
             }
             UploadState::Done => {
                 // The volume itself is drawn from now on.
-                self.preview = None;
-                self.drawn = None;
+                (self.preview, self.drawn) = (None, None);
                 Some(self.halved)
             }
             UploadState::Failed(RenderError::NoRoom) => self.halved_here(render, volume),
@@ -205,9 +204,11 @@ impl SceneGpu {
     /// what is done only when the device turned down what it was offered.
     fn halved_here(&mut self, render: &RenderState, volume: &Arc<HeldVolume>) -> Option<u32> {
         let values = volume.to_volume(0..volume.dims()[2])?;
-        self.pipeline
-            .upload(&render.device, &render.queue, &values)
-            .ok()
+        let (device, queue) = (&render.device, &render.queue);
+        let halved = self.pipeline.upload(device, queue, &values).ok()?;
+        // The volume itself is drawn from now on, not the preview before it.
+        (self.preview, self.drawn) = (None, None);
+        Some(halved)
     }
 
     /// Draw the scene into a picture of its own, `pixels` wide and high, and give it back as

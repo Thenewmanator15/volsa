@@ -67,3 +67,14 @@ and are in the table below (R-UI-13 and R-UI-14).
 | R-SF-03 | A scan in one large file of many frames is read again for every slab of its volume; the 3D view seems never to come and the person gives up or stops Volsa. | minor / possible | The file is opened once for the whole volume (SF-03). | The test named under SF-03. | minor / rare |
 | R-SF-04 | A label file with tens of thousands of numbers and no names makes the Labels tab stand still, and the person stops Volsa, losing what was not saved. | minor / rare | Pairing takes one pass (SF-04). | The tests named under SF-04. | minor / very rare |
 | R-SF-05 | A damaged or crafted label file claims far more voxels than it holds; the memory is asked for at once and Volsa stops if it is not to be had. | minor / rare | The memory is asked for in a way that can be refused (SF-05). | By reading only. | minor / very rare |
+
+## SW: showing what is there (code review of 9 November 2026)
+
+| No. | Hazard and how harm could follow | Severity / likelihood before | Control | Checked by | After |
+|---|---|---|---|---|---|
+| R-SW-01 | A scan chosen while its export is still being read stays black, and is taken for a scan that holds nothing or cannot be read. | minor / possible | Its slices are asked for again when the reading ends (SW-01). | The test named under SW-01. | minor / rare |
+| R-SW-02 | An angle or a region is finished across two layers of a plane view; the number is of no one layer, and the measurement then shows in no view. | serious / rare | What is begun on one layer is given up when the view shows another (SW-02). | The tests named under SW-02. | serious / very rare |
+| R-SW-03 | A region is shown lying a quarter turn from where it was measured, over tissue its numbers are not of. | serious / rare | A region is drawn along its own half-widths in every view (SW-03). | The test named under SW-03. | serious / very rare |
+| R-SW-04 | The tags of a file of the export opened before, with a patient's details if they are shown, are read as those of the scan now on the screen. | serious / rare | A file named for the tags window is let go of when another export is opened (SW-04). | The test named under SW-04. | serious / very rare |
+| R-SW-05 | After a graphics card turns a volume down, the rough preview goes on being drawn in the 3D view and is taken for the scan in full, while clicks meet the real volume. | minor / rare | The preview is let go of when the volume is on the card by either way (SW-05). | By reading only. | minor / very rare |
+| R-SW-06 | A drag made before a scan's first slice appears leaves every slice near black or white, and the scan is taken for a poor one. | minor / possible | The drag waits for the slice's own window (SW-06). | The test named under SW-06. | minor / rare |

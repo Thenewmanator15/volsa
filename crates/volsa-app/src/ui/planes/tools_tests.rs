@@ -290,11 +290,13 @@ fn an_annotation_is_drawn_where_its_points_fall_in_the_panel() {
         radii_mm: [4.0, 2.0],
         stats: None,
     };
-    let ellipse = Drawn::Ellipse {
-        centre: [110.0, 60.0],
-        radii: [8.0, 4.0],
+    // A region is the outline of its ellipse: here 8 points either side of its middle and 4
+    // above and below it, beginning at its right-hand end.
+    let Drawn::Outline(round) = drawn(&region, &view, panel) else {
+        panic!("a region is an outline");
     };
-    assert_eq!(drawn(&region, &view, panel), ellipse);
+    assert_eq!(round.first(), Some(&[118.0, 60.0]));
+    assert_eq!(round.len(), 48);
     let marker = Shape::Marker {
         at: xyz(at(-5.0, 0.0)),
     };

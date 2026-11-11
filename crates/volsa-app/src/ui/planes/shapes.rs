@@ -47,33 +47,18 @@ pub enum Drawn {
     Line([[f32; 2]; 2]),
     /// An angle: the end of one arm, the vertex, the end of the other arm.
     Arms([[f32; 2]; 3]),
-    /// A region: its middle and its half-widths across and down the panel.
-    Ellipse {
-        /// The middle.
-        centre: [f32; 2],
-        /// The half-widths.
-        radii: [f32; 2],
-    },
     /// A marker.
     Dot([f32; 2]),
-    /// A shape seen at a slant: the points of its outline, going round.
+    /// A region: the points of its outline, going round.
     Outline(Vec<[f32; 2]>),
 }
 
-/// Where an annotation falls in a panel of `viewport` (width, height) points.
+/// Where an annotation falls in a panel of `viewport` (width, height) points. A region is the
+/// outline of its ellipse along its own two half-widths, which are those of the picture it
+/// was drawn on: a slice's rows and columns need not run the way a panel's do, and a region
+/// drawn with its half-widths along the panel's would then lie turned a quarter round.
 pub fn drawn(shape: &Shape, view: &PlaneView, viewport: [f32; 2]) -> Drawn {
-    let seen = |at: &[f64; 3]| view.patient_to_screen(viewport, point(*at)).0;
-    match shape {
-        Shape::Ruler { a, b } => Drawn::Line([seen(a), seen(b)]),
-        Shape::Angle { a, vertex, b } => Drawn::Arms([seen(a), seen(vertex), seen(b)]),
-        Shape::Region {
-            centre, radii_mm, ..
-        } => Drawn::Ellipse {
-            centre: seen(centre),
-            radii: radii_mm.map(|mm| narrowed(mm / view.mm_per_px)),
-        },
-        Shape::Marker { at } => Drawn::Dot(seen(at)),
-    }
+    drawn_through(shape, |at| view.patient_to_screen(viewport, point(at)).0)
 }
 
 /// Where an annotation falls in a picture whose points `seen` places, in points from its top
@@ -119,10 +104,6 @@ impl Drawn {
                 });
                 top.unwrap_or_default()
             }
-            Self::Ellipse {
-                centre: [x, y],
-                radii: [_, high],
-            } => [x, y - high],
         }
     }
 
@@ -132,7 +113,7 @@ impl Drawn {
         let [x, y] = self.anchor();
         match self {
             Self::Line(_) | Self::Arms(_) | Self::Dot(_) => [x + 2.0 * DOT, y - 2.0 * DOT],
-            Self::Outline(_) | Self::Ellipse { .. } => [x, y - 2.0 * DOT],
+            Self::Outline(_) => [x, y - 2.0 * DOT],
         }
     }
 }
@@ -252,17 +233,6 @@ fn stroke(pen: &Pen, cell: Rect, drawn: &Drawn, colour: Color32) {
                 dot(at);
             }
         }
-        Drawn::Ellipse {
-            centre: [x, y],
-            radii: [wide, high],
-        } => {
-            let round = (0..PIECES).map(|piece| {
-                let turn = std::f32::consts::TAU * f32::from(piece) / f32::from(PIECES);
-                placed([x + wide * turn.cos(), y + high * turn.sin()])
-            });
-            let outline: Vec<Pos2> = round.collect();
-            pen.painter.add(Painted::closed_line(outline, stroke));
-        }
         Drawn::Dot(at) => {
             pen.painter.circle_stroke(placed(at), 2.0 * DOT, stroke);
             dot(at);
@@ -288,12 +258,4 @@ fn part_of([x, y, z]: [f64; 3], part: usize) -> f64 {
 
 fn cross([ax, ay, az]: [f64; 3], [bx, by, bz]: [f64; 3]) -> [f64; 3] {
     [ay * bz - az * by, az * bx - ax * bz, ax * by - ay * bx]
-}
-
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "a length on the screen is small"
-)]
-fn narrowed(value: f64) -> f32 {
-    value as f32
 }

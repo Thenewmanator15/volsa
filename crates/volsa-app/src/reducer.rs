@@ -165,6 +165,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
             // Thumbnails first: the request for the whole of the series opened is then the
             // newer one for that series, and is not set aside in favour of its thumbnail.
             let mut effects = vec![Effect::RequestThumbnails];
+            effects.extend(shown_again(state));
             effects.extend(open_best(state));
             return effects;
         }
@@ -197,6 +198,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
 fn emptied(state: &AppState) -> AppState {
     AppState {
         index_changes: state.index_changes + 1,
+        opened: state.opened + 1,
         layout: state.layout,
         active: state.active,
         radiological: state.radiological,
@@ -240,6 +242,19 @@ fn window(state: &mut AppState, action: Action) {
         }
         _ => {}
     }
+}
+
+/// Ask again for the slices of every series a viewport shows. A series chosen while the
+/// export was still being read was asked for before there was anything to read it from, and
+/// what was asked then was let go of without a word: left at that, its viewport would stay
+/// black until the person scrolled it.
+fn shown_again(state: &AppState) -> Vec<Effect> {
+    let shown = state.viewports.iter().filter_map(|viewport| {
+        let series = viewport.series.clone()?;
+        let around = viewport.slice;
+        Some(Effect::RequestFrames { series, around })
+    });
+    shown.collect()
 }
 
 /// Show the series to open first in the first viewport, unless that viewport is in use.
