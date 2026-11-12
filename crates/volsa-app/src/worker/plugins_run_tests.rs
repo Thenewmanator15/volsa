@@ -337,3 +337,45 @@ fn a_result_is_found_by_the_plugins_identity_after_a_new_version_and_after_remov
     until(&lab, |said| matches!(said, PluginAction::Removed(_)));
     assert_eq!(shown(&lab), Ok(labels), "after it is removed");
 }
+
+/// A real plugin, added and run by the workers through Volsa itself as the helper and the real
+/// runtime, on the processor. `VOLSA_TEST_PLUGIN` names the plugin's folder, `VOLSA_RUNTIME`
+/// the runtime's and `VOLSA_EXE` a built `volsa.exe`; nothing of any of them is held here.
+#[test]
+#[ignore = "needs VOLSA_TEST_PLUGIN, VOLSA_RUNTIME and VOLSA_EXE"]
+fn a_real_plugin_is_added_and_run_through_volsa_itself() {
+    let named = |name: &str| PathBuf::from(std::env::var(name).expect(name));
+    let (source, runtime, program) = (
+        named("VOLSA_TEST_PLUGIN"),
+        named("VOLSA_RUNTIME"),
+        named("VOLSA_EXE"),
+    );
+    let lab = Lab::keeping(StandIn::with(8 * GIB, 32 * GIB));
+    let starter = volsa_plugins::ProcessStarter { program };
+    lab.workers.set_plugin_starter(Arc::new(starter));
+    let added = add(&lab, &source, &runtime);
+    let PluginAction::Added(Ok(entry)) = added else {
+        panic!("{added:?}");
+    };
+    let asked = PluginEffect::Run {
+        run: 1,
+        id: entry.id,
+        series: id(THICK_SCAN),
+        stamp: None,
+        runs_on: RunsOn::Processor,
+        held: 0,
+        drawing_on: None,
+        runtime: Some(runtime),
+    };
+    lab.workers.run(Effect::Plugins(asked), None);
+    let said = until(&lab, |said| {
+        matches!(
+            said,
+            PluginAction::Made { .. } | PluginAction::Failed { .. }
+        )
+    });
+    let Some(PluginAction::Made { labels, table, .. }) = said.last() else {
+        panic!("{:?}", said.last());
+    };
+    assert!(labels.exists() && table.exists(), "its labels are kept");
+}

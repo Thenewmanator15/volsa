@@ -16,6 +16,8 @@ mod entry;
 mod warning;
 
 #[cfg(test)]
+mod pressed_tests;
+#[cfg(test)]
 mod tests;
 
 pub use card::plugin_card;

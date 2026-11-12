@@ -105,3 +105,28 @@ Measured in a release build, from `crates/voxa-plugins/tests/budgets.rs` and
 - A plugin in blocks, with a real model (blocks were checked with test networks only).
 - Any real scan.
 - Linux and macOS, which were neither built nor run.
+
+## After the merge onto Volsa (12 November 2026)
+
+The plugins work was brought onto `main` as it stood on 12 November 2026 (the name Volsa, the
+new window, volumes held as stored), and checked again on the same machine with the same
+runtime and the same converted MindGrab folder. No real scan was used.
+
+- The four tests of `crates/volsa-plugins/tests/with_runtime.rs` pass, in a release build.
+- `crates/volsa-plugins/tests/with_plugin.rs::a_plugin_named_by_volsa_test_plugin_masks_the_made_up_head`
+  passes: on the processor, Dice 0.978 with the brain and its fluid, 0.848 with the brain
+  alone, 0.998 of the brain covered, run 26.0 s, helper's measured peak 2006 MiB; on the
+  NVIDIA GeForce RTX 5070 Ti, the same three figures, run 2.5 s, peak 2963 MiB. The Dice
+  figures are those of 31 October.
+- `crates/volsa-app/src/worker/plugins_run_tests.rs::a_real_plugin_is_added_and_run_through_volsa_itself`
+  passes: the app's own workers offered, added and measured the folder and ran it on the
+  processor through `volsa.exe --plugin-helper`, and its labels and table were kept.
+- `crates/volsa-app/src/ui/plugins/pressed_tests.rs::a_plugin_is_added_run_and_removed_by_pressing_the_buttons_in_order`
+  presses the buttons of the Tools tab and of the card, the warning and the question, in order,
+  on the real state and workers with a stand-in helper.
+- Pictures of the window with a made-up plugin (`VOLSA_CAPTURE_SHOW` `tab-tools,plugins` and
+  `tab-tools,plugin-card`) were looked at: the entry is under "Added by you" in the Tools tab,
+  and the card says Volsa's words before the plugin's.
+
+Not done: the buttons pressed by a person's own hand in the window, and the system's window for
+choosing a folder.
