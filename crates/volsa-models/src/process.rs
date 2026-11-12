@@ -42,9 +42,10 @@ pub fn start_helper(program: &Path, args: &[&str], cap: Option<u64>) -> io::Resu
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn()?;
+    let child = command.spawn()?;
     #[cfg(windows)]
     {
+        let mut child = child;
         match job::Job::around(&child, cap) {
             Ok(job) => Ok(Helper { child, job }),
             Err(error) => {
