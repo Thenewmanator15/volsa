@@ -73,7 +73,7 @@ sha2 = "0.11"
 # ONNX Runtime, which runs the networks. Its library is loaded when Volsa runs, from a folder
 # the person names: nothing is linked or fetched when Volsa is built. Pinned to one release,
 # the one the networks were measured with. The crate that uses it adds `directml` on Windows.
-ort = { version = "=2.0.0-rc.13", default-features = false, features = ["std", "load-dynamic"] }
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "load-dynamic"] }
 # The system's own list of graphics adapters, how much of each card's memory every program
 # together holds, and the memory it can still promise a program, on Windows. The version wgpu
 # already brings.
