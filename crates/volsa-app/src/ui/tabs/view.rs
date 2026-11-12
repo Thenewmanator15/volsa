@@ -1,6 +1,7 @@
 //! The View tab: brightness, which way round the patient is drawn, playing through the slices
 //! and stepping between volumes, mirroring, turning and fitting the picture, and the switches
-//! for smoothing the planes, linking the views and showing the patient's details.
+//! for smoothing the planes, linking the views and showing the patient's details; and last a
+//! few plain sentences about the kind of scan in the active viewport.
 
 use egui::Ui;
 use volsa_core::WindowLevel;
@@ -11,6 +12,7 @@ use super::super::overlay::window_number;
 use super::super::volumes;
 use super::{offer, row, section};
 use crate::action::Action;
+use crate::naming::{ABOUT_HEADING, about};
 use crate::profile::{Unit, unit_of};
 use crate::state::{AppState, Cine};
 
@@ -98,7 +100,20 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
         actions,
         &mut asked,
     );
+    about_the_scan(ui, state);
     asked
+}
+
+/// A few plain sentences about the kind of scan in the active viewport, each on lines of its
+/// own that wrap within the panel. Nothing is drawn, not even the heading, with no scan shown.
+fn about_the_scan(ui: &mut Ui, state: &AppState) {
+    let Some(info) = state.shown_info(state.active) else {
+        return;
+    };
+    section(ui, ABOUT_HEADING);
+    for line in about(info) {
+        ui.add(egui::Label::new(line).wrap());
+    }
 }
 
 /// A switch, in the plain words of its action's name, drawn pressed while it is `on`.
@@ -245,6 +260,8 @@ fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut 
     asked.extend(volumes::stepper(ui, state, actions));
 }
 
+#[cfg(test)]
+mod about_tests;
 #[cfg(test)]
 mod looping_tests;
 #[cfg(test)]

@@ -49,6 +49,7 @@ pub(super) fn fixed_texts() -> Vec<&'static str> {
         view::TEXTS.as_slice(),
     ];
     own.into_iter()
+        .chain(crate::naming::about_texts())
         .chain(looks)
         .chain(sides)
         .chain(kept.concat())

@@ -8,12 +8,17 @@
 //! weighting is ever worked out from a timing. With nothing recognised, the name is the facts
 //! alone. The scanner's own description is always shown beneath a name, unchanged.
 
+pub use explain::{ABOUT_HEADING, about};
 pub use printable::{printable, printable_multiline};
 use volsa_core::{Facing, SeriesInfo, SeriesKind};
 use words::{BODY_PARTS, JOINED, MODALITIES, PLANES, WEIGHTINGS, plane_word};
 
+mod explain;
 mod printable;
 mod words;
+
+#[cfg(test)]
+pub use explain::fixed_texts as about_texts;
 
 /// The three contrasts a weighting can be made of. A description that writes two different
 /// ones of them contradicts itself, so no weighting is named.

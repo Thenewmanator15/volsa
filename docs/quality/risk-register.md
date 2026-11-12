@@ -102,3 +102,14 @@ section PL.
 | R-PL-11 | Labels near block edges differ from the model's own program's, and a small structure there is judged absent. | minor / possible | Said on the result when blocks were used. | `volsa-plugins/src/run/tests.rs::a_block_run_gives_the_same_labels_and_the_blocks_note`. | minor / possible |
 | R-PL-12 | A result made by an older version, or by a removed plugin, is taken for the newer one's. | minor / possible | Version and sum on every result (PL-17, PL-18); a result is kept under the plugin's sum, so a new version does not open an old one's result. | `volsa-labels/src/made/added_tests.rs::added_by_you_round_trips_through_a_written_table`; `volsa-app/src/worker/plugins_run_tests.rs::a_run_is_kept_for_its_series_and_plugin_and_found_again`. | minor / rare |
 | R-PL-13 | Pixels of a scan are left on disk by a plugin run. | serious / possible | Pipes only, nothing written (PL-21). | PL-21's tests, and reading `volsa-plugins/src/run.rs` and `helper/`. | serious / rare |
+
+## EX: saying what kind of scan it is (12 November 2026)
+
+The tests named are listed in full against their requirements in [requirements.md](requirements.md),
+section EX.
+
+| No. | Hazard and how harm could follow | Severity / likelihood before | Control | Checked by | After |
+|---|---|---|---|---|---|
+| R-EX-01 | A scan is told as the wrong kind, or as bright where it is dark (a fat-suppressed T1 told as "fat is bright"), and a person reads their own pictures by it. | serious / possible | The kind only from the scanner's own words in the vocabulary and the stated modality (EX-01, EX-02); what is bright and dark withheld where the files say something that could change it (EX-03); the description it was read from repeated beside it. Residual: a description may write a word Volsa does not know that changes the contrast, or be wrong itself; the sentences say "often" and "usually", and end by saying they describe the kind of scan. | EX-01, EX-02 and EX-03's tests. | serious / rare |
+| R-EX-02 | A stand-in distance is told as the scan's own, and a person judges how fine it is by it. | minor / possible | Only distances the files gave are said (EX-04). | EX-04's test. | minor / rare |
+| R-EX-03 | The sentences are taken for a reading of the person's own scan. | serious / possible | Every sentence is about a kind of scan; the closing sentence says so; no word that suggests a finding (EX-05). | EX-05's tests. | serious / rare |

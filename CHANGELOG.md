@@ -27,6 +27,15 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   yet run. Volsa downloads no plugin, recommends none and links to none.
   [docs/plugins.md](docs/plugins.md) is for people who make one, and
   [record 0007](docs/adr/0007-plugins.md) says why it is built as it is.
+- **About this kind of scan**, at the foot of the View tab: a few plain sentences about the scan
+  in the active viewport. They say what kind it is (a T2-weighted picture, a FLAIR, a CT scan),
+  what is bright and dark in that kind, what it is often used for, and how fine it is: its
+  slices, their plane, the distance between them and the size of a pixel. The kind is read only
+  from the scanner's own description and the modality the files state, as the plain names are,
+  and never from a timing. Where the description also writes something that changes the
+  contrast (fat suppression, a dye), or the series holds several volumes or is in colour, the
+  kind is told and what is bright and dark is not. Everything is worked out on this computer
+  from the files, and it describes the kind of scan, not what yours shows.
 
 ### Security
 
