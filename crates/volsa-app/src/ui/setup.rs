@@ -72,7 +72,7 @@ impl VolsaApp {
         let hidden = capture.is_some() && capture::wants("nolist");
         let mut app = Self {
             screen: screen::Screen::new(arranged, fitted, hidden),
-            kept: prefs,
+            kept: remembered::Kept::of(prefs),
             session: Session::new(from_workers, reports, budget, local),
             gpus: gpus.unwrap_or_default(),
             drafts: viewport::Drafts::default(),

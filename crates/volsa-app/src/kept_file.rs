@@ -1,5 +1,6 @@
 //! Reading and writing the small files Volsa keeps between runs, one way for all of them: the
-//! saved views, the measurements, the preferences and labelling's choices.
+//! saved views, the measurements, the preferences, labelling's choices and where each series
+//! was left.
 //!
 //! A file that is missing holds nothing. A file that is there and cannot be read (damaged, cut
 //! short, not text, or written by a version this one does not know) holds nothing either, and
@@ -178,9 +179,9 @@ mod every_file_tests {
     use crate::settings;
 
     #[test]
-    fn each_of_the_four_kept_files_puts_one_it_cannot_read_aside_before_writing_another() {
+    fn each_of_the_five_kept_files_puts_one_it_cannot_read_aside_before_writing_another() {
         type Save = fn(&std::path::Path) -> std::io::Result<()>;
-        let kept: [(&str, Save); 4] = [
+        let kept: [(&str, Save); 5] = [
             ("views.json", |folder| settings::save(folder, "one", &[])),
             ("annotations.json", |folder| {
                 save_annotations(folder, "one", &[])
@@ -190,6 +191,9 @@ mod every_file_tests {
             }),
             ("choices.json", |folder| {
                 save_choices(folder, &Choices::default())
+            }),
+            ("places.json", |folder| {
+                crate::places::save(folder, &[], None)
             }),
         ];
         for (name, save) in kept {

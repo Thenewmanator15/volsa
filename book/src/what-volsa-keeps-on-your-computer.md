@@ -22,12 +22,14 @@ In `%LOCALAPPDATA%\Volsa\data`, which stays on this computer:
 |---|---|
 | `views.json` | The views of the 3D scene you saved, for each series. |
 | `annotations.json` | Your markers, rulers, angles and regions for each series, with the names you gave them. |
+| `places.json` | Where you left each series you changed the slice, the window or the view of: the slice, the window if you set one yourself, and the zoom, move, flips and turns; and for each study, which series was last in the first viewport. Numbers only, for at most 500 series and 500 studies; the oldest are dropped. No date or time. |
 | `choices.json` | What you chose for labelling under **Options**, with the two folders you named, if any. |
 | `labels\` | Labelling results kept to be shown again: for each series, a label file and the table of its parts' names. |
 | `volsa.log` | The log, below. |
 
-Each series is filed under a 16-digit hash of its identifier, not under the identifier, and
-nothing in these files names a patient. Still, a kept label file is a map of someone's head and
+Each series, and each study in `places.json`, is filed under a 16-digit hash of its identifier,
+not under the identifier, and nothing in these files names a patient. Someone who holds the
+same scan could work out its hash, and so tell that it was opened here. Still, a kept label file is a map of someone's head and
 an annotation holds whatever name you typed, so treat this folder as you would the scans.
 Labelling results are kept unless you switch off **Keep results on this computer** under
 **Options** in the Tools tab, and **Delete**, beside a kept result, removes it.

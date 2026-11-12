@@ -36,6 +36,15 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   contrast (fat suppression, a dye), or the series holds several volumes or is in colour, the
   kind is told and what is bright and dark is not. Everything is worked out on this computer
   from the files, and it describes the kind of scan, not what yours shows.
+- Volsa opens a scan where you left it. A series you have looked at before comes back on the
+  slice it was on, zoomed, moved, flipped and turned as it was, and in the window you set, if
+  you set one yourself; a window Volsa chose is chosen again. A study opens on the series that
+  was last in its first viewport, in place of the one Volsa would pick, unless you open
+  another yourself. Nothing you have already done to a picture is changed by it. Where each
+  series was left is kept in `places.json`, beside the saved views in the folder on this
+  computer alone: a hash for each series and study and a few numbers, for at most 500 series,
+  with no name, identifier, path or date. There is nothing to switch on and nothing new in
+  the window.
 
 ### Security
 

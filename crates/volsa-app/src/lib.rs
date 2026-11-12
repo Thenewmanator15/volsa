@@ -36,6 +36,7 @@ mod naming;
 mod parts_table;
 mod people;
 mod pictures;
+mod places;
 mod planes;
 mod plugins;
 mod prefs;
@@ -72,6 +73,7 @@ pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_js
 pub use measuring::Scale;
 pub use naming::{Group, group_of, plain_name};
 pub use pictures::Pictures;
+pub use places::{MAX_PLACES, Place, Places, PlacesAction};
 pub use planes::{PlanePanel, Planes};
 pub use plugins::{
     ADD_ACTION, OfferCard, PluginAction, PluginEffect, PluginEntry, Plugins, Running, ToolEntry,

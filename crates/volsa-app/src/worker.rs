@@ -26,6 +26,7 @@ mod labels;
 mod memory;
 mod newest;
 mod opened;
+mod places;
 mod plugins;
 mod pool;
 mod post;
@@ -94,6 +95,8 @@ struct Shared {
     /// The same two counts for the kept annotations.
     notes: AtomicU64,
     noted: Mutex<newest::Newest>,
+    /// The count and the newest of the writes of where series were left.
+    places: places::Kit,
     /// The labels kept, and how many reads (and runs) of labels have been asked for or given up.
     labels: Mutex<Option<Arc<LabelSet>>>,
     label_reads: AtomicU64,
@@ -160,6 +163,7 @@ impl Workers {
             stored: Mutex::new(newest::Newest::default()),
             notes: AtomicU64::new(0),
             noted: Mutex::new(newest::Newest::default()),
+            places: places::Kit::default(),
             labels: Mutex::new(None),
             label_reads: AtomicU64::new(0),
             labelling: labelling::Kit::new(labeller),
@@ -206,6 +210,7 @@ impl Workers {
             Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::LoadAnnotations { series } => self.load_annotations(series),
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
+            kept @ (Effect::LoadPlaces { .. } | Effect::StorePlaces { .. }) => self.places(kept),
             Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
             Effect::ReadDocument { entry } => self.read_document(entry),
             Effect::SaveDocumentPdf { entry, to } => self.save_document_pdf(entry, to),

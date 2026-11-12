@@ -113,8 +113,8 @@ pub struct VolsaApp {
     /// Whether labelling the scan was asked for this frame, done once the frame's graphics
     /// device is in hand to say how much of the card the window holds itself.
     label_asked: bool,
-    /// What is remembered from one run to the next.
-    kept: crate::prefs::Kept,
+    /// What is remembered from one run to the next, and when the places were last kept.
+    kept: remembered::Kept,
     /// The graphics card the window draws with, watched for the day it stops answering.
     card: lost::Card,
     /// How the window is set out: its size, the widths of the series list and the tab panel,
@@ -140,6 +140,11 @@ impl eframe::App for VolsaApp {
         self.make_thumbnails(ctx);
         self.tags
             .refresh(self.session.state(), self.session.workers(), ctx);
+    }
+
+    /// The window is closing: where each series shown was left is kept for the next time.
+    fn on_exit(&mut self) {
+        self.session.leave();
     }
 
     /// The window, drawn in this order: the bars, the rail of scans, the middle beside the panel,

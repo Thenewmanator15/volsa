@@ -20,6 +20,7 @@ mod frame;
 mod labelling;
 mod labels;
 mod link;
+mod places;
 mod planes;
 mod plugins;
 mod scene;
@@ -50,6 +51,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let fit = matches!(action, Action::Fit { .. });
     let was = state.scene.series.clone();
     let before = link::Before::of(state, &action);
+    let left = places::Before::of(state, &action);
     let smoothed = planes::smoothing(state);
     let mut effects = act(state, action);
     if fit && state.pictures.given(&state.scene.status) == Pictures::Scene {
@@ -68,6 +70,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     planes::settle(state);
     annotations::settle(state, was.as_ref());
     annotations::awaited(state, &effects);
+    effects.extend(places::keep(state, &left));
     effects.extend(link::keep(state, &before));
     effects.extend(planes::keep_curve(state, &smoothed));
     frame::keep(state);
@@ -116,6 +119,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::VolumeReady { .. }
         | Action::VolumeFailed { .. } => scene::reduce(state, action),
         Action::Views(about_views) => views::reduce(state, about_views),
+        Action::Places(about_places) => places::reduce(state, about_places),
         about_the_planes if planes::concerns(&about_the_planes) => {
             planes::reduce(state, &about_the_planes);
             Vec::new()
@@ -369,6 +373,8 @@ mod labels_tests;
 mod link_tests;
 #[cfg(test)]
 mod pictures_tests;
+#[cfg(test)]
+mod places_tests;
 #[cfg(test)]
 mod planes_tests;
 #[cfg(test)]

@@ -10,11 +10,9 @@ use volsa_volume::PlaneKind;
 
 use crate::annotations::{Annotation, Shape, Tool};
 pub use crate::effect::Effect;
-use crate::labelling::LabellingAction;
 use crate::labels::NamesFrom;
 use crate::pictures::Pictures;
 use crate::state::{Layout, Notice, PresetWindows};
-use crate::views::ViewsAction;
 
 mod document;
 pub use document::DocumentAction;
@@ -256,7 +254,7 @@ pub enum Action {
         corners: [Point<Patient>; 8],
     },
     /// Something about the saved views of the scene's series.
-    Views(ViewsAction),
+    Views(crate::views::ViewsAction),
     /// A volume could not be built.
     VolumeFailed {
         /// The series it was to be built from.
@@ -392,7 +390,9 @@ pub enum Action {
         reason: String,
     },
     /// Something about labelling the scan with Volsa's own networks.
-    Labelling(LabellingAction),
+    Labelling(crate::labelling::LabellingAction),
+    /// Something about where each series was left, kept for the next time it is opened.
+    Places(crate::places::PlacesAction),
     /// Something about the plugins the person added.
     Plugins(crate::plugins::PluginAction),
     /// Something about the document open in the place of the pictures.

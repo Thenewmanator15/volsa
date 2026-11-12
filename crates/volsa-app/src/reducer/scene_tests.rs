@@ -96,7 +96,10 @@ fn selecting_a_series_starts_building_its_volume() {
 fn the_best_series_opened_when_indexing_ends_is_built_too() {
     let mut state = loaded();
     let effects = reduce(&mut state, Action::IndexDone);
-    assert!(effects.ends_with(&started(FINE_SCAN)), "{effects:?}");
+    // Last of all, where the export's series were left is asked for.
+    let (asked, before) = effects.split_last().expect("work is asked for");
+    assert_eq!(*asked, super::tests::places_of_the_three());
+    assert!(before.ends_with(&started(FINE_SCAN)), "{effects:?}");
     assert_eq!(
         state.scene.status,
         SceneStatus::Building { done: 0, of: 64 }

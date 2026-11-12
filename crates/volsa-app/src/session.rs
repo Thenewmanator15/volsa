@@ -223,6 +223,20 @@ impl Session {
         }
     }
 
+    /// Keep where every series shown was left, written before this returns: for when the
+    /// window is closing, and a worker's thread might not get to it in time.
+    pub fn leave(&mut self) {
+        let keep = Action::Places(crate::places::PlacesAction::Keep);
+        for effect in reduce(&mut self.state, keep) {
+            match effect {
+                Effect::StorePlaces { places, first } => {
+                    self.workers.store_places(places, first, true);
+                }
+                other => self.workers.run(other, self.state.index.as_ref()),
+            }
+        }
+    }
+
     /// Take in everything the workers have reported so far; how many reports that was.
     pub fn pump(&mut self) -> usize {
         let mut taken = 0;
@@ -254,6 +268,8 @@ mod holding;
 mod kept_tests;
 #[cfg(test)]
 mod lost_tests;
+#[cfg(test)]
+mod places_tests;
 #[cfg(test)]
 mod shown_tests;
 #[cfg(test)]

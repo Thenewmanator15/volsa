@@ -63,7 +63,7 @@ pub(super) fn keep(state: &mut AppState, before: &Before) -> Vec<Effect> {
 
 /// Move the position onto the slice a linked viewport shows, keeping its place across the
 /// slice.
-fn carry(state: &mut AppState, at: usize) {
+pub(super) fn carry(state: &mut AppState, at: usize) {
     let onto = || {
         let placement = linked_placement(state, at)?;
         let slice = state.viewports.get(at)?.slice;

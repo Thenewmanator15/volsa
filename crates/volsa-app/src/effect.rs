@@ -2,11 +2,12 @@
 
 use std::path::PathBuf;
 
-use volsa_core::SeriesId;
+use volsa_core::{SeriesId, StudyId};
 use volsa_models::{RunsOn, Wanted};
 
 use crate::annotations::Annotation;
 use crate::choices::Choices;
+use crate::places::Place;
 use crate::views::SavedView;
 
 /// Work to be done outside the state: [`reduce`](crate::reduce) asks, the workers do.
@@ -34,6 +35,24 @@ pub enum Effect {
         series: SeriesId,
         /// All of its views, oldest first.
         views: Vec<SavedView>,
+    },
+    /// Read where the series of the export that is open were left, and which of them was last
+    /// shown in the first viewport.
+    LoadPlaces {
+        /// Which export this is, as the state counts them: what is read is reported with it.
+        opened: u64,
+        /// Every series of the export.
+        series: Vec<SeriesId>,
+        /// Every study of the export.
+        studies: Vec<StudyId>,
+    },
+    /// Write where series were left to the file the places are kept in.
+    StorePlaces {
+        /// The series left, each with its place.
+        places: Vec<(SeriesId, Place)>,
+        /// A study and the series of it now shown in the first viewport, when that is not
+        /// the one kept already.
+        first: Option<(StudyId, SeriesId)>,
     },
     /// Read the annotations kept for a series.
     LoadAnnotations {

@@ -11,6 +11,7 @@ use crate::annotations::{Annotations, Left, Tool};
 use crate::labelling::Labelling;
 use crate::labels::Labels;
 use crate::pictures::Pictures;
+use crate::places::Places;
 use crate::planes::Planes;
 use crate::scene::Scene;
 use crate::views::SavedView;
@@ -190,6 +191,8 @@ pub struct AppState {
     pub pictures: Pictures,
     /// The views saved of the scene's series, oldest first.
     pub views: Vec<SavedView>,
+    /// Where each series of the open export was left, as it is kept for the next time.
+    pub places: Places,
     /// The axial, coronal and sagittal planes through one point of the scene's volume.
     pub planes: Planes,
     /// The measurements and markers made on the scene's series.
@@ -226,6 +229,7 @@ impl Default for AppState {
             scene: Scene::default(),
             pictures: Pictures::default(),
             views: Vec::new(),
+            places: Places::default(),
             planes: Planes::default(),
             annotations: Annotations::default(),
             annotations_left: Left::default(),

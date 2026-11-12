@@ -37,6 +37,17 @@ pub(super) fn frames_around(series: &str, around: usize) -> Vec<Effect> {
     }]
 }
 
+/// What an export read through asks for last: where the series of the three-series export
+/// were left.
+pub(super) fn places_of_the_three() -> Effect {
+    let studies = three_series().studies;
+    Effect::LoadPlaces {
+        opened: 0,
+        series: [THICK_SCAN, FINE_SCAN, SCOUT].map(id).to_vec(),
+        studies: studies.into_iter().map(|study| study.id).collect(),
+    }
+}
+
 #[test]
 fn opening_a_path_starts_indexing_and_clears_what_was_shown() {
     let mut state = showing(THICK_SCAN);
@@ -98,6 +109,7 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     expected.push(Effect::LoadAnnotations {
         series: id(FINE_SCAN),
     });
+    expected.push(places_of_the_three());
     assert_eq!(effects, expected);
     assert_eq!(state.viewports[0].series, Some(id(FINE_SCAN)));
 
@@ -125,7 +137,7 @@ fn finishing_the_index_opens_the_most_detailed_series_once() {
     let shown = state.viewports[0].slice;
     let mut expected = vec![Effect::RequestThumbnails];
     expected.extend(frames_around(THICK_SCAN, shown));
-    expected.extend([rebuilt, views, annotations]);
+    expected.extend([rebuilt, views, annotations, places_of_the_three()]);
     assert_eq!(again, expected);
     assert_eq!(
         state.viewports[0].series,
