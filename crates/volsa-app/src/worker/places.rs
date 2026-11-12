@@ -1,7 +1,8 @@
 //! Reading and writing where series were left, off the interface's thread.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::Duration;
 
 use volsa_core::{SeriesId, StudyId};
 
@@ -21,6 +22,44 @@ pub(super) struct Kit {
     written: Mutex<Newest>,
     /// Whether a failure to write has been logged, so that it is logged once.
     failed: AtomicBool,
+    /// How many writes are on a worker's thread and not yet done.
+    in_flight: Mutex<usize>,
+    /// Told each time a write on a worker's thread is done.
+    settled: Condvar,
+}
+
+/// The longest Volsa waits on closing for writes already under way, so that a file system
+/// that has stopped answering cannot hold the window open.
+const LONGEST_WAIT: Duration = Duration::from_secs(5);
+
+/// A write on a worker's thread, counted from when it is asked for until it is done, whether
+/// it wrote or found nothing to write.
+struct Flying(Arc<super::Shared>);
+
+impl Flying {
+    /// Count a write asked for.
+    fn start(shared: &Arc<super::Shared>) -> Self {
+        *lock(&shared.places.in_flight) += 1;
+        Self(Arc::clone(shared))
+    }
+}
+
+impl Drop for Flying {
+    fn drop(&mut self) {
+        let kit = &self.0.places;
+        let mut count = lock(&kit.in_flight);
+        *count = count.saturating_sub(1);
+        kit.settled.notify_all();
+    }
+}
+
+/// Wait until no write is left on a worker's thread, or [`LONGEST_WAIT`] has gone by.
+fn wait_for_writes(kit: &Kit) {
+    let count = lock(&kit.in_flight);
+    let waited = kit
+        .settled
+        .wait_timeout_while(count, LONGEST_WAIT, |count| *count > 0);
+    drop(waited);
 }
 
 /// The name a study's first series is filed under: the same hash as a series' key, of the
@@ -78,7 +117,8 @@ impl Workers {
     /// Write where these series were left, and a study's first series, to the file. Of two
     /// writes of one series asked for close together, the later is the one left in the file,
     /// whichever a worker gets to first. With `at_once` the file is written before this
-    /// returns, as it must be when Volsa is closing; otherwise on a worker's thread.
+    /// returns, after any write still under way, as it must be when Volsa is closing;
+    /// otherwise on a worker's thread.
     pub(crate) fn store_places(
         &self,
         places: Vec<(SeriesId, Place)>,
@@ -111,9 +151,16 @@ impl Workers {
             }
         };
         if at_once {
+            // A write asked for earlier may still be on a worker's thread: it lands first, so
+            // that nothing asked for before the window closed is lost with it.
+            wait_for_writes(&self.shared.places);
             write();
         } else {
-            self.spawn(write);
+            let flying = Flying::start(&self.shared);
+            self.spawn(move || {
+                write();
+                drop(flying);
+            });
         }
     }
 }
