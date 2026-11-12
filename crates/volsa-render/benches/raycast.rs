@@ -1,6 +1,6 @@
 //! How long one picture of a volume takes to draw and read back, in each look, at full and
 //! at half quality, with and without stepping over empty space. Run with
-//! `cargo bench -p voxa-render`.
+//! `cargo bench -p volsa-render`.
 //!
 //! The volume is a made-up head: 256 x 256 voxels in 64 slices, a ball with a brighter core.
 //! The picture is 1280 x 800, the size of a large viewport. A second set draws a 512 x 512 x
@@ -11,9 +11,9 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use voxa_core::{Affine, Point, Volume, WindowLevel};
-use voxa_labels::{LabelSet, Part, Side, Trust};
-use voxa_render::{
+use volsa_core::{Affine, Point, Volume, WindowLevel};
+use volsa_labels::{LabelSet, Part, Side, Trust};
+use volsa_render::{
     Camera, HeadlessScene, Look, MAX_VOLUME_BYTES, NamedView, Prepared, RenderError, SceneParams,
 };
 
@@ -221,7 +221,7 @@ fn put_a_large_volume_on_the_device(c: &mut Criterion) {
 fn work_out_the_curve(c: &mut Criterion) {
     let volume = made_up_head(512, 64);
     c.bench_function("512 x 512 x 64 curve coefficients", |b| {
-        b.iter(|| black_box(voxa_volume::coefficients(&volume)));
+        b.iter(|| black_box(volsa_volume::coefficients(&volume)));
     });
     // The same curve worked out by the graphics device from the volume it holds, and for a
     // series of 300 slices, counting the device's work until it is done.
@@ -239,7 +239,7 @@ fn work_out_the_curve(c: &mut Criterion) {
         });
         if slices == 300 {
             c.bench_function("512 x 512 x 300 curve, on the processor", |b| {
-                b.iter(|| black_box(voxa_render::Smoothed::of(&volume, 2048, MAX_VOLUME_BYTES)));
+                b.iter(|| black_box(volsa_render::Smoothed::of(&volume, 2048, MAX_VOLUME_BYTES)));
             });
         }
     }

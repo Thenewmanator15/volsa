@@ -1,7 +1,7 @@
 //! Where the things a person takes hold of in the scene are on the screen, and what a drag on
 //! one of them means in the patient: the cut planes, and the slice shown in 2D.
 
-use voxa_core::{Affine, Patient, Point, Voxel};
+use volsa_core::{Affine, Patient, Point, Voxel};
 
 use crate::camera::Camera;
 use crate::scene::CutPlane;

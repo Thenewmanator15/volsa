@@ -10,12 +10,13 @@
 //! The runtime's own words for a failure go to the log, with every path taken out. Nothing
 //! else of a run is logged but what memory it went by, and never a path or a file's name.
 
+use std::ops::Range;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
-use volsa_core::{SeriesId, Volume};
+use volsa_core::{Grid, HeldVolume, SeriesId, Volume};
 use volsa_models::{Device, Model, Room, RunError, Rung, RunsOn, Stop, Wanted, rungs};
-use volsa_segment::{LabelError, Sizes, Stage, label, sizes};
+use volsa_segment::{LabelError, Sizes, Stage, fits, label, sizes};
 
 use super::{Shared, Workers, lock, shielded};
 use crate::action::{Action, Effect};
@@ -164,7 +165,9 @@ struct Job {
     /// The volume kept for the series when the run was asked for. It is let go when the run
     /// has said all it will say, or gives up waiting for its turn. The run is over, and says so
     /// once, when the store no longer keeps this very volume for the series.
-    volume: Option<Arc<Volume>>,
+    volume: Option<Arc<HeldVolume>>,
+    /// The slices of it the model is given: all of them, unless a model asks for fewer.
+    slices: Range<u32>,
     /// The model the newest look found.
     model: Option<Arc<Model>>,
 }
@@ -203,6 +206,7 @@ impl Workers {
         let shared = &self.shared;
         let stop = Stop::new();
         shared.labelling.begin(stop.clone());
+        let volume = lock(&shared.volumes).get(&series);
         let job = Job {
             run,
             number: shared.label_reads.fetch_add(1, Ordering::SeqCst) + 1,
@@ -213,7 +217,8 @@ impl Workers {
             drawing_on,
             stop,
             keep,
-            volume: lock(&shared.volumes).get(&series),
+            slices: 0..volume.as_ref().map_or(0, |volume| volume.dims()[2]),
+            volume,
             series,
             model: shared.labelling.model(),
         };
@@ -245,7 +250,7 @@ impl Shared {
         if !self.current(job) {
             return;
         }
-        let (Some(volume), Some(model)) = (&job.volume, &job.model) else {
+        let (Some(held), Some(model)) = (&job.volume, &job.model) else {
             let why = if job.volume.is_none() {
                 NO_VOLUME
             } else {
@@ -253,6 +258,18 @@ impl Shared {
             };
             return self.fail(job, why);
         };
+        // Too thin or too large is known from the scan's sizes alone, and is said before the
+        // copy below is made: a scan too large to label is the one whose copy is largest.
+        let whole = job.slices == (0..held.dims()[2]);
+        if let Some(why) = fits(held.as_ref()).err().filter(|_| whole) {
+            return self.fail(job, &why.to_string());
+        }
+        // The networks are given 32-bit values of the slices they ask for: made here, for the
+        // run only.
+        let Some(volume) = held.to_volume(job.slices.clone()) else {
+            return self.fail(job, NO_VOLUME);
+        };
+        let volume = &volume;
         let sizes = match sizes(volume) {
             Ok(sizes) => sizes,
             Err(why) => return self.fail(job, &why.to_string()),

@@ -1,13 +1,13 @@
 //! The made-up head that `write_phantom head` writes from a model folder's `check` folder is
-//! the head that folder describes, in the place it describes, and Voxa reads it back exactly;
+//! the head that folder describes, in the place it describes, and Volsa reads it back exactly;
 //! and with `whole` it lies in the same place in a grid of air as large as a whole-head scan.
 
 use std::path::Path;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-use voxa_app::{Action, NoticeKind, SceneStatus, Session};
-use voxa_core::{Patient, Point, Volume};
+use volsa_app::{Action, NoticeKind, SceneStatus, Session};
+use volsa_core::{Grid, Patient, Point, Volume};
 
 #[path = "../examples/write_phantom/head.rs"]
 mod head;
@@ -45,7 +45,7 @@ fn write_check(folder: &Path) {
     std::fs::write(folder.join("volume.f32"), values).expect("volume.f32 is written");
 }
 
-/// Open a folder as Voxa does and give the volume of its one series.
+/// Open a folder as Volsa does and give the volume of its one series.
 fn volume_of(export: &Path) -> Volume {
     let (sender, reports) = channel();
     let mut session = Session::new(sender, reports, 1 << 30, None);
@@ -71,7 +71,7 @@ fn volume_of(export: &Path) -> Volume {
         .clone()
         .expect("a series is in the scene");
     let kept = session.volume(&series).expect("the volume is kept");
-    (*kept).clone()
+    kept.to_volume(0..kept.dims()[2]).expect("every slice")
 }
 
 /// Where voxel `(col, row, slice)` of the made-up head lies in the patient, in millimetres: the

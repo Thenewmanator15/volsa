@@ -3,32 +3,36 @@
 use std::cell::Cell;
 use std::io::{self, Read};
 
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
-use super::{Header, read_header_start};
+use super::{Start, read_header_start};
 use crate::source::within_limit;
 
 /// How much of a file is read first: enough for the header of nearly every single-frame file.
 const FIRST_READ: u64 = 64 * 1024;
 
-/// The header of the file `contents` reads, reading as little of it as the header needs: its
-/// first 64 KiB, and twice as much again each time that is too little to be sure of the
-/// header. What it gives is what parsing the whole file gives. No more than `limit` bytes are
-/// read.
+/// What the start of the file `contents` reads holds, reading as little of it as the header
+/// needs: its first 64 KiB, and twice as much again each time that is too little to be sure of
+/// the header. What it gives is what parsing the whole file gives, and a file nested too deeply
+/// is refused as soon as as much of it as has been read shows that. No more than `limit` bytes
+/// are read.
+///
+/// With what it found, it gives the start of the file that was read to find it. Of a file that
+/// is not an image but is DICOM, that is the whole file, which is what a document is read from.
 ///
 /// # Errors
-/// An error reading the file, or [`VoxaError::Archive`] when more than `limit` bytes would
+/// An error reading the file, or [`VolsaError::Archive`] when more than `limit` bytes would
 /// have to be read.
 pub(crate) fn read_header_from(
     contents: &mut dyn Read,
     limit: u64,
-) -> Result<Option<Header>, VoxaError> {
+) -> Result<(Start, Vec<u8>), VolsaError> {
     let mut start = Vec::new();
     let mut wanted = FIRST_READ;
     loop {
         let whole = read_more(contents, &mut start, wanted, limit)?;
         if let Ok(header) = read_header_start(&start, whole) {
-            return Ok(header);
+            return Ok((header, start));
         }
         wanted = wanted.saturating_mul(2);
     }
@@ -41,7 +45,7 @@ fn read_more(
     start: &mut Vec<u8>,
     wanted: u64,
     limit: u64,
-) -> Result<bool, VoxaError> {
+) -> Result<bool, VolsaError> {
     let wanted = wanted.min(limit.saturating_add(1));
     let missing = wanted.saturating_sub(start.len() as u64);
     start.reserve(usize::try_from(missing.min(FIRST_READ * 16)).unwrap_or(0));

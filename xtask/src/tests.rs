@@ -26,11 +26,11 @@ fn a_listing_names_its_tests_and_nothing_else() {
     assert_eq!(listed("\n0 tests, 0 benchmarks\n"), none);
     assert_eq!(listed("a name: test and more\n: testing\n"), none);
     // A crate that lists none has not been checked, and that is said, not passed over.
-    let said = some_listed("voxa-models", none.clone());
-    let why = "voxa-models lists no ignored test, so nothing would have been checked there";
+    let said = some_listed("volsa-models", none.clone());
+    let why = "volsa-models lists no ignored test, so nothing would have been checked there";
     assert_eq!(said, Err(why.to_owned()));
     let some = vec!["a_made_up_test".to_owned()];
-    assert_eq!(some_listed("voxa-models", some.clone()), Ok(some));
+    assert_eq!(some_listed("volsa-models", some.clone()), Ok(some));
 }
 
 #[test]

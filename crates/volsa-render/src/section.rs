@@ -1,7 +1,7 @@
 //! The plane views as they are drawn inside the 3D scene: where each plane cuts the volume's
 //! box, and the cross at the position they share.
 
-use voxa_core::{Patient, Point};
+use volsa_core::{Patient, Point};
 
 use crate::camera::Camera;
 use crate::handle::on_screen;
@@ -29,7 +29,7 @@ const EDGES: [(usize, usize); 12] = [
 
 /// Where a plane cuts a volume's box: the corners of the cut, in order round it. There are
 /// three to six of them, or none when the plane misses the box or `normal` has no length.
-/// `corners` are the box's eight, as [`voxa_core::Volume::corners`] gives them.
+/// `corners` are the box's eight, as [`volsa_core::Volume::corners`] gives them.
 pub fn box_section(
     corners: &[Point<Patient>; 8],
     point: Point<Patient>,

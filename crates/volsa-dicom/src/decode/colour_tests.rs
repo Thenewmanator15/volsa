@@ -1,6 +1,6 @@
 //! Pictures stored in colour.
 
-use voxa_core::{SeriesKind, VoxaError};
+use volsa_core::{SeriesKind, VolsaError};
 
 use super::*;
 use crate::index::{best_series, index};
@@ -20,13 +20,13 @@ fn stored(colour: Colour) -> Vec<u8> {
     })
 }
 
-fn decoded(bytes: &[u8]) -> Result<Frame, VoxaError> {
+fn decoded(bytes: &[u8]) -> Result<Frame, VolsaError> {
     ImageFile::open(bytes)?.decode(None)
 }
 
 fn refusal(bytes: &[u8]) -> String {
     match decoded(bytes) {
-        Err(VoxaError::Decode(why)) => why,
+        Err(VolsaError::Decode(why)) => why,
         other => panic!("expected a refusal, got {other:?}"),
     }
 }
@@ -86,7 +86,7 @@ fn a_grey_picture_has_no_colours() {
 }
 
 #[test]
-fn colour_voxa_cannot_show_is_refused_in_a_sentence() {
+fn colour_volsa_cannot_show_is_refused_in_a_sentence() {
     let deep = Colour {
         bits: 16,
         ..Colour::of(four())
@@ -110,7 +110,7 @@ fn colour_voxa_cannot_show_is_refused_in_a_sentence() {
         drop_pixels: 2,
         ..SliceOptions::default()
     });
-    assert!(matches!(decoded(&short), Err(VoxaError::Decode(_))));
+    assert!(matches!(decoded(&short), Err(VolsaError::Decode(_))));
 }
 
 #[test]

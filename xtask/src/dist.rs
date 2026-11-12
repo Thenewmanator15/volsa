@@ -1,7 +1,7 @@
-//! `cargo xtask dist [--runtime FOLDER] [--local]` makes the package a release of Voxa offers
-//! for 64-bit Windows: `target/dist/voxa-VERSION-windows-x64.zip`, which holds one folder,
-//! `voxa-VERSION`, with the program, its readme, its licences and notices, how to set up
-//! labelling, the changelog and what Voxa is for. The same folder is left beside the zip.
+//! `cargo xtask dist [--runtime FOLDER] [--local]` makes the package a release of Volsa offers
+//! for 64-bit Windows: `target/dist/volsa-VERSION-windows-x64.zip`, which holds one folder,
+//! `volsa-VERSION`, with the program, its readme, its licences and notices, how to set up
+//! labelling, the changelog and what Volsa is for. The same folder is left beside the zip.
 //!
 //! How the program is built, and what is read of it before it is packed, is in
 //! [`program`]: the C runtime inside it, no Visual C++ to import, its icon and manifest, and no
@@ -17,6 +17,8 @@ mod pe;
 mod program;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod words_tests;
 mod zipped;
 
 use std::fs;
@@ -31,7 +33,7 @@ use program::{PROGRAM, Remap};
 /// How the task is asked for.
 const USAGE: &str = "usage: cargo xtask dist [--runtime FOLDER] [--local]";
 /// The package that is the program.
-const PACKAGE: &str = "voxa-app";
+const PACKAGE: &str = "volsa-app";
 /// The documents the package carries: the name of each in the package, and where it is in the
 /// repository.
 const DOCUMENTS: [(&str, &str); 8] = [
@@ -87,7 +89,7 @@ pub struct Sources<'a> {
 /// sentence for each file that could have been carried and was not.
 #[derive(Debug)]
 pub struct Made {
-    /// The folder, `voxa-VERSION`.
+    /// The folder, `volsa-VERSION`.
     pub folder: PathBuf,
     /// The zip that holds the folder.
     pub zip: PathBuf,
@@ -187,7 +189,7 @@ fn checked(program: &Path, remapped: &[Remap]) -> Result<Vec<String>, String> {
 /// when a file could not be copied or the zip written.
 pub fn assemble(sources: &Sources, version: &str, dist: &Path) -> Result<Made, String> {
     let (files, missing) = contents(sources)?;
-    let top = format!("voxa-{version}");
+    let top = format!("volsa-{version}");
     let folder = dist.join(&top);
     let kind = if sources.local { "-local" } else { "" };
     let zip = dist.join(format!("{top}-windows-x64{kind}.zip"));

@@ -1,9 +1,9 @@
 //! A label set: a label volume with its numbers turned into named parts, each with its
-//! volume. This is what the rest of Voxa shows.
+//! volume. This is what the rest of Volsa shows.
 
 use std::collections::HashMap;
 
-use voxa_core::{Affine, Patient, Voxel};
+use volsa_core::{Affine, Patient, Voxel};
 
 use crate::made::Made;
 use crate::nifti::LabelGrid;
@@ -56,8 +56,8 @@ pub struct LabelSet {
 /// Why a label volume cannot be made into a set.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum SetError {
-    /// It holds more different numbers than Voxa lists.
-    #[error("These labels have more different parts than Voxa can list.")]
+    /// It holds more different numbers than Volsa lists.
+    #[error("These labels have more different parts than Volsa can list.")]
     TooManyParts,
 }
 

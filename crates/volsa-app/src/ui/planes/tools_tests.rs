@@ -1,9 +1,9 @@
 //! Drawing annotations in a plane view: what the pointer makes with each tool, where an
 //! annotation is shown, and how it is drawn.
 
-use voxa_core::{Affine, Patient, Point, Voxel};
-use voxa_render::PlaneView;
-use voxa_volume::{Plane, PlaneKind, plane_of};
+use volsa_core::{Affine, Patient, Point, Voxel};
+use volsa_render::PlaneView;
+use volsa_volume::{Plane, PlaneKind, plane_of};
 
 use super::shapes::{Drawn, beside, drawn, label_bottom, label_left, shown_on};
 use super::tools::{Draft, Pointer, drafted, preview};
@@ -129,7 +129,7 @@ fn a_marker_is_placed_with_one_click_and_the_navigating_tool_draws_nothing() {
 
 #[test]
 fn what_is_begun_is_given_up_when_the_tool_or_the_series_changes_or_escape_is_pressed() {
-    use voxa_core::SeriesId;
+    use volsa_core::SeriesId;
 
     use super::mouse::PlaneInput;
     use super::tools::Drawing;
@@ -290,11 +290,13 @@ fn an_annotation_is_drawn_where_its_points_fall_in_the_panel() {
         radii_mm: [4.0, 2.0],
         stats: None,
     };
-    let ellipse = Drawn::Ellipse {
-        centre: [110.0, 60.0],
-        radii: [8.0, 4.0],
+    // A region is the outline of its ellipse: here 8 points either side of its middle and 4
+    // above and below it, beginning at its right-hand end.
+    let Drawn::Outline(round) = drawn(&region, &view, panel) else {
+        panic!("a region is an outline");
     };
-    assert_eq!(drawn(&region, &view, panel), ellipse);
+    assert_eq!(round.first(), Some(&[118.0, 60.0]));
+    assert_eq!(round.len(), 48);
     let marker = Shape::Marker {
         at: xyz(at(-5.0, 0.0)),
     };
@@ -307,6 +309,7 @@ fn beside_a_marker_is_its_name_and_beside_the_rest_the_name_and_what_was_measure
         id: 1,
         label: label.to_owned(),
         shape,
+        scale: crate::measuring::Scale::Patient,
     };
     let marker = named(
         "Marker 4",
@@ -360,4 +363,32 @@ fn words_beside_an_annotation_keep_clear_of_what_is_written_along_the_top() {
         "moved down to begin under it"
     );
     assert_eq!(label_bottom(140.0, 14.0, 126.0), 140.0);
+}
+
+#[test]
+fn with_a_measuring_tool_in_hand_a_double_click_on_a_panel_does_not_fit_it() {
+    use super::{PlaneInput, handled};
+    use crate::action::Action;
+    use crate::state::AppState;
+    let twice = PlaneInput {
+        double_clicked: true,
+        window_width: 256.0,
+        ..PlaneInput::default()
+    };
+    let kind = PlaneKind::Axial;
+    for (tool, fits) in [
+        (Tool::Navigate, true),
+        (Tool::Ruler, false),
+        (Tool::Angle, false),
+        (Tool::Region, false),
+        (Tool::Marker, false),
+    ] {
+        let state = AppState {
+            tool,
+            ..AppState::default()
+        };
+        let mut drawing = super::tools::Drawing::default();
+        let asked = handled(&state, kind, &twice, (&axial(), None), &mut drawing);
+        assert_eq!(asked.contains(&Action::PlaneFit(kind)), fits, "{tool:?}");
+    }
 }

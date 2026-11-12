@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
-use voxa_core::{Patient, Point};
-use voxa_render::{Camera, Look, NamedView};
+use volsa_core::{Patient, Point};
+use volsa_render::{Camera, Look, NamedView};
 
 use super::scene_tests::{corners, ready};
 use super::*;

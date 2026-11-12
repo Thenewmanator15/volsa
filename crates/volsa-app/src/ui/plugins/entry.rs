@@ -22,8 +22,8 @@ const SHOW_HINT: &str = "Open the labels this plugin made for this scan";
 const DELETE_HINT: &str = "Delete the labels this plugin made for this scan";
 /// Said when a person points at the button that removes a plugin.
 const REMOVE_HINT: &str = "Remove this plugin from Volsa; you are asked first";
-/// The height the entries leave beneath them, in points, before they scroll: room for what the
-/// Parts tab says of labels and its button to open some.
+/// The height the entries leave beneath them, in points, before they scroll: room for
+/// whatever the tab holds beneath them.
 const ROOM_BENEATH: f32 = 140.0;
 /// The least height the entries are given, in points, however short the tab.
 const SHORTEST: f32 = 24.0;

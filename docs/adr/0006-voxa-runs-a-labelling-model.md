@@ -1,5 +1,7 @@
 # 6. Voxa runs a labelling model and ships none
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-22. Status: accepted. It replaces the fifth point of
 [record 0004](0004-labels-own-grid.md), which said that Voxa does not run a labelling model.
 Models a person adds as plugins, and the helper process they run in, are

@@ -5,10 +5,11 @@ use dicom_dictionary_std::tags;
 use proptest::prelude::*;
 
 use super::*;
-use crate::header::{NeedMore, read_header, read_header_start};
+use crate::header::{Header, NeedMore, read_header, read_header_start};
 use crate::source::MAX_ENTRY_BYTES;
 use crate::testkit::{
-    EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
+    DocumentOptions, EnhancedFrame, EnhancedOptions, ReportItem, SliceOptions, classic_slice,
+    enhanced_series, structured_report,
 };
 
 /// A reader of `bytes` that counts how many of them it has given.
@@ -28,7 +29,8 @@ impl Read for Counted<'_> {
 /// The header read from the start of `bytes`, and how many of them were read for it.
 fn from_start(bytes: &[u8]) -> (Option<Header>, usize) {
     let mut reader = Counted { bytes, given: 0 };
-    let header = read_header_from(&mut reader, MAX_ENTRY_BYTES).expect("reads");
+    let (start, _) = read_header_from(&mut reader, MAX_ENTRY_BYTES).expect("reads");
+    let header = start.image();
     (header, reader.given)
 }
 
@@ -150,7 +152,8 @@ fn every_start_of_a_small_file_says_it_needs_more_or_gives_the_whole_files_heade
         b"%PDF-1.7 a report".to_vec(),
     ];
     for bytes in files {
-        let whole = read_header(&bytes);
+        let whole = read_header_start(&bytes, true).expect("the whole file is enough");
+        assert_eq!(whole.clone().image(), read_header(&bytes));
         for cut in 0..=bytes.len() {
             let reading = read_header_start(&bytes[..cut], false);
             let fine = reading == Err(NeedMore) || reading == Ok(whole.clone());
@@ -160,7 +163,6 @@ fn every_start_of_a_small_file_says_it_needs_more_or_gives_the_whole_files_heade
                 bytes.len()
             );
         }
-        assert_eq!(read_header_start(&bytes, true), Ok(whole));
     }
 }
 
@@ -168,9 +170,25 @@ fn every_start_of_a_small_file_says_it_needs_more_or_gives_the_whole_files_heade
 fn reading_more_than_the_limit_for_a_header_is_refused() {
     let bytes = padded_slice(16, 150_000);
     let refused = read_header_from(&mut bytes.as_slice(), 100_000);
-    assert!(matches!(refused, Err(VoxaError::Archive(_))), "{refused:?}");
-    let header = read_header_from(&mut bytes.as_slice(), 1_000_000).expect("within the limit");
+    assert!(
+        matches!(refused, Err(VolsaError::Archive(_))),
+        "{refused:?}"
+    );
+    let (start, _) = read_header_from(&mut bytes.as_slice(), 1_000_000).expect("within the limit");
+    let header = start.image();
     assert_eq!(header, read_header(&bytes));
+}
+
+#[test]
+fn a_dicom_file_that_is_not_an_image_is_handed_back_whole() {
+    // Longer than the first read, so that the read is repeated with more of the file.
+    let long = "A made-up remark that goes on. ".repeat(8_000);
+    let content = [ReportItem::text("Comment", &long)];
+    let bytes = structured_report(&DocumentOptions::default(), &content);
+    assert!(bytes.len() > 3 * 64 * 1024);
+    let (header, start) = read_header_from(&mut bytes.as_slice(), MAX_ENTRY_BYTES).expect("reads");
+    assert_eq!(header, Start::NotAnImage);
+    assert_eq!(start, bytes);
 }
 
 proptest! {

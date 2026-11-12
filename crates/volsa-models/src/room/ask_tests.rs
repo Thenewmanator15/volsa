@@ -11,8 +11,8 @@ use crate::cards::CardKind;
 use crate::network::Device;
 
 #[test]
-fn a_run_asks_for_voxas_own_and_the_larger_of_its_networks_and_its_scores_with_a_quarter() {
-    // 4 096 000 voxels. Voxa's own is 200 bytes each: 819 200 000. The scores network asks
+fn a_run_asks_for_volsas_own_and_the_larger_of_its_networks_and_its_scores_with_a_quarter() {
+    // 4 096 000 voxels. Volsa's own is 200 bytes each: 819 200 000. The scores network asks
     // for 8.4 GiB where it runs on a card, 9 019 431 321, and 3.1 GiB on the processor,
     // 3 328 599 654.
     //

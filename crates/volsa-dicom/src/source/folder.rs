@@ -5,7 +5,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use super::{Entry, MAX_ENTRY_BYTES, SeriesSource, read_limited, within_limit};
 
@@ -17,7 +17,7 @@ pub(super) struct FolderSource {
 }
 
 impl FolderSource {
-    pub(super) fn walk(root: &Path) -> Result<Self, VoxaError> {
+    pub(super) fn walk(root: &Path) -> Result<Self, VolsaError> {
         let mut files = Vec::new();
         collect_files(root, "", &mut files)?;
         files.sort();
@@ -43,7 +43,7 @@ fn collect_files(
     folder: &Path,
     prefix: &str,
     files: &mut Vec<(String, PathBuf)>,
-) -> Result<(), VoxaError> {
+) -> Result<(), VolsaError> {
     for entry in std::fs::read_dir(folder)? {
         let entry = entry?;
         let name = format!("{prefix}{}", entry.file_name().to_string_lossy());
@@ -58,7 +58,7 @@ fn collect_files(
 }
 
 impl SeriesSource for FolderSource {
-    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
+    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VolsaError>> + '_> {
         Box::new(self.files.iter().map(|(name, path)| {
             let bytes = read_limited(&mut File::open(path)?, MAX_ENTRY_BYTES)?;
             Ok(Entry {
@@ -68,7 +68,7 @@ impl SeriesSource for FolderSource {
         }))
     }
 
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError> {
+    fn read(&mut self, name: &str) -> Result<Vec<u8>, VolsaError> {
         let found = self
             .files
             .binary_search_by(|(known, _)| known.as_str().cmp(name));
@@ -76,18 +76,38 @@ impl SeriesSource for FolderSource {
             .ok()
             .and_then(|at| self.files.get(at))
             .map(|(_, path)| path)
-            .ok_or_else(|| VoxaError::MissingEntry(name.to_owned()))?;
+            .ok_or_else(|| VolsaError::MissingEntry(name.to_owned()))?;
         read_limited(&mut File::open(path)?, MAX_ENTRY_BYTES)
     }
 
     fn visit_files(
         &mut self,
-        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
-    ) -> Result<(), VoxaError> {
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+    ) -> Result<(), VolsaError> {
         for (name, path) in self.files.iter() {
-            let mut file = File::open(path)?;
-            within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
-            visit(name, &mut file)?;
+            visit_one(name, path, visit)?;
+        }
+        Ok(())
+    }
+
+    fn names(&mut self) -> Option<Vec<String>> {
+        Some(self.files.iter().map(|(name, _)| name.clone()).collect())
+    }
+
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+    ) -> Result<(), VolsaError> {
+        for name in names {
+            let found = self
+                .files
+                .binary_search_by(|(known, _)| known.as_str().cmp(name));
+            let (name, path) = found
+                .ok()
+                .and_then(|at| self.files.get(at))
+                .ok_or_else(|| VolsaError::MissingEntry(name.clone()))?;
+            visit_one(name, path, visit)?;
         }
         Ok(())
     }
@@ -97,4 +117,15 @@ impl SeriesSource for FolderSource {
             files: Arc::clone(&self.files),
         }))
     }
+}
+
+/// Hand one file to `visit`, refused first if it is too large to be read whole.
+fn visit_one(
+    name: &str,
+    path: &Path,
+    visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+) -> Result<(), VolsaError> {
+    let mut file = File::open(path)?;
+    within_limit(file.metadata()?.len(), MAX_ENTRY_BYTES)?;
+    visit(name, &mut file)
 }

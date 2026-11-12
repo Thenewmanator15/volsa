@@ -1,7 +1,7 @@
 //! What a viewport shows, which slice, and how the picture is placed.
 
-use voxa_core::WindowLevel;
-use voxa_render::ViewTransform;
+use volsa_core::WindowLevel;
+use volsa_render::ViewTransform;
 
 use super::tests::{frames_around, loaded, showing};
 use super::*;

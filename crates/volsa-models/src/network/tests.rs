@@ -1,6 +1,6 @@
 //! Tests of everything a network is run through: tensors, the stand-in network, the runtime
 //! and the way its words are sorted. Those marked `ignore` need the real runtime and a real
-//! model folder, named by `VOXA_RUNTIME` and `VOXA_MODELS`; the scores network needs some 9
+//! model folder, named by `VOLSA_RUNTIME` and `VOLSA_MODELS`; the scores network needs some 9
 //! GiB wherever it runs. The tests that put a network on each graphics card are in
 //! `card_tests`.
 
@@ -43,7 +43,7 @@ fn a_canned_network_answers_and_remembers_what_it_was_given() {
     let classes = Tensor::u8(vec![2], vec![3, 4]).expect("a tensor");
     let canned = Canned::new(|inputs| Ok(inputs.last().cloned().into_iter().collect()));
     let given = canned.given();
-    // As the rest of Voxa holds one: behind the trait, and on another thread.
+    // As the rest of Volsa holds one: behind the trait, and on another thread.
     let mut network: Box<dyn Network> = Box::new(canned);
     let inputs = vec![image.clone(), classes.clone()];
     let answer = thread::spawn(move || network.run(inputs)).join();
@@ -227,8 +227,8 @@ fn outputs_past_two_gib_on_a_card_are_fetched_each_alone() {
 
 /// What the ignored tests need: the runtime loaded and the model read, once for all of them.
 pub(super) static REAL: LazyLock<(Runtime, Model)> = LazyLock::new(|| {
-    let runtime = Runtime::load(&folder("VOXA_RUNTIME")).expect("the runtime loads");
-    let model = read_model(&folder("VOXA_MODELS")).expect("the model folder reads");
+    let runtime = Runtime::load(&folder("VOLSA_RUNTIME")).expect("the runtime loads");
+    let model = read_model(&folder("VOLSA_MODELS")).expect("the model folder reads");
     (runtime, model)
 });
 
@@ -287,14 +287,14 @@ pub(super) fn scores_on(device: Device) {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB of memory"]
 fn the_scores_network_runs_on_the_processor() {
     let _turn = turn();
     scores_on(Device::Processor);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS"]
+#[ignore = "needs VOLSA_RUNTIME and VOLSA_MODELS"]
 fn what_cannot_be_run_or_opened_fails_without_a_panic() {
     let _turn = turn();
     let mut network = scores(Device::Processor, &Stop::new()).expect("it opens");
@@ -323,7 +323,7 @@ fn what_cannot_be_run_or_opened_fails_without_a_panic() {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS"]
+#[ignore = "needs VOLSA_RUNTIME and VOLSA_MODELS"]
 fn a_stop_set_beforehand_stops() {
     let _turn = turn();
     let stop = Stop::new();
@@ -335,7 +335,7 @@ fn a_stop_set_beforehand_stops() {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB of memory"]
 fn a_stop_set_during_a_run_on_the_processor_ends_it() {
     let _turn = turn();
     let stop = Stop::new();
@@ -353,10 +353,10 @@ fn a_stop_set_during_a_run_on_the_processor_ends_it() {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME and VOXA_MODELS"]
+#[ignore = "needs VOLSA_RUNTIME and VOLSA_MODELS"]
 fn the_same_folder_loads_again_and_another_is_refused() {
     let _ = &*REAL;
-    let first = folder("VOXA_RUNTIME");
+    let first = folder("VOLSA_RUNTIME");
     assert!(Runtime::load(&first).is_ok());
     let again = Runtime::load(&first.join("."));
     assert!(again.is_ok(), "the same folder, written another way");

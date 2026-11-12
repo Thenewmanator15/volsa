@@ -3,21 +3,21 @@
 use dicom_dictionary_std::tags;
 use dicom_object::DefaultDicomObject;
 use dicom_pixeldata::{DecodedPixelData, PhotometricInterpretation, PlanarConfiguration};
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use super::{Frame, damaged};
 
-fn refused<T>(why: &str) -> Result<T, VoxaError> {
-    Err(VoxaError::Decode(why.to_owned()))
+fn refused<T>(why: &str) -> Result<T, VolsaError> {
+    Err(VolsaError::Decode(why.to_owned()))
 }
 
-/// Whether a file's images are of a kind Voxa shows: grey, or colour of 8 bits a sample.
+/// Whether a file's images are of a kind Volsa shows: grey, or colour of 8 bits a sample.
 ///
 /// # Errors
 ///
-/// [`VoxaError::Decode`], saying which, for palette colour, for colour of more than 8 bits a
+/// [`VolsaError::Decode`], saying which, for palette colour, for colour of more than 8 bits a
 /// sample, and for any other number of samples a pixel.
-pub(super) fn check(file: &DefaultDicomObject) -> Result<(), VoxaError> {
+pub(super) fn check(file: &DefaultDicomObject) -> Result<(), VolsaError> {
     let number = |tag| {
         file.get(tag)
             .and_then(|element| element.to_int::<u16>().ok())
@@ -60,9 +60,9 @@ fn from_ybr([y, cb, cr]: [u8; 3]) -> [u8; 3] {
 ///
 /// # Errors
 ///
-/// [`VoxaError::Decode`] when the data are not three samples for every pixel, or are stored
-/// in a way of writing colour Voxa does not read; the way is named.
-pub(super) fn frame(decoded: &DecodedPixelData<'_>) -> Result<Frame, VoxaError> {
+/// [`VolsaError::Decode`] when the data are not three samples for every pixel, or are stored
+/// in a way of writing colour Volsa does not read; the way is named.
+pub(super) fn frame(decoded: &DecodedPixelData<'_>) -> Result<Frame, VolsaError> {
     let (rows, cols) = (decoded.rows(), decoded.columns());
     let count = rows as usize * cols as usize;
     let bytes = decoded.frame_data(0).map_err(|error| damaged(&error))?;

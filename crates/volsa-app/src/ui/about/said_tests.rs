@@ -4,10 +4,10 @@ use super::{INTENDED_USE, LICENCES, LOG_SAYS, NOTICE, THIRD_PARTY, notices, open
 use crate::ui::theme;
 
 /// The name of the button in the About window that opens the notices.
-const BUTTON: &str = "Licences and notices…";
+const BUTTON: &str = "Licences and notices…, Show the licences and notices";
 /// The title of the notices window.
 const TITLE: &str = "Licences and notices";
-/// The page that says what Voxa is for, which comes in a download of Voxa too.
+/// The page that says what Volsa is for, which comes in a download of Volsa too.
 const INTENDED_USE_PAGE: &str = include_str!("../../../../../docs/intended-use.md");
 
 /// The words of a text with one space between each two, however its lines were wrapped.
@@ -16,7 +16,7 @@ fn words(text: &str) -> String {
 }
 
 #[test]
-fn the_about_window_says_what_voxa_is_for_as_the_page_on_it_does() {
+fn the_about_window_says_what_volsa_is_for_as_the_page_on_it_does() {
     let ctx = egui::Context::default();
     let says = about_says(&ctx);
     for wanted in [INTENDED_USE, theme::DISCLAIMER] {
@@ -97,12 +97,12 @@ fn the_about_window_names_every_typeface_with_its_licence_and_credits_synthseg()
 
 #[test]
 fn the_about_window_and_notice_say_microsofts_c_runtime_is_built_in_under_its_own_terms() {
-    // The voxa.exe a release offers is built with Microsoft's C runtime inside it, which is
+    // The volsa.exe a release offers is built with Microsoft's C runtime inside it, which is
     // not one of the open-source libraries the notices list.
     let ctx = egui::Context::default();
     let says = about_says(&ctx).join("\n");
     for words in [
-        "voxa.exe a release offers has Microsoft's C runtime built in",
+        "volsa.exe a release offers has Microsoft's C runtime built in",
         "under Microsoft's own terms, not an open-source licence",
     ] {
         assert!(
@@ -122,12 +122,12 @@ fn the_about_window_and_notice_say_microsofts_c_runtime_is_built_in_under_its_ow
 #[test]
 fn what_the_about_window_says_of_the_log_holds_for_a_crash_too() {
     // A crash is logged by its place in the source code, which for a library can be a path
-    // on the computer Voxa was built on: so no promise of no file names or no path.
+    // on the computer Volsa was built on: so no promise of no file names or no path.
     assert!(!LOG_SAYS.contains("no file names"), "{LOG_SAYS}");
     for said in [
         "nothing about a patient",
         "none of your files' names",
-        "A crash is logged by the place in the source code of Voxa, or of a library",
+        "A crash is logged by the place in the source code of Volsa, or of a library",
     ] {
         assert!(LOG_SAYS.contains(said), "{LOG_SAYS}");
     }
@@ -189,7 +189,7 @@ fn the_notices_are_the_files_beside_the_program() {
     ] {
         assert!(NOTICE.contains(words), "NOTICE does not say {words}");
     }
-    assert!(THIRD_PARTY.starts_with("THIRD-PARTY NOTICES FOR VOXA"));
+    assert!(THIRD_PARTY.starts_with("THIRD-PARTY NOTICES FOR VOLSA"));
     for typeface in [
         "Hack Regular",
         "Ubuntu Light",

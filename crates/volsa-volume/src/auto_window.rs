@@ -1,6 +1,6 @@
 //! Choosing a window and level from the values of an image.
 
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use crate::histogram::Histogram;
 
@@ -86,7 +86,7 @@ impl Preset {
     }
 }
 
-/// The window Voxa picks for an image by itself: from the 1st to the 99.5th percentile of its
+/// The window Volsa picks for an image by itself: from the 1st to the 99.5th percentile of its
 /// values, so a few very dark or very bright pixels do not set the contrast.
 pub fn auto_window(values: &[f32]) -> WindowLevel {
     let [auto, ..] = PRESETS;

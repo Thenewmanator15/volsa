@@ -8,7 +8,7 @@ Volsa is a Cargo workspace of small crates that talk only through their public i
 | `volsa-dicom` | Sources (folder, zip, DICOMDIR), header indexing into studies and series, geometry checks, pixel decoding, tag listing | `volsa-core` |
 | `volsa-volume` | Assembling a series into a volume; sampling it, lines of sight through it, and reducing it; the planes of a volume through a point; distances, angles and the values in a region; the curve (cubic B-spline) through its values; histograms, percentiles, automatic window/level | `volsa-core` |
 | `volsa-labels` | Reading a label volume (single-file NIfTI-1) and the table of names that goes with it, and writing both, with who made a label set; the parts of a label set with their volumes; which part lies at a point, and the first one a line of sight meets; a name's left and right | `volsa-core` |
-| `volsa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them; starting a helper program in a Windows job object. No image mathematics. Its `cards.rs` and `process.rs` are the only modules outside `volsa-render` that use `unsafe` | nothing in the workspace |
+| `volsa-models` | The networks: finding a model folder and checking every file against its list; running a network through ONNX Runtime, loaded from a folder, on the processor or a graphics card, behind the `Network` trait; the graphics cards, known by identity, what the system lets a program use on each and what no program holds of each; which devices a run fits on and in what order to try them. No image mathematics. Its `cards.rs` is the one module outside `volsa-render` that uses `unsafe` | nothing in the workspace |
 | `volsa-segment` | Everything SynthSeg does around its networks: preparing a volume, the steps between the networks and the mirrored run, tidying the answer into a label grid, the table of names with the model's verdict, and the notes a reader should know | `volsa-core`, `volsa-labels`, `volsa-models` |
 | `volsa-plugins` | Models a person adds: reading and checking `plugin.json`, the folder's files and the network's structure; the preparation menu (the grid, the box or blocks, the scaling); the helper's messages and the helper itself; measuring what a plugin needs and choosing where it fits; one run, from the plugin's grid to a label set with its notes; whether a scan's modality and contrast are what the plugin accepts | `volsa-core`, `volsa-labels`, `volsa-models`, `volsa-segment` |
 | `volsa-render` | The GPU slice pipeline and the view transform; the GPU volume pipeline (a 3D texture and a shader that follows a line of sight through it for every pixel), its camera and scene; the GPU plane pipeline, which draws a flat plane through the same texture; labels on the device, drawn over the planes and as solids | `volsa-core`, `volsa-volume`, `volsa-labels` |
@@ -24,12 +24,24 @@ coordinates lives below it, where it can be tested without a window.
 1. A `SeriesSource` yields named byte streams from a folder, a zip (read in place, nothing is
    extracted to disk) or the folder beside a `DICOMDIR`. An ordinary zip is opened where its
    end record says its directory is, without searching the whole file for it.
-2. `volsa-dicom` parses headers on a worker and emits an index of studies and series. Of each
-   file it reads only as much as the header needs, never the pixels. The browser fills as
-   results arrive. Entries that are not DICOM are skipped and counted.
+2. `volsa-dicom` parses headers and emits an index of studies and series. Of each file it reads
+   only as much as the header needs, never the pixels. A folder or a zip says its files'
+   names, which are shared out in runs that follow one another, one run a thread with a
+   reader of its own; what each thread read is taken in in name order, so the index and its
+   progress are as if read in turn. The browser fills as results arrive. A DICOM file with no
+   image, such as a structured report or a PDF, is listed as a document; any other entry that
+   is not a DICOM image is skipped and counted. Before the DICOM library is given any file, here or when one
+   is opened whole, `nesting.rs` walks the same bytes with the library's own token reader and
+   refuses a file whose sequences nest more than 64 deep: the library builds nesting by
+   recursion, and a deep enough file would overflow the reading thread's stack (SECURITY.md,
+   "Files nested too deeply"). A refused file is listed with the reason. Every thread that
+   reads files (the header threads, the workers and the volume builders) has a 16 MiB stack as
+   a second line.
 3. Selecting a series queues decoding of its slices on worker threads, nearest slices first.
    Each worker reads through a reader of the source of its own, so a zip or a folder is read
-   by several at once. Decoded frames are cached under a memory budget.
+   by several at once. Decoded frames are cached under the memory budget (below). A slice's
+   three preset windows are worked out when it is shown, not when it is decoded for a
+   volume.
 4. `volsa-render` uploads the current frame once as a single-channel floating-point texture. A
    shader applies window/level, so changing contrast never decodes or uploads again.
 5. The app draws overlays (orientation letters, scale bar, corner text) with `egui` above the GPU
@@ -37,21 +49,37 @@ coordinates lives below it, where it can be tested without a window.
 
 The 3D scene follows the series of the active viewport:
 
-1. A worker decodes every slice of the series, taking those already in the frame cache, and
-   `volsa-volume` stacks them into a `Volume`: the values, and the transform that places each
-   voxel in the patient. The one volume in use is kept in a store shared with the window.
-   A series is decoded once and held once: while its volume is being built the viewport's own
-   request decodes only the slice on show, and once the volume is kept the series' frames
-   leave the cache and the 2D viewport reads its slices out of the volume. A volume that gives
-   way to another, or a build that fails, leaves its slices in the frame cache.
-2. The same worker makes the volume ready for the graphics device: 16-bit values from 0 at the
-   smallest to 1 at the largest, halved first if the device cannot hold it, and hands them
-   to the device itself as a 3D texture: the device and its queue can be used from any
-   thread, and the window, which has only to take the texture up, does not pause to copy
-   bytes. The largest value in each block of voxels, which
-   lets a line of sight step over what is empty, is then worked out by the device itself
-   from that texture, by drawing into the slices of a second, small one; a worker works it
-   out beforehand only for a device that cannot.
+1. A worker, on threads of its own so that a slice a viewport asks for never waits behind
+   it, first checks that the system can still give Volsa what the volume will hold, and
+   otherwise says so in a sentence. It decodes every slice of the series straight into a
+   `HeldVolume` (`volsa-core`): the values as stored, 16-bit whole numbers with one rescale
+   (or 32-bit numbers where whole numbers cannot give them exactly), in slabs of whole slices
+   of up to 32 MiB, and the transform that places each voxel in the patient. For a series of
+   more than 256 slices every eighth slice is decoded first and reduced at once to a small
+   preview, which the window draws, labelled, while the rest are decoded slab by slab. The
+   one volume in use is kept in a store shared with the window. A series is decoded once and
+   held once: while its volume is being built the viewport's own request decodes only the
+   slice on show, and once the volume is kept the series' frames leave the cache and the 2D
+   viewport reads its slices out of the volume. A volume that gives way to another, or a
+   build that fails, leaves its slices in the frame cache.
+   One memory budget (2 GiB, or a quarter of the computer's memory if less, or what
+   `preferences.json` says) covers the volume's values in memory, the frame cache and, on a
+   card that shares the computer's memory, the card's copy. The frame cache has what the
+   volume leaves of it. Past the budget, finished slabs wait in Volsa's spill file (below),
+   the least used first, and come back when read.
+2. The window's own thread, and no other, hands the volume to its graphics device, one slab
+   of 32 MiB a frame, so that the window never pauses long and no other thread uses the
+   device while the window sets itself up. 16-bit whole numbers go as they are stored
+   (`R16Unorm`, a signed one moved up by 32,768), so the shaders' windowing is unchanged;
+   other volumes go as 16-bit floats. A series longer than one texture may be (the card's
+   longest 3D side, or 512 MiB) goes into up to four textures cut along its slices, each
+   ending on the slice the next begins with, and both shaders read them through one function
+   (`slabs.wgsl`); only a series that fits neither is halved, on a worker, and the scene says
+   so. The window's device asks for the card's own limits and, where offered, 16-bit
+   normalised textures, and both devices set memory aside in small blocks. The largest value
+   in each block of voxels, which lets a line of sight step over what is empty, is worked
+   out by the device itself, slab by slab, by drawing into the slices of a second, small
+   texture; it is gathered from each slab as it goes for a device that cannot.
 3. For every pixel a fragment shader builds the line of sight from the camera, clips it to the
    volume's box in texture space (so a tilted stack needs no resampling), steps past the blocks
    with nothing to draw, and walks the rest: adding up lit, windowed values (Surface, VR) or
@@ -89,13 +117,21 @@ The plane views and measuring hang on one point, the position:
    blended reads a pixel. Nothing passes through the processor. A device with no compute
    shaders, or with no room for the working texture, leaves it to a worker, which hands the
    coefficients over as before.
-4. Annotations (rulers, angles, regions, markers) are points in the patient, in millimetres,
-   kept with the series they were made on. What each measures is worked out in `volsa-volume`
-   from those points and from the scan's own values, never from the screen. A plane view shows
-   the ones that lie in its layer; the 3D scene shows them all, in front of the picture.
-5. The list is written to `annotations.json` in Volsa's local folder, filed under a hash of
-   the series, and can be saved as a table or as JSON. None of these holds anything that says
-   whose scan it was.
+4. Annotations (rulers, angles, regions, markers) are points in millimetres, kept with the
+   series they were made on: the patient's, where the files say where the slices lie, or the
+   picture's own, from its Pixel Spacing alone, which each such annotation says (its
+   `Scale`). `measuring` decides which from the files alone, and why nothing can be measured
+   when it cannot; it never takes a detector's spacing for the body's. They are drawn on the
+   2D slices as soon as one is shown, as well as on the planes and in 3D, with no volume
+   needed. What each measures is worked out from those points and from the scan's own values,
+   never from the screen: a region on a slice from that slice, read in place once
+   (`Session::read_slice`). A slice or a plane view shows the ones that lie in its layer; the
+   3D scene shows them all, in front of the picture.
+5. The list is written to `annotations.json` in Volsa's local folder (version 2 when a
+   measurement is in a picture's own millimetres, otherwise version 1, as 0.6.0 wrote it;
+   either opens), filed under a hash of the series, and can be saved as a table or
+   as JSON, each saying whose millimetres a measurement is in. None of these holds anything
+   that says whose scan it was.
 
 Labelled parts come from files made elsewhere, or from a run that Volsa makes itself (the next
 section), and are kept apart from the scan:
@@ -128,7 +164,7 @@ section), and are kept apart from the scan:
 Volsa labels a brain scan with SynthSeg 2.0's networks, run through ONNX Runtime. It ships no
 network, and the zip a release offers carries ONNX Runtime but never DirectML or the weights;
 see [models.md](models.md) for what a person provides and
-[adr/0006-volsa-runs-a-labelling-model.md](adr/0006-volsa-runs-a-labelling-model.md) for why it is
+[adr/0006-voxa-runs-a-labelling-model.md](adr/0006-voxa-runs-a-labelling-model.md) for why it is
 built as it is. Nothing else in Volsa depends on any of it.
 
 1. **Looking.** When Volsa starts, and when the person names another folder, a worker looks
@@ -138,7 +174,7 @@ built as it is. Nothing else in Volsa depends on any of it.
    answer is a `Ready` in the state: yes, or a sentence that says what is missing. The runtime
    is loaded once in a program's life, so a runtime folder changed later takes effect at the
    next start.
-2. **The button.** **Label this scan** in the Parts tab sends `LabelScan`. The reducer starts
+2. **The button.** **Label this scan** in the Tools tab sends `LabelScan`. The reducer starts
    a run only if the computer is ready, no run is on, no label file is being read and the
    scene holds a built volume. It picks the model (Automatic takes the robust one when any
    slice spacing is over 3 mm) and sends `Effect::LabelScan` with the series, what is wanted,
@@ -179,7 +215,7 @@ built as it is. Nothing else in Volsa depends on any of it.
 6. **Keeping.** After the report, the worker writes a gzipped label file and its table, for
    every result so that **Save as** can offer them, and, once the state has taken the result
    in, keeps them under the local folder if the person has not switched keeping off. A kept
-   result is found again when the same series is shown, and the Parts tab offers to show it,
+   result is found again when the same series is shown, and the Tools tab offers to show it,
    make it again or delete it.
 7. **Stopping.** A run says what it says with its own number. It ends when the person presses
    **Stop**, when the scene moves to another series, when another export is opened, or when the
@@ -232,8 +268,8 @@ in Volsa's own process.
 
 An export holds more than volumes: locating images, single images, pictures in colour, stacks
 that are not regular. `SeriesInfo::kind` names what a series is, from what the index found,
-and the series list says it in words; only a stack that cannot be shown in 3D and images that
-cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
+and the rail of scans says it in words, and marks a plain stack or a series that cannot
+be read; only a stack that cannot be shown in 3D and images that cannot be read are faults. What the files say of how a series was acquired (plane, 2D or 3D,
 family of sequence, times, flip angle, field strength) is kept in `ScanFacts`, read from the
 first image; images in several planes are given no plane.
 
@@ -253,13 +289,18 @@ draws it as a texture in its own colours; it has no window, and no 3D view.
 In two folders the system gives Volsa. The settings folder (`config_dir`, on Windows in the
 roaming profile, which a managed network may copy to its servers) holds only
 `preferences.json` (the window's size, the interface's size, the shares of the window's width
-the series list and the column take, the layout, orientation, linking and how labels are
-drawn). The local folder (`data_local_dir`, which stays on the machine) holds the rest: the
-saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
+the series list and the tab panel take, whether the person folded either, the tab open, the
+theme, the layout, orientation, linking and how labels are drawn). The local folder
+(`data_local_dir`, which stays on the machine) holds the rest: the saved views and annotations of each study, `choices.json` (what was chosen for labelling: the
 model, the cortex areas, where a run goes by the card's name, whether results are kept, and
 the two folders of the model and the runtime, which are its only paths), a `labels` folder
 holding the result of labelling kept for each series, as a label file and a table named by a
-hash of the series, and `volsa.log`. Volsa 0.5.0 and earlier kept all but the log in the
+hash of the series, `volsa.log`, and, only while a volume past the memory budget is open, a
+spill file `cache/spill-<random number>.volsa`: the numbers of that volume's slabs and nothing
+else (no name, no tag, nothing to say whose scan it is), opened by Volsa alone (on Windows no
+other program can open or delete it meanwhile), deleted when its volume gives way and when
+Volsa closes, and, if a stop left one, when Volsa next starts. 0.5.0 and earlier kept all
+but the log in the
 settings folder; as a newer Volsa starts, `moved.rs` moves what is there into the local folder,
 each file whole and never over a different file of the same name (a result's two files go
 together or not at all), and logs in a sentence what it moved and what it left, by Volsa's own
@@ -279,6 +320,69 @@ frames, build a volume, work out the curve for smooth planes, read labels, look 
 labelling files, run the labelling networks, stop them, keep and find a result, read and write
 saved views and annotations). Workers report back by sending further `Action`s. This makes every interaction testable
 without a window: dispatch actions, assert on state.
+
+## The window
+
+`volsa-app/src/ui` is the window. It draws from `AppState` and the workers' reports each frame and
+holds no scan data of its own: the pictures read their slices and volumes from the session.
+
+### Its parts
+
+| Part | Where | What it holds |
+|---|---|---|
+| Top bar | `top.rs`, `top/menu.rs`, `bars.rs` | **Open**, the study's name and date, the search box, help, the theme and the menu (interface size, full screen, the keys and mouse, where the log is, About), on one line; in a narrow window the study's name goes first, then the search box shortens |
+| Bottom line | `notices.rs`, `bars.rs` | The disclaimer, word for word, and the notice area: the newest notice, how many there are, and a list of all of them with **Dismiss** |
+| Rail of scans | `rail.rs` and `rail/` | A card for each scan under each person's and study's heading, then **Other files** (closed until opened); only the cards in sight are laid out, from rows kept between frames; folds to a strip |
+| Strip and pictures | `strip.rs`, `layout.rs`, `pictures.rs`, `viewport.rs`, `planes.rs`, `scene.rs` | The strip chooses **Slices** (1, 2 or 4 viewports), **Slices + 3D**, **Planes** or **3D**; beneath it the 2D viewports, the three planes and the 3D scene as the arrangement shows them; in a narrow middle the strip's buttons fold into one menu |
+| Tab panel | `panel.rs`, `tabs.rs` and `tabs/` | **View**, **Measure**, **3D**, **Labels** and **Tools**, one open at a time; folds to a strip of icons |
+| A document | `document.rs` | A structured report as text, a PDF's "Save a copy", or any other file named, in place of the strip and the pictures |
+| Floating windows | `floating.rs`, `about.rs`, `help.rs`, `tags.rs`, `scene/export/progress.rs` | About, the help, a file's tags and a turntable's progress open over the pictures, never over the rail, and Esc closes the one opened last |
+| Search | `search.rs` and `search/` | Opens with Ctrl+K, `/` or a click; finds actions, the parts of open labels, scans and help topics; its index is rebuilt only when they change |
+| Themes | `theme.rs` | System, light and dark, defined once each; the pictures stay on black |
+
+`screen.rs` and `screen/folds.rs` set the parts out. The window is fitted to the screen it opens
+on; the rail's and the panel's widths are shares of the window's width, can be dragged, and
+are kept; and below 760 points across at most one of the two side columns is open and the
+pictures keep 200 points, the window folding them itself as it becomes narrow (such a fold is
+not kept as the person's). The Tab key goes through the top bar, the rail, the pictures and the
+panel in that order, so the pictures are drawn before the panel beside them.
+
+### The list of actions
+
+Every action a person can take is described once, in `ui/commands.rs` and its `commands/table/`
+(a file for each part of the window), as a `Command`:
+
+- `id`, which never changes, and `name`, what it does in plain words;
+- `label`, what its button shows (which may be short, such as `1` or `VR`), and `explains`, a
+  second line for the hint;
+- `words`, the other words it is searched by;
+- `key`, if it has one, and `place`, where it lives (the top bar, the menu, the strip, a tab, a
+  card, the rail, the panel);
+- `profiles`, the kinds of scan (CT, MR, basic) it is offered for when not all;
+- `why_not`, a function from the state to the sentence that says why it cannot be used now,
+  or `None`;
+- `does`: either a change of state (an `Action`, made from the state when it is run) or a
+  `Request` for the window itself (open a file, fold a column, show a tab, save a picture).
+
+The buttons, the keys, the help's list of keys, the search, the hints and every control's
+screen-reader name all read this one list, so a name, a key or a hint is written once. A button
+that cannot be used is drawn greyed with its reason; in the search it is listed with the reason,
+and running it posts the reason. A plugin system is to add its tools to the same list at run
+time. Tests over the list (`commands/table_tests.rs`, `search/tests.rs`, `access_tests.rs`)
+check that every action is found by its name and by each of its words, that no two share a key
+in the same place, that every key does what the list says, and that every button the walk meets is
+an entry or on the walk's stated lists (a row that belongs to one item, and the answers to a
+question; requirements UI-03 and UI-04). The progress window of a turntable is outside the walk,
+and its Cancel is by hand.
+
+### Taking a picture, and timing the window
+
+`VOLSA_CAPTURE` makes Volsa save one picture of its window and close (`ui/capture.rs` lists the
+words `VOLSA_CAPTURE_SHOW` takes, among them one for each tab, `search` and `notices`).
+`BareWindow` (`ui/bare.rs`) lays out the bar, the bottom line, the rail and the panel with no
+screen and no pictures; the tests of the window's small sizes use it, and
+`cargo run --release -p volsa-app --example measure_window` times it for a made-up study of 500
+series, the measurement that spec 7.17 holds to 0.6.0's bars and list.
 
 ## Coordinates
 
@@ -323,7 +427,10 @@ file), pictures in colour, and RLE, for which the test writes the compressed fra
 JPEG picture is encoded in its test by `jpeg-encoder`, a development dependency. A JPEG 2000
 picture is a small made-up file kept with the tests, written by `tools/fixtures/make_ramp_j2k.py`,
 and is decoded exactly. A deflated file is deflated in its test. Lossless JPEG and lossy
-JPEG 2000 have no test of their own.
+JPEG 2000 have no test of their own. Files nested too deeply are written byte by byte by the
+testkit's `nested_slice`, since the library's own writer recurses as its reader does; their
+tests read on a thread with a 1 MiB stack, so that it is the check on nesting that keeps them
+from overflowing it.
 
 Labelling is tested in layers, none of which needs a runtime or a model folder. Each of
 SynthSeg's preparing and tidying steps is held to arrays that SynthSeg's own Python made from
@@ -331,9 +438,22 @@ small made-up volumes (`tools/golden` makes them; they are kept under
 `crates/volsa-segment/tests/golden`). The steps between the networks, the mirrored run and the
 224 cube are run with stand-in networks (the `testkit` feature of `volsa-models`), the model
 folder check with folders made in the test, the sums that say where a run fits with made-up
-cards, and the reducer and the Parts tab by actions and state with no window. A label file is
+cards, and the reducer and the Labels and Tools tabs by actions and state with no window. A label file is
 written and read back. So `cargo xtask check` needs neither on the machine. It is meant to
 pass on Windows and Linux; for 0.5.0 it has been run on Windows only, and has not been built
 or run on Linux. The tests that run the real networks on the converter's made-up head are marked
 ignored and run by `cargo xtask check-models`; `runtime.rs` and `cards.rs`, which cannot run
 without a runtime or a card, are left out of the coverage count.
+
+Drawing is tested on a graphics device with no window (`crates/volsa-render/src/gpu.rs` and the
+modules beside it). Every such device comes from one adapter (the tests that draw in software use
+a second, of their own) and is started in turn with the others. On Windows none tries OpenGL: a
+driver's OpenGL side can stop every thread of the program from starting or ending once a thread
+that used it has ended, which stopped a run of the tests now and then. Vulkan and DirectX 12 are
+tried, and DirectX 12 brings WARP, the device in software that a computer with no graphics card
+draws with; `WGPU_BACKEND` names others, and is needed on a Windows computer that could draw only
+with OpenGL. The tests of the interface that need the kind of device a window has (egui-wgpu's
+default limits) get it from `volsa_render::render_state_without_a_window`, and
+`crates/volsa-render/tests/one_instance.rs` fails when a source file outside volsa-render's `gpu`
+modules makes a graphics instance of its own, whether by wgpu's constructors or by egui-wgpu's
+builder. The window's own instance is made by eframe, and is not covered.

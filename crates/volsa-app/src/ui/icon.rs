@@ -1,6 +1,6 @@
 //! The window's icon, drawn here so that no picture file is needed: a ring with a bead on
 //! it, like the made-up study's ball seen in a slice. The drawing itself is in `drawing`,
-//! which the build script also draws `voxa.exe`'s icon from.
+//! which the build script also draws `volsa.exe`'s icon from.
 
 mod drawing;
 

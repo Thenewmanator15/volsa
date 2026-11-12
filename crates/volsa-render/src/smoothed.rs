@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use egui_wgpu::wgpu;
 use half::f16;
-use voxa_core::Volume;
-use voxa_volume::{coefficients, halved, halvings_needed};
+use volsa_core::Volume;
+use volsa_volume::{coefficients, halved, halvings_needed};
 
 use crate::prepared::stored_range;
 use crate::volume_texture::{texture, write};
@@ -30,11 +30,23 @@ impl Smoothed {
     /// as [`Prepared::of`](crate::Prepared::of) halves it for the same `max_side` and
     /// `max_bytes`. This reads every value several times over and is not quick.
     pub fn of(volume: &Volume, max_side: u32, max_bytes: u64) -> Self {
+        Self::mapped(volume, (max_side, max_bytes), None)
+    }
+
+    /// As [`Smoothed::of`], with coefficients stored as the device holds the volume's own
+    /// values: `mapping` is the value a stored 0 stands for and the span to the one a stored 1
+    /// stands for, as [`card_mapping`](crate::card_mapping) gives it; with none, the volume's
+    /// own smallest and largest values, as [`Smoothed::of`] stores them.
+    pub fn mapped(
+        volume: &Volume,
+        (max_side, max_bytes): (u32, u64),
+        mapping: Option<(f32, f32)>,
+    ) -> Self {
         let mut shown = Cow::Borrowed(volume);
         for _ in 0..halvings_needed(volume.dims(), max_side, max_bytes) {
             shown = Cow::Owned(halved(&shown));
         }
-        let (smallest, span) = stored_range(&shown);
+        let (smallest, span) = mapping.unwrap_or_else(|| stored_range(&shown));
         let stored = |coefficient: f32| {
             let part = (coefficient - smallest) / span;
             f16::from_f32(if part.is_finite() { part } else { 0.0 }).to_bits()
@@ -59,11 +71,11 @@ impl Smoothed {
     /// Put the curve on a graphics device. `None` when the device has no room for it.
     pub fn on(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Option<SmoothedTexture> {
         // Watched for running out of room, as the volume itself is.
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let halves = wgpu::TextureFormat::R16Float;
-        let coefficients = texture(device, "voxa volume curve", self.dims, halves);
+        let coefficients = texture(device, "volsa volume curve", self.dims, halves);
         write(device, queue, &coefficients, self.dims, &self.halves);
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             coefficients.destroy();
             return None;
         }

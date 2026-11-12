@@ -1,10 +1,11 @@
 //! Actions about the 3D scene, and keeping the scene on the series the active viewport shows.
 
-use voxa_core::{SeriesId, SeriesProblem};
-use voxa_render::{Camera, CutPlane, MAX_CUTS, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView};
-use voxa_volume::can_be_volume;
+use volsa_core::{SeriesId, SeriesInfo, SeriesProblem};
+use volsa_render::{Camera, CutPlane, MAX_CUTS, MAX_MM_PER_PX, MIN_MM_PER_PX, NamedView};
+use volsa_volume::{VolumeError, can_be_volume};
 
 use crate::action::{Action, Effect};
+use crate::measuring::placement_of;
 use crate::scene::{Scene, SceneStatus};
 use crate::state::AppState;
 
@@ -36,6 +37,7 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::CutRemove { cut } if cut < scene.cuts.len() => {
             scene.cuts.remove(cut);
         }
+        Action::SceneWanted(wanted) => return wanted_or_not(state, wanted),
         about_the_volume => return built(scene, about_the_volume).into_iter().collect(),
     }
     Vec::new()
@@ -53,8 +55,18 @@ fn built(scene: &mut Scene, report: Action) -> Option<Effect> {
         Action::VolumeProgress { series, done, of } if building(scene, &series) => {
             scene.status = SceneStatus::Building { done, of };
         }
+        Action::PreviewReady { series, corners } if building(scene, &series) => {
+            scene.preview = true;
+            // Seen as the volume will be, and left so when it comes.
+            if !std::mem::replace(&mut scene.keeps_view, true) {
+                scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
+                scene.untouched = true;
+            }
+            scene.corners = Some(corners);
+        }
         Action::VolumeReady { series, corners } if building(scene, &series) => {
             scene.status = SceneStatus::Ready;
+            scene.preview = false;
             // Another volume of the series shown before is seen as that one was.
             if !std::mem::take(&mut scene.keeps_view) {
                 scene.camera = Camera::fitted(NamedView::Anterior, &corners, scene.viewport);
@@ -65,10 +77,26 @@ fn built(scene: &mut Scene, report: Action) -> Option<Effect> {
         }
         Action::VolumeFailed { series, reason } if building(scene, &series) => {
             scene.status = SceneStatus::Unavailable(vec![reason]);
+            scene.preview = false;
         }
         _ => {}
     }
     None
+}
+
+/// Say whether the 3D scene is wanted. Wanted again, it starts afresh for the series the
+/// active viewport shows; no longer wanted, it is left empty.
+fn wanted_or_not(state: &mut AppState, wanted: bool) -> Vec<Effect> {
+    if state.scene.wanted == wanted {
+        return Vec::new();
+    }
+    state.scene.wanted = wanted;
+    let shown = if wanted {
+        shown_in_the_active_viewport(state)
+    } else {
+        None
+    };
+    start(state, shown)
 }
 
 /// Show the whole volume again, from the way the camera already faces.
@@ -126,6 +154,7 @@ fn another_volume_of_the_same(state: &AppState, series: Option<&SeriesId>) -> bo
 fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     let mut fresh = Scene {
         viewport: state.scene.viewport,
+        wanted: state.scene.wanted,
         ..Scene::default()
     };
     if another_volume_of_the_same(state, series.as_ref()) {
@@ -145,6 +174,8 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     // The views saved of the series before are not this one's, and nor is a result kept.
     state.views.clear();
     super::labelling::forget_kept(&mut state.labelling);
+    // While the scene is not wanted it stays empty, and nothing is built for it.
+    let series = series.filter(|_| fresh.wanted);
     let listed = series.as_ref().and_then(|id| state.series(id));
     let info = listed.map(|listed| listed.info.clone());
     let Some((series, info)) = series.zip(info) else {
@@ -168,13 +199,7 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
             };
             (building, vec![volume, views, annotations])
         }
-        Err(why) => {
-            // Why, each reason once, and then what is done about it, once.
-            let problems = info.problems.iter().map(SeriesProblem::what);
-            let said = std::iter::once(why.to_string()).chain(problems);
-            let lines = said.chain([AS_A_STACK.to_owned()]).collect();
-            (SceneStatus::Unavailable(lines), Vec::new())
-        }
+        Err(why) => without_a_volume(&series, &info, &why),
     };
     state.scene = Scene {
         series: Some(series),
@@ -184,7 +209,27 @@ fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     effects
 }
 
-/// A new size for the scene's picture. While the camera is still Voxa's own choice the volume
+/// The scene of a series that cannot be a volume, for the reason `why`: saying why, each reason
+/// once and then what is done about it, once. Its slices may still be measured on, and if they
+/// can, what was measured on them before is asked for.
+fn without_a_volume(
+    series: &SeriesId,
+    info: &SeriesInfo,
+    why: &VolumeError,
+) -> (SceneStatus, Vec<Effect>) {
+    let problems = info.problems.iter().map(SeriesProblem::what);
+    let said = std::iter::once(why.to_string()).chain(problems);
+    let lines = said.chain([AS_A_STACK.to_owned()]).collect();
+    let measured = placement_of(info).map(|_| Effect::LoadAnnotations {
+        series: series.clone(),
+    });
+    (
+        SceneStatus::Unavailable(lines),
+        measured.into_iter().collect(),
+    )
+}
+
+/// A new size for the scene's picture. While the camera is still Volsa's own choice the volume
 /// is fitted to it again. A camera the person has moved keeps what it shows: as much of the
 /// patient across the shorter side of the picture as before, so that a scene given a smaller
 /// part of the window is the same view, smaller, and not a corner of it. A size that is not

@@ -8,8 +8,14 @@ on:
   pull_request:
   workflow_call:
 
+# Every action is pinned by its full commit, with the release it is beside it.
 permissions:
   contents: read
+
+# A newer push to the same branch or pull request cancels the older run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
@@ -22,7 +28,9 @@ jobs:
         os: [windows-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install the pinned toolchain
         run: rustup show
       - name: Software Vulkan driver, so the GPU tests run without a graphics card
@@ -36,7 +44,9 @@ jobs:
   coverage:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install the pinned toolchain
         run: rustup show
       - name: Install cargo-llvm-cov
@@ -44,17 +54,33 @@ jobs:
       - name: Coverage floor on the crates that need no GPU
         run: cargo xtask coverage
 
+  book:
+    # The user guide in book/, built as docs.yml builds it to publish it: a page SUMMARY.md
+    # names that is missing, or a file a page includes, fails here. The gate's tests hold its
+    # words and its links.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Install mdBook, pinned and checked
+        uses: ./.github/actions/install-mdbook
+      - name: Build the user guide
+        run: mdbook build book
+
   windows-build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
       - name: Install the pinned toolchain
         run: rustup show
-      - name: Build Voxa and pack it as it would be handed to someone, without the runtime
+      - name: Build Volsa and pack it as it would be handed to someone, without the runtime
         run: cargo xtask dist
       - name: Keep the package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: voxa-windows
-          path: target/dist/voxa-*-windows-x64.zip
+          name: volsa-windows
+          path: target/dist/volsa-*-windows-x64.zip
           if-no-files-found: error

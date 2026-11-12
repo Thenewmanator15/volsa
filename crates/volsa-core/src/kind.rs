@@ -7,7 +7,7 @@ use crate::model::{SeriesInfo, SeriesProblem};
 pub const MOST_LOCATING: usize = 12;
 
 /// What a series is. Every export holds series that are not volumes, and most of those are
-/// as they should be: only the last two kinds mean that something stops Voxa showing a
+/// as they should be: only the last two kinds mean that something stops Volsa showing a
 /// series in full.
 #[derive(Debug, Clone, PartialEq)]
 pub enum SeriesKind {
@@ -21,7 +21,7 @@ pub enum SeriesKind {
     Colour,
     /// A stack that cannot be treated as a volume, and the first reason why.
     Stack(SeriesProblem),
-    /// Images compressed in a way Voxa cannot read; the compression is named.
+    /// Images compressed in a way Volsa cannot read; the compression is named.
     Unreadable(String),
 }
 
@@ -38,7 +38,7 @@ impl SeriesKind {
         }
     }
 
-    /// Whether something stops Voxa showing the series as it was meant to be seen.
+    /// Whether something stops Volsa showing the series as it was meant to be seen.
     pub fn is_fault(&self) -> bool {
         matches!(self, Self::Stack(_) | Self::Unreadable(_))
     }

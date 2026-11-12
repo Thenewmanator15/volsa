@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.6.0"
+version = "0.7.1"
 edition = "2024"
 rust-version = "1.99"
 license = "MIT OR Apache-2.0"
@@ -50,6 +50,11 @@ rfd = "0.17"
 dicom-core = "0.10"
 dicom-object = "0.10"
 dicom-dictionary-std = "0.10"
+# The step-by-step reader the DICOM library itself reads with, and the transfer syntaxes it reads
+# by: Volsa walks a file with them before the library builds it, to refuse one nested too deeply.
+# Both are already in the tree under dicom-object.
+dicom-encoding = "0.10"
+dicom-parser = "0.10"
 dicom-pixeldata = { version = "0.10", default-features = false, features = ["native", "openjp2", "rayon"] }
 dicom-transfer-syntax-registry = { version = "0.10", default-features = false }
 # Stored and deflated entries cover scan exports; the other compressors would only add code to audit.

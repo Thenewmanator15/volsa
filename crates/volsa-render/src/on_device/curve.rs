@@ -32,13 +32,13 @@ impl CurveMaker {
             let shader = device.create_shader_module(wgpu::include_wgsl!("curve.wgsl"));
             let layout = bindings(device);
             let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("voxa curve"),
+                label: Some("volsa curve"),
                 bind_group_layouts: &[Some(&layout)],
                 immediate_size: 0,
             });
             let pipeline = |entry| {
                 device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
-                    label: Some("voxa curve"),
+                    label: Some("volsa curve"),
                     layout: Some(&pipeline_layout),
                     module: &shader,
                     entry_point: Some(entry),
@@ -70,11 +70,11 @@ impl CurveMaker {
         values: &wgpu::TextureView,
         dims: [u32; 3],
     ) -> Option<SmoothedTexture> {
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let worked_in = wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::TEXTURE_BINDING;
         let work = texture(
             device,
-            "voxa curve, being worked out",
+            "volsa curve, being worked out",
             dims,
             WORK,
             worked_in,
@@ -83,7 +83,7 @@ impl CurveMaker {
         let drawn_and_read = wgpu::TextureUsages::RENDER_ATTACHMENT
             | wgpu::TextureUsages::TEXTURE_BINDING
             | wgpu::TextureUsages::COPY_SRC;
-        let coefficients = texture(device, "voxa volume curve", dims, HALVES, drawn_and_read);
+        let coefficients = texture(device, "volsa volume curve", dims, HALVES, drawn_and_read);
         let [cols, rows, slices] = dims;
         let textures = (values, &work_view);
         // The values copied in a slab of slices at a time, then filtered each way in turn.
@@ -113,10 +113,10 @@ impl CurveMaker {
             }
         }
         self.copy
-            .draw((device, queue), &work_view, &coefficients, slices);
+            .draw((device, queue), &work_view, &coefficients, 0..slices);
         // Given back once the device has drawn from it, not before.
         work.destroy();
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             coefficients.destroy();
             return None;
         }
@@ -134,14 +134,14 @@ impl CurveMaker {
         [across, down, deep]: [u32; 3],
     ) {
         let told = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("voxa curve lines"),
+            label: Some("volsa curve lines"),
             size: 16,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         queue.write_buffer(&told, 0, bytemuck::cast_slice(&[axis, first, 0, 0]));
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("voxa curve"),
+            label: Some("volsa curve"),
             layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -159,11 +159,11 @@ impl CurveMaker {
             ],
         });
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("voxa curve"),
+            label: Some("volsa curve"),
         });
         {
             let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
-                label: Some("voxa curve"),
+                label: Some("volsa curve"),
                 timestamp_writes: None,
             });
             pass.set_pipeline(pipeline);
@@ -210,7 +210,7 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         count: None,
     };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("voxa curve"),
+        label: Some("volsa curve"),
         entries: &[told, work, read_by_texel(2, wgpu::ShaderStages::COMPUTE)],
     })
 }

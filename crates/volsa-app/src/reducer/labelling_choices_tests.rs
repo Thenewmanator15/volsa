@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
-use voxa_models::{CardId, RunsOn};
-use voxa_segment::{ModelChoice, Stage};
+use volsa_models::{CardId, RunsOn};
+use volsa_segment::{ModelChoice, Stage};
 
 use super::labelling_tests::{able, cards, label, looked, looked_on};
 use super::*;
@@ -23,7 +23,7 @@ fn on_card(name: &str) -> Choices {
     }
 }
 
-/// A state as Voxa starts with these choices kept from the run before, and the cards looked
+/// A state as Volsa starts with these choices kept from the run before, and the cards looked
 /// for.
 fn started_with(choices: Choices) -> AppState {
     let mut state = AppState::default();

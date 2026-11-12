@@ -2,8 +2,8 @@
 //! look when the labels reach beyond the scan, as a whole head's labels do over a thin slab:
 //! then it is the labels' box, so that the solids are seen whole.
 
-use voxa_core::{Patient, Point};
-use voxa_render::Look;
+use volsa_core::{Patient, Point};
+use volsa_render::Look;
 
 use crate::labels::look_drawn;
 use crate::state::AppState;

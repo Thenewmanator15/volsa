@@ -61,7 +61,7 @@ fn dragged_by(x: f32, steps: Vec<Vec<Event>>) -> f32 {
         };
         let mut output = ctx.run_ui(input, |ui| {
             let _ = ui.interact(screen, egui::Id::new("under"), Sense::drag());
-            moved += divider(ui, egui::Id::new("edge"), x, screen.y_range());
+            moved += divider(ui, egui::Id::new("edge"), x, screen.y_range(), "Edge");
         });
         // No renderer is behind these passes to take the font texture.
         output.textures_delta.clear();
@@ -98,4 +98,29 @@ fn the_divider_says_how_far_it_was_dragged_and_no_widget_beneath_takes_the_drag(
         elsewhere, 0.0,
         "a drag away from the line is not the line's"
     );
+}
+
+#[test]
+fn a_divider_is_called_what_it_resizes_for_a_screen_reader() {
+    let ctx = egui::Context::default();
+    ctx.enable_accesskit();
+    let screen = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+    let input = RawInput {
+        screen_rect: Some(screen),
+        ..RawInput::default()
+    };
+    let name = "Width of the scans";
+    let mut output = ctx.run_ui(input, |ui| {
+        let _ = divider(ui, egui::Id::new("edge"), 200.0, screen.y_range(), name);
+    });
+    // No renderer is behind this pass to take the font texture.
+    output.textures_delta.clear();
+    let update = output.platform_output.accesskit_update;
+    let update = update.expect("the interface is described");
+    let found = update
+        .nodes
+        .iter()
+        .find(|(_, node)| node.label() == Some(name));
+    let (_, node) = found.expect("the divider is named");
+    assert_eq!(node.role(), egui::accesskit::Role::Splitter);
 }

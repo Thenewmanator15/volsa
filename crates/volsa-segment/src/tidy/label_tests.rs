@@ -2,10 +2,10 @@
 //! sure of one structure at every voxel, by where the voxel lies in the grid it is given. The
 //! volumes are small and made up, and no network is read or run.
 
-use voxa_core::{Affine, Patient, Point, Volume, Voxel};
-use voxa_labels::Side;
-use voxa_models::testkit::Canned;
-use voxa_models::{Cut, Lists, ModelSide, Network, Role, RunError, Structure, Tensor, Wanted};
+use volsa_core::{Affine, Patient, Point, Volume, Voxel};
+use volsa_labels::Side;
+use volsa_models::testkit::Canned;
+use volsa_models::{Cut, Lists, ModelSide, Network, Role, RunError, Structure, Tensor, Wanted};
 
 use crate::label::notes;
 use crate::{

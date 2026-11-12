@@ -15,7 +15,6 @@ use crate::export::write;
 use crate::labels::{LABELS_WAIT, Labels, NOTHING_TO_LABEL_KEY, is_label_file, on_this_series};
 use crate::parts_table::{PARTS_NAME, parts_csv};
 use crate::planes::grid;
-use crate::plugins::PluginAction;
 use crate::scene::SceneStatus;
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -87,9 +86,9 @@ impl Opening {
 }
 
 impl Opening {
-    /// Ask the person for the file the Parts list wants, and give what comes of it: what
-    /// opens a label file, or another table of names for the labels open, or what says how
-    /// saving the list of `open` labels went. `None` when they chose nothing.
+    /// Ask the person for the file the Labels and Tools tabs want, and give what comes of it:
+    /// what opens a label file, or another table of names for the labels open, or what says
+    /// how saving the list of `open` labels went. `None` when they chose nothing.
     pub fn chosen(&mut self, asked: parts::Asked, open: &Labels) -> Option<Action> {
         match asked {
             parts::Asked::OpenLabels => {
@@ -116,12 +115,6 @@ impl Opening {
                 Some(Action::Post(said(&path, outcome)))
             }
             parts::Asked::Labelling(wants) => parts::labelling::chosen(wants),
-            parts::Asked::AddPlugin => {
-                let folder = rfd::FileDialog::new()
-                    .set_title("Choose the folder of a plugin")
-                    .pick_folder()?;
-                Some(Action::Plugins(PluginAction::Offer(folder)))
-            }
         }
     }
 }

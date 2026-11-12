@@ -1,10 +1,11 @@
 # What Volsa is for
 
-Volsa is for looking at MRI scans on your own computer: your own scans, and scans used for
-learning, teaching or research. It shows the images, lets you measure them and can show labels
-made by a model, but it does not diagnose, screen for or rule out anything, and its measurements
-and labels are not clinical results. Questions about anyone's health belong with a qualified
-clinician. Volsa is not a medical device and is not for diagnostic use.
+Volsa is for looking at MRI and CT scans, and other DICOM files at a basic level, on your own
+computer: your own scans, and scans used for learning, teaching or research. It shows the
+images, lets you measure them and can show labels made by a model, but it does not diagnose,
+screen for or rule out anything, and its measurements and labels are not clinical results.
+Questions about anyone's health belong with a qualified clinician. Volsa is not a medical device
+and is not for diagnostic use.
 
 ## What it is not for
 

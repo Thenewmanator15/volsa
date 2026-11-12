@@ -1,0 +1,52 @@
+name: docs
+
+# Builds the user guide in book/ with mdBook and publishes it on GitHub Pages, at
+# https://thenewmanator15.github.io/volsa/. A push to main and a run started by hand publish
+# it; ci.yml builds it for every push and pull request, so a guide that does not build fails
+# the checks there, and the gate's tests hold its words and links. Every action is pinned by
+# its full commit, with the release it is beside it; mdBook is pinned by its SHA-256.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One publication at a time; one that has begun is let finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install mdBook, pinned and checked
+        uses: ./.github/actions/install-mdbook
+
+      - name: Build the guide
+        run: mdbook build book
+
+      - name: Hand the site to Pages
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: book/book
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Publish it
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

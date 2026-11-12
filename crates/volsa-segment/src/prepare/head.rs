@@ -1,6 +1,6 @@
 //! Cutting the turned volume to the head, when it must be made smaller.
 //!
-//! This step is Voxa's own: `SynthSeg`'s program has no such cut. The head is the largest
+//! This step is Volsa's own: `SynthSeg`'s program has no such cut. The head is the largest
 //! connected piece of the voxels that are brighter than a mark. Voxels are connected when they
 //! share a face, as `SciPy`'s `label` joins them by default (the module `pieces` finds the
 //! piece). The mark lies a tenth of the way up from the 0.5th percentile to the 99.5th, both
@@ -8,8 +8,8 @@
 //! voxels added on every side, kept within the grid. With nothing above the mark, the cut is
 //! the whole grid.
 
-use voxa_core::Volume;
-use voxa_models::Cut;
+use volsa_core::Volume;
+use volsa_models::Cut;
 
 use super::align::Turned;
 use super::{PrepareError, make_ready, padded_voxels};

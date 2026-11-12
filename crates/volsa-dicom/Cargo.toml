@@ -1,5 +1,5 @@
 [package]
-name = "voxa-dicom"
+name = "volsa-dicom"
 description = "Reading scan exports: sources, header indexing and pixel decoding."
 version.workspace = true
 edition.workspace = true
@@ -8,10 +8,12 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-voxa-core.workspace = true
+volsa-core.workspace = true
 dicom-core.workspace = true
-dicom-dictionary-std.workspace = true
+dicom-dictionary-std = { workspace = true, features = ["sop-class"] }
+dicom-encoding.workspace = true
 dicom-object.workspace = true
+dicom-parser.workspace = true
 dicom-pixeldata.workspace = true
 dicom-transfer-syntax-registry.workspace = true
 zip.workspace = true

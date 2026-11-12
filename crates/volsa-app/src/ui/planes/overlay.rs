@@ -1,12 +1,15 @@
 //! What is written and drawn over a plane view: pure functions.
 
-use egui::Color32;
-use voxa_core::{Patient, Point};
-use voxa_render::PlaneView;
-use voxa_volume::{Plane, PlaneKind};
+use egui::{Color32, WidgetInfo, WidgetType};
+use volsa_core::{Grid, HeldVolume, Patient, Point};
+use volsa_render::PlaneView;
+use volsa_volume::{Plane, PlaneKind};
 
-use super::super::overlay::{EdgeLabels, letter};
+use super::super::overlay::{EdgeLabels, letter, value_line};
 use super::super::theme;
+use crate::naming::plain_name;
+use crate::profile::unit_of;
+use crate::state::AppState;
 
 /// How much room is left clear round the position where the lines of the cross would meet,
 /// in points, so that what is at the position can be seen.
@@ -14,6 +17,17 @@ pub const CLEAR: f32 = 6.0;
 /// A picture is said to be interpolated when its pixels run across layers more than this
 /// many times as far apart as the finest voxels.
 const COARSE: f64 = 1.5;
+
+/// What a screen reader is told of a plane's panel, a picture with no words of its own: its
+/// plane, then the plain name of the scan in the scene.
+pub fn widget(state: &AppState, kind: PlaneKind) -> WidgetInfo {
+    let scan = state.scene.series.as_ref().and_then(|id| state.series(id));
+    let said = match scan {
+        Some(listed) => format!("{} plane, {}", kind.name(), plain_name(&listed.info)),
+        None => format!("{} plane, no scan", kind.name()),
+    };
+    WidgetInfo::labeled(WidgetType::Image, true, said)
+}
 
 /// The colour a plane is known by, in its own panel's caption, on the other two panels and
 /// in the 3D scene.
@@ -55,6 +69,41 @@ pub fn plane_letters(plane: &Plane) -> EdgeLabels {
         top: away_from(plane.down),
         bottom: towards(plane.down),
     }
+}
+
+/// What a panel says of the value under the pointer: `Value -12 HU`, or in the unit the scan's
+/// files give, or with none. It is worked out from the scene's volume `scan` at `at`, a point
+/// of the patient. `None` when there is no pointer over the panel, no volume yet, the point is
+/// outside the volume, or the scene shows no scan.
+pub fn value_under(
+    state: &AppState,
+    scan: Option<&HeldVolume>,
+    at: Option<Point<Patient>>,
+) -> Option<String> {
+    let (scan, at) = scan.zip(at)?;
+    let info = &state.series(state.scene.series.as_ref()?)?.info;
+    value_line(nearest(scan, at)?, &unit_of(info))
+}
+
+/// The value of the voxel `at` lies in, never a blend of several, as the value under the pointer
+/// on a slice is the pixel's own; a point that is more than half a voxel outside the volume has
+/// none. The planes are drawn smooth, but a value between bone and air that no voxel holds is
+/// not one to read off them.
+fn nearest(volume: &HeldVolume, at: Point<Patient>) -> Option<f32> {
+    let voxel = volume.patient_to_voxel().apply(at);
+    let place = |coord: f64| whole(coord.round());
+    volume.value(place(voxel.x)?, place(voxel.y)?, place(voxel.z)?)
+}
+
+/// A whole coordinate as a place among the voxels; `None` for one before the first or that is
+/// not a number.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "held in range first"
+)]
+fn whole(coord: f64) -> Option<u32> {
+    (coord >= 0.0 && coord <= f64::from(u32::MAX)).then_some(coord as u32)
 }
 
 /// The lines of the cross through the position in a panel, each from one point of the panel

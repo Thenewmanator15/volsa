@@ -5,7 +5,7 @@
 //! share; and times a picture of each. Prints counts and times.
 //!
 //! ```text
-//! cargo run --release -p voxa-app --example check_planes -- some/export.zip [some/folder]
+//! cargo run --release -p volsa-app --example check_planes -- some/export.zip [some/folder]
 //! ```
 //!
 //! Nothing from the files is printed: no name, identifier, date, description or size. Series
@@ -18,10 +18,10 @@ use std::process::ExitCode;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-use voxa_app::{Action, NoticeKind, SceneStatus, Session, png};
-use voxa_core::{SeriesId, Volume, WindowLevel};
-use voxa_render::{HeadlessScene, MAX_VOLUME_BYTES, PlaneView, Smoothed};
-use voxa_volume::{PlaneKind, central_voxel, pitch_along, plane_of};
+use volsa_app::{Action, NoticeKind, SceneStatus, Session, png};
+use volsa_core::{Grid, SeriesId, Volume, WindowLevel};
+use volsa_render::{HeadlessScene, MAX_VOLUME_BYTES, PlaneView, Smoothed};
+use volsa_volume::{PlaneKind, central_voxel, pitch_along, plane_of};
 
 /// The side of the pictures drawn, in pixels. It is odd, so that the middle row and column
 /// pass through the very point the planes are drawn through.
@@ -59,7 +59,7 @@ fn said(why: impl Display) -> String {
 fn indexed(session: &Session) -> bool {
     let state = session.state();
     let opened = state.viewports.first();
-    let failed = |notice: &voxa_app::Notice| notice.kind == NoticeKind::Error;
+    let failed = |notice: &volsa_app::Notice| notice.kind == NoticeKind::Error;
     opened.is_some_and(|shown| shown.series.is_some()) || state.notices.iter().any(failed)
 }
 
@@ -120,7 +120,10 @@ fn one_series(
         println!("Series {number}: no 3D view, so no plane views");
         return Ok(None);
     }
-    let volume = session.volume(id).ok_or("The volume is not kept.")?;
+    let volume = session
+        .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
+        .ok_or("The volume is not kept.")?;
     // The window is chosen from the slice shown, which arrives a moment after the volume.
     let chosen = |session: &Session| {
         let shown = session.state().viewports.first();

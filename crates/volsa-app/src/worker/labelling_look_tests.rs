@@ -5,7 +5,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::mpsc::channel;
 
-use voxa_models::{
+use volsa_models::{
     Card, CardId, CardKind, FreeMemory, Role, Room, RunsOn, read_model, rungs, why_not,
 };
 
@@ -70,7 +70,7 @@ fn with_no_model_beside_the_program_and_none_chosen_the_words_say_to_choose_its_
     let Ready::No(why) = lab.look(1, None) else {
         panic!("not ready");
     };
-    let none = "Voxa found no model: there is no folder called models beside it, and none has \
+    let none = "Volsa found no model: there is no folder called models beside it, and none has \
                 been chosen. Choose the folder that holds the model, under Options.";
     assert_eq!(why, format!("{none} {WHERE}"));
     // A folder chosen that holds nothing is said to be no model folder.
@@ -83,7 +83,7 @@ fn with_no_model_beside_the_program_and_none_chosen_the_words_say_to_choose_its_
     assert_eq!(why, format!("{not_one} {WHERE}"));
 }
 
-/// What a look finds of the runtime, looked for as it is when Voxa runs (no stand-ins), with a
+/// What a look finds of the runtime, looked for as it is when Volsa runs (no stand-ins), with a
 /// model folder that reads and this runtime folder chosen, if one is.
 fn runtime_looked_for(runtime: Option<&Path>) -> Ready {
     let (sender, reports) = channel();
@@ -115,7 +115,7 @@ fn with_no_runtime_beside_the_program_or_in_the_folder_chosen_this_computer_is_n
         Ready::No(format!("{runtime} {WHERE}"))
     );
     // With none chosen, the words say what to do, and not that a folder was given.
-    let none = "Voxa found no runtime: there is no folder called runtime beside it, and none \
+    let none = "Volsa found no runtime: there is no folder called runtime beside it, and none \
                 has been chosen. Choose the folder that holds the runtime, under Options.";
     assert_eq!(
         runtime_looked_for(None),
@@ -147,7 +147,7 @@ fn with_no_room_anywhere_a_run_fails_with_what_it_needs_and_what_there_is() {
     let lab = Lab::new(StandIn::of(Vec::new(), Vec::new(), GIB));
     lab.label(1, RunsOn::Automatic);
     let (_, why) = failed_run(&lab.until_the_end());
-    let sizes = voxa_segment::sizes(&head()).expect("sizes");
+    let sizes = volsa_segment::sizes(&head()).expect("sizes");
     let room = Room {
         cards: Vec::new(),
         budgets: Vec::new(),
@@ -177,8 +177,8 @@ fn a_card_chosen_by_hand_that_is_too_small_says_what_the_run_needs_and_what_the_
     let sentence = "This scan does not fit on the graphics card (Made-up card B), which was \
                     chosen for it. At its smallest it needs about 3.5 GB there, and the card \
                     has 3.0 GB to spare.";
-    // Left to Voxa, it would fit on the other card; and where it fits nowhere nothing is added.
-    let would = " It would fit if Voxa chose where to run it.";
+    // Left to Volsa, it would fit on the other card; and where it fits nowhere nothing is added.
+    let would = " It would fit if Volsa chose where to run it.";
     let why = refused(
         cards.clone(),
         budgets.clone(),
@@ -204,7 +204,7 @@ fn a_card_chosen_by_hand_with_room_but_short_of_ordinary_memory_says_what_the_ru
         "This scan does not fit on the graphics card (Made-up card A), which was chosen for \
          it. The card has room for the networks that find the parts, but the computer's \
          ordinary memory is short. At its smallest the run asks the computer for about 5.2 GB \
-         of ordinary memory, and 5.0 GB is free. It would fit if Voxa chose where to run it."
+         of ordinary memory, and 5.0 GB is free. It would fit if Volsa chose where to run it."
     );
 }
 
@@ -220,7 +220,7 @@ fn the_processor_chosen_by_hand_says_what_the_run_asks_the_computer_for_and_what
 
 #[test]
 fn a_card_chosen_by_hand_that_the_computer_no_longer_lists_is_said_to_be_gone() {
-    let gone = "The graphics card chosen for labelling is not one Voxa can run on now. Choose \
+    let gone = "The graphics card chosen for labelling is not one Volsa can run on now. Choose \
                 where to run it again.";
     let why = refused(
         vec![card_a()],
@@ -242,7 +242,7 @@ fn a_card_chosen_by_hand_that_the_computer_no_longer_lists_is_said_to_be_gone() 
 }
 
 #[test]
-fn what_the_computer_has_is_read_with_the_card_voxa_draws_on_found_by_its_name() {
+fn what_the_computer_has_is_read_with_the_card_volsa_draws_on_found_by_its_name() {
     let software = card(7, "Made-up card A", CardKind::Software);
     let cards = vec![
         software,
@@ -267,11 +267,11 @@ fn what_the_computer_has_is_read_with_the_card_voxa_draws_on_found_by_its_name()
     assert_eq!(room, expected);
     assert_eq!(room_of(&stand_in, None, 0).drawing_on, None);
     // The rungs that room gives start on the card the run is asked to go on.
-    let sizes = voxa_segment::sizes(&head()).expect("sizes");
+    let sizes = volsa_segment::sizes(&head()).expect("sizes");
     let first = rungs(sizes.whole, sizes.head, ROBUST, &room, RunsOn::Automatic);
     assert_eq!(
         first.first().map(|rung| rung.device),
-        Some(voxa_models::Device::Card(card_a().id))
+        Some(volsa_models::Device::Card(card_a().id))
     );
 }
 

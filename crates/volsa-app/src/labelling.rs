@@ -1,11 +1,11 @@
-//! Labelling a scan with Voxa's own networks, as the state keeps it: whether this computer can
+//! Labelling a scan with Volsa's own networks, as the state keeps it: whether this computer can
 //! do it, what has been chosen for it, and what is running.
 
 use std::path::PathBuf;
 
-use voxa_core::SeriesId;
-use voxa_models::{Card, CardKind, RunsOn, Wanted};
-use voxa_segment::{ModelChoice, Stage, THICK_MM, choose};
+use volsa_core::SeriesId;
+use volsa_models::{Card, CardKind, RunsOn, Wanted};
+use volsa_segment::{ModelChoice, Stage, THICK_MM, choose};
 
 use crate::labels::LabelsStatus;
 use crate::planes::grid;
@@ -24,14 +24,14 @@ pub enum Ready {
     No(String),
 }
 
-/// Everything that can happen to labelling a scan with Voxa's own networks: what the person
+/// Everything that can happen to labelling a scan with Volsa's own networks: what the person
 /// chooses, what a worker reports, and the start and the stop of a run. It is carried by
 /// [`Action::Labelling`](crate::Action::Labelling).
 #[derive(Debug, Clone, PartialEq)]
 pub enum LabellingAction {
     /// Label the scan in the scene, if that can be done now.
     LabelScan {
-        /// How many bytes of the graphics card Voxa draws on it holds itself.
+        /// How many bytes of the graphics card Volsa draws on it holds itself.
         held: u64,
     },
     /// A labelling run has reached a stage.
@@ -61,7 +61,7 @@ pub enum LabellingAction {
         /// Its graphics cards.
         cards: Vec<Card>,
     },
-    /// The name of the graphics card Voxa draws on.
+    /// The name of the graphics card Volsa draws on.
     DrawingOn(String),
     /// Choose which model labels the scan.
     SetModelChoice(ModelChoice),
@@ -101,7 +101,7 @@ pub struct Labelling {
     pub ready: Ready,
     /// The graphics cards of this computer, as the worker listed them.
     pub cards: Vec<Card>,
-    /// The name of the card Voxa draws on, if it draws on one.
+    /// The name of the card Volsa draws on, if it draws on one.
     pub drawing_on: Option<String>,
     /// Which model has been asked for.
     pub choice: ModelChoice,
@@ -158,7 +158,7 @@ impl Default for Labelling {
 }
 
 /// What is said when this computer has not been looked at yet.
-const NOT_CHECKED: &str = "Voxa has not yet checked whether this computer can label a scan.";
+const NOT_CHECKED: &str = "Volsa has not yet checked whether this computer can label a scan.";
 /// What is said when a run is on and another is asked for.
 const ALREADY_RUNNING: &str =
     "A scan is already being labelled. Wait for it to finish, or stop it.";
@@ -204,8 +204,8 @@ pub fn can_label(state: &AppState) -> Result<(), String> {
 }
 
 /// The line under the button: which model will run, with the cortex or without, and where.
-/// With the model left to Voxa it also says which was picked and why. The place is only said
-/// to be where Voxa will try first: whether the scan fits there is found when the run starts.
+/// With the model left to Volsa it also says which was picked and why. The place is only said
+/// to be where Volsa will try first: whether the scan fits there is found when the run starts.
 pub fn what_will_run(state: &AppState) -> String {
     let labelling = &state.labelling;
     let model = match robust(state) {
@@ -236,7 +236,7 @@ pub fn what_will_run(state: &AppState) -> String {
 }
 
 /// What the run is to do, as the choices and the scan in the scene give it. `None` when the
-/// model is left to Voxa and there is no scan to pick it from.
+/// model is left to Volsa and there is no scan to pick it from.
 pub(crate) fn wanted(state: &AppState) -> Option<Wanted> {
     Some(Wanted {
         robust: robust(state)?,
@@ -244,7 +244,7 @@ pub(crate) fn wanted(state: &AppState) -> Option<Wanted> {
     })
 }
 
-/// Whether the robust model is the one to run. `None` when it is left to Voxa and the scene
+/// Whether the robust model is the one to run. `None` when it is left to Volsa and the scene
 /// shows no scan to pick it from.
 fn robust(state: &AppState) -> Option<bool> {
     let choice = state.labelling.choice;
@@ -261,7 +261,7 @@ fn robust(state: &AppState) -> Option<bool> {
 }
 
 /// Where the run will be tried first, as it is said: a card by its name, or the processor.
-/// With the place left to Voxa that is the first discrete card, if there is one.
+/// With the place left to Volsa that is the first discrete card, if there is one.
 fn place(labelling: &Labelling) -> String {
     let named = |card: &Card| format!("the graphics card ({})", card.name);
     match labelling.runs_on {

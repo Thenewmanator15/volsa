@@ -1,9 +1,9 @@
 //! What the mouse does over a plane view.
 
 use egui::{PointerButton, Rect, Ui};
-use voxa_core::{Patient, Point};
-use voxa_render::PlaneView;
-use voxa_volume::PlaneKind;
+use volsa_core::{Patient, Point};
+use volsa_render::PlaneView;
+use volsa_volume::PlaneKind;
 
 use super::super::overlay::{WINDOW_PER_PIXEL, ZOOM_PER_NOTCH};
 use super::super::viewport::wheel_turned;

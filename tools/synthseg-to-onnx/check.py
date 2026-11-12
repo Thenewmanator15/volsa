@@ -1,7 +1,7 @@
 """The converter's own check: SynthSeg's program and the converted networks, on a made-up
 volume, on the processor and on every graphics adapter DirectML offers.
 
-`run` writes the `check` folder (the made-up volume and what Python made of it, for Voxa's
+`run` writes the `check` folder (the made-up volume and what Python made of it, for Volsa's
 own tests) and returns what was measured. It stops the converter if a mark is missed:
 
 - the standard model on the processor gives Python's label at every voxel;
@@ -103,7 +103,7 @@ def tidied(lists: dict, back: dict, probabilities: np.ndarray, robust: bool, are
            areas=None) -> np.ndarray:
     """SynthSeg's own tidying, as its program asks for it: the program forces `fast` for the
     robust model, and so does this. The cortex comes either from the area probabilities, as
-    SynthSeg uses them, or from a byte map of areas, as Voxa will."""
+    SynthSeg uses them, or from a byte map of areas, as Volsa will."""
     from ext.lab2im import edit_volumes
     from SynthSeg.predict_synthseg import postprocess
 
@@ -138,7 +138,7 @@ def scores_box(top: np.ndarray, side: int) -> np.ndarray:
 
 
 def onnx_answer(out: Path, lists: dict, image: np.ndarray, robust: bool, device) -> dict:
-    """The converted networks, with the steps between them done here as Voxa will do them."""
+    """The converted networks, with the steps between them done here as Volsa will do them."""
     import onnxruntime as ort
 
     seconds = 0.0

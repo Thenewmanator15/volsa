@@ -336,9 +336,9 @@ dependencies = [
 
 [[package]]
 name = "async-executor"
-version = "1.14.0"
+version = "1.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c96bf972d85afc50bf5ab8fe2d54d1586b4e0b46c97c50a0c9e71e2f7bcd812a"
+checksum = "f426a31126c735126297bc5ea7a521263c9faff4f63ca415267ee625651c4f37"
 dependencies = [
  "async-task",
  "concurrent-queue",
@@ -4526,8 +4526,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "voxa-app"
-version = "0.6.0"
+name = "volsa-app"
+version = "0.7.1"
 dependencies = [
  "criterion",
  "directories",
@@ -4542,58 +4542,60 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "tracing",
- "voxa-core",
- "voxa-dicom",
- "voxa-labels",
- "voxa-models",
- "voxa-plugins",
- "voxa-render",
- "voxa-segment",
- "voxa-volume",
+ "volsa-core",
+ "volsa-dicom",
+ "volsa-labels",
+ "volsa-models",
+ "volsa-plugins",
+ "volsa-render",
+ "volsa-segment",
+ "volsa-volume",
  "winresource",
  "zip",
 ]
 
 [[package]]
-name = "voxa-core"
-version = "0.6.0"
+name = "volsa-core"
+version = "0.7.1"
 dependencies = [
  "proptest",
  "thiserror 2.0.21",
 ]
 
 [[package]]
-name = "voxa-dicom"
-version = "0.6.0"
+name = "volsa-dicom"
+version = "0.7.1"
 dependencies = [
  "dicom-core",
  "dicom-dictionary-std",
+ "dicom-encoding",
  "dicom-object",
+ "dicom-parser",
  "dicom-pixeldata",
  "dicom-transfer-syntax-registry",
  "flate2",
  "jpeg-encoder",
  "proptest",
  "tempfile",
- "voxa-core",
+ "volsa-core",
  "zip",
 ]
 
 [[package]]
-name = "voxa-labels"
-version = "0.6.0"
+name = "volsa-labels"
+version = "0.7.1"
 dependencies = [
  "flate2",
  "proptest",
  "serde",
  "serde_json",
  "thiserror 2.0.21",
- "voxa-core",
+ "volsa-core",
 ]
 
 [[package]]
-name = "voxa-models"
-version = "0.6.0"
+name = "volsa-models"
+version = "0.7.1"
 dependencies = [
  "ort",
  "serde",
@@ -4605,8 +4607,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "voxa-plugins"
-version = "0.6.0"
+name = "volsa-plugins"
+version = "0.7.1"
 dependencies = [
  "proptest",
  "serde",
@@ -4614,15 +4616,15 @@ dependencies = [
  "sha2",
  "tempfile",
  "thiserror 2.0.21",
- "voxa-core",
- "voxa-labels",
- "voxa-models",
- "voxa-segment",
+ "volsa-core",
+ "volsa-labels",
+ "volsa-models",
+ "volsa-segment",
 ]
 
 [[package]]
-name = "voxa-render"
-version = "0.6.0"
+name = "volsa-render"
+version = "0.7.1"
 dependencies = [
  "bytemuck",
  "criterion",
@@ -4632,30 +4634,30 @@ dependencies = [
  "proptest",
  "rayon",
  "thiserror 2.0.21",
- "voxa-core",
- "voxa-labels",
- "voxa-volume",
+ "volsa-core",
+ "volsa-labels",
+ "volsa-volume",
 ]
 
 [[package]]
-name = "voxa-segment"
-version = "0.6.0"
+name = "volsa-segment"
+version = "0.7.1"
 dependencies = [
  "serde_json",
  "thiserror 2.0.21",
- "voxa-core",
- "voxa-labels",
- "voxa-models",
+ "volsa-core",
+ "volsa-labels",
+ "volsa-models",
 ]
 
 [[package]]
-name = "voxa-volume"
-version = "0.6.0"
+name = "volsa-volume"
+version = "0.7.1"
 dependencies = [
  "proptest",
  "serde",
  "thiserror 2.0.21",
- "voxa-core",
+ "volsa-core",
 ]
 
 [[package]]
@@ -5532,7 +5534,7 @@ checksum = "e450f9b2ed1dff33c94c12589a87338689467b9c4f5d8a5710bd09a847d2c8a7"
 
 [[package]]
 name = "xtask"
-version = "0.6.0"
+version = "0.7.1"
 dependencies = [
  "serde_json",
  "tempfile",

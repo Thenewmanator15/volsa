@@ -1,5 +1,5 @@
 [package]
-name = "voxa-render"
+name = "volsa-render"
 description = "GPU drawing of image slices, and the camera a volume is seen from."
 version.workspace = true
 edition.workspace = true
@@ -8,9 +8,9 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-voxa-core.workspace = true
-voxa-volume.workspace = true
-voxa-labels.workspace = true
+volsa-core.workspace = true
+volsa-volume.workspace = true
+volsa-labels.workspace = true
 bytemuck.workspace = true
 egui-wgpu.workspace = true
 half.workspace = true

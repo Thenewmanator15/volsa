@@ -1,10 +1,10 @@
-//! A log of what Voxa did, for finding out afterwards why something went wrong.
+//! A log of what Volsa did, for finding out afterwards why something went wrong.
 //!
-//! It holds when Voxa started and on what, how much an export held, each thing Voxa had to
+//! It holds when Volsa started and on what, how much an export held, each thing Volsa had to
 //! tell the person, and where a crash happened. It never holds a patient's name, identifier
 //! or date, a value from a file, or the name of any of the person's files: a notice whose words
 //! may name a file is written as its kind alone, and nothing other people's libraries log is
-//! taken. A crash is placed by its file and line in Voxa's source or a library's.
+//! taken. A crash is placed by its file and line in Volsa's source or a library's.
 
 use std::fmt::Write as _;
 use std::fs::File;
@@ -15,18 +15,18 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use tracing::field::{Field, Visit};
 use tracing::span;
-use voxa_dicom::Index;
+use volsa_dicom::Index;
 
 use crate::state::{AppState, Notice, NoticeKind};
 
 /// The name of the log within its folder.
-pub const FILE: &str = "voxa.log";
-/// The size past which the log is cut back when Voxa starts.
+pub const FILE: &str = "volsa.log";
+/// The size past which the log is cut back when Volsa starts.
 pub const MOST_BYTES: u64 = 1 << 20;
-/// The keys of the notices whose words are Voxa's own from first to last. A notice under
-/// any other key may quote a file's name or a reason from outside Voxa, and is written by
+/// The keys of the notices whose words are Volsa's own from first to last. A notice under
+/// any other key may quote a file's name or a reason from outside Volsa, and is written by
 /// its kind and key alone.
-const OWN_WORDS: [&str; 10] = [
+const OWN_WORDS: [&str; 11] = [
     "annotations",
     "graphics",
     "label names",
@@ -34,6 +34,7 @@ const OWN_WORDS: [&str; 10] = [
     "measurements",
     "measuring",
     "nothing to label",
+    "refused",
     "skipped",
     "smoothing",
     "views",
@@ -41,10 +42,10 @@ const OWN_WORDS: [&str; 10] = [
 
 static PATH: OnceLock<PathBuf> = OnceLock::new();
 
-/// The folder the system gives Voxa for what it keeps on this machine. `None` when the
+/// The folder the system gives Volsa for what it keeps on this machine. `None` when the
 /// system has no such place.
 pub fn folder() -> Option<PathBuf> {
-    let places = directories::ProjectDirs::from("", "", "Voxa")?;
+    let places = directories::ProjectDirs::from("", "", "Volsa")?;
     Some(places.data_local_dir().to_owned())
 }
 
@@ -53,7 +54,7 @@ pub fn path() -> Option<&'static Path> {
     PATH.get().map(PathBuf::as_path)
 }
 
-/// Writes what Voxa's own code logs, a line each, to the end of a file.
+/// Writes what Volsa's own code logs, a line each, to the end of a file.
 pub struct ToFile {
     file: Mutex<File>,
 }
@@ -73,7 +74,7 @@ impl Visit for Said {
 
 impl tracing::Subscriber for ToFile {
     fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
-        metadata.target().starts_with("voxa") && *metadata.level() <= tracing::Level::INFO
+        metadata.target().starts_with("volsa") && *metadata.level() <= tracing::Level::INFO
     }
 
     fn new_span(&self, _: &span::Attributes<'_>) -> span::Id {
@@ -131,7 +132,7 @@ pub fn to_file(folder: &Path) -> Option<ToFile> {
     })
 }
 
-/// Begin the log of this run in `folder`: from now on what Voxa logs goes there, and so does
+/// Begin the log of this run in `folder`: from now on what Volsa logs goes there, and so does
 /// the place of a crash. The file's path, or `None` when there is nowhere to keep a log or
 /// one has been begun already.
 pub fn start(folder: Option<&Path>) -> Option<PathBuf> {
@@ -145,24 +146,24 @@ pub fn start(folder: Option<&Path>) -> Option<PathBuf> {
     }));
     let (version, system) = (env!("CARGO_PKG_VERSION"), std::env::consts::OS);
     tracing::info!(
-        "Voxa {version} started on {system} ({})",
+        "Volsa {version} started on {system} ({})",
         std::env::consts::ARCH
     );
     let path = folder.join(FILE);
     Some(PATH.get_or_init(|| path).clone())
 }
 
-/// What is logged of a crash: where in the source it happened, Voxa's or a library's, and
+/// What is logged of a crash: where in the source it happened, Volsa's or a library's, and
 /// nothing of what the failing code said, which may quote what it was working on.
 pub fn crash_line(place: Option<&std::panic::Location<'_>>) -> String {
     match place {
         Some(place) => format!(
-            "Voxa stopped at {}:{}:{}",
+            "Volsa stopped at {}:{}:{}",
             place.file(),
             place.line(),
             place.column()
         ),
-        None => "Voxa stopped at a place that is not known".to_owned(),
+        None => "Volsa stopped at a place that is not known".to_owned(),
     }
 }
 
@@ -194,7 +195,7 @@ fn stamp(moment: SystemTime) -> String {
     format!("{year:04}-{month:02}-{day:02} {hour:02}:{minute:02}:{second:02}Z")
 }
 
-/// How a notice is written in the log: its kind and key, and its words when they are Voxa's
+/// How a notice is written in the log: its kind and key, and its words when they are Volsa's
 /// own. Never its details, which are the names of files.
 pub fn line_for(notice: &Notice) -> String {
     let kind = match notice.kind {

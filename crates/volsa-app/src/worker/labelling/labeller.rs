@@ -6,11 +6,11 @@ use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use voxa_models::{
+use volsa_models::{
     Card, CardId, Device, FreeMemory, Model, Network, Role, RunError, Rung, Runtime, RuntimeError,
     Stop,
 };
-use voxa_segment::Networks;
+use volsa_segment::Networks;
 
 /// Seconds in a day.
 const A_DAY: u64 = 24 * 60 * 60;
@@ -114,19 +114,19 @@ impl Labeller for ThisComputer {
     }
 
     fn cards(&self) -> Vec<Card> {
-        voxa_models::cards()
+        volsa_models::cards()
     }
 
     fn budget(&self, card: CardId) -> Option<u64> {
-        voxa_models::budget(card)
+        volsa_models::budget(card)
     }
 
     fn unheld(&self, card: CardId) -> Option<u64> {
-        voxa_models::unheld(card)
+        volsa_models::unheld(card)
     }
 
     fn free_memory(&self) -> FreeMemory {
-        voxa_models::free_memory()
+        volsa_models::free_memory()
     }
 
     fn today(&self) -> String {

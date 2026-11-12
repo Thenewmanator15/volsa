@@ -9,9 +9,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use tempfile::TempDir;
-use voxa_core::{Affine, Volume};
-use voxa_models::testkit::{Canned, FolderOptions, model_folder};
-use voxa_models::{
+use volsa_core::{Affine, Volume};
+use volsa_models::testkit::{Canned, FolderOptions, model_folder};
+use volsa_models::{
     Card, CardId, CardKind, Device, FreeMemory, Model, Network, Numbers, Role, RunError,
     RuntimeError, Stop, Tensor, Wanted,
 };

@@ -1,32 +1,13 @@
-//! What the keys do: each key pressed, with what is held and what is in hand, turned into
-//! what it asks for.
+//! What the keys do: each key pressed, with what is held, looked up in the list of actions.
 
-use egui::Key;
+use egui::{Context, EventFilter, Id, Key, Response};
 
-use super::VoxaApp;
-use super::overlay::{shortcut_action, steps_slices};
+use super::VolsaApp;
+use super::commands::{self, Does, Request};
+use super::overlay::steps_slices;
+use super::typing;
 use crate::action::Action;
-use crate::annotations::Tool;
 use crate::state::AppState;
-
-/// What a key asks for.
-#[derive(Debug, Clone, PartialEq)]
-#[expect(
-    clippy::large_enum_variant,
-    reason = "made and taken apart in the same frame, never kept"
-)]
-pub enum Pressed {
-    /// A change of state.
-    Act(Action),
-    /// To open or close the list of keys.
-    Keys,
-    /// To open or close the measurements window.
-    Measurements,
-    /// To show or hide the series list.
-    SeriesList,
-    /// To go into full screen, or out of it.
-    FullScreen,
-}
 
 /// The keys held that change what another key means.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -37,35 +18,99 @@ pub struct Held {
     pub shift: bool,
 }
 
-/// What pressing `key` asks for. Undo and redo are where every program has them; `M` is the
-/// measurements window; `B` shows or hides the series list and F11 is full screen, as in
-/// most programs; Esc puts the tool in hand down before it does anything else; the rest are
-/// [`shortcut_action`]'s.
-pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Pressed> {
-    let act = |action| Some(Pressed::Act(action));
-    match key {
-        Key::Z if held.command && held.shift => act(Action::Redo),
-        Key::Z if held.command => act(Action::Undo),
-        Key::Y if held.command => act(Action::Redo),
-        Key::M if !held.command => Some(Pressed::Measurements),
-        Key::B if !held.command => Some(Pressed::SeriesList),
-        Key::F11 => Some(Pressed::FullScreen),
-        // A question mark is its own key on some keyboards and Shift with slash on others.
-        Key::Questionmark => Some(Pressed::Keys),
-        Key::Slash if held.shift => Some(Pressed::Keys),
-        Key::Escape if state.tool != Tool::Navigate => act(Action::SetTool(Tool::Navigate)),
-        _ => shortcut_action(key, state.active).map(Pressed::Act),
+/// What pressing `key` does in `state`: what the action it is the key of does, while that
+/// action can be used. A key whose action cannot be used now does nothing.
+pub fn pressed(key: Key, held: Held, state: &AppState) -> Option<Does> {
+    let command = commands::for_key(key, held, state)?;
+    (command.why_not)(state)
+        .is_none()
+        .then(|| command.does.clone())
+}
+
+/// Where the person has the keyboard when a key is pressed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Keyboard {
+    /// Nowhere in particular: every key is Volsa's.
+    Free,
+    /// On a button, a card or another widget, whose keys are egui's to move and press with.
+    OnAWidget,
+    /// On a picture, which holds the arrows against egui's moving of the focus, so that they
+    /// are Volsa's: they step through the slices.
+    OnAPicture,
+}
+
+/// The keys egui moves the keyboard and presses buttons with: Volsa leaves them to it while a
+/// widget has the keyboard.
+const EGUIS: [Key; 12] = [
+    Key::Tab,
+    Key::Escape,
+    Key::Enter,
+    Key::Space,
+    Key::ArrowUp,
+    Key::ArrowDown,
+    Key::ArrowLeft,
+    Key::ArrowRight,
+    Key::Home,
+    Key::End,
+    Key::PageUp,
+    Key::PageDown,
+];
+
+/// The keys egui keeps while a picture has the keyboard: it moves on with Tab, and presses with
+/// Enter; a picture's other keys are Volsa's.
+const EGUIS_ON_A_PICTURE: [Key; 3] = [Key::Tab, Key::Escape, Key::Enter];
+
+/// Where a pass noted that a picture has the keyboard.
+const PICTURE_HAS_THE_KEYBOARD: &str = "volsa: the pass in which a picture had the keyboard";
+
+/// Let a picture that has the keyboard keep the arrow keys: egui would move the keyboard to the
+/// widget beside it with them, and they step through the slices instead. Called for the
+/// response of each picture as it is drawn. A tool in hand can take the arrows from the slices
+/// by consuming them before [`pressed_keys`] looks, in the pass in which the picture is drawn.
+/// With `keeps_escape`, Esc is the picture's too, and does not take the keyboard from it: it
+/// gives up what is half drawn on the picture, and the next Esc, with nothing begun, leaves it.
+pub fn hold_the_arrows(ctx: &Context, picture: &Response, keeps_escape: bool) {
+    if !picture.has_focus() {
+        return;
+    }
+    let arrows = EventFilter {
+        horizontal_arrows: true,
+        vertical_arrows: true,
+        escape: keeps_escape,
+        ..EventFilter::default()
+    };
+    ctx.memory_mut(|memory| memory.set_focus_lock_filter(picture.id, arrows));
+    let now = ctx.cumulative_pass_nr();
+    ctx.data_mut(|data| data.insert_temp(Id::new(PICTURE_HAS_THE_KEYBOARD), now));
+}
+
+/// Where the person has the keyboard in the pass now being drawn.
+fn keyboard(ctx: &Context) -> Keyboard {
+    let noted = ctx.data(|data| data.get_temp::<u64>(Id::new(PICTURE_HAS_THE_KEYBOARD)));
+    if noted == Some(ctx.cumulative_pass_nr()) {
+        Keyboard::OnAPicture
+    } else if ctx.egui_wants_keyboard_input() {
+        Keyboard::OnAWidget
+    } else {
+        Keyboard::Free
     }
 }
 
-/// The keys pressed this frame that are Voxa's to answer, with what was held with each: none
-/// while a text field or another widget has the keyboard, as when the person types in the
-/// search field. A key held down is taken again as the system repeats it only when it steps
-/// through the slices; any other acts once.
-pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
-    if ctx.egui_wants_keyboard_input() {
+/// The keys pressed this frame that are Volsa's to answer, with what was held with each: none
+/// while a text field has the keyboard, as when the person types in a field, nor while the
+/// search box or a question is open. While another widget has it, every key but those egui
+/// moves and presses with (Tab, Enter, Space, the arrows, Home, End and the Page keys); while a
+/// picture has it, the arrows and those keys step through the slices. A key held down is taken
+/// again as the system repeats it only when it steps through the slices; any other acts once.
+pub fn pressed_keys(ctx: &Context) -> Vec<(Key, Held)> {
+    if typing::keys_are_taken(ctx) {
         return Vec::new();
     }
+    let left_to_egui: &[Key] = match keyboard(ctx) {
+        Keyboard::Free => &[],
+        Keyboard::OnAWidget => &EGUIS,
+        Keyboard::OnAPicture => &EGUIS_ON_A_PICTURE,
+    };
     ctx.input(|input| {
         let down = |event: &egui::Event| match event {
             egui::Event::Key {
@@ -74,7 +119,7 @@ pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
                 repeat,
                 modifiers,
                 ..
-            } if !*repeat || steps_slices(*key) => {
+            } if !left_to_egui.contains(key) && (!*repeat || steps_slices(*key)) => {
                 let (command, shift) = (modifiers.command, modifiers.shift);
                 Some((*key, Held { command, shift }))
             }
@@ -84,96 +129,39 @@ pub fn pressed_keys(ctx: &egui::Context) -> Vec<(Key, Held)> {
     })
 }
 
-impl VoxaApp {
-    /// Turn the keys pressed this frame into actions, unless the person is typing in a field.
+/// What the keys pressed this frame ask for in `state`: the changes of state, and what is
+/// asked of the window. Nothing while the person is typing in a field. Once a key asks for the
+/// search, the keys after it in the frame are not taken: they are meant for the search box
+/// that opens, which has not yet the keyboard in this frame.
+pub fn answered(ctx: &egui::Context, state: &AppState) -> (Vec<Action>, Vec<Request>) {
+    let mut actions = Vec::new();
+    let mut requests = Vec::new();
+    for (key, held) in pressed_keys(ctx) {
+        let asked = pressed(key, held, state).and_then(|does| does.run(state, &mut actions));
+        let opens_search = asked == Some(Request::Search);
+        requests.extend(asked);
+        if opens_search {
+            break;
+        }
+    }
+    (actions, requests)
+}
+
+impl VolsaApp {
+    /// Turn the keys pressed this frame into actions, and do what they ask of the window,
+    /// unless the person is typing in a field.
     pub(super) fn keys(&mut self, ctx: &egui::Context, actions: &mut Vec<Action>) {
-        for (key, held) in pressed_keys(ctx) {
-            match pressed(key, held, self.session.state()) {
-                Some(Pressed::Act(action)) => actions.push(action),
-                Some(Pressed::Keys) => self.help_open = !self.help_open,
-                Some(Pressed::Measurements) => self.measure.open = !self.measure.open,
-                Some(Pressed::SeriesList) => self.screen.list_shown = !self.screen.list_shown,
-                Some(Pressed::FullScreen) => super::screen::toggle_full_screen(ctx),
-                None => {}
-            }
+        let (acted, asked) = answered(ctx, self.session.state());
+        actions.extend(acted);
+        for request in asked {
+            self.ask(ctx, request);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::overlay::SHORTCUTS;
     use super::*;
-    use crate::scene::MainPanel;
-
-    fn on(key: Key, command: bool, shift: bool) -> Option<Pressed> {
-        pressed(key, Held { command, shift }, &AppState::default())
-    }
-
-    #[test]
-    fn undo_and_redo_are_where_every_program_has_them() {
-        assert_eq!(on(Key::Z, true, false), Some(Pressed::Act(Action::Undo)));
-        assert_eq!(on(Key::Y, true, false), Some(Pressed::Act(Action::Redo)));
-        assert_eq!(on(Key::Z, true, true), Some(Pressed::Act(Action::Redo)));
-        assert_eq!(
-            on(Key::Z, false, false),
-            None,
-            "Z alone is no key of Voxa's"
-        );
-        assert_eq!(on(Key::Y, false, false), None);
-    }
-
-    #[test]
-    fn m_is_the_measurements_window_and_a_question_mark_the_list_of_keys() {
-        assert_eq!(on(Key::M, false, false), Some(Pressed::Measurements));
-        assert_eq!(on(Key::M, true, false), None, "Ctrl+M is not M");
-        assert_eq!(on(Key::Questionmark, false, false), Some(Pressed::Keys));
-        assert_eq!(on(Key::Slash, false, true), Some(Pressed::Keys));
-        assert_eq!(on(Key::Slash, false, false), None);
-    }
-
-    #[test]
-    fn b_shows_or_hides_the_series_list_and_f11_is_full_screen() {
-        assert_eq!(on(Key::B, false, false), Some(Pressed::SeriesList));
-        assert_eq!(on(Key::B, true, false), None, "Ctrl+B is not B");
-        assert_eq!(on(Key::F11, false, false), Some(Pressed::FullScreen));
-    }
-
-    #[test]
-    fn the_list_of_keys_has_the_ones_for_the_screen() {
-        for key in ["B", "F11", "Ctrl+= / Ctrl+- / Ctrl+0"] {
-            assert!(SHORTCUTS.iter().any(|(listed, _)| *listed == key), "{key}");
-        }
-        let (_, size) = SHORTCUTS
-            .iter()
-            .find(|(key, _)| key.starts_with("Ctrl+="))
-            .expect("listed");
-        assert!(size.contains("interface"), "{size}");
-    }
-
-    #[test]
-    fn escape_puts_the_tool_down_before_it_does_anything_else() {
-        let mut state = AppState::default();
-        for tool in [Tool::Ruler, Tool::Angle, Tool::Region, Tool::Marker] {
-            state.tool = tool;
-            let down = Pressed::Act(Action::SetTool(Tool::Navigate));
-            assert_eq!(pressed(Key::Escape, Held::default(), &state), Some(down));
-        }
-        state.tool = Tool::Navigate;
-        let scene = Pressed::Act(Action::SetMain(MainPanel::Scene));
-        assert_eq!(pressed(Key::Escape, Held::default(), &state), Some(scene));
-    }
-
-    #[test]
-    fn the_other_keys_act_on_the_active_viewport_as_they_did() {
-        let state = AppState {
-            active: 2,
-            ..AppState::default()
-        };
-        let fit = Pressed::Act(Action::Fit { viewport: 2 });
-        assert_eq!(pressed(Key::F, Held::default(), &state), Some(fit));
-        assert_eq!(pressed(Key::Num3, Held::default(), &state), None);
-    }
 
     /// A key pressed with nothing held, or the system's repeat of one held down.
     fn down(key: Key, repeat: bool) -> egui::Event {
@@ -186,7 +174,7 @@ mod tests {
         }
     }
 
-    /// The keys Voxa takes in a frame of these events, after a frame in which a text field
+    /// The keys Volsa takes in a frame of these events, after a frame in which a text field
     /// was drawn, and was given the keyboard if `typing`.
     fn taken(events: Vec<egui::Event>, typing: bool) -> Vec<(Key, Held)> {
         let ctx = egui::Context::default();
@@ -233,6 +221,44 @@ mod tests {
     }
 
     #[test]
+    fn once_a_key_asks_for_the_search_the_keys_after_it_in_the_frame_are_not_taken() {
+        let state = crate::testing::thick_scan_ready();
+        let answered_to = |keys: &[Key]| {
+            // A context of its own each time: a key pressed again before it is let go is taken
+            // for the system repeating it.
+            let ctx = egui::Context::default();
+            let events = keys.iter().map(|key| down(*key, false)).collect();
+            let input = egui::RawInput {
+                events,
+                ..egui::RawInput::default()
+            };
+            let mut answer = None;
+            let mut output = ctx.run_ui(input, |ui| answer = Some(answered(ui.ctx(), &state)));
+            // No renderer is behind this pass to take the font texture.
+            output.textures_delta.clear();
+            answer.expect("the keys are answered")
+        };
+        // A slash opens the search, and the letters typed after it in the same frame go to the
+        // box, not to the actions they are the keys of.
+        let keys = [Key::H, Key::R, Key::Num2];
+        let (acted, asked) = answered_to(&keys);
+        assert!(acted.len() >= 2, "with no slash they act: {acted:?}");
+        assert_eq!(asked, []);
+        for opening in [vec![Key::Slash], vec![Key::H, Key::Slash]] {
+            let before = opening.iter().position(|key| *key == Key::Slash);
+            let all: Vec<Key> = opening.iter().copied().chain(keys).collect();
+            let (acted, asked) = answered_to(&all);
+            assert_eq!(asked, [Request::Search], "after {opening:?}");
+            // Only what came before the slash acts.
+            assert_eq!(
+                acted.len(),
+                before.unwrap_or(0),
+                "after {opening:?}: {acted:?}"
+            );
+        }
+    }
+
+    #[test]
     fn no_key_is_taken_while_a_text_field_has_the_keyboard() {
         let events = || {
             vec![
@@ -243,20 +269,5 @@ mod tests {
         };
         assert_eq!(taken(events(), true), []);
         assert_eq!(taken(events(), false).len(), 3, "with the field let go");
-    }
-
-    #[test]
-    fn the_list_of_keys_has_the_measuring_ones() {
-        for key in ["Ctrl+Z", "Ctrl+Y", "M", "Esc"] {
-            assert!(SHORTCUTS.iter().any(|(listed, _)| *listed == key), "{key}");
-        }
-        let (_, escape) = SHORTCUTS
-            .iter()
-            .find(|(key, _)| *key == "Esc")
-            .expect("listed");
-        assert!(
-            escape.contains("tool"),
-            "Esc says it puts the tool down: {escape}"
-        );
     }
 }

@@ -33,7 +33,7 @@ fn every_file_that_ports_synthseg_says_whose_it_is_and_that_it_was_changed() {
         for words in [
             "Ported from SynthSeg (https://github.com/BBillot/SynthSeg)",
             "Copyright 2020 Benjamin Billot, Apache License 2.0",
-            "translated to Rust and changed for Voxa.",
+            "translated to Rust and changed for Volsa.",
         ] {
             assert!(
                 said.contains(words),

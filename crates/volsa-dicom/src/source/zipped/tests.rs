@@ -53,12 +53,12 @@ fn made_up_zip(finish: impl FnOnce(&mut ZipWriter<Cursor<Vec<u8>>>)) -> Vec<u8> 
     writer.finish().expect("finished").into_inner()
 }
 
-/// How Voxa opens `bytes` as a zip file, and whether what it found is what the zip library's
+/// How Volsa opens `bytes` as a zip file, and whether what it found is what the zip library's
 /// own search of the file finds, which is how every zip was opened before.
 fn opened_as_the_search_opens(bytes: &[u8]) -> Opening {
     let mut file = tempfile::tempfile().expect("a temporary file");
     file.write_all(bytes).expect("written");
-    let (mut archive, opening) = open_archive(file).expect("opens");
+    let (mut archive, opening) = open_archive(ArchiveFile::new(file)).expect("opens");
     let mut searched = ZipArchive::new(Cursor::new(bytes.to_vec())).expect("the search opens it");
     assert_eq!(summary(&mut archive), summary(&mut searched));
     opening
@@ -90,7 +90,7 @@ fn an_empty_zip_is_opened_as_its_end_record_says() {
     assert_eq!(opened_as_the_search_opens(&bytes), Opening::AsItsEndSays);
 }
 
-/// A zip with something before it that starts as a zip entry does, so Voxa takes it for a zip.
+/// A zip with something before it that starts as a zip entry does, so Volsa takes it for a zip.
 fn with_data_before_it() -> Vec<u8> {
     let mut bytes = b"PK\x03\x04".to_vec();
     bytes.extend((0..2000u32).map(|i| (i % 7) as u8));

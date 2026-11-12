@@ -1,10 +1,10 @@
-//! What a picture of the window can ask for about labelling a scan: the strip in the Parts tab
+//! What a picture of the window can ask for about labelling a scan: the strip in the Tools tab
 //! as it is on a computer that can label, whichever this one is (`labelling`), and a result
-//! that Voxa made itself (`labelled`), for which the picture starts a run and waits for it.
+//! that Volsa made itself (`labelled`), for which the picture starts a run and waits for it.
 
 use std::time::Duration;
 
-use voxa_models::{Card, CardId, CardKind};
+use volsa_models::{Card, CardId, CardKind};
 
 use super::{SHOW_VARIABLE, VARIABLE, asks_for as asked};
 use crate::action::Action;

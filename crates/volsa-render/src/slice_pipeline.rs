@@ -2,14 +2,16 @@
 
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use crate::view::ViewTransform;
 
 /// Why a slice could not be drawn.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RenderError {
-    /// The machine has no graphics adapter, not even one emulated in software.
+    /// The machine has no graphics adapter, not even one emulated in software. A device with no
+    /// window leaves OpenGL out on Windows unless `WGPU_BACKEND` is set, so a Windows machine
+    /// that could draw only with OpenGL has none until `WGPU_BACKEND=gl` says to try it.
     #[error("No graphics adapter is available, not even a software one.")]
     NoAdapter,
     /// An adapter was found but would not start.
@@ -84,12 +86,12 @@ impl SlicePipeline {
         let shader = device.create_shader_module(wgpu::include_wgsl!("slice.wgsl"));
         let layout = bindings(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("voxa slice"),
+            label: Some("volsa slice"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("voxa slice"),
+            label: Some("volsa slice"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -110,7 +112,7 @@ impl SlicePipeline {
             cache: None,
         });
         let params = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("voxa slice parameters"),
+            label: Some("volsa slice parameters"),
             size: size_of::<Params>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -219,7 +221,7 @@ impl SlicePipeline {
     /// A texture of the given size and the bindings that show it.
     fn texture(&self, device: &wgpu::Device, rows: u32, cols: u32) -> Uploaded {
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("voxa slice values"),
+            label: Some("volsa slice values"),
             size: wgpu::Extent3d {
                 width: cols,
                 height: rows,
@@ -234,7 +236,7 @@ impl SlicePipeline {
         });
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("voxa slice"),
+            label: Some("volsa slice"),
             layout: &self.layout,
             entries: &[
                 wgpu::BindGroupEntry {
@@ -277,7 +279,7 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         multisampled: false,
     };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("voxa slice"),
+        label: Some("volsa slice"),
         entries: &[entry(0, parameters), entry(1, image)],
     })
 }

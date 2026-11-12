@@ -1,8 +1,8 @@
-//! Moving what Voxa keeps out of the roaming settings folder. Voxa 0.5.0 and earlier kept the
+//! Moving what Volsa keeps out of the roaming settings folder. 0.5.0 and earlier kept the
 //! saved views, the annotations, the choices for labelling and the kept labelling results in
 //! the folder the system gives for settings, which on Windows is in the roaming profile that a
 //! managed network copies to its servers. They are kept now in the folder on this computer
-//! alone, beside the log, and on the first start of a newer Voxa whatever is in the old place
+//! alone, beside the log, and on the first start of a newer Volsa whatever is in the old place
 //! is moved there, once: each file whole, never two copies left, and a file already in the new
 //! place never written over. Only `preferences.json` stays where it was.
 
@@ -11,7 +11,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 /// The files moved, by the start of their names, which also takes in what was being written
-/// beside them or set aside when Voxa stopped: `views.json.new`, `annotations.json.unread`.
+/// beside them or set aside when Volsa stopped: `views.json.new`, `annotations.json.unread`.
 const MOVED: [&str; 3] = ["views.json", "annotations.json", "choices.json"];
 /// The folder of kept labelling results, each two files named by its series' key.
 const RESULTS: &str = "labels";
@@ -41,13 +41,13 @@ enum Outcome {
 }
 
 impl Moved {
-    /// What the log says of the move, in a sentence or two that name only Voxa's own files and
+    /// What the log says of the move, in a sentence or two that name only Volsa's own files and
     /// count the results, whose names are hashes. `None` when there was nothing to move.
     pub fn sentence(&self) -> Option<String> {
         let mut said = Vec::new();
         if let Some(moved) = listed(&self.files, self.results) {
             said.push(format!(
-                "Moved Voxa's kept files out of the roaming settings folder into the local one: \
+                "Moved Volsa's kept files out of the roaming settings folder into the local one: \
                  {moved}."
             ));
         }
@@ -77,7 +77,7 @@ fn listed(names: &[String], results: usize) -> Option<String> {
     })
 }
 
-/// Move what Voxa keeps from `from`, the roaming settings folder, to `to`, the folder on this
+/// Move what Volsa keeps from `from`, the roaming settings folder, to `to`, the folder on this
 /// computer alone, making it if need be, and say what was moved and what was left. Nothing is
 /// moved when the two are one folder, or when `from` holds nothing to move.
 pub fn move_kept(from: &Path, to: &Path) -> Moved {
@@ -212,7 +212,7 @@ fn copy_across(old: &Path, new: &Path) -> Outcome {
     }
 }
 
-/// Move what Voxa keeps out of the roaming settings folder `settings` into the folder on this
+/// Move what Volsa keeps out of the roaming settings folder `settings` into the folder on this
 /// computer alone, `local`, and say in the log what was moved. Nothing is done when either is
 /// not there, as when the run is to take a picture of the window.
 pub fn into_local(settings: Option<&Path>, local: Option<&Path>) {

@@ -1,8 +1,8 @@
 //! Actions about the plane views, and keeping their position inside the scene's volume.
 
-use voxa_core::{Affine, Patient, Point, SeriesId, Voxel};
-use voxa_render::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM};
-use voxa_volume::{PlaneKind, central_voxel, clamped_into, scrolled};
+use volsa_core::{Affine, Patient, Point, SeriesId, Voxel};
+use volsa_render::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM};
+use volsa_volume::{PlaneKind, central_voxel, clamped_into, scrolled};
 
 use crate::action::{Action, Effect};
 use crate::planes::{PlanePanel, grid, plane};
@@ -21,7 +21,6 @@ pub(super) fn concerns(action: &Action) -> bool {
             | Action::PlaneZoom { .. }
             | Action::PlanePan { .. }
             | Action::PlaneFit(_)
-            | Action::SetColumn(_)
             | Action::SetLinked(_)
             | Action::SetSmooth(_)
             | Action::SmoothReady { .. }
@@ -39,7 +38,6 @@ pub(super) fn reduce(state: &mut AppState, action: &Action) {
         } => zoom(state.planes.panel_mut(kind), factor, about_mm),
         Action::PlanePan { kind, by_mm } => pan(state.planes.panel_mut(kind), by_mm),
         Action::PlaneFit(kind) => *state.planes.panel_mut(kind) = PlanePanel::default(),
-        Action::SetColumn(column) => state.planes.column = column,
         Action::SetLinked(linked) => state.planes.linked = linked,
         Action::SetSmooth(smooth) => state.planes.smooth = smooth,
         _ => {}

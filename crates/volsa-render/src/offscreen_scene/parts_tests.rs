@@ -1,7 +1,7 @@
 //! Labelled parts drawn as solids: each in its colour, on the side of the picture the
 //! patient has it, with what is hidden gone and what is faded seen through.
 
-use voxa_labels::LabelSet;
+use volsa_labels::LabelSet;
 
 use super::*;
 use crate::camera::NamedView;
@@ -58,7 +58,7 @@ fn count(rgba: &[u8], of: [u8; 3]) -> usize {
 }
 
 fn all_shown(set: &LabelSet) -> Vec<PartLook> {
-    let solid = |part: &voxa_labels::Part| PartLook {
+    let solid = |part: &volsa_labels::Part| PartLook {
         colour: part.colour,
         opacity: 1.0,
     };

@@ -5,7 +5,7 @@
 
 use std::path::Path;
 
-use voxa_dicom::testkit::{Colour, SliceOptions, classic_slice};
+use volsa_dicom::testkit::{Colour, SliceOptions, classic_slice};
 
 use crate::study::{self, BEAD, stored, value_at};
 
@@ -109,13 +109,16 @@ fn locating(into: &Path) -> std::io::Result<()> {
 }
 
 /// A picture in colour of the ball's middle, as a program might save a map beside the scan:
-/// what is dim in blue, what is bright in red, the bead in white and the air in black.
+/// what is dim in blue, what is bright in red, the bead in white and the air in black. A
+/// program saves such a picture with the modality `OT`, other, as it is no scan of the body,
+/// and Volsa lists it among the other files.
 fn colour(into: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(into)?;
-    let mut options = sized(
-        study::image("1.2.826.0.1.3680043.9.9999.7.5", 5, "a picture in colour"),
-        [along(0), along(0), 48.0],
-    );
+    let picture = SliceOptions {
+        modality: "OT".to_owned(),
+        ..study::image("1.2.826.0.1.3680043.9.9999.7.5", 5, "a picture in colour")
+    };
+    let mut options = sized(picture, [along(0), along(0), 48.0]);
     options.instance_number = 1;
     // A picture saved by a program is no slice of a scan, and has no thickness.
     options.slice_thickness = None;

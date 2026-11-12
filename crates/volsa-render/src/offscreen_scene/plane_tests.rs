@@ -1,7 +1,7 @@
 //! Pictures of a plane through a volume, drawn on a graphics device with no window.
 
-use voxa_core::{Patient, Point, Volume, WindowLevel};
-use voxa_volume::{PlaneKind, plane_of, reslice};
+use volsa_core::{Patient, Point, Volume, WindowLevel};
+use volsa_volume::{PlaneKind, plane_of, reslice};
 
 use super::tests::{CORE, MIDDLE, SHELL, at};
 use super::*;

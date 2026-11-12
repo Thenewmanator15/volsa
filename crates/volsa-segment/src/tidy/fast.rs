@@ -1,12 +1,12 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `postprocess` in SynthSeg/predict_synthseg.py, translated to Rust and changed
-// for Voxa.
+// for Volsa.
 //! What is kept of the robust networks' answer: `SynthSeg`'s tidying with `fast` on, as its own
 //! program has it whenever those networks run. The padding is taken off first, so the largest
 //! piece of everything is found on the image alone. No piece of a class is looked for:
 //! instead every chance that is not above 0.2 goes, but for the first structure's.
 
-use voxa_models::RunError;
+use volsa_models::RunError;
 
 use super::{Chances, FAST_ABOVE, counts};
 use crate::find::room;

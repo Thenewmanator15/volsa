@@ -1,5 +1,7 @@
 # Voxa Milestone 1 (Foundation) Implementation Plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** A Windows desktop app that opens a scan export (zip, folder or DICOMDIR), lists its studies and series, and shows any series as a 2D stack with correct orientation, contrast controls, overlays, tag inspection and cine playback, with every quality gate running from the first commit.

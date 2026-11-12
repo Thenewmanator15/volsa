@@ -1,18 +1,18 @@
 //! Writing a label file and its table of names: the two files this crate reads, so that what
-//! Voxa makes can be kept and opened again, here or in another program.
+//! Volsa makes can be kept and opened again, here or in another program.
 //!
 //! The label file is a gzipped single-file NIfTI-1 with an sform; the table is the shape the
-//! labelling pipeline writes, with a `voxa` object that says who made the labels.
+//! labelling pipeline writes, with a `volsa` object that says who made the labels.
 //!
 //! A NIfTI file places its voxels in a world whose x runs to the patient's right and y to the
-//! front. Voxa's patient space is DICOM's, with x to the left and y to the back. Reading
+//! front. Volsa's patient space is DICOM's, with x to the left and y to the back. Reading
 //! changes the sign of both on the way in, and writing changes them back.
 
 use std::io::Write;
 
 use flate2::Compression;
 use flate2::write::GzEncoder;
-use voxa_core::{Affine, Patient, Voxel};
+use volsa_core::{Affine, Patient, Voxel};
 
 use crate::nifti::{LabelGrid, MAX_LABEL_VOXELS};
 
@@ -194,4 +194,4 @@ mod table_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-mod voxa_tests;
+mod volsa_tests;

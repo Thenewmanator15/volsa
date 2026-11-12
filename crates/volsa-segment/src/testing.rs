@@ -4,7 +4,7 @@
 //! folder or loads the runtime by itself: a test hands both over, and says which device the
 //! networks go on.
 //!
-//! A graphics card is named by what it is, its [`CardId`](voxa_models::CardId), and the
+//! A graphics card is named by what it is, its [`CardId`](volsa_models::CardId), and the
 //! runtime finds where it stands at each opening. A place in the system's list is never kept
 //! here: the list has changed its order between two networks of one run.
 
@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering::Relaxed};
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 
-use voxa_models::{
+use volsa_models::{
     Card, CardKind, Device, Model, Network, Role, RunError, Runtime, Stop, cards, in_use,
 };
 
@@ -273,7 +273,7 @@ impl fmt::Display for Agreement {
 mod tests {
     use std::panic::catch_unwind;
 
-    use voxa_models::{Card, CardId, CardKind, Device};
+    use volsa_models::{Card, CardId, CardKind, Device};
 
     use super::{Agreement, cards_of, once_each, quickest, watched};
 

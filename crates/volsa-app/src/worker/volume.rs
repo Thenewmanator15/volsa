@@ -1,22 +1,17 @@
-//! Building the volume of a series for the 3D scene: every slice decoded, then stacked. A
-//! series is held once: as its volume while that is the one kept, and as frames in the cache
-//! otherwise.
+//! The volume of a series for the 3D scene: asked for, kept, and given way. A series is held
+//! once: as its volume while that is the one kept, and as frames in the cache otherwise.
 
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
-use egui_wgpu::wgpu;
-use rayon::prelude::*;
-use voxa_core::{SeriesId, Volume};
-use voxa_dicom::{Frame, ImageFile, IndexedSeries};
-use voxa_render::{MAX_VOLUME_BYTES, Prepared, Smoothed};
-use voxa_volume::{PRESETS, assemble};
+use volsa_core::{Grid, HeldVolume, SeriesId, VolsaError};
+use volsa_dicom::{Frame, ImageFile, IndexedSeries};
+use volsa_render::{CardRoom, MAX_VOLUME_BYTES, Smoothed, card_mapping};
+use volsa_volume::halved_held;
 
-use super::{Batch, Shared, Workers, batches, lock, shielded};
+use super::held::Built;
+use super::{Shared, Workers, lock, shielded};
 use crate::action::Action;
-
-/// Progress is reported each time this many more slices have been decoded.
-const REPORT_EVERY: usize = 8;
 /// What is said when the reader gives up part-way through a series.
 pub(super) const READER_STOPPED: &str =
     "This series could not be read for a 3D view: the reader stopped on one of its files";
@@ -29,42 +24,26 @@ pub(super) struct Build {
     number: u64,
 }
 
-/// A slice's place in its series, and the slice decoded or why it could not be.
-type Decoded = (usize, Result<Arc<Frame>, String>);
-
 /// What the window's graphics device does itself from a volume it holds.
 #[derive(Debug, Default)]
 pub(super) struct DeviceDoes {
-    /// Working out the largest value in each block of voxels.
-    blocks: AtomicBool,
     /// Working out the curve through the values.
     curves: AtomicBool,
-    /// The device itself and its queue, once the window has given them: a volume made
-    /// ready is then handed to the device by the worker that made it.
-    device: Mutex<Option<(wgpu::Device, wgpu::Queue)>>,
 }
 
 impl Workers {
-    /// Give the workers the window's graphics device. From now on the worker that makes a
-    /// volume ready also hands its values to the device, so that the window, when it
-    /// shows the volume, has no bytes left to hand over and does not pause to.
-    pub fn give_device(&self, device: wgpu::Device, queue: wgpu::Queue) {
-        *lock(&self.shared.device_does.device) = Some((device, queue));
-    }
-
-    /// Say what the window's graphics device does itself: the largest value in each block
-    /// of a volume, and the curve through its values. What it does is left to it from now
-    /// on, and not done on a worker first.
-    pub fn leave_to_the_device(&self, blocks: bool, curves: bool) {
+    /// Say whether the window's graphics device works out the curve through a volume's
+    /// values itself. What it does is left to it from now on, and not done on a worker first.
+    /// The workers never hand the device anything: only the window's thread does.
+    pub fn leave_to_the_device(&self, curves: bool) {
         let does = &self.shared.device_does;
-        does.blocks.store(blocks, Ordering::SeqCst);
         does.curves.store(curves, Ordering::SeqCst);
     }
 
-    /// Say how long a side, in voxels, the window's graphics device allows a volume. Volumes
-    /// built from now on are made ready to fit it.
-    pub fn set_volume_side(&self, longest: u32) {
-        self.shared.volume_side.store(longest, Ordering::SeqCst);
+    /// Say what the window's graphics device can hold of a volume, and how. A volume built
+    /// from now on that it cannot hold whole is given a halved copy for it.
+    pub fn set_card_room(&self, room: CardRoom) {
+        *lock(&self.shared.card_room) = room;
     }
 
     /// Build the volume of a series for the 3D scene, in place of any being built.
@@ -87,12 +66,31 @@ impl Workers {
         let Some(volume) = store.get(&series) else {
             return;
         };
+        // The curve is through what the device holds: the volume, or its halved copy.
+        let card = store
+            .for_card(&series)
+            .map_or_else(|| Arc::clone(&volume), |(copy, _)| copy);
         drop(store);
+        // A series the device holds in several textures gets no curve: the curve is one
+        // texture, and would take as much room again. Nor one whose 32-bit copy, which the
+        // curve is made from here, would pass the memory budget.
+        let room = *lock(&self.shared.card_room);
+        let voxels = card.dims().iter().map(|&side| side as usize).product();
+        if room.textures(card.dims()) != Some(1) || self.shared.copy_passes_budget(voxels) {
+            let why = crate::planes::too_long_to_smooth();
+            self.shared.report(Action::Post(why));
+            return;
+        }
         let shared = Arc::clone(&self.shared);
         self.spawn(move || {
             shielded(|| {
-                let side = shared.volume_side.load(Ordering::SeqCst);
-                let curve = Smoothed::of(&volume, side, MAX_VOLUME_BYTES);
+                let room = *lock(&shared.card_room);
+                let Some(values) = card.to_volume(0..card.dims()[2]) else {
+                    return;
+                };
+                let limits = (room.longest_side, MAX_VOLUME_BYTES);
+                let curve = Smoothed::mapped(&values, limits, Some(card_mapping(&card, &room)));
+                drop(values);
                 if lock(&shared.volumes).put_smoothed(&series, &volume, curve) {
                     shared.report(Action::SmoothReady { series });
                 }
@@ -104,7 +102,7 @@ impl Workers {
         // Said at once, before the work starts, so that frames asked for next are left to it.
         let build = self.shared.wants(&listed.info.id);
         let (shared, listed) = (Arc::clone(&self.shared), listed.clone());
-        self.spawn(move || {
+        self.spawn_build(move || {
             let finished = shielded(|| shared.build_volume(&listed, &build));
             if !finished && shared.ended(&build) {
                 // Without this the scene would say it was building for ever.
@@ -131,7 +129,7 @@ impl Shared {
     }
 
     /// Whether a request for a volume is still the newest, in the source still open.
-    fn building(&self, build: &Build) -> bool {
+    pub(super) fn building(&self, build: &Build) -> bool {
         self.opened.load(Ordering::SeqCst) == build.opened
             && self.builds.load(Ordering::SeqCst) == build.number
     }
@@ -147,134 +145,54 @@ impl Shared {
         newest
     }
 
-    /// Decode every slice of a series, taking those already in the frame cache from there,
-    /// stack them into a volume, keep it in the store, and report how it went. Nothing is
-    /// stored or reported for a request that has been overtaken. Slices decoded for a volume
-    /// that does not come to be are put in the frame cache: none is decoded for nothing.
+    /// Build the held volume of a series, keep it in the store, and report how it went.
+    /// Nothing is stored or reported for a request that has been overtaken. Slices decoded
+    /// for a volume that does not come to be are put in the frame cache: none is decoded for
+    /// nothing.
     fn build_volume(&self, listed: &IndexedSeries, build: &Build) {
         let series = listed.info.id.clone();
-        let decoded = self.decode_all(listed, build);
-        let stacked = self.building(build).then(|| stacked(listed, &decoded));
-        let failed = match stacked {
-            Some(Ok(volume)) => {
-                if self.keep(&series, volume, build) {
-                    return;
-                }
-                None
-            }
-            Some(Err(reason)) => Some(reason),
-            None => None,
+        let (left, failed) = match self.build_held(listed, build) {
+            Built::Whole(held) => match self.keep(&series, held, build) {
+                None => return,
+                Some(held) => (Some(held), None),
+            },
+            Built::Failed(held, reason) => (held, Some(reason)),
+            Built::Overtaken(held) => (Some(held), None),
         };
-        self.keep_frames(&series, decoded, build);
+        if let Some(held) = left {
+            self.keep_slices(&series, &held, build.opened);
+        }
         if let Some(reason) = failed.filter(|_| self.ended(build)) {
             self.report(Action::VolumeFailed { series, reason });
         }
     }
 
-    /// Every slice of a series in the series' order, each decoded or why it could not be,
-    /// with progress reported on the way. Fewer than all once the request is overtaken.
-    fn decode_all(&self, listed: &IndexedSeries, build: &Build) -> Vec<Decoded> {
-        let series = &listed.info.id;
-        let of = listed.slices.len();
-        let (done, reported) = (AtomicUsize::new(0), Mutex::new(0));
-        let one_more = || {
-            let done = done.fetch_add(1, Ordering::SeqCst) + 1;
-            if done % REPORT_EVERY != 0 || done >= of {
-                return;
-            }
-            // Reported with the lock held, so that a later count is never told first.
-            let mut reported = lock(&reported);
-            if done > *reported && self.building(build) {
-                *reported = done;
-                self.report(Action::VolumeProgress {
-                    series: series.clone(),
-                    done,
-                    of,
-                });
-            }
-        };
-        let files = batches(listed, (0..of).collect());
-        let from_each = |file: &Batch| self.slices_of(file, series, build, &one_more);
-        let mut decoded: Vec<Decoded> = files.par_iter().flat_map_iter(from_each).collect();
-        decoded.sort_by_key(|(slice, _)| *slice);
-        decoded
-    }
-
-    /// The slices held in one file, each from the frame cache if it is there and decoded
-    /// from the file if not. Stops early, with what it has, once the request is overtaken.
-    fn slices_of(
-        &self,
-        file: &Batch,
-        series: &SeriesId,
-        build: &Build,
-        one_more: &impl Fn(),
-    ) -> Vec<Decoded> {
-        // The file is read only if a slice of it is wanted that the cache does not have.
-        let mut opened: Option<Result<ImageFile, String>> = None;
-        let mut slices = Vec::with_capacity(file.slices.len());
-        for (slice, frame) in &file.slices {
-            if !self.building(build) {
-                break;
-            }
-            let cached = lock(&self.cache).get(series, *slice);
-            let decoded = cached.map_or_else(
-                || {
-                    let image = opened.get_or_insert_with(|| self.open(&file.entry));
-                    let fresh = decoded_from(image, *frame)?;
-                    self.announce(series, *slice, &fresh, build);
-                    Ok(fresh)
-                },
-                Ok,
-            );
-            slices.push((*slice, decoded));
-            one_more();
-        }
-        slices
-    }
-
-    /// Say that a slice has been decoded, with the window each preset gives for it, as is
-    /// said of a slice decoded for the viewport: the viewport shows it, out of the volume
-    /// once that is built, and needs its windows.
-    fn announce(&self, series: &SeriesId, slice: usize, decoded: &Frame, build: &Build) {
-        if self.building(build) {
-            let windows = PRESETS.map(|preset| preset.window(&decoded.values));
-            let series = series.clone();
-            self.report(Action::FrameReady {
-                series,
-                slice,
-                windows,
-            });
-        }
-    }
-
-    /// Keep a volume in the store, with what makes it ready for the graphics device, and
-    /// say it is ready. False, with nothing kept or said, if the request has been overtaken.
-    fn keep(&self, series: &SeriesId, volume: Volume, build: &Build) -> bool {
-        let corners = volume.corners();
-        // Made ready for the graphics device here, on a worker, so that the window has only
-        // to hand it over.
-        let side = self.volume_side.load(Ordering::SeqCst);
-        let mut ready = if self.device_does.blocks.load(Ordering::SeqCst) {
-            Prepared::without_blocks(&volume, side, MAX_VOLUME_BYTES)
-        } else {
-            Prepared::of(&volume, side, MAX_VOLUME_BYTES)
-        };
-        // Handed to the device from here too. With no room there it stays as it is, and
-        // the window deals with that as it always has.
-        let device = lock(&self.device_does.device).clone();
-        if let Some((device, queue)) = device {
-            ready.hand_over(&device, &queue);
-        }
+    /// Keep a volume in the store, with a halved copy for the graphics device if it cannot
+    /// hold the volume whole, and say it is ready. The volume is given back, with nothing
+    /// kept or said, if the request has been overtaken.
+    fn keep(&self, series: &SeriesId, held: HeldVolume, build: &Build) -> Option<HeldVolume> {
+        let corners = held.corners();
+        // Made here, on a worker, so that the window has only to hand it over.
+        let room = *lock(&self.card_room);
+        let for_card = for_the_card(&held, &room);
         // Checked with the store locked, so a newer volume is never overwritten.
         let mut store = lock(&self.volumes);
         if !self.ended(build) {
-            return false;
+            return Some(held);
         }
-        let before = store.put(series.clone(), Arc::new(volume));
-        store.put_prepared(series, ready);
+        let before = store.put(series.clone(), Arc::new(held));
+        if let Some(copy) = for_card {
+            store.put_for_card(series, copy);
+        }
         // The volume is where the series' slices are read from now: no second copy is kept.
         lock(&self.cache).forget(series);
         drop(store);
+        self.share_the_budget();
+        // Taken out first: the store is locked again to count what is held.
+        let kept = lock(&self.volumes).kept();
+        if let Some(kept) = kept {
+            self.keep_within(&kept, false);
+        }
         let series = series.clone();
         self.report(Action::VolumeReady {
             series: series.clone(),
@@ -283,39 +201,27 @@ impl Shared {
         if let Some((was, old)) = before.filter(|(was, _)| *was != series) {
             self.keep_slices(&was, &old, build.opened);
         }
-        true
+        None
     }
 
-    /// Put the slices of a volume that has given way to another into the frame cache, as
-    /// many as it has room for, so that going back to its series decodes nothing again.
-    fn keep_slices(&self, series: &SeriesId, volume: &Volume, opened: u64) {
+    /// Put the slices of a volume that has given way to another, or that did not come to be,
+    /// into the frame cache, as many as it has room for, so that going back to its series
+    /// decodes nothing again. Slices it does not hold are passed over.
+    fn keep_slices(&self, series: &SeriesId, volume: &HeldVolume, opened: u64) {
         let [cols, rows, slices] = volume.dims();
         let middle = slices as usize / 2;
         for slice in 0..slices {
             let Some(values) = volume.slice_values(slice) else {
-                return;
+                continue;
             };
             let frame = Frame {
                 rows,
                 cols,
-                values: values.to_vec(),
+                values,
                 colour: None,
             };
-            if !self.hold(series, slice as usize, Arc::new(frame), middle, opened) {
-                return;
-            }
-        }
-    }
-
-    /// Put what was decoded for a volume that did not come to be into the frame cache, as
-    /// much as it has room for: the viewport can show it, and it is not decoded again.
-    fn keep_frames(&self, series: &SeriesId, decoded: Vec<Decoded>, build: &Build) {
-        let middle = decoded.len() / 2;
-        for (slice, frame) in decoded {
-            let Ok(frame) = frame else {
-                continue;
-            };
-            if !self.hold(series, slice, frame, middle, build.opened) {
+            let frame = Arc::new(frame);
+            if !self.hold(series, slice as usize, frame, (middle, opened), false) {
                 return;
             }
         }
@@ -324,14 +230,15 @@ impl Shared {
     /// Put a decoded slice of a series in the frame cache, for the viewport to show, unless
     /// the series' volume is the one kept: its slices are then read from that, and are not
     /// held a second time. False, with nothing done, when another export has been opened
-    /// since the one numbered `opened`: the cache is that export's now.
+    /// since the one numbered `opened`: the cache is that export's now. `announced` says
+    /// whether its windows have been said; if not, they are said when it is shown.
     pub(super) fn hold(
         &self,
         series: &SeriesId,
         slice: usize,
         frame: Arc<Frame>,
-        keep_near: usize,
-        opened: u64,
+        (keep_near, opened): (usize, u64),
+        announced: bool,
     ) -> bool {
         // Wherever both are locked, the store is locked first.
         let volumes = lock(&self.volumes);
@@ -340,46 +247,53 @@ impl Shared {
             return false;
         }
         if !volumes.holds(series) {
-            cache.insert(series, slice, frame, keep_near);
+            if announced {
+                cache.insert(series, slice, frame, keep_near);
+            } else {
+                cache.insert_unannounced(series, slice, frame, keep_near);
+            }
         }
         true
     }
 
-    /// Read and parse one file of the source that is open.
-    fn open(&self, entry: &str) -> Result<ImageFile, String> {
-        let Some(bytes) = self.read_entry(entry) else {
-            return Err("No scan is open.".to_owned());
+    /// Read and parse one file of the source that is open, for a volume being built. A file
+    /// of `many` frames is the one kept (see [`super::opened::Opened`]): a volume is filled a
+    /// slab at a time, and each slab of such a file would otherwise read and parse the whole
+    /// of it again.
+    pub(super) fn open(&self, entry: &str, many: bool) -> Result<Arc<ImageFile>, String> {
+        // `None` when no source is open.
+        let open = || {
+            Some(
+                self.read_entry(entry)?
+                    .and_then(|bytes| ImageFile::open(&bytes)),
+            )
         };
-        bytes
-            .and_then(|bytes| ImageFile::open(&bytes))
-            .map_err(|why| why.to_string())
+        let none_open = || "No scan is open.".to_owned();
+        let file = if many {
+            if lock(&self.source).is_none() {
+                return Err(none_open());
+            }
+            let export = self.opened.load(Ordering::SeqCst);
+            let missing = || Err(VolsaError::MissingEntry(entry.to_owned()));
+            self.kept
+                .get(entry, export, || open().unwrap_or_else(missing))
+        } else {
+            open().ok_or_else(none_open)?.map(Arc::new)
+        };
+        file.map_err(|why| why.to_string())
     }
 }
 
-/// One slice decoded from a file that was read, or why either could not be done.
-fn decoded_from(
-    image: &Result<ImageFile, String>,
-    frame: Option<u32>,
-) -> Result<Arc<Frame>, String> {
-    match image {
-        Ok(image) => image
-            .decode(frame)
-            .map(Arc::new)
-            .map_err(|why| why.to_string()),
-        Err(why) => Err(why.clone()),
+/// A copy of a volume halved as often as the device needs it to be to hold it, and how
+/// often; `None` when it holds the volume whole, or the volume cannot be halved.
+fn for_the_card(held: &HeldVolume, room: &CardRoom) -> Option<(Arc<HeldVolume>, u32)> {
+    let halvings = room.halvings(held.dims());
+    if halvings == 0 {
+        return None;
     }
-}
-
-/// The decoded slices of a series, given in the series' order, stacked into a volume; or why
-/// they cannot be, in plain words, naming the first slice that would not decode.
-fn stacked(listed: &IndexedSeries, decoded: &[Decoded]) -> Result<Volume, String> {
-    let mut values = Vec::with_capacity(decoded.len());
-    for (slice, frame) in decoded {
-        let number = slice + 1;
-        let frame = frame.as_ref().map_err(|why| {
-            format!("Slice {number} could not be decoded, so a 3D view cannot be built: {why}")
-        })?;
-        values.push(frame.values.as_slice());
+    let mut copy = halved_held(held)?;
+    for _ in 1..halvings {
+        copy = halved_held(&copy)?;
     }
-    assemble(&listed.info, &values).map_err(|why| why.to_string())
+    Some((Arc::new(copy), halvings))
 }

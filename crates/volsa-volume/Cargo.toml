@@ -1,5 +1,5 @@
 [package]
-name = "voxa-volume"
+name = "volsa-volume"
 description = "Whole series as volumes, and image statistics: histograms and automatic window/level."
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-voxa-core.workspace = true
+volsa-core.workspace = true
 serde.workspace = true
 thiserror.workspace = true
 

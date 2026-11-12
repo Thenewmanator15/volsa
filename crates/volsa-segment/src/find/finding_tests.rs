@@ -1,7 +1,7 @@
 //! Tests of the networks that find the structures: the standard one, run on the image and
 //! on its mirror, and the three robust ones, run one after another.
 
-use voxa_models::{Role, Tensor};
+use volsa_models::{Role, Tensor};
 
 use super::Stage::{Checking, Finding};
 use super::tests::{

@@ -3,8 +3,8 @@
 
 use std::path::Path;
 
-use voxa_models::RunsOn;
-use voxa_segment::ModelChoice;
+use volsa_models::RunsOn;
+use volsa_segment::ModelChoice;
 
 use super::tests::{open_until, ready_in_3d, session, session_keeping, until, zip_of};
 use crate::action::Action;
@@ -57,7 +57,7 @@ fn a_kept_result_is_found_when_the_volume_is_ready_shown_on_request_and_deleted_
         "{:?}",
         state.notices
     );
-    let made = state.labels.made.as_ref().expect("Voxa made them");
+    let made = state.labels.made.as_ref().expect("Volsa made them");
     assert_eq!(made.when, "2099-01-02");
     assert_eq!(state.labels.parts.len(), 2);
 

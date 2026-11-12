@@ -65,12 +65,12 @@ impl PartsPipeline {
         let shader = device.create_shader_module(wgpu::include_wgsl!("parts.wgsl"));
         let layout = bindings(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("voxa parts"),
+            label: Some("volsa parts"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("voxa parts"),
+            label: Some("volsa parts"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -91,13 +91,14 @@ impl PartsPipeline {
             cache: None,
         });
         let params = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("voxa parts parameters"),
+            label: Some("volsa parts parameters"),
             size: size_of::<Params>() as wgpu::BufferAddress,
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
         let one = wgpu::TextureFormat::R16Float;
-        let no_blocks = crate::volume_texture::texture(device, "voxa no label blocks", [1; 3], one);
+        let no_blocks =
+            crate::volume_texture::texture(device, "volsa no label blocks", [1; 3], one);
         Self {
             pipeline,
             layout,
@@ -145,7 +146,7 @@ impl PartsPipeline {
             .map(|(binding, resource)| wgpu::BindGroupEntry { binding, resource })
             .collect();
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("voxa parts"),
+            label: Some("volsa parts"),
             layout: &self.layout,
             entries: &entries,
         });
@@ -277,7 +278,7 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         multisampled: false,
     };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("voxa parts"),
+        label: Some("volsa parts"),
         entries: &[
             entry(0, parameters),
             entry(1, parts),

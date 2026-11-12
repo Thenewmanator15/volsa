@@ -1,9 +1,10 @@
 //! The window keeping what the person set from one run to the next.
 
-use super::VoxaApp;
-use crate::prefs::Prefs;
+use super::theme::ThemeChoice;
+use super::{VolsaApp, capture};
+use crate::prefs::{Arrangement, Prefs};
 
-impl VoxaApp {
+impl VolsaApp {
     /// Put the state as the run before left it.
     pub(super) fn recall(&mut self) {
         let remembered = self.kept.remembered().clone();
@@ -21,8 +22,18 @@ impl VoxaApp {
             return;
         }
         self.screen.look(ctx);
-        let arrangement = self.screen.arrangement(ctx.zoom_factor());
+        let arrangement = Arrangement {
+            theme: self.bars.theme.name().to_owned(),
+            ..self.screen.arrangement(ctx.zoom_factor())
+        };
         let now = Prefs::of(self.session.state(), arrangement);
         self.kept.keep(&now);
     }
+}
+
+/// The theme the window opens in: the one `kept` from the run before, or for a picture of the
+/// window, the one it asks for.
+pub(super) fn opening_theme(kept: &Arrangement, capturing: bool) -> ThemeChoice {
+    let remembered = ThemeChoice::named(&kept.theme).unwrap_or_default();
+    capture::theme(capturing, remembered)
 }

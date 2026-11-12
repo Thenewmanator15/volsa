@@ -2,13 +2,13 @@
 
 use std::time::{Duration, UNIX_EPOCH};
 
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
+use volsa_dicom::testkit::{SliceOptions, classic_slice};
 
 use super::*;
 use crate::state::NoticeKind;
 use crate::testing::indexed;
 
-/// Run `work` with everything it logs going to `voxa.log` in `folder`; what the file then holds.
+/// Run `work` with everything it logs going to `volsa.log` in `folder`; what the file then holds.
 fn logged(folder: &Path, work: impl FnOnce()) -> String {
     let logger = to_file(folder).expect("the log opens");
     tracing::subscriber::with_default(logger, work);
@@ -26,7 +26,7 @@ const NEVER: [&str; 6] = [
     "frumious",
 ];
 
-fn made_up_export() -> voxa_dicom::Index {
+fn made_up_export() -> volsa_dicom::Index {
     let image = |study: &str, series: &str, name: &str| {
         let options = SliceOptions {
             study_uid: study.to_owned(),
@@ -80,9 +80,12 @@ fn the_log_says_what_happened_and_never_who_it_happened_to() {
 }
 
 #[test]
-fn a_notice_is_written_in_full_only_when_its_words_are_voxas_own() {
+fn a_notice_is_written_in_full_only_when_its_words_are_volsas_own() {
     let own = notice(NoticeKind::Info, "skipped", "1 file skipped");
     assert_eq!(line_for(&own), "notice [skipped]: 1 file skipped");
+    // The names of the files not read, and why, are its details, which are never written.
+    let refused = notice(NoticeKind::Warning, "refused", "1 file was not read");
+    assert_eq!(line_for(&refused), "warning [refused]: 1 file was not read");
     let saved = notice(NoticeKind::Info, "saving", "Saved Quillfeather.png");
     assert!(!line_for(&saved).contains("Quillfeather"));
     assert!(line_for(&saved).starts_with("notice [saving]"));
@@ -172,11 +175,11 @@ fn a_crash_is_logged_by_where_it_happened_and_not_by_what_was_said() {
     let here = std::panic::Location::caller();
     let line = crash_line(Some(here));
     assert!(
-        line.starts_with("Voxa stopped at ") && line.contains("log"),
+        line.starts_with("Volsa stopped at ") && line.contains("log"),
         "{line}"
     );
     assert_eq!(
         crash_line(None),
-        "Voxa stopped at a place that is not known"
+        "Volsa stopped at a place that is not known"
     );
 }

@@ -324,4 +324,6 @@ fn workspace_root() -> PathBuf {
 }
 
 #[cfg(test)]
+mod book_tests;
+#[cfg(test)]
 mod tests;

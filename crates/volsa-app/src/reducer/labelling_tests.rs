@@ -3,8 +3,8 @@
 
 use std::path::PathBuf;
 
-use voxa_models::{Card, CardId, CardKind, RunsOn, Wanted};
-use voxa_segment::{ModelChoice, Stage};
+use volsa_models::{Card, CardId, CardKind, RunsOn, Wanted};
+use volsa_segment::{ModelChoice, Stage};
 
 use super::tests::showing;
 use super::*;
@@ -12,7 +12,7 @@ use crate::labelling::{Labelling, LabellingAction, Ready};
 use crate::state::NoticeKind;
 use crate::testing::{THICK_SCAN, id, thick_scan_ready};
 
-/// Bytes of the graphics card Voxa itself holds, as the window would report them.
+/// Bytes of the graphics card Volsa itself holds, as the window would report them.
 pub(super) const HELD: u64 = 1 << 30;
 pub(super) const STOPPED: &str = "Labelling was stopped.";
 

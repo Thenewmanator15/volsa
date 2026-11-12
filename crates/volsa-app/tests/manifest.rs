@@ -1,8 +1,8 @@
-//! The application manifest the build puts into `voxa.exe` on Windows: what it asks of the
+//! The application manifest the build puts into `volsa.exe` on Windows: what it asks of the
 //! system, read from the file the build script hands the resource compiler.
 
 /// The manifest, as the build script gives it.
-const MANIFEST: &str = include_str!("../voxa.exe.manifest");
+const MANIFEST: &str = include_str!("../volsa.exe.manifest");
 
 /// The text between `<name` and the `>` that closes that element's first tag.
 fn tag<'a>(name: &str, within: &'a str) -> Option<&'a str> {
@@ -28,7 +28,7 @@ fn the_manifest_asks_for_todays_common_controls() {
 }
 
 #[test]
-fn the_manifest_says_voxa_follows_each_screens_scale_as_winit_does() {
+fn the_manifest_says_volsa_follows_each_screens_scale_as_winit_does() {
     // winit asks for the same itself as the window opens; the manifest makes it so from the
     // start, for a message shown before the window.
     let awareness = MANIFEST

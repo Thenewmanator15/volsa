@@ -15,8 +15,8 @@
 
 use std::collections::HashMap;
 
-use voxa_labels::{Entry, MAX_NAME, Side, Table, Trust, Verdict, colour_for};
-use voxa_models::{Lists, ModelSide, Structure, Wanted};
+use volsa_labels::{Entry, MAX_NAME, Side, Table, Trust, Verdict, colour_for};
+use volsa_models::{Lists, ModelSide, Structure, Wanted};
 
 /// A score group fails when its score is below this.
 pub const FAIL_BELOW: f64 = 0.65;
@@ -34,7 +34,7 @@ const PARTS: f64 = 10_000.0;
 /// Each name is listed under "Brain structures" or "Cortex areas", with the side the lists
 /// give it and the trust due to a model. A name that has two sides is listed once for each,
 /// together, left before right: names come in the order the lists first give them. A name
-/// has one colour, the one Voxa gives the number that comes first for it in the table.
+/// has one colour, the one Volsa gives the number that comes first for it in the table.
 ///
 /// `scores` are what the scores network gave: one for each score group of the lists, in
 /// their order. The verdict fails when any is below [`FAIL_BELOW`], and names each group

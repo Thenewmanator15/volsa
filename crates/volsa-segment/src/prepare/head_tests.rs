@@ -1,8 +1,8 @@
 //! Tests of cutting to the head. The volumes are made up: faint noise with balls and blocks of
 //! brightness in it, so the head is wherever a test puts it.
 
-use voxa_core::{Affine, Patient, Volume, Voxel};
-use voxa_models::{Cut, Numbers};
+use volsa_core::{Affine, Patient, Volume, Voxel};
+use volsa_models::{Cut, Numbers};
 
 use super::PrepareError::{NothingToSee, TooFewSlices, TooLarge};
 use super::align::Turned;

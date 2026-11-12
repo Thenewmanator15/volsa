@@ -1,10 +1,10 @@
-//! What is chosen for labelling, kept between runs: round trips, files that are not Voxa's,
+//! What is chosen for labelling, kept between runs: round trips, files that are not Volsa's,
 //! and a card kept by its name. Made-up cards and folders, in temporary folders.
 
 use std::path::{Path, PathBuf};
 
-use voxa_models::{Card, CardId, CardKind, RunsOn};
-use voxa_segment::ModelChoice;
+use volsa_models::{Card, CardId, CardKind, RunsOn};
+use volsa_segment::ModelChoice;
 
 use super::*;
 use crate::labelling::Labelling;
@@ -127,7 +127,7 @@ fn a_file_of_another_version_or_of_noise_gives_the_usual_choices() {
 }
 
 #[test]
-fn a_word_the_file_has_that_voxa_does_not_know_gives_the_usual_choice_for_that_one() {
+fn a_word_the_file_has_that_volsa_does_not_know_gives_the_usual_choice_for_that_one() {
     let folder = tempfile::tempdir().expect("a temporary folder");
     let text = serde_json::json!({
         "version": 1, "choice": "turbo", "runs_on": "quantum", "cortex": false, "keep": false,
@@ -267,7 +267,7 @@ fn choices_are_taken_from_the_state_and_put_back_in_it() {
 
 #[test]
 fn a_card_kept_by_name_waits_in_the_state_for_the_list_of_cards_and_is_not_forgotten() {
-    // Put in as Voxa starts, before any card has been listed.
+    // Put in as Volsa starts, before any card has been listed.
     let mut labelling = Labelling::default();
     unusual().put_in(&mut labelling);
     assert_eq!(labelling.runs_on, RunsOn::Automatic, "no card is known yet");

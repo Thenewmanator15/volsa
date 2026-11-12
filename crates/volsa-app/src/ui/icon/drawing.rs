@@ -1,6 +1,6 @@
-//! The drawing of Voxa's icon, at any size: a ring with a bead on it, like the made-up study's
+//! The drawing of Volsa's icon, at any size: a ring with a bead on it, like the made-up study's
 //! ball seen in a slice. The window's icon is drawn from it, and so is the icon Explorer shows
-//! for `voxa.exe`, which the build script draws from this same file.
+//! for `volsa.exe`, which the build script draws from this same file.
 
 /// The side the drawing is laid out on, in pixels. At another side every length is scaled.
 pub const LAID_OUT: u32 = 64;

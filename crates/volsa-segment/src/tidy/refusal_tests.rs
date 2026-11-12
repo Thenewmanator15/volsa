@@ -2,7 +2,7 @@
 //! a way back that does not fit them, and a grid there is not the memory for. Whatever it is
 //! given, `tidy` gives an error and does not panic.
 
-use voxa_models::{Lists, RunError, Tensor};
+use volsa_models::{Lists, RunError, Tensor};
 
 use super::tests::{ROBUST, STANDARD, found, line, lists};
 use super::tidy;

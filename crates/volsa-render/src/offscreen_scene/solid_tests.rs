@@ -96,7 +96,7 @@ fn a_solid_picture_is_the_same_each_time_it_is_drawn() {
 
 #[test]
 fn a_solid_surface_is_not_hidden_by_the_noise_in_the_air_around_it() {
-    use voxa_core::Volume;
+    use volsa_core::Volume;
     let Some(mut gpu) = headless_scene() else {
         return;
     };

@@ -1,41 +1,51 @@
-//! The size the interface is drawn at: the Size menu in the bar, beside the keys that egui
-//! itself answers to (Ctrl+= and Ctrl+- for larger and smaller, Ctrl+0 for the usual size).
+//! The size the interface is drawn at: the interface size menu in the top bar's menu, beside the
+//! keys that egui itself answers to (Ctrl+= and Ctrl+- for larger and smaller, Ctrl+0 for the
+//! usual size).
 
 use egui::{RichText, Ui};
 
+use super::commands::{self, Does, Request, menus};
 use super::theme;
+use crate::state::AppState;
 
-/// The sizes the Size menu offers: 1 is the interface's usual size.
+/// The sizes the interface size menu offers: 1 is the interface's usual size.
 pub const SIZES: [f32; 8] = [0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0];
-
-/// What the Size menu says when pointed at.
-pub const SIZE_SAYS: &str = "How large the interface is drawn: its words, buttons and lists. \
-                             Ctrl+= and Ctrl+- make it larger and smaller, and Ctrl+0 puts it \
-                             back to its usual size.";
 
 /// An interface size as a percentage of the usual size, to the nearest whole one: `125%`.
 pub fn percent(size: f32) -> String {
     format!("{:.0}%", size * 100.0)
 }
 
-/// The Size menu: the interface size now, and the sizes to choose between. Gives the size
-/// chosen, if one was.
-pub fn menu(ui: &mut Ui) -> Option<f32> {
+/// The action that draws the interface at `size`, from the list of actions.
+fn action_for(size: f32) -> Option<&'static commands::Command> {
+    commands::all().iter().find(|command| {
+        matches!(command.does, Does::Ask(Request::Size(at)) if percent(at) == percent(size))
+    })
+}
+
+/// The interface size menu: the interface size now, and the sizes to choose between, each an
+/// action of the list of actions. Gives the size chosen, if one was.
+pub fn menu(ui: &mut Ui, state: &AppState) -> Option<f32> {
     let now = ui.ctx().zoom_factor();
     let mut chosen = None;
-    let menu = ui.menu_button(format!("Size {}", percent(now)), |ui| {
-        for size in SIZES {
-            let this = percent(size) == percent(now);
-            if ui.selectable_label(this, percent(size)).clicked() {
+    let written = format!("Interface size {}", percent(now));
+    commands::menu_button(ui, &menus::SIZE, &written, |ui| {
+        for command in SIZES.into_iter().filter_map(action_for) {
+            let this = command.label == percent(now);
+            let pressed = commands::button(ui, command.id, state, Some(this));
+            if let Some(Does::Ask(Request::Size(size))) = pressed {
                 chosen = Some(size);
                 ui.close();
             }
         }
         ui.separator();
         let keys = "Ctrl+= larger, Ctrl+- smaller, Ctrl+0 usual";
-        ui.label(RichText::new(keys).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(keys)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     });
-    menu.response.on_hover_text(SIZE_SAYS);
     chosen
 }
 
@@ -59,7 +69,7 @@ mod tests {
         assert!(SIZES.windows(2).all(|pair| pair[0] < pair[1]));
         assert!(SIZES.contains(&1.0), "the usual size");
         assert!(SIZES.iter().all(|size| INTERFACE_SIZES.contains(size)));
-        assert!(SIZE_SAYS.contains("Ctrl+0"), "{SIZE_SAYS}");
+        assert!(menus::SIZE.explains.contains("Ctrl+0"));
     }
 
     /// One pass of the menu at the top left of a window, with these events.
@@ -70,7 +80,7 @@ mod tests {
             ..RawInput::default()
         };
         let mut chosen = None;
-        let mut output = ctx.run_ui(input, |ui| chosen = menu(ui));
+        let mut output = ctx.run_ui(input, |ui| chosen = menu(ui, &AppState::default()));
         // No renderer is behind these passes to take the font texture.
         output.textures_delta.clear();
         chosen

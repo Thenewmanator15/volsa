@@ -1,4 +1,4 @@
-//! One package's entry in the notices: what its manifest says, which licence Voxa takes it
+//! One package's entry in the notices: what its manifest says, which licence Volsa takes it
 //! under, and a line for each of its texts.
 
 use super::choice::{covers, taken};
@@ -11,7 +11,7 @@ use super::upstream::{Extra, Known, holders_of, with_holders};
 struct Licences<'a> {
     /// Those its manifest names, each once.
     offered: Vec<&'a str>,
-    /// Those Voxa takes it under.
+    /// Those Volsa takes it under.
     taken: Vec<&'a str>,
 }
 
@@ -33,7 +33,7 @@ struct Shipped<'a> {
     covers: Vec<&'a str>,
 }
 
-/// One package's entry: its heading, what its manifest says, which licence Voxa takes it
+/// One package's entry: its heading, what its manifest says, which licence Volsa takes it
 /// under, and a line for each text, ending with a blank line.
 pub fn entry(package: &Package, texts: &mut Texts, known: &Known) -> Result<String, String> {
     let expression = package.licence.as_deref();
@@ -67,7 +67,7 @@ pub fn entry(package: &Package, texts: &mut Texts, known: &Known) -> Result<Stri
     Ok(lines.join("\n") + "\n\n")
 }
 
-/// The first lines of an entry: the package, its licence, which Voxa takes it under when it
+/// The first lines of an entry: the package, its licence, which Volsa takes it under when it
 /// offers a choice, its repository, why it is built in when only a build uses it, and where
 /// its source is when its licence asks that.
 fn described(package: &Package, licences: &Licences, known: &Known) -> Vec<String> {
@@ -75,7 +75,7 @@ fn described(package: &Package, licences: &Licences, known: &Known) -> Vec<Strin
     let mut lines = vec![package.heading(), format!("  Licence: {expression}")];
     if licences.choice() {
         let taken = licences.taken.join(" AND ");
-        lines.push(format!("  Voxa takes it under: {taken}"));
+        lines.push(format!("  Volsa takes it under: {taken}"));
     }
     lines.push(match (&package.repository, &package.homepage) {
         (Some(repository), _) => format!("  Repository: {repository}"),
@@ -128,10 +128,10 @@ fn wanting<'a>(kept: &[Shipped], licences: &Licences<'a>) -> Vec<&'a str> {
     taken.filter(|id| !given(id)).collect()
 }
 
-/// Why a package cannot be written: none of the licences it offers is one Voxa accepts.
+/// Why a package cannot be written: none of the licences it offers is one Volsa accepts.
 fn refused(package: &Package, expression: &str) -> String {
     format!(
-        "{} is under {expression}, and Voxa accepts none of those licences: deny.toml \
+        "{} is under {expression}, and Volsa accepts none of those licences: deny.toml \
          allows them, and xtask/src/notices/choice.rs ranks them",
         package.heading()
     )
@@ -151,7 +151,7 @@ fn source(package: &Package) -> String {
             .clone()
             .unwrap_or_else(|| "its repository".to_owned())
     };
-    format!("  Source: Voxa uses this package unchanged. Its source code is at {at}")
+    format!("  Source: Volsa uses this package unchanged. Its source code is at {at}")
 }
 
 /// The licence files of the typefaces, when `package` is the font package; none otherwise.

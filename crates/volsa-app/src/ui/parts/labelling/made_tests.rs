@@ -1,14 +1,15 @@
-//! The strip's words about labels that Volsa made: who made them, with what, where and when,
+//! What the Labels tab says of labels that Volsa made: who made them, with what, where and when,
 //! what the model's own check said, and the notes beneath.
 
-use volsa_labels::{Verdict, verdict_in_words};
+use volsa_labels::Verdict;
 
-use super::super::tests::{labelled_by, written};
-use super::super::{Asked, MADE_ELSEWHERE};
 use super::made::made_in_words;
-use super::tests::{at, by_volsa, lines_of, made_by_volsa, swept};
+use super::tests::{at, by_volsa, lines_of, made_by_volsa};
 use super::*;
 use crate::labels::NamesFrom;
+use crate::ui::commands::Request;
+use crate::ui::parts::{Asked, MADE_ELSEWHERE};
+use crate::ui::tabs::made_up::{labelled_by, labels_written as written, sweep_labels as swept};
 
 #[test]
 fn labels_made_by_volsa_say_with_what_where_and_when_and_each_note_on_its_own_line() {
@@ -23,11 +24,9 @@ fn labels_made_by_volsa_say_with_what_where_and_when_and_each_note_on_its_own_li
     let first = at(&lines, |line| line == "A first made-up note.");
     let second = at(&lines, |line| line == "A second made-up note.");
     assert!(caption < first && first < second, "beneath it: {said}");
-    let (_, asked) = swept(&state);
-    assert!(
-        asked.contains(&Asked::Labelling(Wants::SaveLabels)),
-        "{asked:?}"
-    );
+    let (_, requests) = swept(&state);
+    let save = Request::Choose(Asked::Labelling(Wants::SaveLabels));
+    assert!(requests.contains(&save), "{requests:?}");
     assert!(lines.contains(&"Save as…"), "{said}");
 }
 
@@ -75,14 +74,14 @@ fn a_check_that_failed_is_said_before_who_made_the_labels() {
     };
     let said = written(&made_by_volsa(Some(verdict.clone())));
     let lines = lines_of(&said);
-    let failed = at(&lines, |line| line == verdict_in_words(&verdict));
+    let failed = at(&lines, |line| line == verdict_in_plain_words(&verdict));
     let caption = at(&lines, |line| line.starts_with("Labels made by Volsa"));
     assert!(failed < caption, "{said}");
     // Labels from a file keep the order of 0.4.0: the check after where the names came from.
     let from_a_file = labelled_by(Some(verdict.clone()), NamesFrom::Table, None);
     let said = written(&from_a_file);
     let lines = lines_of(&said);
-    let failed = at(&lines, |line| line == verdict_in_words(&verdict));
+    let failed = at(&lines, |line| line == verdict_in_plain_words(&verdict));
     let named = at(&lines, |line| line.starts_with("Names from"));
     assert!(named < failed, "{said}");
 }
@@ -118,4 +117,51 @@ fn labels_a_plugin_made_say_it_was_added_by_the_person_then_where_and_when_it_ra
     let first = at(&lines, |line| line == said);
     let note = at(&lines, |line| line == "A first made-up note.");
     assert!(first < note, "the banner, then the notes: {written}");
+}
+
+#[test]
+fn the_models_check_is_said_in_plain_words_with_no_score_on_the_screen() {
+    let low = vec![("general csf".to_owned(), 0.6), ("shell".to_owned(), 0.52)];
+    let failed = Verdict {
+        passed: false,
+        fail_below: 0.65,
+        low,
+    };
+    let passed = Verdict {
+        passed: true,
+        fail_below: 0.65,
+        low: Vec::new(),
+    };
+    for verdict in [&failed, &passed] {
+        let said = verdict_in_plain_words(verdict);
+        assert!(
+            !said.chars().any(|letter| letter.is_ascii_digit()),
+            "{said}"
+        );
+    }
+    let said = verdict_in_plain_words(&failed);
+    assert!(
+        said.contains("did not pass for general csf, shell"),
+        "what it did not pass for, by name: {said}"
+    );
+    assert!(said.contains("Take every part here with caution"), "{said}");
+    let said = verdict_in_plain_words(&passed);
+    assert!(said.contains("passed for every part"), "{said}");
+    assert!(
+        said.contains("the model's opinion of its own work"),
+        "{said}"
+    );
+    // The figures are the model's, and are in the hover text, not in the line.
+    let figures = volsa_labels::verdict_in_words(&failed);
+    assert!(
+        figures.contains("0.52") && figures.contains("0.65"),
+        "{figures}"
+    );
+    // And on the screen of the Labels tab, none of them is written.
+    let drawn = written(&made_by_volsa(Some(failed)));
+    assert!(!drawn.contains("0.52") && !drawn.contains("0.6"), "{drawn}");
+    assert!(
+        drawn.contains("did not pass for general csf, shell"),
+        "{drawn}"
+    );
 }

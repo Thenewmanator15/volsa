@@ -1,5 +1,6 @@
 //! A series as one block of values with a place in the patient.
 
+use crate::grid::{Grid, corners_of, spacing_of};
 use crate::space::{Affine, Patient, Point, Voxel};
 
 /// The values of a whole series, slice upon slice, with the transform that places each voxel
@@ -82,16 +83,7 @@ impl Volume {
     /// of the corner voxels. Corner `i` is at the far end of the columns when `i & 1` is set,
     /// of the rows when `i & 2` is, and of the slices when `i & 4` is.
     pub fn corners(&self) -> [Point<Patient>; 8] {
-        let [cols, rows, slices] = self.dims.map(f64::from);
-        let end = |far: bool, count: f64| if far { count - 0.5 } else { -0.5 };
-        std::array::from_fn(|i| {
-            let voxel = Point::new(
-                end(i & 1 != 0, cols),
-                end(i & 2 != 0, rows),
-                end(i & 4 != 0, slices),
-            );
-            self.voxel_to_patient.apply(voxel)
-        })
+        corners_of(self.dims, self.voxel_to_patient)
     }
 
     /// The middle of the volume in the patient.
@@ -103,9 +95,25 @@ impl Volume {
     /// The distance between neighbouring voxel centres along columns, rows and slices, in
     /// millimetres.
     pub fn spacing_mm(&self) -> [f64; 3] {
+        spacing_of(self.voxel_to_patient)
+    }
+}
+
+impl Grid for Volume {
+    fn dims(&self) -> [u32; 3] {
+        self.dims
+    }
+
+    fn voxel_to_patient(&self) -> Affine<Voxel, Patient> {
         self.voxel_to_patient
-            .columns()
-            .map(|[x, y, z]| (x * x + y * y + z * z).sqrt())
+    }
+
+    fn patient_to_voxel(&self) -> Affine<Patient, Voxel> {
+        self.patient_to_voxel
+    }
+
+    fn value(&self, col: u32, row: u32, slice: u32) -> Option<f32> {
+        self.get(col, row, slice)
     }
 }
 

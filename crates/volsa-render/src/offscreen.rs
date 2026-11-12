@@ -1,6 +1,6 @@
 //! Drawing a slice without a window, for tests and thumbnails.
 
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use crate::gpu::{Gpu, TARGET};
 use crate::slice_pipeline::{RenderError, SlicePipeline};

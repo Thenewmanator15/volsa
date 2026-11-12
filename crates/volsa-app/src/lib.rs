@@ -15,26 +15,37 @@
 mod action;
 mod annotations;
 mod args;
+mod budget;
 mod cache;
+mod card;
 mod choices;
 mod csv;
+mod device;
+mod documents;
 mod effect;
 mod export;
+mod kept_file;
 mod kept_labels;
 mod labelling;
 mod labels;
 mod log;
 mod measurements;
+mod measuring;
 mod moved;
+mod naming;
 mod parts_table;
+mod people;
+mod pictures;
 mod planes;
 mod plugins;
 mod prefs;
+mod profile;
 mod reducer;
 mod said;
 mod scene;
 mod session;
 mod settings;
+mod spill;
 mod state;
 #[cfg(test)]
 mod testing;
@@ -58,19 +69,23 @@ pub use labels::{
     on_this_series, study_of,
 };
 pub use measurements::{MEASUREMENTS_NAME, Row, measurements_csv, measurements_json, rows};
-pub use planes::{ColumnShows, PlanePanel, Planes};
+pub use measuring::Scale;
+pub use naming::{Group, group_of, plain_name};
+pub use pictures::Pictures;
+pub use planes::{PlanePanel, Planes};
 pub use plugins::{
     ADD_ACTION, OfferCard, PluginAction, PluginEffect, PluginEntry, Plugins, Running, ToolEntry,
     Warning, settings_lines, tool_entries,
 };
+pub use profile::{CT_WINDOWS, NamedWindow, Profile, Unit, readout, unit_of};
 pub use reducer::reduce;
 pub use said::{Outcome, WINDOWED, outcome, tell};
-pub use scene::{MainPanel, Scene, SceneStatus};
+pub use scene::{Scene, SceneStatus};
 pub use session::Session;
 pub use state::{
     AppState, Cine, Layout, Notice, NoticeKind, PresetWindows, VIEWPORTS, ViewportState,
 };
-pub use ui::{VolsaApp, run, thumbnail};
+pub use ui::{BareLayout, BareWindow, VolsaApp, run, thumbnail};
 pub use views::{MAX_VIEWS, SavedView, ViewsAction, series_key};
 pub use volume_store::VolumeStore;
 pub use worker::labelling::Labeller;

@@ -1,10 +1,10 @@
 //! Stack viewports of the scene's study follow the planes' position, and take it with them
 //! when they are scrolled.
 
-use voxa_core::{Affine, Patient, Point, Voxel};
-use voxa_dicom::Index;
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
-use voxa_volume::position_on_slice;
+use volsa_core::{Affine, Patient, Point, Voxel};
+use volsa_dicom::Index;
+use volsa_dicom::testkit::{SliceOptions, classic_slice};
+use volsa_volume::position_on_slice;
 
 use super::scene_tests::select;
 use super::tests::frames_around;

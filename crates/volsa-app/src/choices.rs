@@ -1,4 +1,4 @@
-//! What the person chose for labelling a scan, kept between runs of Voxa: which model, the
+//! What the person chose for labelling a scan, kept between runs of Volsa: which model, the
 //! cortex areas, where a run goes, whether results are kept, and the two folders the models
 //! and the runtime are in. One small file in the folder on this computer alone, as the two
 //! folders named in it are this computer's. They are the only paths in it, and it says
@@ -7,10 +7,10 @@
 use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
-use voxa_models::{Card, CardKind, RunsOn};
-use voxa_segment::ModelChoice;
+use volsa_models::{Card, CardKind, RunsOn};
+use volsa_segment::ModelChoice;
 
-use crate::kept_labels::write_whole;
+use crate::kept_file;
 use crate::labelling::Labelling;
 
 /// The version of the file. A file of another version is not read.
@@ -78,7 +78,7 @@ pub struct Choices {
 }
 
 impl Default for Choices {
-    /// What Voxa starts with when nothing is kept.
+    /// What Volsa starts with when nothing is kept.
     fn default() -> Self {
         Self {
             choice: ModelChoice::Automatic,
@@ -110,7 +110,7 @@ impl Choices {
         }
     }
 
-    /// Put these choices in the state as Voxa starts. No card has been listed yet, so a card
+    /// Put these choices in the state as Volsa starts. No card has been listed yet, so a card
     /// kept by its name waits in the state, with the place left automatic, until the list
     /// comes and the card can be found in it.
     pub fn put_in(self, labelling: &mut Labelling) {
@@ -128,7 +128,7 @@ impl Choices {
 }
 
 /// The file, with each choice as a word or a value of its own. A part the file lacks, or says
-/// in words Voxa does not know, is the usual choice for it.
+/// in words Volsa does not know, is the usual choice for it.
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 struct Written {
@@ -143,7 +143,7 @@ struct Written {
 }
 
 impl Default for Written {
-    /// Version 0, which no file Voxa wrote has, with the usual choices.
+    /// Version 0, which no file Volsa wrote has, with the usual choices.
     fn default() -> Self {
         Self {
             version: 0,
@@ -205,26 +205,31 @@ impl Written {
     }
 }
 
-/// The choices kept in `folder`. A file that is missing, cannot be read, is not what Voxa
-/// wrote or is of another version gives the choices Voxa starts with.
+/// The file as it is read: one of another version than this Volsa's is not understood.
+fn read(folder: &Path) -> kept_file::Read<Written> {
+    kept_file::read(&folder.join(FILE), |written: &Written| {
+        written.version == CHOICES_VERSION
+    })
+}
+
+/// The choices kept in `folder`. A file that is missing, cannot be read, is not what Volsa
+/// wrote or is of another version gives the choices Volsa starts with.
 pub fn load_choices(folder: &Path) -> Choices {
-    let text = std::fs::read_to_string(folder.join(FILE)).unwrap_or_default();
-    match serde_json::from_str::<Written>(&text) {
-        Ok(written) if written.version == CHOICES_VERSION => written.into_choices(),
-        _ => Choices::default(),
-    }
+    let written = read(folder).held();
+    written.map_or_else(Choices::default, Written::into_choices)
 }
 
 /// Keep these choices in `folder`, in place of any kept before. The folder is made if it is
-/// not there.
+/// not there. A file already there that cannot be read is first put aside, as every kept file
+/// is (see the module `kept_file`).
 ///
 /// # Errors
 ///
 /// When the folder cannot be made or the file cannot be written.
 pub fn save_choices(folder: &Path, choices: &Choices) -> std::io::Result<()> {
     let text = serde_json::to_string_pretty(&Written::of(choices))?;
-    std::fs::create_dir_all(folder)?;
-    write_whole(&folder.join(FILE), text.as_bytes())
+    let unread = read(folder).is_unread();
+    kept_file::write(&folder.join(FILE), &text, unread)
 }
 
 #[cfg(test)]

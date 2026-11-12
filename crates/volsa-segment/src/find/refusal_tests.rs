@@ -2,7 +2,7 @@
 //! what a network should give, and a network that says it failed. Whatever a stand-in
 //! answers, `find` gives an error and does not panic.
 
-use voxa_models::{Lists, Numbers, Role, RunError, Tensor};
+use volsa_models::{Lists, Numbers, Role, RunError, Tensor};
 
 use super::room;
 use super::structures;

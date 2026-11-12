@@ -3,8 +3,8 @@
 //! person typed; nothing from the scan's files.
 
 use serde::{Deserialize, Serialize};
-use voxa_core::{Point, SeriesId, WindowLevel};
-use voxa_render::{Camera, CutPlane, Look};
+use volsa_core::{Point, SeriesId, WindowLevel};
+use volsa_render::{Camera, CutPlane, Look};
 
 use crate::scene::Scene;
 
@@ -152,7 +152,7 @@ pub fn series_key(id: &SeriesId) -> String {
 
 #[cfg(test)]
 mod tests {
-    use voxa_render::NamedView;
+    use volsa_render::NamedView;
 
     use super::*;
     use crate::testing::id;

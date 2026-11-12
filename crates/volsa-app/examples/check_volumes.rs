@@ -1,9 +1,9 @@
-//! Checks that Voxa can show every series of an export in 3D, or says why it cannot: builds
+//! Checks that Volsa can show every series of an export in 3D, or says why it cannot: builds
 //! each volume as the application does, draws it in each look, cuts it open, draws the slice
 //! in the scene, and saves a picture and a turntable. Prints counts, sizes and times.
 //!
 //! ```text
-//! cargo run --release -p voxa-app --example check_volumes -- some/export.zip some/folder
+//! cargo run --release -p volsa-app --example check_volumes -- some/export.zip some/folder
 //! ```
 //!
 //! Nothing about the patient is printed: no name, no identifier, no date, no description.
@@ -16,9 +16,9 @@ use std::process::ExitCode;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-use voxa_app::{Action, NoticeKind, SUGGESTED_NAME, SceneStatus, Session, gif, png};
-use voxa_core::{SeriesId, WindowLevel};
-use voxa_render::{CutPlane, HeadlessScene, Look, SceneParams, SlicePlane, turntable};
+use volsa_app::{Action, NoticeKind, SUGGESTED_NAME, SceneStatus, Session, gif, png};
+use volsa_core::{Grid, SeriesId, WindowLevel};
+use volsa_render::{CutPlane, HeadlessScene, Look, SceneParams, SlicePlane, turntable};
 
 /// The size of the pictures drawn: a large viewport.
 const PICTURE: [u32; 2] = [1280, 800];
@@ -128,6 +128,7 @@ fn check(path: &Path, pictures: &Path) -> Result<(), String> {
     until(&mut session, ready)?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     gpu.upload(&volume).map_err(said)?;
     session.dispatch(Action::SceneResized {
@@ -204,6 +205,7 @@ fn draw(
 ) -> Result<String, String> {
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     // The window is chosen from the slice shown, which arrives a moment after the volume.
     let chosen = |session: &Session| {
@@ -260,6 +262,7 @@ fn timed_from_opening(
     until(&mut session, ready)?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     gpu.upload(&volume).map_err(said)?;
     gpu.render(&scene_of(&session, Look::Surface), PICTURE)
@@ -294,6 +297,7 @@ fn extras(
         .ok_or("The series has no placement.")?;
     let volume = session
         .volume(id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
         .ok_or("The volume is not in the store.")?;
     let plain = scene_of(session, Look::Surface);
     // Turned, and fitted again so that the whole of it is still in the picture.

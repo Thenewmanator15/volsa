@@ -40,11 +40,11 @@ const CORTEX_ON_THE_PROCESSOR: u64 = 900;
 /// puts on a card. The cortex network asks for no more than the rest. Measured on a made-up
 /// head and rounded up.
 const ORDINARY_FOR_A_CARD: u64 = 1_900;
-/// What Voxa itself holds beside any network for every voxel of its grid, in bytes, at its
+/// What Volsa itself holds beside any network for every voxel of its grid, in bytes, at its
 /// most: the chances found, with, for a moment, the answer that has just arrived, which is
 /// blended into them (no more than two sets of chances at once), and small lists. Measured on a
 /// made-up head and rounded up.
-const VOXA_ITSELF: u64 = 200;
+const VOLSA_ITSELF: u64 = 200;
 /// What the scores network takes of a card's memory, whatever the size of the scan: 8.2 GiB.
 /// Its input is always the same box. Measured on made-up volumes.
 const SCORES_ON_A_CARD: u64 = 82 * GIB / 10;
@@ -119,13 +119,13 @@ pub struct Room {
     pub budgets: Vec<Option<u64>>,
     /// How many bytes of each card's own memory no program holds now:
     /// [`unheld`](crate::unheld) of that card's `id`, which counts what every program holds,
-    /// Voxa included. What a run's networks take of a card must fit in it. It lies beside
+    /// Volsa included. What a run's networks take of a card must fit in it. It lies beside
     /// `cards`, in the same order. A `None`, or a place past the end, is a figure that could not
     /// be read.
     pub unheld: Vec<Option<u64>>,
-    /// The card Voxa draws on, by its `id`, if it draws on one.
+    /// The card Volsa draws on, by its `id`, if it draws on one.
     pub drawing_on: Option<CardId>,
-    /// How many bytes of that card Voxa itself holds, for drawing. It matters only when
+    /// How many bytes of that card Volsa itself holds, for drawing. It matters only when
     /// neither that card's budget nor what no program holds of it could be read.
     pub held: u64,
     /// How many more bytes of ordinary memory the system can promise this program now: on
@@ -172,7 +172,7 @@ pub fn needs(voxels: u64, wanted: Wanted, device: Device) -> u64 {
 }
 
 /// What a whole run on this rung asks the system for in ordinary memory, at its peak: what
-/// Voxa itself holds, and the larger of what its labelling networks and its scores network
+/// Volsa itself holds, and the larger of what its labelling networks and its scores network
 /// ask for where each runs; a quarter added. `voxels` is the grid the rung's cut gives, as
 /// [`rungs`] counts it. A run on a card asks for ordinary memory too, and more than one on
 /// the processor does, since Windows promises memory behind what a program puts on a card.
@@ -185,7 +185,7 @@ pub fn asks(voxels: u64, wanted: Wanted, rung: Rung) -> u64 {
         Device::Card(_) => SCORES_ORDINARY_FOR_A_CARD,
         Device::Processor => SCORES_ON_THE_PROCESSOR,
     };
-    let own = voxels.saturating_mul(VOXA_ITSELF);
+    let own = voxels.saturating_mul(VOLSA_ITSELF);
     let largest = voxels.saturating_mul(networks).max(scores);
     with_a_quarter(own.saturating_add(largest))
 }
@@ -195,8 +195,8 @@ pub fn asks(voxels: u64, wanted: Wanted, rung: Rung) -> u64 {
 struct Space {
     /// What a run's needs, a quarter included, must fit in: the ordinary memory the system can
     /// still promise, for the processor and an integrated card; for a discrete card the
-    /// system's budget for Voxa, or where none could be read the card's own memory less what
-    /// Voxa holds of it.
+    /// system's budget for Volsa, or where none could be read the card's own memory less what
+    /// Volsa holds of it.
     share: u64,
     /// What no program holds of a discrete card, where it could be read: what a run's networks
     /// take, with no quarter added, must fit in it. It is what is there now, not a share to
@@ -225,7 +225,7 @@ impl Room {
     /// How many bytes a device has for a run, as words speak of them: what the system can still
     /// promise for the processor and for an integrated card, which shares it, and for a
     /// discrete card the lesser of its budget and what no program holds of it, or its own
-    /// memory less what Voxa holds of it. Whether a run fits is [`has_room_for`]'s to say: its
+    /// memory less what Volsa holds of it. Whether a run fits is [`has_room_for`]'s to say: its
     /// needs are held to the budget, and what its networks take to what is free. `None` for a
     /// card the computer does not list, and for software standing in for one, which is never a
     /// place to run.
@@ -262,9 +262,9 @@ impl Room {
     }
 
     /// What a discrete card has for a run. `place` is the card's place in `cards`. Its share is
-    /// the system's budget for Voxa, or, where none could be read, the card's own memory less
-    /// what Voxa holds if it is the card Voxa draws on; and what is free is what no program
-    /// holds of it, Voxa's own hold already counted, where that could be read.
+    /// the system's budget for Volsa, or, where none could be read, the card's own memory less
+    /// what Volsa holds if it is the card Volsa draws on; and what is free is what no program
+    /// holds of it, Volsa's own hold already counted, where that could be read.
     fn discrete_room(&self, place: usize, card: &Card) -> Space {
         let held = if self.drawing_on == Some(card.id) {
             self.held

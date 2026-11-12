@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use dicom_core::{DataElement, PrimitiveValue, Tag, VR};
 use dicom_dictionary_std::{tags, uids};
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use super::tests::stack;
 use super::*;
@@ -89,7 +89,7 @@ fn large_slice(place: i32, extra: usize) -> Vec<u8> {
 /// A made-up study: a stack of small slices, a stack of large ones (one with a header longer
 /// than the first part read), a series in one file whose header runs long, a `DICOMDIR`, and
 /// files that are not images.
-fn made_up_study() -> Vec<(String, Vec<u8>)> {
+pub(super) fn made_up_study() -> Vec<(String, Vec<u8>)> {
     let mut files = stack(40, 2.5, &SliceOptions::default());
     for place in 0..6 {
         let extra = if place == 4 { 150_000 } else { 0 };
@@ -116,7 +116,7 @@ fn made_up_study() -> Vec<(String, Vec<u8>)> {
     files
 }
 
-fn folder_of(root: &Path, files: &[(String, Vec<u8>)]) {
+pub(super) fn folder_of(root: &Path, files: &[(String, Vec<u8>)]) {
     for (name, bytes) in files {
         let path = root.join(name);
         std::fs::create_dir_all(path.parent().expect("has a parent")).expect("folder made");
@@ -124,7 +124,7 @@ fn folder_of(root: &Path, files: &[(String, Vec<u8>)]) {
     }
 }
 
-fn zip_of(path: &Path, files: &[(String, Vec<u8>)], method: zip::CompressionMethod) {
+pub(super) fn zip_of(path: &Path, files: &[(String, Vec<u8>)], method: zip::CompressionMethod) {
     let mut writer = zip::ZipWriter::new(std::fs::File::create(path).expect("created"));
     let options = zip::write::SimpleFileOptions::default().compression_method(method);
     for (name, bytes) in files {
@@ -194,7 +194,7 @@ impl Read for Tally<'_> {
 }
 
 impl SeriesSource for Counting {
-    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
+    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VolsaError>> + '_> {
         let given = Arc::clone(&self.given);
         Box::new(self.inner.entries().inspect(move |entry| {
             if let Ok(entry) = entry {
@@ -203,14 +203,14 @@ impl SeriesSource for Counting {
         }))
     }
 
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError> {
+    fn read(&mut self, name: &str) -> Result<Vec<u8>, VolsaError> {
         self.inner.read(name)
     }
 
     fn visit_files(
         &mut self,
-        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
-    ) -> Result<(), VoxaError> {
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+    ) -> Result<(), VolsaError> {
         let given = Arc::clone(&self.given);
         self.inner.visit_files(&mut |name, contents| {
             let mut whole = Vec::new();

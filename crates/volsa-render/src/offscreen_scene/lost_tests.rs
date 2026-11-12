@@ -5,8 +5,8 @@
 use std::panic::{AssertUnwindSafe, catch_unwind};
 
 use egui_wgpu::wgpu;
-use voxa_core::{Patient, Point, Volume};
-use voxa_volume::{PlaneKind, plane_of};
+use volsa_core::{Patient, Point, Volume};
+use volsa_volume::{PlaneKind, plane_of};
 
 use super::*;
 use crate::camera::NamedView;

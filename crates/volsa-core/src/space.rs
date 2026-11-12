@@ -6,7 +6,7 @@
 //! from the space it maps from.
 //!
 //! ```compile_fail
-//! use voxa_core::{Affine, Patient, Point, Screen, Voxel};
+//! use volsa_core::{Affine, Patient, Point, Screen, Voxel};
 //! let voxel_to_patient: Affine<Voxel, Patient> = Affine::identity();
 //! let on_screen: Point<Screen> = Point::new(10.0, 20.0, 0.0);
 //! let _ = voxel_to_patient.apply(on_screen); // a screen point is not a voxel position

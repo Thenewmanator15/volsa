@@ -5,7 +5,7 @@ Runtime on this computer. No Python runs. For that it needs two things: a runtim
 folder.
 A download of Volsa from the Releases page comes with the runtime; nothing comes with the model
 folder, which you make once. Volsa without them is Volsa as it was at 0.4.0: it starts and does
-everything else, and the **Label this scan** button in the Parts tab is greyed and says which
+everything else, and the **Label this scan** button in the Tools tab is greyed and says which
 of the two is missing.
 
 **Volsa is not a medical device and is not for diagnostic use.** A label made by a model is a
@@ -43,7 +43,7 @@ Volsa uses no network. Nothing here is downloaded by Volsa.
    the runtime's files in a folder called `runtime` beside Volsa's executable (below).
 2. Make the model folder once, with the converter, and call it `models` beside Volsa's
    executable (below).
-3. Open a scan that has a 3D view, choose the Parts tab and press **Label this scan**.
+3. Open a scan that has a 3D view, choose the Tools tab and press **Label this scan**.
 
 If the folders are somewhere else, **Options**, beside the button, has **Folder of the
 models…** and **Folder of the runtime…**. Volsa remembers what was chosen.
@@ -236,7 +236,7 @@ moment, the answer that has just arrived: two sets of chances at most. If the ch
 fit on the card, or ordinary memory cannot back it there, that one network runs on the
 processor and the result says so. The figures were measured on made-up volumes and rounded up;
 the decision record
-[0006](https://github.com/Thenewmanator15/volsa/blob/main/docs/adr/0006-volsa-runs-a-labelling-model.md),
+[0006](https://github.com/Thenewmanator15/volsa/blob/main/docs/adr/0006-voxa-runs-a-labelling-model.md),
 in Volsa's source, gives them.
 
 For a made-up cube of 160 voxels a side, which is 4 096 000 voxels, the networks need 6.7 GB
@@ -266,11 +266,11 @@ Every result carries its check and its history.
   and the standard model otherwise, and says which it picked and why. The cortex areas
   divide the cortex into 34 areas a side and are on unless you switch them off.
 
-While a run is on, its stage and a **Stop** button are shown in the Parts tab, and only
+While a run is on, its stage and a **Stop** button are shown in the Tools tab, and only
 there; everything else in Volsa keeps working. The 3D view may be slow while the card is busy.
 A run belongs to the scan it was started on: if the scene moves to another series, or
 another export is opened, the run is stopped and its result dropped, even one that had just
-finished. Only one run goes at a time, and labels a run made are drawn only once the Parts
+finished. Only one run goes at a time, and labels a run made are drawn only once the Labels
 tab lists them.
 
 ## What is kept
@@ -278,11 +278,10 @@ tab lists them.
 A result is kept on this computer, in the folder the system gives Volsa that stays on it
 (`%LOCALAPPDATA%\Volsa\data` on Windows), so that it can be shown again when the same scan is
 opened. It is a label file and a table of names filed under a hash of the series, and holds
-nothing that says whose scan it was. The
-Parts tab then offers **Show**, **Make again** and **Delete**. **Save as** writes the label
-file and its table wherever you choose, for other programs; the file's name always ends in
-`.nii.gz`, which is added if you leave it out. **Keep results on this computer**,
-under **Options**, switches keeping off.
+nothing that says whose scan it was. The Tools tab then offers **Show**, **Make again**
+and **Delete**. **Save as…**, in the Labels tab, writes the label file and its table wherever
+you choose, for other programs; the file's name always ends in `.nii.gz`, which is added if you
+leave it out. **Keep results on this computer**, under **Options**, switches keeping off.
 
 If the graphics device is lost, which a driver reset can do, the interface cannot be given
 another. Volsa says so once, in the window and in a message box, and asks to be started again.

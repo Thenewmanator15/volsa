@@ -1,5 +1,7 @@
 # Any MRI export: design
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-13
 Status: the owner asked for this ("use the review to improve the app", "more for different
 types of MRI scans") and chose its scope from a list: more kinds of MRI, and the everyday

@@ -3,13 +3,15 @@
 //! here uses only what every graphics device with compute shaders is bound to have, and each
 //! maker is `None` on a device that cannot do its work, which is then left to the processor.
 
+use std::ops::Range;
+
 use egui_wgpu::wgpu;
 
 mod blocks;
 mod curve;
 mod filled;
 
-pub(crate) use blocks::{BlocksMaker, largest_in_blocks};
+pub(crate) use blocks::{BlockMaxima, BlocksMaker, largest_in_blocks};
 pub(crate) use curve::CurveMaker;
 pub(crate) use filled::FilledMaker;
 
@@ -99,20 +101,20 @@ impl IntoSlices {
         reads: wgpu::TextureSampleType,
     ) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("voxa into slices"),
+            label: Some("volsa into slices"),
             source: wgpu::ShaderSource::Wgsl(format!("{SLICES}\n{source}").into()),
         });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("voxa into slices"),
+            label: Some("volsa into slices"),
             entries: &[read_as(0, wgpu::ShaderStages::FRAGMENT, reads)],
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("voxa into slices"),
+            label: Some("volsa into slices"),
             bind_group_layouts: &[Some(&layout)],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("voxa into slices"),
+            label: Some("volsa into slices"),
             layout: Some(&pipeline_layout),
             vertex: wgpu::VertexState {
                 module: &shader,
@@ -135,16 +137,18 @@ impl IntoSlices {
         Self { pipeline, layout }
     }
 
-    /// Draw into every one of the `slices` of `into`, reading from `from`.
+    /// Draw into each of the `slices` of `into`, reading from `from`. The shader is told
+    /// each slice counted from the first drawn into, so that `from` may hold only the part
+    /// of a volume those slices are worked out from.
     fn draw(
         &self,
         (device, queue): (&wgpu::Device, &wgpu::Queue),
         from: &wgpu::TextureView,
         into: &wgpu::Texture,
-        slices: u32,
+        slices: Range<u32>,
     ) {
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("voxa into slices"),
+            label: Some("volsa into slices"),
             layout: &self.layout,
             entries: &[wgpu::BindGroupEntry {
                 binding: 0,
@@ -152,14 +156,14 @@ impl IntoSlices {
             }],
         });
         let view = into.create_view(&wgpu::TextureViewDescriptor::default());
-        let mut slice = 0;
-        while slice < slices {
+        let (mut slice, first) = (slices.start, slices.start);
+        while slice < slices.end {
             let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("voxa into slices"),
+                label: Some("volsa into slices"),
             });
-            for slice in slice..(slice + SLICES_AT_ONCE).min(slices) {
+            for slice in slice..(slice + SLICES_AT_ONCE).min(slices.end) {
                 let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("voxa into a slice"),
+                    label: Some("volsa into a slice"),
                     color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                         view: &view,
                         depth_slice: Some(slice),
@@ -177,7 +181,7 @@ impl IntoSlices {
                 pass.set_pipeline(&self.pipeline);
                 pass.set_bind_group(0, &bind_group, &[]);
                 // The slice is the instance, which is how the fragment shader is told it.
-                pass.draw(0..3, slice..slice + 1);
+                pass.draw(0..3, slice - first..slice - first + 1);
             }
             queue.submit(Some(encoder.finish()));
             slice += SLICES_AT_ONCE;

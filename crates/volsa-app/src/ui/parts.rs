@@ -1,20 +1,16 @@
-//! The Parts list: the labelled parts of the head as a label file gives them, by group, to
-//! search, show, hide, fade and select. It says where the names came from and how far each
-//! can be trusted, and who made the labels: another program, or Volsa, which the strip at the
-//! top of the tab labels a scan with.
+//! What the Labels tab lists: the labelled parts of the head as a label file gives them, by
+//! group, to search, show, hide, fade and select. The rows, the part selected and the words
+//! that say what labels are, who made them and what a part's volume is are here; the tab that
+//! draws them with the overview by group, and the strip that labels a scan, are in
+//! [`super::tabs`] and [`labelling`].
 
-use egui::{Align, Layout, Rect, RichText, ScrollArea, Sense, Ui, UiBuilder, vec2};
+use egui::{Align, Layout, RichText, Sense, Ui, vec2};
 use volsa_labels::{Pair, Side, Trust, pairs, trust_in_words, volume_in_words};
-use volsa_render::Overlay;
 
-use super::plugins::plugin_section;
-use super::theme;
+use super::{access, theme};
 use crate::action::Action;
-use crate::labels::{FAINTEST, Labels, LabelsStatus, NamesFrom, on_this_series};
+use crate::labels::{FAINTEST, Labels};
 use crate::parts_table::sides_compared;
-use crate::planes::grid;
-use crate::plugins::tool_entries;
-use crate::state::AppState;
 
 pub mod labelling;
 
@@ -25,15 +21,12 @@ pub const WHAT_LABELS_ARE: &str = "Labels are parts of the head outlined on this
                                    has one.";
 /// Said above every list of parts.
 pub const MADE_ELSEWHERE: &str = "Made by another program. Volsa shows these labels as given.";
-const NAMED: &str = "Names from the table beside the labels.";
-const NAMED_BY_THE_MODEL: &str = "Names from the model's own list.";
-const NOT_NAMED: &str = "No table of names: the parts are called by their numbers.";
-const OTHER_STUDY: &str = "The labels open belong to another study than the one shown.";
-const NO_VOLUME: &str = "Labels are put on the 3D view of a series, and this one has none yet.";
-/// A column this wide has room for each part's volume beside its name.
-const WIDE: f32 = 300.0;
+/// Said when labels are put on the 3D view of a series that has none.
+pub const NO_VOLUME: &str = "Labels are put on the 3D view of a series, and this one has none yet.";
 /// The side of a part's swatch of colour, in points.
 const SWATCH: f32 = 10.0;
+/// What the slider that fades the part selected is for.
+const SOLID_SAYS: &str = "How solid it is drawn";
 
 /// What the person asked for that needs a file chosen.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,15 +39,15 @@ pub enum Asked {
     SaveCsv,
     /// Something the labelling strip needs chosen: a folder, or where to save the labels.
     Labelling(labelling::Wants),
-    /// To add a plugin, from a folder.
-    AddPlugin,
 }
 
 /// What the list keeps between frames.
 #[derive(Debug, Default)]
 pub struct PartsView {
     /// What is typed in the search box.
-    search: String,
+    pub search: String,
+    /// The group the list is to scroll to, when the overview has been clicked.
+    pub scroll_to: Option<String>,
 }
 
 /// One group of the list, with its names: a name with a left and a right is one row.
@@ -87,189 +80,37 @@ pub fn rows(labels: &Labels, search: &str) -> Vec<Group> {
     groups
 }
 
-/// Draw the list in `area`. `held` is how many bytes of the graphics card the window draws
-/// on it holds itself (see [`labelling::held_on_card`]). Gives what was asked for that needs a
-/// file chosen.
-pub fn show(
-    ui: &mut Ui,
-    area: Rect,
-    state: &AppState,
-    held: u64,
-    view: &mut PartsView,
-    actions: &mut Vec<Action>,
-) -> Option<Asked> {
-    ui.painter().rect_filled(area, 0, theme::PANEL);
-    let mut inside = ui.new_child(UiBuilder::new().max_rect(area.shrink(6.0)));
-    inside.set_clip_rect(area);
-    contents(&mut inside, state, held, view, actions)
+/// What a group is called where it is listed: its name, or "Parts" when the table gave none.
+pub fn title(group: &Group) -> &str {
+    if group.name.is_empty() {
+        "Parts"
+    } else {
+        &group.name
+    }
 }
 
-/// What the Parts tab holds: the strip that labels the scan, then the list, or why there is
-/// none.
-pub fn contents(
-    ui: &mut Ui,
-    state: &AppState,
-    held: u64,
-    view: &mut PartsView,
-    actions: &mut Vec<Action>,
-) -> Option<Asked> {
-    let strip = labelling::strip(ui, state, held, actions).map(Asked::Labelling);
-    let (entries, busy) = (tool_entries(&state.plugins), state.plugins.busy.as_deref());
-    let add = plugin_section(ui, &entries, busy, held, actions).then_some(Asked::AddPlugin);
-    let strip = strip.or(add);
-    let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
-    let open = |ui: &mut Ui| {
-        let can = grid(state).is_some();
-        let button = ui.add_enabled(can, egui::Button::new("Open labels…"));
-        let button = button.on_disabled_hover_text(NO_VOLUME);
-        button.clicked().then_some(Asked::OpenLabels)
-    };
-    let tab = match &state.labels.status {
-        LabelsStatus::None => {
-            ui.label(quiet(WHAT_LABELS_ARE));
-            open(ui)
-        }
-        LabelsStatus::Reading => {
-            ui.label("Reading the labels…");
-            None
-        }
-        LabelsStatus::Failed(why) => {
-            ui.label(RichText::new(why).color(theme::WARNING));
-            open(ui)
-        }
-        LabelsStatus::Ready if !on_this_series(state) => {
-            ui.label(quiet(OTHER_STUDY));
-            if ui.button("Close").clicked() {
-                actions.push(Action::CloseLabels);
-            }
-            None
-        }
-        LabelsStatus::Ready => list(ui, &state.labels, view, actions),
-    };
-    strip.or(tab)
+/// How many parts a group holds: a name with a left and a right is two.
+pub fn parts_in(group: &Group) -> usize {
+    group.rows.iter().flat_map(sides).count()
 }
 
-/// The list itself: the switches that act on all the labels, the search box and the part
-/// selected, which stay in place; then, scrolling beneath them, what the labels are and
-/// every group with its rows.
-fn list(
-    ui: &mut Ui,
-    labels: &Labels,
-    view: &mut PartsView,
-    actions: &mut Vec<Action>,
-) -> Option<Asked> {
-    let mut asked = switches(ui, labels, actions);
-    let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
-    ui.add(search.desired_width(f32::INFINITY));
-    if let Some(part) = labels.selected {
-        chosen(ui, labels, part, actions);
-    }
-    ui.separator();
-    let wide = ui.available_width() >= WIDE;
-    let tall = ScrollArea::vertical().auto_shrink([false, false]);
-    tall.show(ui, |ui| {
-        asked = asked.or(about(ui, labels));
-        let groups = rows(labels, &view.search);
-        if groups.is_empty() {
-            ui.label(RichText::new("No part has that in its name.").color(theme::QUIET_TEXT));
-        }
-        for group in groups {
-            let every = group.rows.iter().flat_map(sides);
-            let mut all = every.clone().all(|(_, part)| labels.is_shown(part));
-            let name = if group.name.is_empty() {
-                "Parts"
-            } else {
-                &group.name
-            };
-            let header = ui.checkbox(&mut all, RichText::new(name).small().strong());
-            if header
-                .on_hover_text("Show or hide the whole group")
-                .changed()
-            {
-                let (group, shown) = (group.name.clone(), all);
-                actions.push(Action::GroupShow { group, shown });
-            }
-            for pair in &group.rows {
-                row(ui, labels, pair, wide, actions);
-            }
-        }
-    });
-    asked
+/// Whether every part of a group is shown.
+pub fn all_shown(labels: &Labels, group: &Group) -> bool {
+    let mut parts = group.rows.iter().flat_map(sides);
+    parts.all(|(_, part)| labels.is_shown(part))
 }
 
-/// What the labels are: what they are of, who made them, where their names came from, and
-/// the labelling model's own check of them; and, beneath that, the
-/// button that saves the list as a table, and for labels that Volsa made, the one that saves
-/// them as a file. Gives what was asked for.
-fn about(ui: &mut Ui, labels: &Labels) -> Option<Asked> {
-    let quiet = |text: &str| RichText::new(text).small().color(theme::QUIET_TEXT);
-    if !labels.title.is_empty() {
-        ui.label(RichText::new(&labels.title).strong());
-    }
-    // Labels that Volsa made say so, and what they cannot show, with the model's check first.
-    match &labels.made {
-        Some(made) => labelling::made_by(ui, labels.verdict.as_ref(), made),
-        None => {
-            ui.label(quiet(MADE_ELSEWHERE));
-        }
-    }
-    ui.label(quiet(match labels.names_from {
-        NamesFrom::Table => NAMED,
-        NamesFrom::Model => NAMED_BY_THE_MODEL,
-        NamesFrom::Nothing => NOT_NAMED,
-    }));
-    if let Some(verdict) = labels.verdict.as_ref().filter(|_| labels.made.is_none()) {
-        labelling::verdict_line(ui, verdict);
-    }
-    let save = ui.small_button("Save as CSV…");
-    let hint = "Save every part, with its volume, as a table for a spreadsheet";
-    let csv = save.on_hover_text(hint).clicked().then_some(Asked::SaveCsv);
-    csv.or(labelling::save_as(ui, labels).map(Asked::Labelling))
+/// The colour of a group's first part, if it has one.
+pub fn colour_of(labels: &Labels, group: &Group) -> Option<[u8; 3]> {
+    let (_, first) = group.rows.iter().flat_map(sides).next()?;
+    labels.parts.get(first).map(|part| part.colour)
 }
 
-/// The switches that act on all the labels: show every part, close the labels, choose
-/// another table of names, and how the labels are drawn over the plane views.
-fn switches(ui: &mut Ui, labels: &Labels, actions: &mut Vec<Action>) -> Option<Asked> {
-    let mut asked = None;
-    ui.horizontal_wrapped(|ui| {
-        if ui.small_button("Show all").clicked() {
-            actions.push(Action::PartsShowAll);
-        }
-        if ui
-            .small_button("Close")
-            .on_hover_text("Close these labels")
-            .clicked()
-        {
-            actions.push(Action::CloseLabels);
-        }
-        let names = ui.small_button("Names…");
-        if names
-            .on_hover_text("Choose a table of names for these labels")
-            .clicked()
-        {
-            asked = Some(Asked::OpenNames);
-        }
-    });
-    ui.horizontal_wrapped(|ui| {
-        ui.label(RichText::new("On planes").small().color(theme::QUIET_TEXT));
-        let ways = [
-            (Overlay::Off, "Off", "No labels over the plane views"),
-            (Overlay::Outline, "Outline", "A line round each part"),
-            (
-                Overlay::Filled,
-                "Filled",
-                "The line, and a tint of the part's colour inside it",
-            ),
-        ];
-        for (overlay, word, hover) in ways {
-            let chosen = labels.overlay == overlay;
-            let way = ui.selectable_label(chosen, RichText::new(word).small());
-            if way.on_hover_text(hover).clicked() && !chosen {
-                actions.push(Action::SetOverlay(overlay));
-            }
-        }
-    });
-    asked
+/// A swatch of a part's colour, `SWATCH` points across.
+pub fn swatch(ui: &mut Ui, [red, green, blue]: [u8; 3]) {
+    let (swatch, _) = ui.allocate_exact_size(vec2(SWATCH, SWATCH), Sense::hover());
+    let colour = egui::Color32::from_rgb(red, green, blue);
+    ui.painter().rect_filled(swatch, 2, colour);
 }
 
 /// The sides a row has, each with the letter on its switch and its part.
@@ -278,6 +119,18 @@ fn sides(pair: &Pair) -> impl Iterator<Item = (&'static str, usize)> + Clone {
     marked
         .into_iter()
         .filter_map(|(mark, part)| Some((mark, part?)))
+}
+
+/// What a screen reader calls the switch of one side of a row, which shows only a letter or
+/// nothing: `Show hippocampus, left`.
+fn switch_name(labels: &Labels, mark: &str, part: usize) -> String {
+    let named = labels.parts.get(part);
+    let name = named.map_or("this part", |part| part.name.as_str());
+    match mark {
+        "L" => format!("Show {name}, left"),
+        "R" => format!("Show {name}, right"),
+        _ => format!("Show {name}"),
+    }
 }
 
 /// What is said of a row when it is pointed at: the volume of each side, and how far the
@@ -310,30 +163,30 @@ fn details(labels: &Labels, pair: &Pair) -> String {
 
 /// One row: a swatch of the part's colour, its name, which selects it, and a switch for
 /// each side it has; with room, the volume of each side too.
-fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut Vec<Action>) {
+pub fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut Vec<Action>) {
     let parts: Vec<(&str, usize)> = sides(pair).collect();
     let Some(first) = parts.first().and_then(|(_, part)| labels.parts.get(*part)) else {
         return;
     };
     ui.horizontal(|ui| {
-        let (swatch, _) = ui.allocate_exact_size(vec2(SWATCH, SWATCH), Sense::hover());
-        let [red, green, blue] = first.colour;
-        ui.painter()
-            .rect_filled(swatch, 2, egui::Color32::from_rgb(red, green, blue));
+        swatch(ui, first.colour);
         let selected = parts.iter().any(|(_, part)| labels.selected == Some(*part));
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
             for (mark, part) in parts.iter().rev() {
                 let mut shown = labels.is_shown(*part);
-                if ui
-                    .checkbox(&mut shown, RichText::new(*mark).small())
-                    .changed()
-                {
+                let switch = ui.checkbox(&mut shown, RichText::new(*mark).small());
+                access::call(&switch, switch_name(labels, mark, *part));
+                if switch.changed() {
                     actions.push(Action::PartShow { part: *part, shown });
                 }
             }
             if first.trust != Trust::Model {
                 let word = trust_in_words(&first.trust);
-                ui.label(RichText::new(word).small().color(theme::QUIET_TEXT));
+                ui.label(
+                    RichText::new(word)
+                        .small()
+                        .color(theme::palette(ui.ctx()).quiet_text),
+                );
             }
             if wide {
                 let volumes = parts.iter().filter_map(|(_, part)| labels.parts.get(*part));
@@ -341,7 +194,7 @@ fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut Vec<
                 ui.label(
                     RichText::new(volumes.join(" | "))
                         .small()
-                        .color(theme::QUIET_TEXT),
+                        .color(theme::palette(ui.ctx()).quiet_text),
                 );
             }
             // What is left of the line is the name's, cut short if it is longer.
@@ -360,7 +213,7 @@ fn row(ui: &mut Ui, labels: &Labels, pair: &Pair, wide: bool, actions: &mut Vec<
 
 /// The part selected: what it is, how solid it is drawn, showing it alone, and its two
 /// sides set against each other if it has two.
-fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) {
+pub fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) {
     let (Some(named), Some(how)) = (labels.parts.get(part), labels.shown.get(part)) else {
         return;
     };
@@ -375,11 +228,11 @@ fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) 
     ui.horizontal_wrapped(|ui| {
         let mut opacity = how.opacity;
         let solid = egui::Slider::new(&mut opacity, FAINTEST..=1.0).show_value(false);
-        if ui
-            .add(solid)
-            .on_hover_text("How solid it is drawn")
-            .changed()
-        {
+        let solid = ui.add(solid);
+        // A screen reader says what the slider is for, as the pointer resting on it does.
+        ui.ctx()
+            .accesskit_node_builder(solid.id, |node| node.set_label(SOLID_SAYS));
+        if solid.on_hover_text(SOLID_SAYS).changed() {
             actions.push(Action::PartOpacity { part, opacity });
         }
         if ui.small_button("Show only this").clicked() {
@@ -387,7 +240,11 @@ fn chosen(ui: &mut Ui, labels: &Labels, part: usize, actions: &mut Vec<Action>) 
         }
     });
     if let Some(against) = sides_compared(labels, part) {
-        ui.label(RichText::new(against).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(against)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
 }
 

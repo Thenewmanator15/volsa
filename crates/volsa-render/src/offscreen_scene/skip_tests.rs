@@ -1,6 +1,6 @@
 //! Stepping over the empty parts of a volume must not change the picture.
 
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use super::tests::drawn;
 use super::*;
@@ -89,7 +89,7 @@ fn skipping_treats_a_value_at_the_very_bottom_of_the_window_as_empty() {
 #[test]
 fn skipping_is_exact_with_cuts_and_at_low_quality() {
     use crate::scene::CutPlane;
-    use voxa_core::Point;
+    use volsa_core::Point;
     let cut_and_coarse = |scene: &mut SceneParams| {
         scene.cuts = vec![CutPlane {
             point: Point::new(3.0, -2.0, 1.0),

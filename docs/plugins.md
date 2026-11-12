@@ -15,7 +15,7 @@ may use it, and for what, is between you and them.
 
 ## What a person does
 
-1. In the Parts tab, under **Added by you**, press **Add a plugin…** and choose the folder.
+1. In the Tools tab, under **Added by you**, press **Add a plugin…** and choose the folder.
 2. Volsa checks the folder (below). If a check fails, one sentence says which, and nothing is
    copied.
 3. A card shows Volsa's own words first, then what the plugin says of itself, then every setting

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use voxa_models::{Card, Model, ModelError, RuntimeError, read_model};
+use volsa_models::{Card, Model, ModelError, RuntimeError, read_model};
 
 use super::Kit;
 use super::turn::on_its_own;
@@ -15,20 +15,20 @@ use crate::labelling::{LabellingAction, Ready};
 use crate::worker::{Shared, Workers, lock, shielded};
 
 /// Said after anything that keeps this computer from labelling a scan: where to read what
-/// goes where. A download of Voxa carries `docs/models.md` as `MODELS.md`, beside the program.
+/// goes where. A download of Volsa carries `docs/models.md` as `MODELS.md`, beside the program.
 const WHERE: &str =
     "MODELS.md beside the program (docs/models.md in the source) says what goes where.";
 /// The folders looked in beside the program.
 const MODELS: &str = "models";
 const RUNTIME: &str = "runtime";
 /// What is said when a look stops part-way.
-const PART_WAY: &str = "Voxa could not finish checking the model and the runtime.";
+const PART_WAY: &str = "Volsa could not finish checking the model and the runtime.";
 /// What is said when there is no model beside the program and no folder was chosen for it.
-const NO_MODEL: &str = "Voxa found no model: there is no folder called models beside it, and \
+const NO_MODEL: &str = "Volsa found no model: there is no folder called models beside it, and \
                         none has been chosen. Choose the folder that holds the model, under \
                         Options.";
 /// The same for the runtime.
-const NO_RUNTIME: &str = "Voxa found no runtime: there is no folder called runtime beside it, \
+const NO_RUNTIME: &str = "Volsa found no runtime: there is no folder called runtime beside it, \
                           and none has been chosen. Choose the folder that holds the runtime, \
                           under Options.";
 

@@ -85,8 +85,8 @@ pub struct Table {
 /// Why a file cannot be read as a table of names.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum TableError {
-    /// It is none of the kinds of table Voxa reads.
-    #[error("This is not a table of names that Voxa can read.")]
+    /// It is none of the kinds of table Volsa reads.
+    #[error("This is not a table of names that Volsa can read.")]
     NotATable,
     /// It is too long to be one.
     #[error("This file is too long to be a table of names.")]
@@ -204,8 +204,8 @@ struct Written {
     title: String,
     /// Named by the pipeline when a trained model made the labels.
     model: Option<serde_json::Value>,
-    /// Who made the labels, if Voxa did. Any value is taken, so that it can never spoil a table.
-    voxa: Option<serde_json::Value>,
+    /// Who made the labels, if Volsa did. Any value is taken, so that it can never spoil a table.
+    volsa: Option<serde_json::Value>,
     regions: Option<InOrder<Region>>,
     qc: Option<Check>,
     parts: Option<InOrder<String>>,
@@ -256,7 +256,7 @@ impl Written {
             title: kept(&self.title, MAX_NAME),
             entries,
             verdict: self.qc.and_then(Check::verdict),
-            made: self.voxa.as_ref().and_then(read_made),
+            made: self.volsa.as_ref().and_then(read_made),
         })
     }
 }

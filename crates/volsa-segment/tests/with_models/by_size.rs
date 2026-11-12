@@ -4,10 +4,10 @@
 //! labelling networks ask for grows with the scan and is more than the scores network's
 //! figure, which is the same for any scan; on the check head alone it is about as much.
 
-use voxa_core::{Affine, Volume};
-use voxa_models::{Cut, Device};
-use voxa_segment::label;
-use voxa_segment::testing::Bound;
+use volsa_core::{Affine, Volume};
+use volsa_models::{Cut, Device};
+use volsa_segment::label;
+use volsa_segment::testing::Bound;
 
 use super::{CHECK, REAL, ROBUST, on, turn};
 
@@ -15,7 +15,7 @@ use super::{CHECK, REAL, ROBUST, on, turn};
 /// padded to 192 a side.
 const AIR: [usize; 3] = [176, 176, 176];
 /// What the cortex network asks of the processor for each voxel, and what the scores network
-/// asks of it whatever the scan, in bytes: `voxa-models`' own figures, written out here so
+/// asks of it whatever the scan, in bytes: `volsa-models`' own figures, written out here so
 /// that the test says which is the larger.
 const CORTEX_A_VOXEL: u64 = 900;
 const SCORES: u64 = 31 * (1 << 30) / 10;
@@ -46,13 +46,13 @@ fn in_air(head: &Volume, sides: [usize; 3]) -> Volume {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 10 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 10 GiB of memory"]
 fn a_whole_run_on_a_scan_the_size_of_a_whole_head_asks_the_processor_for_no_more_than_its_bound() {
     let _turn = turn();
     let lists = &REAL.1.lists;
     let head = CHECK.volume("volume", "volume.f32");
     let volume = in_air(&head, AIR);
-    let sizes = voxa_segment::sizes(&volume).expect("the sizes of the scan");
+    let sizes = volsa_segment::sizes(&volume).expect("the sizes of the scan");
     let voxels = usize::try_from(sizes.whole).expect("a count");
     assert_eq!(voxels, 192 * 192 * 192, "the image the networks are given");
     assert!(

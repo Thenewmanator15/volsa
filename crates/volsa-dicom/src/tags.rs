@@ -4,7 +4,7 @@ use dicom_core::dictionary::{DataDictionary, DataDictionaryEntry};
 use dicom_core::value::Value;
 use dicom_core::{DataElement, VR};
 use dicom_dictionary_std::StandardDataDictionary;
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use crate::decode::{guarded, open};
 use crate::index::SliceRef;
@@ -33,13 +33,13 @@ pub struct TagRow {
 ///
 /// # Errors
 ///
-/// [`VoxaError::NotDicom`] when the entry is not a DICOM file,
-/// [`VoxaError::UnsupportedTransferSyntax`] or [`VoxaError::Decode`] when it cannot be read
+/// [`VolsaError::NotDicom`] when the entry is not a DICOM file,
+/// [`VolsaError::UnsupportedTransferSyntax`] or [`VolsaError::Decode`] when it cannot be read
 /// through, and the source's own error when the entry cannot be read from it.
 pub fn list_tags(
     source: &mut dyn SeriesSource,
     slice: &SliceRef,
-) -> Result<Vec<TagRow>, VoxaError> {
+) -> Result<Vec<TagRow>, VolsaError> {
     let bytes = source.read(&slice.entry)?;
     guarded(|| {
         let file = open(&bytes)?;
@@ -166,7 +166,7 @@ mod tests {
     use crate::testkit::{
         EnhancedFrame, EnhancedOptions, MemorySource, SliceOptions, classic_slice, enhanced_series,
     };
-    use voxa_core::VoxaError;
+    use volsa_core::VolsaError;
 
     const NAME: &str = "slice.dcm";
 
@@ -268,7 +268,7 @@ mod tests {
             frame: None,
         };
         let result = list_tags(&mut source, &slice);
-        assert!(matches!(result, Err(VoxaError::NotDicom)), "{result:?}");
+        assert!(matches!(result, Err(VolsaError::NotDicom)), "{result:?}");
     }
 
     #[test]

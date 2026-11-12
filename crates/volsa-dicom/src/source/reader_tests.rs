@@ -58,7 +58,7 @@ fn another_reader_of_a_folder_or_a_zip_reads_what_the_source_reads() {
         }
         assert!(matches!(
             reader.read("IMAGES/I9999"),
-            Err(VoxaError::MissingEntry(_))
+            Err(VolsaError::MissingEntry(_))
         ));
     }
 }

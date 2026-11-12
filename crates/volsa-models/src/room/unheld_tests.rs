@@ -1,5 +1,5 @@
 //! Tests of a discrete card's room when other programs hold its memory. The system's budget for
-//! Voxa stays where it was as they take the card's memory, and what no program holds falls. A
+//! Volsa stays where it was as they take the card's memory, and what no program holds falls. A
 //! run's needs, a quarter included, must fit in the budget, and what its networks take must fit
 //! in what is free. Every card and figure here is made up.
 
@@ -72,7 +72,7 @@ fn the_budget_holds_what_a_run_needs_and_what_is_free_what_it_takes_to_the_byte(
     assert_eq!(cuts(Some(need), Some(100 * GIB)), both);
     assert_eq!(cuts(Some(need - 1), Some(100 * GIB)), head);
     // Either alone decides where the other could not be read. With no budget, the card's own
-    // memory less what Voxa holds stands in for it.
+    // memory less what Volsa holds stands in for it.
     assert_eq!(cuts(None, Some(TAKE)), both);
     assert_eq!(cuts(None, Some(TAKE - 1)), head);
     assert_eq!(cuts(Some(need - 1), None), head);
@@ -96,7 +96,7 @@ fn the_scores_network_stays_on_a_card_whose_free_memory_holds_what_it_takes() {
 }
 
 #[test]
-fn what_no_program_holds_already_counts_what_voxa_holds_for_drawing() {
+fn what_no_program_holds_already_counts_what_volsa_holds_for_drawing() {
     // The first set-up draws on card 1 and holds 1 GiB of it, and has no budget for it. That
     // hold is taken off the card's own memory, which stands in for the budget; what no program
     // holds has it taken off already, and is not cut twice.

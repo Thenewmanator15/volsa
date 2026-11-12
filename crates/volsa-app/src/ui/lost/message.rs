@@ -5,11 +5,11 @@
 pub fn in_a_window(text: &str) {
     let text = text.to_owned();
     let started = std::thread::Builder::new()
-        .name("voxa graphics notice".to_owned())
+        .name("volsa graphics notice".to_owned())
         .spawn(move || {
             rfd::MessageDialog::new()
                 .set_level(rfd::MessageLevel::Error)
-                .set_title("Voxa")
+                .set_title("Volsa")
                 .set_description(text)
                 .set_buttons(rfd::MessageButtons::Ok)
                 .show();

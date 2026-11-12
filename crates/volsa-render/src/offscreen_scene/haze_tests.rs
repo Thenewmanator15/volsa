@@ -1,7 +1,7 @@
 //! The see-through look and the air: what is fainter than a tenth of the window is not
 //! drawn, so the faint noise a scanner leaves in the air neither shows nor dims the patient.
 
-use voxa_core::Volume;
+use volsa_core::Volume;
 
 use super::tests::{MIDDLE, at, drawn};
 use super::*;

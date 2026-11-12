@@ -1,4 +1,4 @@
-//! What Voxa says when the runtime's library would not load, sorted from what Windows said.
+//! What Volsa says when the runtime's library would not load, sorted from what Windows said.
 //! Made-up errors only: no library is loaded.
 
 use std::error::Error;

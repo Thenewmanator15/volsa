@@ -1,7 +1,7 @@
 //! Made-up labels for the phantom's ball, as another program might have written them: a
 //! label volume on a grid of its own, and the table of names that goes with it.
 
-use voxa_labels::testkit::{NiftiOptions, gzipped, nifti};
+use volsa_labels::testkit::{NiftiOptions, gzipped, nifti};
 
 /// Nothing: outside the ball.
 pub const NOTHING: u8 = 0;

@@ -1,6 +1,6 @@
 //! Stepping between the volumes of a series that holds several.
 
-use voxa_core::SeriesId;
+use volsa_core::SeriesId;
 
 use super::settle_window;
 use super::viewport::moved;
@@ -9,7 +9,7 @@ use crate::state::AppState;
 
 /// Show, in viewport `at`, the volume `by` places on from the one it shows, stopping at the
 /// first and the last. The slice and the view stay; a window set by hand stays, and one that
-/// was Voxa's own choice is chosen again for the new volume.
+/// was Volsa's own choice is chosen again for the new volume.
 pub(super) fn step(state: &mut AppState, at: usize, by: i32) -> Vec<Effect> {
     let Some(series) = other_volume(state, at, by) else {
         return Vec::new();
@@ -40,7 +40,7 @@ fn other_volume(state: &AppState, at: usize, by: i32) -> Option<SeriesId> {
         return None;
     }
     let listed = &state.index.as_ref()?.series;
-    let is_it = |other: &&voxa_dicom::IndexedSeries| {
+    let is_it = |other: &&volsa_dicom::IndexedSeries| {
         let found = other.info.set.as_ref();
         found.is_some_and(|found| found.of == set.of && found.at == to)
     };

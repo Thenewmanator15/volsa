@@ -5,16 +5,17 @@ use egui::{Align2, Color32, Rect, Sense, Stroke, Ui};
 use std::sync::Arc;
 
 use egui_wgpu::RenderState;
-use voxa_core::{Volume, WindowLevel};
-use voxa_labels::LabelSet;
-use voxa_render::{LabelsOnDevice, Overlay, PlaneView, SmoothedTexture, VolumePipeline};
-use voxa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
+use volsa_core::{HeldVolume, WindowLevel};
+use volsa_labels::LabelSet;
+use volsa_render::{LabelsOnDevice, Overlay, PlaneView, SmoothedTexture, VolumePipeline};
+use volsa_volume::{Plane, PlaneKind, ellipse_stats, pitch_along};
 
 use super::pen::{self, Pen};
 use super::scene::status_text;
 use super::{overlay as slice_overlay, theme};
 use crate::action::Action;
-use crate::annotations::{Shape, Tool, measured};
+use crate::annotations::{Annotation, Shape, Tool, measured};
+use crate::measuring::Scale;
 use crate::planes::{grid, plane};
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -32,7 +33,8 @@ pub use overlay::{
     Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_colour,
     plane_letters,
 };
-pub use shapes::{Drawn, beside, paint};
+pub use shapes::{Drawn, Mark, beside, drawn_through, paint_all, shown_on};
+pub use tools::{Draft, Pointer, drafted, preview};
 
 /// How thick the lines of the cross and the bar along the top of a panel are, in points.
 const LINE: f32 = 1.0;
@@ -59,10 +61,10 @@ pub struct PlanesView {
     drawing: tools::Drawing,
     /// The curve the planes are drawn from when they are drawn smooth, on the graphics
     /// device, with the volume it runs through.
-    curve: Option<(Arc<Volume>, SmoothedTexture)>,
+    curve: Option<(Arc<HeldVolume>, SmoothedTexture)>,
     /// The volume the graphics device had no room to work the curve out for: a worker
     /// was asked instead, and the device is not asked again for the same volume.
-    refused: Option<Arc<Volume>>,
+    refused: Option<Arc<HeldVolume>>,
 }
 
 impl PlanesView {
@@ -102,7 +104,7 @@ pub fn no_room_to_smooth() -> Notice {
 /// for telling which part lies under the pointer.
 pub type Sources<'a> = (
     Option<(&'a VolumePipeline, &'a RenderState)>,
-    Option<&'a Volume>,
+    Option<&'a HeldVolume>,
     Option<&'a LabelSet>,
 );
 
@@ -131,6 +133,7 @@ pub fn show(
             let input = mouse::gather(ui, &response, cell, &shown, part_notch);
             let drawn = handled(state, kind, &input, (&shown.plane, scan), &mut view.drawing);
             actions.extend(drawn);
+            write_value(ui, cell, overlay::value_under(state, scan, input.hover_at));
             // The press that moves the position also selects the part pressed on.
             actions.extend(parts::selected_by(state, labels, &input));
             if let Some(name) = parts::named_under(state, labels, &input) {
@@ -138,6 +141,18 @@ pub fn show(
             }
         }
     }
+}
+
+/// Write the value under the pointer in the top right corner of a panel, which nothing else
+/// of the panel's writing takes.
+fn write_value(ui: &Ui, cell: Rect, line: Option<String>) {
+    let Some(line) = line else {
+        return;
+    };
+    let pen = Pen::over(ui, cell);
+    let inside = cell.shrink(pen::INSET);
+    let room = inside.width() / 2.0 - pen::LETTER_ROOM;
+    pen.write_lines(inside.right_top(), Align2::RIGHT_TOP, &[line], room);
 }
 
 /// What a panel is drawn with on the graphics device: its own pipeline, and the scene's
@@ -154,6 +169,7 @@ fn panel(
     drawing: &tools::Drawing,
 ) -> Option<(egui::Response, PlaneView)> {
     let response = ui.interact(cell, ui.id().with(("plane", kind)), Sense::click_and_drag());
+    response.widget_info(|| overlay::widget(state, kind));
     ui.painter().rect_filled(cell, 0, Color32::BLACK);
     let size = [cell.width(), cell.height()];
     let shown = plane(state, kind)
@@ -196,7 +212,7 @@ fn handled(
     state: &AppState,
     kind: PlaneKind,
     input: &PlaneInput,
-    (plane, scan): (&Plane, Option<&Volume>),
+    (plane, scan): (&Plane, Option<&HeldVolume>),
     drawing: &mut tools::Drawing,
 ) -> Vec<Action> {
     let navigating = state.tool == Tool::Navigate;
@@ -208,6 +224,9 @@ fn handled(
     let input = PlaneInput {
         window_width: window(state).width,
         held_at: input.held_at.filter(|_| navigating),
+        // With a measuring tool in hand a double-click finishes what is being drawn: it must
+        // not also fit the panel.
+        double_clicked: input.double_clicked && navigating,
         ..input.clone()
     };
     let mut actions = plane_input_to_actions(kind, state.active, &input);
@@ -217,7 +236,7 @@ fn handled(
 
 /// A region with what the scan holds inside it worked out, if there is a scan to read; any
 /// other annotation as it is.
-fn measured_on(shape: Shape, plane: &Plane, scan: Option<&Volume>) -> Shape {
+fn measured_on(shape: Shape, plane: &Plane, scan: Option<&HeldVolume>) -> Shape {
     match shape {
         Shape::Region {
             centre,
@@ -227,7 +246,7 @@ fn measured_on(shape: Shape, plane: &Plane, scan: Option<&Volume>) -> Shape {
             stats: None,
         } => {
             let [x, y, z] = centre;
-            let (on_plane, _) = plane.of(voxa_core::Point::new(x, y, z));
+            let (on_plane, _) = plane.of(volsa_core::Point::new(x, y, z));
             let stats = scan.and_then(|scan| ellipse_stats(scan, plane, on_plane, radii_mm));
             Shape::Region {
                 centre,
@@ -267,18 +286,36 @@ fn written_over(
         }
     }
     let inside = cell.shrink(pen::INSET);
-    pen::letters(&pen, inside, &plane_letters(&view.plane));
+    let letters = pen::letters(&pen, inside, &plane_letters(&view.plane));
+    let mut taken = corner_text(&pen, cell, state, (kind, view, smooth));
+    taken.extend(letters);
+    let so_far = drawing.so_far(kind, &view.plane);
+    annotations(&pen, cell, (state, view), so_far, &taken);
+}
+
+/// Write in the corners of a panel at `cell`: the scale bar, the plane's name and place, and
+/// what the picture cannot show. Says where the writing stands, so that measurements are
+/// written clear of it. (The value under the pointer, in the top right corner, is clear of
+/// them already, in the room kept along the top.)
+fn corner_text(
+    pen: &Pen,
+    cell: Rect,
+    state: &AppState,
+    (kind, view, smooth): (PlaneKind, &PlaneView, bool),
+) -> Vec<Rect> {
+    let mut taken = Vec::new();
+    let inside = cell.shrink(pen::INSET);
     let mm_per_point = narrowed(view.mm_per_px);
     let longest = cell.width() * (1.0 - NOTE_SHARE) - pen::INSET;
     if let Some((length, label)) = slice_overlay::scale_bar(mm_per_point, longest) {
         // In the corner: the middle of the bottom edge belongs to the cross and its letter.
-        pen::bar_in_corner(&pen, inside, length, &label);
+        taken.push(pen::bar_in_corner(pen, inside, length, &label));
     }
     // In the top left corner, kept clear of the letter at the top.
     let room = inside.width() / 2.0 - pen::LETTER_ROOM;
     let position = state.planes.position.unwrap_or(view.plane.centre);
     let caption = plane_caption(kind, &view.plane, position);
-    pen.write_in(inside.left_top(), &caption, plane_colour(kind), room);
+    taken.push(pen.write_in(inside.left_top(), &caption, plane_colour(kind), room));
     let note = grid(state).and_then(|(placement, _)| {
         let pitch = |side| pitch_along(&placement, side);
         let spacing = state.series(state.scene.series.as_ref()?)?.info.spacing_mm;
@@ -291,37 +328,47 @@ fn written_over(
         .collect();
     if let Some(note) = Some(notes.join("\n")).filter(|note| !note.is_empty()) {
         // Kept to its own side of the letter in the middle of the bottom edge.
-        pen.write_wrapped_up(inside.left_bottom(), &note, room);
+        taken.push(pen.write_wrapped_up(inside.left_bottom(), &note, room));
     }
-    annotations(&pen, cell, state, view, drawing.so_far(kind, &view.plane));
+    taken
 }
 
 /// Draw the annotations that lie in the layer a panel shows, each with its name and what it
-/// measures, and then the one being drawn, with what it would measure if finished now.
-fn annotations(pen: &Pen, cell: Rect, state: &AppState, view: &PlaneView, so_far: Option<Shape>) {
+/// measures, and then the one being drawn, with what it would measure if finished now. The
+/// words are kept clear of the places `taken` by other writing.
+fn annotations(
+    pen: &Pen,
+    cell: Rect,
+    (state, view): (&AppState, &PlaneView),
+    so_far: Option<Shape>,
+    taken: &[Rect],
+) {
     let size = [cell.width(), cell.height()];
     let placement = grid(state).map(|(placement, _)| placement);
     let pitch = placement.and_then(|placement| pitch_along(&placement, view.plane.normal()));
     // Half a layer either side, and a hair more for what lies exactly between two.
     let half_layer = pitch.map_or(0.5, |pitch| pitch / 2.0) + 1.0e-6;
-    let value = |shape: &Shape| measured(shape, placement.as_ref()).value;
-    for item in &state.annotations.items {
-        if shapes::shown_on(&item.shape, &view.plane, half_layer) {
-            let words = shapes::beside(item, &value(&item.shape));
-            let drawn = shapes::drawn(&item.shape, view, size);
-            shapes::paint(pen, (cell, ROOM.top), &drawn, theme::ACCENT, &words);
-        }
-    }
-    if let Some(shape) = so_far {
-        let drawn = shapes::drawn(&shape, view, size);
-        shapes::paint(
-            pen,
-            (cell, ROOM.top),
-            &drawn,
-            theme::WARNING,
-            &value(&shape),
-        );
-    }
+    let value = |shape: &Shape, scale| measured(shape, placement.as_ref(), scale).shown();
+    let lying_here = |item: &&Annotation| shapes::shown_on(&item.shape, &view.plane, half_layer);
+    let mark = |item: &Annotation| Mark {
+        drawn: shapes::drawn(&item.shape, view, size),
+        colour: theme::ACCENT,
+        words: shapes::beside(item, &value(&item.shape, item.scale)),
+    };
+    let mut marks: Vec<Mark> = state
+        .annotations
+        .items
+        .iter()
+        .filter(lying_here)
+        .map(mark)
+        .collect();
+    marks.extend(so_far.map(|shape| Mark {
+        drawn: shapes::drawn(&shape, view, size),
+        colour: theme::WARNING,
+        // The planes are of a volume, which is placed in the patient.
+        words: value(&shape, Scale::Patient),
+    }));
+    shapes::paint_all(pen, (cell, ROOM.top), taken, &marks);
 }
 
 #[expect(
@@ -332,6 +379,10 @@ fn narrowed(value: f64) -> f32 {
     value as f32
 }
 
+#[cfg(test)]
+mod layer_tests;
+#[cfg(test)]
+mod shapes_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

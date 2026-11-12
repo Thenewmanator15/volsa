@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
+use volsa_dicom::testkit::{SliceOptions, classic_slice};
 
 use crate::{labels, more};
 
@@ -45,7 +45,7 @@ pub fn write(folder: &Path) -> std::io::Result<()> {
         write_series(folder, series)?;
     }
     more::write(folder)?;
-    // The labels are of the finer series, the one Voxa opens first.
+    // The labels are of the finer series, the one Volsa opens first.
     let [_, fine] = &SERIES;
     let beside = folder.join("labels");
     std::fs::create_dir_all(&beside)?;

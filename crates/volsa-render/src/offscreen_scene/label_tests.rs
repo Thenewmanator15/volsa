@@ -1,9 +1,9 @@
 //! Labels drawn over a plane: tinted, outlined, hidden, faded and selected, and always where
 //! the patient has them, whatever grid they are on.
 
-use voxa_core::{Patient, Point, Volume};
-use voxa_labels::LabelSet;
-use voxa_volume::{PlaneKind, plane_of};
+use volsa_core::{Patient, Point, Volume};
+use volsa_labels::LabelSet;
+use volsa_volume::{PlaneKind, plane_of};
 
 use super::*;
 use crate::labels::{FILL, Overlay, PartLook};
@@ -51,7 +51,7 @@ fn rgb(rgba: &[u8], (x, y): (u32, u32)) -> [u8; 3] {
 
 /// Every part shown, solid, in the colour its set gives it.
 fn all_shown(set: &LabelSet) -> Vec<PartLook> {
-    let solid = |part: &voxa_labels::Part| PartLook {
+    let solid = |part: &volsa_labels::Part| PartLook {
         colour: part.colour,
         opacity: 1.0,
     };

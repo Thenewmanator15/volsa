@@ -4,7 +4,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 mod archive_file;
 mod folder;
@@ -31,14 +31,14 @@ pub struct Entry {
 /// Somewhere scan files can be read from.
 pub trait SeriesSource: Send {
     /// Every file in the source, in name order, read one at a time.
-    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_>;
+    fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VolsaError>> + '_>;
 
     /// One file again by the name [`SeriesSource::entries`] gave it, for decoding later.
     ///
     /// # Errors
-    /// [`VoxaError::MissingEntry`] when the source has no such file; an I/O or archive error
+    /// [`VolsaError::MissingEntry`] when the source has no such file; an I/O or archive error
     /// when it cannot be read.
-    fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError>;
+    fn read(&mut self, name: &str) -> Result<Vec<u8>, VolsaError>;
 
     /// Every file in the source, in name order, handed to `visit` with its name and a reader
     /// of its contents, so that no more of a file is read than `visit` reads. Indexing reads
@@ -53,13 +53,36 @@ pub trait SeriesSource: Send {
     /// is visited, in the words reading it whole would refuse it with.
     fn visit_files(
         &mut self,
-        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VoxaError>,
-    ) -> Result<(), VoxaError> {
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+    ) -> Result<(), VolsaError> {
         for entry in self.entries() {
             let entry = entry?;
             visit(&entry.name, &mut entry.bytes.as_slice())?;
         }
         Ok(())
+    }
+
+    /// The names [`SeriesSource::visit_files`] would visit, in the order it would visit them,
+    /// so that they can be shared out between readers. `None` when the source cannot say
+    /// them without reading its files.
+    fn names(&mut self) -> Option<Vec<String>> {
+        None
+    }
+
+    /// The files named, in the order given, each handed to `visit` as
+    /// [`SeriesSource::visit_files`] hands it.
+    ///
+    /// # Errors
+    /// As [`SeriesSource::visit_files`]; a source that cannot say its names cannot visit
+    /// them either, and says the first is missing.
+    fn visit_these(
+        &mut self,
+        names: &[String],
+        visit: &mut dyn FnMut(&str, &mut dyn Read) -> Result<(), VolsaError>,
+    ) -> Result<(), VolsaError> {
+        let _ = visit;
+        let first = names.first().cloned().unwrap_or_default();
+        Err(VolsaError::MissingEntry(first))
     }
 
     /// Another reader of the same files, which reads them without waiting for this one, so
@@ -77,9 +100,9 @@ pub trait SeriesSource: Send {
 /// A zip is read in place: nothing is extracted to disk.
 ///
 /// # Errors
-/// [`VoxaError::Io`] when the path does not exist or cannot be read, and
-/// [`VoxaError::Archive`] when a file with a zip signature is not a readable archive.
-pub fn open_source(path: &Path) -> Result<Box<dyn SeriesSource>, VoxaError> {
+/// [`VolsaError::Io`] when the path does not exist or cannot be read, and
+/// [`VolsaError::Archive`] when a file with a zip signature is not a readable archive.
+pub fn open_source(path: &Path) -> Result<Box<dyn SeriesSource>, VolsaError> {
     let meta = std::fs::metadata(path)?;
     if meta.is_dir() {
         return Ok(Box::new(FolderSource::walk(path)?));
@@ -97,14 +120,14 @@ pub fn open_source(path: &Path) -> Result<Box<dyn SeriesSource>, VoxaError> {
     Ok(Box::new(FolderSource::single(path)))
 }
 
-fn has_zip_signature(path: &Path) -> Result<bool, VoxaError> {
+fn has_zip_signature(path: &Path) -> Result<bool, VolsaError> {
     let mut start = [0u8; 4];
     let read = File::open(path)?.read(&mut start)?;
     Ok(read == 4 && start == *b"PK\x03\x04")
 }
 
 /// Read everything from `reader`, refusing more than `limit` bytes.
-pub(crate) fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VoxaError> {
+pub(crate) fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>, VolsaError> {
     let mut bytes = Vec::new();
     let read = reader
         .take(limit.saturating_add(1))
@@ -114,7 +137,7 @@ pub(crate) fn read_limited(reader: &mut dyn Read, limit: u64) -> Result<Vec<u8>,
 }
 
 /// Refuse a file of `len` bytes when that is more than `limit`.
-pub(crate) fn within_limit(len: u64, limit: u64) -> Result<(), VoxaError> {
+pub(crate) fn within_limit(len: u64, limit: u64) -> Result<(), VolsaError> {
     if len > limit {
         return Err(too_large(limit));
     }
@@ -122,8 +145,8 @@ pub(crate) fn within_limit(len: u64, limit: u64) -> Result<(), VoxaError> {
 }
 
 /// Why a file larger than `limit` bytes is not read.
-pub(crate) fn too_large(limit: u64) -> VoxaError {
-    VoxaError::Archive(format!(
+pub(crate) fn too_large(limit: u64) -> VolsaError {
+    VolsaError::Archive(format!(
         "one of its files is larger than {} MB",
         limit / (1024 * 1024)
     ))
@@ -256,7 +279,7 @@ mod tests {
     fn a_missing_path_is_an_io_error() {
         let dir = tempfile::tempdir().expect("temp dir");
         let result = open_source(&dir.path().join("nothing-here"));
-        assert!(matches!(result, Err(VoxaError::Io(_))));
+        assert!(matches!(result, Err(VolsaError::Io(_))));
     }
 
     #[test]
@@ -277,11 +300,11 @@ mod tests {
         assert_eq!(folder.read("IMAGES/I0001").expect("reads"), b"one");
         assert_eq!(zipped.read("IMAGES/I0001").expect("reads"), b"one");
         assert!(
-            matches!(folder.read("IMAGES/I9999"), Err(VoxaError::MissingEntry(name)) if name == "IMAGES/I9999")
+            matches!(folder.read("IMAGES/I9999"), Err(VolsaError::MissingEntry(name)) if name == "IMAGES/I9999")
         );
         assert!(matches!(
             zipped.read("IMAGES/I9999"),
-            Err(VoxaError::MissingEntry(_))
+            Err(VolsaError::MissingEntry(_))
         ));
     }
 
@@ -294,7 +317,7 @@ mod tests {
             b"PK\x03\x04 this is not a real archive",
         );
         let result = open_source(&dir.path().join("broken.zip"));
-        assert!(matches!(result, Err(VoxaError::Archive(_))));
+        assert!(matches!(result, Err(VolsaError::Archive(_))));
     }
 
     #[test]
@@ -303,7 +326,7 @@ mod tests {
         assert_eq!(read_limited(&mut data.as_slice(), 100).expect("fits"), data);
         assert!(matches!(
             read_limited(&mut data.as_slice(), 99),
-            Err(VoxaError::Archive(_))
+            Err(VolsaError::Archive(_))
         ));
     }
 }

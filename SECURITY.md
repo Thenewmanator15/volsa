@@ -29,12 +29,18 @@ The faults that matter are those where something Volsa is handed makes it do wha
   issue with a made-up file is welcome, and if you are not sure, report it here.
 - **The runtime library.** To label a scan, Volsa loads ONNX Runtime (`onnxruntime.dll`, which
   in turn loads `onnxruntime_providers_shared.dll` and `DirectML.dll`) from a folder called
-  `runtime` beside `volsa.exe`, or from the folder named under **Options** in the Parts tab. A
+  `runtime` beside `volsa.exe`, or from the folder named under **Options** in the Tools tab. A
   way to make Volsa load a library from anywhere else, or one the person did not put there,
   counts. Volsa runs whatever library is in a folder the person names, with the person's own
   rights: that is how it is meant to work, so name only a folder that holds Microsoft's files.
 - **Anything that sends data off the computer**, or that writes a patient's details where Volsa
   says it does not: the log, the folders where Volsa keeps things, or a saved picture.
+- **The spill file.** Past its memory budget Volsa writes the numbers of a large series' slabs
+  to `cache/spill-<random number>.volsa` in its local folder, opened by Volsa alone and deleted
+  when the series gives way, when Volsa closes and, if a stop left one, at the next start. It
+  holds pixel values and nothing else: no name, no tag. A way to make Volsa leave one behind
+  while it runs no more, write anything else into it, put it anywhere else, or read another
+  program's file in its place counts.
 
 These are not for this form:
 
@@ -69,6 +75,65 @@ the person added.
 A fault in a plugin's model itself, such as wrong labels, is its maker's and not for this form.
 A network file that gets past the checks above and makes the helper, or Volsa, do what it should
 not is.
+## Reading reports
+
+Security note S-UI-01. An export can hold structured reports (DICOM SR) and PDFs stored in
+DICOM, and both come from anywhere. Volsa shows a report as plain text and saves a PDF as the
+bytes it holds, and does nothing else with either.
+
+- **Limits.** What Volsa turns into text is limited: a report is read no deeper than 16
+  sections, into no more than 5,000 lines and 1,000,000 characters, whichever comes first.
+  Where it goes past one, Volsa stops reading, keeps what it has, and says the report was cut
+  short, so the lines shown are always the start of the report, in order. A line cut at the
+  character limit ends in an ellipsis. The original report is the reference. These limits
+  apply to Volsa's own reading of the report, after the DICOM library has read the file; see
+  the last point.
+- **Text only.** What a report says is turned into text. A link, a reference to an image or
+  another object, or a waveform is never followed or fetched. Volsa writes a line that says
+  what the item was and that it is not shown, so that nothing is left out without a word.
+- **No PDF is drawn or opened.** Volsa has no PDF reader in it and starts no other program for
+  a PDF. Its bytes are only written, whole, to the place the person chooses.
+- **Nothing is executed.** A report or a PDF is read as data. No script, macro or embedded
+  file in either is run, and none is written anywhere except the copy of the PDF the person
+  asks for.
+- **A damaged file is an error for that file.** A report or PDF that cannot be read is
+  refused with an error, and so is one that makes the DICOM library panic, and Volsa goes on.
+  A fault that stops the whole program is not caught; the one known, a file nested too
+  deeply, is refused before the library reads it (see Files nested too deeply).
+- **What the limits do not cover.** The DICOM library reads the whole file before Volsa walks
+  the report, as it does for every file Volsa opens, so a file Volsa is given is still read
+  into memory up to the size limit for one file (4 GiB). How deeply a file nests its
+  sequences is checked before the DICOM library reads it, as for every file Volsa opens; see
+  Files nested too deeply. A file that stops Volsa, or that makes the library run out of
+  memory or time, is a fault to report here.
+
+## Files nested too deeply
+
+Security note S-DICOM-01. A DICOM file can hold sequences of items, and sequences inside those
+items, as deep as it likes. The DICOM library Volsa reads with (dicom-rs) builds each level by
+calling itself once more, with no limit of its own, so a damaged or crafted file nested deeply
+enough would use up the stack of the thread reading it. That stops Volsa at once, and nothing
+can catch it. Each level takes about 20 bytes of file, so a file of a few tens of kilobytes was
+enough, and a deflated file could be smaller still.
+
+- **The check.** Before the library is given a file, Volsa walks the same bytes with the
+  library's own reader of one piece at a time, which keeps its place in memory rather than on
+  the stack, set up as the library sets up its own read, a deflated file inflated as the
+  library would inflate it. A file whose sequences nest more than 64 deep is refused unread.
+  Real files nest far less: structured reports, the deepest, some ten to twenty.
+- **Everywhere a file is read.** The check is made everywhere Volsa hands the library a file:
+  reading headers while an export is indexed, reading what a document is (a report or a PDF)
+  while it is listed, and opening a file whole to show its pictures, list its tags, read a
+  report or save a PDF. Nesting after the pixels, which a header read never reaches, is
+  checked when the file is opened whole.
+- **What the person sees.** A refused file is named, with the reason "nested too deeply to read
+  safely", in a warning that some files were not read, and the rest of the export opens. A file
+  opened on its own says it was not read, and why. The log records only how many.
+- **A second line.** Every thread that reads files has a 16 MiB stack, eight times the usual.
+  Reading a file nested 64 deep takes at most about half a megabyte of it.
+
+A file that still stops Volsa, for example through a way of nesting this check does not see, or
+that makes the library run out of memory or time, is a fault to report here.
 
 ## Never include a real scan
 

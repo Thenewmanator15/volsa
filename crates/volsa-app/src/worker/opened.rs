@@ -3,8 +3,8 @@
 
 use std::sync::{Arc, Mutex};
 
-use voxa_core::VoxaError;
-use voxa_dicom::ImageFile;
+use volsa_core::VolsaError;
+use volsa_dicom::{ImageFile, IndexedSeries};
 
 use super::{Batch, Request, Shared, lock};
 
@@ -35,8 +35,8 @@ impl Opened {
         &self,
         entry: &str,
         export: u64,
-        open: impl FnOnce() -> Result<ImageFile, VoxaError>,
-    ) -> Result<Arc<ImageFile>, VoxaError> {
+        open: impl FnOnce() -> Result<ImageFile, VolsaError>,
+    ) -> Result<Arc<ImageFile>, VolsaError> {
         let mut held = lock(&self.held);
         let is_it = |held: &&Held| held.entry == entry && held.export == export;
         if let Some(found) = held.as_ref().filter(is_it) {
@@ -59,11 +59,38 @@ impl Opened {
     }
 }
 
+/// Group slices by the file that holds them, keeping the order they were asked for in: a
+/// file is read and parsed once however many of its frames are wanted.
+pub(super) fn batches(listed: &IndexedSeries, wanted: Vec<usize>) -> Vec<Batch> {
+    let mut batches: Vec<Batch> = Vec::new();
+    for slice in wanted {
+        let Some(at) = listed.slices.get(slice) else {
+            continue;
+        };
+        match batches.iter_mut().find(|batch| batch.entry == at.entry) {
+            Some(batch) => batch.slices.push((slice, at.frame)),
+            None => batches.push(Batch {
+                entry: at.entry.clone(),
+                slices: vec![(slice, at.frame)],
+            }),
+        }
+    }
+    batches
+}
+
+impl Batch {
+    /// Whether the file these slices are in holds many frames: such a file can be hundreds of
+    /// megabytes, and is kept once opened so that it is not read and parsed again.
+    pub(super) fn many_frames(&self) -> bool {
+        self.slices.iter().any(|(_, frame)| frame.is_some())
+    }
+}
+
 impl Shared {
     /// Read one file of the source that is open; `None` when none is. A source that gives
     /// readers of their own is held only while one is made, and read through that, so that
     /// workers read at the same time; any other is held while it reads.
-    pub(super) fn read_entry(&self, entry: &str) -> Option<Result<Vec<u8>, VoxaError>> {
+    pub(super) fn read_entry(&self, entry: &str) -> Option<Result<Vec<u8>, VolsaError>> {
         let mut source = lock(&self.source);
         let own = source.as_ref()?.another_reader();
         match own {
@@ -86,11 +113,10 @@ impl Shared {
         let open = || {
             let bytes = self
                 .read_entry(&batch.entry)
-                .unwrap_or_else(|| Err(VoxaError::MissingEntry(batch.entry.clone())));
+                .unwrap_or_else(|| Err(VolsaError::MissingEntry(batch.entry.clone())));
             ImageFile::open(&bytes?)
         };
-        let many_frames = batch.slices.iter().any(|(_, frame)| frame.is_some());
-        let file = if many_frames {
+        let file = if batch.many_frames() {
             self.kept.get(&batch.entry, request.opened, open)
         } else {
             open().map(Arc::new)
@@ -105,11 +131,11 @@ mod tests {
     use std::collections::HashMap;
     use std::sync::Barrier;
 
-    use voxa_core::SeriesId;
-    use voxa_dicom::testkit::{
+    use volsa_core::SeriesId;
+    use volsa_dicom::testkit::{
         EnhancedFrame, EnhancedOptions, SliceOptions, classic_slice, enhanced_series,
     };
-    use voxa_dicom::{Entry, SeriesSource};
+    use volsa_dicom::{Entry, SeriesSource};
 
     use super::super::tests::{Bench, ONE, folder_of};
     use super::*;
@@ -122,11 +148,11 @@ mod tests {
     }
 
     impl SeriesSource for Counting {
-        fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
+        fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VolsaError>> + '_> {
             self.inner.entries()
         }
 
-        fn read(&mut self, name: &str) -> Result<Vec<u8>, VoxaError> {
+        fn read(&mut self, name: &str) -> Result<Vec<u8>, VolsaError> {
             let mut reads = self.reads.lock().expect("no reader panicked");
             *reads.entry(name.to_owned()).or_default() += 1;
             self.inner.read(name)
@@ -177,6 +203,29 @@ mod tests {
     }
 
     #[test]
+    fn a_volume_built_from_a_file_of_many_frames_reads_it_once_however_many_slabs_it_fills() {
+        use crate::worker::volume_tests::{build, stored, until_the_volume_ends};
+        let folder = folder_of(&[("whole.dcm".to_owned(), many_frames(12))]);
+        let bench = Bench::with_budget(64 * ONE);
+        let index = bench.index(folder.path()).expect("indexes");
+        let series = index.series[0].info.id.0.clone();
+        // A slab holds two of the series' slices, so the volume is filled in six goes.
+        let in_a_slice = (index.series[0].info.rows * index.series[0].info.cols) as usize;
+        bench
+            .workers
+            .set_slab_bytes(2 * in_a_slice * size_of::<u16>());
+        let reads = counted(&bench);
+        build(&bench, &index, &series);
+        let reports = until_the_volume_ends(&bench);
+        let whole = matches!(reports.last(), Some(Action::VolumeReady { .. }));
+        assert!(whole, "{reports:?}");
+        let held = stored(&bench, &series).expect("the volume is kept");
+        assert_eq!(held.slab_count(), 6);
+        let reads = reads.lock().expect("no reader panicked");
+        assert_eq!(reads.get("whole.dcm"), Some(&1), "{reads:?}");
+    }
+
+    #[test]
     fn opening_another_export_lets_go_of_the_file_that_was_held() {
         let folder = folder_of(&[("whole.dcm".to_owned(), many_frames(4))]);
         let bench = Bench::with_budget(64 * ONE);
@@ -212,7 +261,7 @@ mod tests {
         );
         let failing = || {
             opens.set(opens.get() + 1);
-            Err(VoxaError::NotDicom)
+            Err(VolsaError::NotDicom)
         };
         assert!(kept.get("c", 2, failing).is_err());
         assert!(kept.get("c", 2, failing).is_err());
@@ -231,11 +280,11 @@ mod tests {
     }
 
     impl SeriesSource for Gated {
-        fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VoxaError>> + '_> {
+        fn entries(&mut self) -> Box<dyn Iterator<Item = Result<Entry, VolsaError>> + '_> {
             Box::new(std::iter::empty())
         }
 
-        fn read(&mut self, _: &str) -> Result<Vec<u8>, VoxaError> {
+        fn read(&mut self, _: &str) -> Result<Vec<u8>, VolsaError> {
             self.gate.wait();
             self.gate.wait();
             Ok(self.bytes.clone())

@@ -1,6 +1,6 @@
 //! Where an image lies in a viewport: fitted, zoomed, panned, flipped and turned.
 
-use voxa_core::{Affine, Screen, Voxel};
+use volsa_core::{Affine, Screen, Voxel};
 
 /// The furthest the image can be shrunk below the size at which it just fits.
 pub const MIN_ZOOM: f32 = 0.1;
@@ -164,7 +164,7 @@ pub(crate) fn finite_or(value: f64, otherwise: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use voxa_core::Point;
+    use volsa_core::Point;
 
     const VIEWPORT: [f32; 2] = [400.0, 400.0];
     /// 200 columns by 100 rows.

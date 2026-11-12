@@ -2,8 +2,8 @@
 //! series of the scene's study goes to the slice nearest the position, and takes the
 //! position with it when it is moved through its slices.
 
-use voxa_core::{Patient, Point};
-use voxa_volume::{nearest_slice, position_on_slice};
+use volsa_core::{Patient, Point};
+use volsa_volume::{nearest_slice, position_on_slice};
 
 use super::{planes, viewport};
 use crate::action::{Action, Effect};

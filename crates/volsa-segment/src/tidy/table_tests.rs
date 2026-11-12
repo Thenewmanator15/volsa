@@ -1,8 +1,8 @@
 //! Tests of the table that names what was labelled, and of the verdict in it. The lists are
 //! made up, with a few of `SynthSeg`'s own labels.
 
-use voxa_labels::{Entry, Side, Trust, Verdict, colour_for, verdict_in_words};
-use voxa_models::{Lists, ModelSide, Structure, Wanted};
+use volsa_labels::{Entry, Side, Trust, Verdict, colour_for, verdict_in_words};
+use volsa_models::{Lists, ModelSide, Structure, Wanted};
 
 use crate::{FAIL_BELOW, table};
 

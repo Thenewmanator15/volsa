@@ -10,7 +10,7 @@
 use std::io;
 use std::path::{Path, PathBuf};
 
-/// The folder within Voxa's own folder that holds the results.
+/// The folder within Volsa's own folder that holds the results.
 const FOLDER: &str = "labels";
 /// How the label file and its table end.
 const LABELS_END: &str = "nii.gz";
@@ -112,7 +112,7 @@ pub fn forget(folder: &Path, key: &str) -> io::Result<()> {
 }
 
 /// Where the table of labels saved as `labels` goes: beside them, under the same name with
-/// `.json` for `.nii.gz` or `.nii`, which is where Voxa looks for it when they are opened.
+/// `.json` for `.nii.gz` or `.nii`, which is where Volsa looks for it when they are opened.
 pub(crate) fn table_for(labels: &Path) -> PathBuf {
     let name = labels.file_name().map(|name| name.to_string_lossy());
     let name = name.unwrap_or_default();
@@ -126,7 +126,7 @@ pub(crate) fn table_for(labels: &Path) -> PathBuf {
 }
 
 /// The name labels asked to be saved as `to` are written under: one that ends in `.nii.gz`,
-/// since what is written is a gzipped NIfTI file, and Voxa and other programs know it as one
+/// since what is written is a gzipped NIfTI file, and Volsa and other programs know it as one
 /// by that ending. A name that ends in `.nii` gains `.gz`, one that ends in `.gz` gains `.nii`
 /// before it, and any other gains `.nii.gz`.
 pub(crate) fn saved_as(to: &Path) -> PathBuf {

@@ -1,6 +1,6 @@
 //! Plugins as the state keeps them: those added, a folder offered and its card, a warning
-//! waiting for the person, and the run on. The Tools tab of the interface redesign draws
-//! [`ToolEntry`]s; until it lands, the Parts tab does.
+//! waiting for the person, and the run on. The Tools tab draws them as
+//! [`ToolEntry`]s.
 
 use std::path::PathBuf;
 

@@ -7,7 +7,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use volsa_core::{SeriesId, Volume};
+use volsa_core::{Grid as _, HeldVolume, SeriesId, Volume};
 use volsa_labels::{Added, MAX_MADE_LINE, Made, write_labels, write_table};
 use volsa_models::{Device, Room, RunError, RunsOn, Stop, file_sum};
 use volsa_plugins::{
@@ -41,7 +41,7 @@ struct Job {
     drawing_on: Option<String>,
     runtime: Option<std::path::PathBuf>,
     stop: Stop,
-    volume: Option<Arc<Volume>>,
+    volume: Option<Arc<HeldVolume>>,
 }
 
 impl Workers {
@@ -107,9 +107,15 @@ impl Shared {
         let Some(_turn) = self.labelling.turn(&job.stop) else {
             return;
         };
-        let Some(volume) = job.volume.as_deref() else {
+        let Some(held) = job.volume.as_deref() else {
             return self.plugin_failed(job, NO_VOLUME);
         };
+        // A plugin is given 32-bit values of the whole scan, as labelling is: made here, for
+        // the run only.
+        let Some(volume) = held.to_volume(0..held.dims()[2]) else {
+            return self.plugin_failed(job, NO_VOLUME);
+        };
+        let volume = &volume;
         let (Some(settings), Some(plugin)) = (self.settings.clone(), self.plugin(&job.id)) else {
             let why = if self.settings.is_none() {
                 NO_SETTINGS

@@ -17,7 +17,7 @@
  },
  "areas": {
   "file": "areas.u8",
-  "holds": "one byte a voxel of the padded grid: the cortex area there as Voxa's cortex network gives it, 1 plus the place of the largest of the chances of areas 1 to 68; [x, y, z] with z fastest: values[(x * padded_y + y) * padded_z + z]"
+  "holds": "one byte a voxel of the padded grid: the cortex area there as Volsa's cortex network gives it, 1 plus the place of the largest of the chances of areas 1 to 68; [x, y, z] with z fastest: values[(x * padded_y + y) * padded_z + z]"
  },
  "back": {
   "order": [

@@ -4,7 +4,7 @@
 
 use std::cmp::Ordering;
 
-use voxa_core::{SeriesId, VolumeSet};
+use volsa_core::{SeriesId, VolumeSet};
 
 use super::{Image, IndexedSeries, Slice, assembled, placement, slices_of};
 use crate::geometry::SAME_POSITION_MM;

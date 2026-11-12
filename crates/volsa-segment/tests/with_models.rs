@@ -2,8 +2,8 @@
 //! made of the same made-up head: the `check` folder of a model folder, which
 //! `tools/synthseg-to-onnx/check.py` writes and describes.
 //!
-//! Every test here is ignored unless it is asked for. Each needs `VOXA_MODELS` to name a model
-//! folder, and those that run a network need `VOXA_RUNTIME` to name the folder that holds the
+//! Every test here is ignored unless it is asked for. Each needs `VOLSA_MODELS` to name a model
+//! folder, and those that run a network need `VOLSA_RUNTIME` to name the folder that holds the
 //! runtime; a test says which is missing and fails. `cargo xtask check-models` runs them one
 //! at a time, each in a process of its own. A test for a kind of graphics card this computer
 //! has not got says so and passes. Each whole run on the processor or on a discrete card is
@@ -15,13 +15,13 @@ use std::time::Instant;
 use std::{env, fs};
 
 use serde_json::Value;
-use voxa_core::{Affine, Point, Volume};
-use voxa_labels::LabelGrid;
-use voxa_models::{
+use volsa_core::{Affine, Point, Volume};
+use volsa_labels::LabelGrid;
+use volsa_models::{
     CardKind, Cut, Device, Model, ModelSide, Numbers, Runtime, Tensor, Wanted, budget, read_model,
 };
-use voxa_segment::testing::{Agreement, Bound, OnDevice, cards_of, measured, quickest};
-use voxa_segment::{Stage, find, label, prepare, tidy};
+use volsa_segment::testing::{Agreement, Bound, OnDevice, cards_of, measured, quickest};
+use volsa_segment::{Stage, find, label, prepare, tidy};
 
 #[path = "with_models/by_size.rs"]
 mod by_size;
@@ -57,9 +57,9 @@ const ROBUST: Wanted = Wanted {
 };
 
 /// The variable that names the model folder, and what it names.
-const MODELS: (&str, &str) = ("VOXA_MODELS", "a model folder");
+const MODELS: (&str, &str) = ("VOLSA_MODELS", "a model folder");
 /// The same for the networks' runtime.
-const RUNTIME: (&str, &str) = ("VOXA_RUNTIME", "the folder that holds the runtime");
+const RUNTIME: (&str, &str) = ("VOLSA_RUNTIME", "the folder that holds the runtime");
 
 /// The folder a variable names. Without it a test that was asked for cannot run, and says so.
 fn folder((variable, what): (&str, &str)) -> PathBuf {
@@ -130,8 +130,8 @@ impl Check {
         [0, 1, 2].map(|place| side(place).unwrap_or_else(|| panic!("case.json sizes {of}")))
     }
 
-    /// A volume of the check folder, as Voxa holds one. `case.json` places it as NIfTI does,
-    /// with x to the patient's right and y to the front. Voxa's x runs to the left and its y
+    /// A volume of the check folder, as Volsa holds one. `case.json` places it as NIfTI does,
+    /// with x to the patient's right and y to the front. Volsa's x runs to the left and its y
     /// to the back, so the two rows of the transform change their sign.
     fn volume(&self, of: &str, file: &str) -> Volume {
         let number = |row: usize, place: usize| self.case[of]["affine"][row][place].as_f64();
@@ -236,39 +236,39 @@ fn held_on_each(kind: CardKind, wanted: Wanted) {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 4 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 4 GiB of memory"]
 fn the_standard_model_on_the_processor_gives_pythons_labels_at_every_voxel() {
     let _turn = turn();
     held((Device::Processor, "the processor"), STANDARD);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 4 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 4 GiB of memory"]
 fn the_robust_model_on_the_processor_gives_pythons_labels() {
     let _turn = turn();
     held((Device::Processor, "the processor"), ROBUST);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on the card; skips without a discrete card"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB on the card; skips without a discrete card"]
 fn the_standard_model_on_a_discrete_card_gives_pythons_labels() {
     held_on_each(CardKind::Discrete, STANDARD);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on the card; skips without a discrete card"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB on the card; skips without a discrete card"]
 fn the_robust_model_on_a_discrete_card_gives_pythons_labels() {
     held_on_each(CardKind::Discrete, ROBUST);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB of memory; skips without integrated graphics"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB of memory; skips without integrated graphics"]
 fn the_standard_model_on_integrated_graphics_gives_pythons_labels() {
     held_on_each(CardKind::Integrated, STANDARD);
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB of memory; skips without integrated graphics"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB of memory; skips without integrated graphics"]
 fn the_robust_model_on_integrated_graphics_gives_pythons_labels() {
     held_on_each(CardKind::Integrated, ROBUST);
 }
@@ -292,20 +292,20 @@ fn prepared_as_python_prepares(of: &str, file: &str, theirs: (&str, &str), withi
 }
 
 #[test]
-#[ignore = "needs VOXA_MODELS"]
+#[ignore = "needs VOLSA_MODELS"]
 fn the_volume_is_prepared_as_python_prepares_it() {
     prepared_as_python_prepares("volume", "volume.f32", ("image", "image.f32"), IMAGE);
 }
 
 #[test]
-#[ignore = "needs VOXA_MODELS"]
+#[ignore = "needs VOLSA_MODELS"]
 fn the_thick_copy_is_prepared_as_python_prepares_it() {
     let theirs = ("thick_image", "thick_image.f32");
     prepared_as_python_prepares("thick", "thick.f32", theirs, RESAMPLED_IMAGE);
 }
 
 /// How far along the patient's left-right axis the middle of a label's voxels lies, in
-/// millimetres. Voxa's patient space grows towards the patient's left. `None` for a label
+/// millimetres. Volsa's patient space grows towards the patient's left. `None` for a label
 /// that too few voxels have.
 fn leftness(grid: &LabelGrid, label: u32) -> Option<f64> {
     let [cols, rows, _] = grid.dims.map(|side| side as usize);
@@ -320,7 +320,7 @@ fn leftness(grid: &LabelGrid, label: u32) -> Option<f64> {
 }
 
 #[test]
-#[ignore = "needs VOXA_RUNTIME, VOXA_MODELS and 9 GiB on a discrete card, or 4 GiB of memory"]
+#[ignore = "needs VOLSA_RUNTIME, VOLSA_MODELS and 9 GiB on a discrete card, or 4 GiB of memory"]
 fn the_whole_path_puts_a_left_structure_on_the_patients_left_of_its_twin() {
     let _turn = turn();
     let lists = &REAL.1.lists;
@@ -363,13 +363,13 @@ fn the_whole_path_puts_a_left_structure_on_the_patients_left_of_its_twin() {
         let Some((their_left, their_right)) = python else {
             continue;
         };
-        let voxa = leftness(&ours.grid, left.label).zip(leftness(&ours.grid, right));
-        let (our_left, our_right) = voxa.expect("a pair that Python found and Voxa did not");
+        let volsa = leftness(&ours.grid, left.label).zip(leftness(&ours.grid, right));
+        let (our_left, our_right) = volsa.expect("a pair that Python found and Volsa did not");
         let (apart, name) = (our_left - our_right, &left.name);
         println!("  the left {name} lies {apart:.1} mm to the left of the right one");
-        let (python, voxa) = (their_left > their_right, our_left > our_right);
+        let (python, volsa) = (their_left > their_right, our_left > our_right);
         assert!(python, "Python's left {name} lies on the right");
-        assert!(voxa, "Voxa's left {name} lies on the right");
+        assert!(volsa, "Volsa's left {name} lies on the right");
         pairs += 1;
     }
     assert!(pairs > 0, "no pair of twins to tell left from right by");

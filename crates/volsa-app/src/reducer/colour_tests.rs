@@ -1,6 +1,6 @@
 //! A series of pictures in colour in the state: shown, with no window and no 3D view.
 
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use super::scene_tests::select;
 use super::*;

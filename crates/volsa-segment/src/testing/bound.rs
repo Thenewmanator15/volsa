@@ -1,8 +1,8 @@
 //! The bound on the ordinary memory a whole run on the real networks may ask the system for,
-//! which the tests that run them hold the run to. The figures are `voxa-models`' own
-//! ([`asks`]); what is added here is what the test itself holds beside Voxa.
+//! which the tests that run them hold the run to. The figures are `volsa-models`' own
+//! ([`asks`]); what is added here is what the test itself holds beside Volsa.
 
-use voxa_models::{Card, CardKind, Cut, Device, Rung, Wanted, asks, cards};
+use volsa_models::{Card, CardKind, Cut, Device, Rung, Wanted, asks, cards};
 
 #[cfg(test)]
 mod tests;
@@ -11,14 +11,14 @@ mod tests;
 const BYTES_A_NUMBER: u64 = 4;
 
 /// What a whole run on one device may ask the system for in ordinary memory, at its peak: what
-/// [`asks`] says for the rung that ran, and what the test itself holds beside Voxa.
+/// [`asks`] says for the rung that ran, and what the test itself holds beside Volsa.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bound {
     /// How many voxels the networks are given.
     voxels: u64,
     /// What is wanted of the run.
     wanted: Wanted,
-    /// What the test holds while the networks run, apart from Voxa's own: each array it read
+    /// What the test holds while the networks run, apart from Volsa's own: each array it read
     /// before the run, by name, with its size in bytes.
     beside: Vec<(&'static str, u64)>,
 }
@@ -48,7 +48,7 @@ impl Bound {
         asks(self.voxels, self.wanted, rung)
     }
 
-    /// How many bytes the test holds beside Voxa.
+    /// How many bytes the test holds beside Volsa.
     fn held_beside(&self) -> u64 {
         self.beside
             .iter()

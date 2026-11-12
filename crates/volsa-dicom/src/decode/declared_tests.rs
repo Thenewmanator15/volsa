@@ -7,7 +7,7 @@ use dicom_core::value::PixelFragmentSequence;
 use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::{FileMetaTableBuilder, InMemDicomObject};
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use super::*;
 use crate::testkit::{
@@ -19,7 +19,7 @@ const RLE_LOSSLESS: &str = "1.2.840.10008.1.2.5";
 const JPEG_BASELINE: &str = "1.2.840.10008.1.2.4.50";
 const JPEG_2000_LOSSLESS: &str = "1.2.840.10008.1.2.4.90";
 
-fn decode(bytes: Vec<u8>, frame: Option<u32>) -> Result<Frame, VoxaError> {
+fn decode(bytes: Vec<u8>, frame: Option<u32>) -> Result<Frame, VolsaError> {
     let mut source = MemorySource::new(vec![("one.dcm".to_owned(), bytes)]);
     let slice = SliceRef {
         entry: "one.dcm".to_owned(),
@@ -31,7 +31,7 @@ fn decode(bytes: Vec<u8>, frame: Option<u32>) -> Result<Frame, VoxaError> {
 /// What a refusal says, whole.
 fn said(bytes: Vec<u8>, frame: Option<u32>) -> String {
     match decode(bytes, frame) {
-        Err(error @ VoxaError::Decode(_)) => error.to_string(),
+        Err(error @ VolsaError::Decode(_)) => error.to_string(),
         other => panic!("not refused as it should be: {other:?}"),
     }
 }
@@ -91,7 +91,7 @@ fn a_compressed_image_said_to_be_larger_than_any_mri_image_is_refused_in_a_sente
     assert_eq!(
         said(file, None),
         "The image could not be decoded: its header says each image takes 275 MB, more than \
-         any MRI image and more than the 256 MB Voxa makes room for."
+         any MRI image and more than the 256 MB Volsa makes room for."
     );
 }
 
@@ -143,7 +143,7 @@ fn a_file_of_many_frames_that_holds_fewer_than_it_says_is_refused_as_it_is_opene
     assert_eq!(said(claims_more.clone(), Some(0)), refusal);
     let opened = ImageFile::open(&claims_more).map(|_| ());
     assert!(
-        matches!(&opened, Err(VoxaError::Decode(why)) if refusal.contains(why.as_str())),
+        matches!(&opened, Err(VolsaError::Decode(why)) if refusal.contains(why.as_str())),
         "{opened:?}"
     );
 }
@@ -162,7 +162,7 @@ fn a_tiny_file_saying_it_holds_a_huge_image_is_refused_however_its_pixels_are_st
             assert!(file.len() < 1000, "a small file: {} bytes", file.len());
             let refusal = format!(
                 "The image could not be decoded: its header says each image takes {megabytes} \
-                 MB, more than any MRI image and more than the 256 MB Voxa makes room for."
+                 MB, more than any MRI image and more than the 256 MB Volsa makes room for."
             );
             assert_eq!(said(file, None), refusal, "{syntax}");
         }
@@ -188,7 +188,7 @@ fn an_image_of_256_mib_is_let_through_and_one_a_row_larger_is_not() {
     assert_eq!(at_the_limit.frame_bytes(), declared::MOST_FRAME_BYTES);
     assert!(at_the_limit.check().is_ok());
     let over = said_of(8193, 16_384, 16, 1, None);
-    assert!(matches!(over.check(), Err(VoxaError::Decode(why)) if why.contains("257 MB")));
+    assert!(matches!(over.check(), Err(VolsaError::Decode(why)) if why.contains("257 MB")));
 }
 
 #[test]

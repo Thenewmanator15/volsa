@@ -3,7 +3,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use voxa_render::DeviceWatch;
+use volsa_render::DeviceWatch;
 
 use super::*;
 use crate::state::NoticeKind;
@@ -58,7 +58,7 @@ fn a_card_that_stops_answering_is_said_to_have_once_in_the_words_given() {
     };
     assert_eq!(
         notice.text,
-        "The graphics card stopped answering. Close Voxa and open it again. \
+        "The graphics card stopped answering. Close Volsa and open it again. \
          Nothing you made has been lost."
     );
     assert_eq!(notice.kind, NoticeKind::Error);
@@ -79,7 +79,7 @@ fn a_message_box_of_the_system_is_asked_for_once_with_the_same_words() {
         let _ = said(&mut card);
     }
     let words = [
-        "The graphics card stopped answering. Close Voxa and open it again. \
+        "The graphics card stopped answering. Close Volsa and open it again. \
          Nothing you made has been lost.",
     ];
     assert_eq!(*asked.borrow(), words);

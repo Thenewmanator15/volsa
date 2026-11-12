@@ -4,14 +4,19 @@
 use std::path::{Path, PathBuf};
 
 use egui::Ui;
-use voxa_render::{SceneParams, turntable};
+use volsa_render::{SceneParams, turntable};
 
 use crate::export::{
     ExportError, SUGGESTED_NAME, TURNTABLE_FRAMES, TURNTABLE_SECONDS, gif, png, turntable_size,
     write,
 };
-use crate::state::{Notice, NoticeKind};
+use crate::state::{AppState, Notice, NoticeKind};
+use crate::ui::commands::{self, Does, Request};
 use crate::worker::Workers;
+
+mod progress;
+
+pub use progress::{is_open as turntable_is_open, progress, stop as stop_turntable};
 
 /// The key of the notice that says how saving went.
 const SAVING: &str = "saving";
@@ -25,21 +30,14 @@ pub enum Asked {
     Turntable,
 }
 
-/// What the Export menu holds: a button for each kind of file. Greyed until there is a 3D
-/// view to save.
-pub fn contents(ui: &mut Ui, there: bool) -> Option<Asked> {
-    let not_yet = "There is no 3D view to save yet";
-    let picture = ui.add_enabled(there, egui::Button::new("Save picture…"));
-    let picture = picture.on_hover_text("The 3D view as it is now, as a PNG file");
-    let turning = ui.add_enabled(there, egui::Button::new("Save turntable…"));
-    let turning =
-        turning.on_hover_text("The 3D view going once round the patient, as an animated GIF");
-    if picture.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Picture)
-    } else if turning.on_disabled_hover_text(not_yet).clicked() {
-        Some(Asked::Turntable)
-    } else {
-        None
+/// What the Export menu holds: a button for each kind of file, each an action of the list of
+/// actions. Greyed until there is a 3D view to save.
+pub fn contents(ui: &mut Ui, state: &AppState) -> Option<Asked> {
+    let picture = commands::button(ui, "scene.save.picture", state, None);
+    let turning = commands::button(ui, "scene.save.turntable", state, None);
+    match picture.or(turning)? {
+        Does::Ask(Request::SaveScene(asked)) => Some(asked),
+        _ => None,
     }
 }
 
@@ -170,27 +168,6 @@ impl Turntable {
     }
 }
 
-/// Show how far a turntable has got, with a way to stop it. True when the person stops it.
-pub fn progress(ctx: &egui::Context, making: &Turntable) -> bool {
-    let (done, of) = making.progress();
-    let mut stop = false;
-    egui::Window::new("Saving a turntable")
-        .collapsible(false)
-        .resizable(false)
-        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-        .show(ctx, |ui| {
-            ui.label(format!("Drawing picture {} of {of}", (done + 1).min(of)));
-            let share = if of == 0 {
-                1.0
-            } else {
-                done as f32 / of as f32
-            };
-            ui.add(egui::ProgressBar::new(share).desired_width(240.0));
-            stop = ui.button("Cancel").clicked();
-        });
-    stop
-}
-
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -198,8 +175,8 @@ mod tests {
     use egui::{Event, Modifiers, PointerButton, RawInput, pos2};
     use image::AnimationDecoder;
     use image::codecs::gif::GifDecoder;
-    use voxa_core::{Point, WindowLevel};
-    use voxa_render::{Camera, Look, NamedView};
+    use volsa_core::{Point, WindowLevel};
+    use volsa_render::{Camera, Look, NamedView};
 
     use super::*;
 
@@ -218,13 +195,17 @@ mod tests {
     /// Click down the menu and gather what was asked for, in the order met.
     fn sweep(there: bool) -> Vec<Asked> {
         let ctx = egui::Context::default();
+        let mut state = AppState::default();
+        if there {
+            state.scene.status = crate::scene::SceneStatus::Ready;
+        }
         let mut asked = Vec::new();
         let mut pass = |events: Vec<Event>| {
             let input = RawInput {
                 events,
                 ..RawInput::default()
             };
-            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, there)));
+            let mut output = ctx.run_ui(input, |ui| asked.extend(contents(ui, &state)));
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         };
@@ -253,11 +234,11 @@ mod tests {
     #[test]
     fn a_picture_is_saved_and_the_notice_names_the_file_and_nothing_else() {
         let folder = tempfile::tempdir().expect("a temporary folder");
-        let path = folder.path().join("voxa-3d.png");
+        let path = folder.path().join("volsa-3d.png");
         let notice = save_picture(&path, &[9; 3 * 2 * 4], [3, 2]);
         assert_eq!(
             (notice.kind, notice.text.as_str()),
-            (NoticeKind::Info, "Saved voxa-3d.png")
+            (NoticeKind::Info, "Saved volsa-3d.png")
         );
         let read = image::load_from_memory(&std::fs::read(&path).expect("reads")).expect("a png");
         assert_eq!((read.width(), read.height()), (3, 2));
@@ -277,7 +258,7 @@ mod tests {
     #[test]
     fn a_turntable_draws_seventy_two_scenes_at_full_quality_and_saves_them_as_a_gif() {
         let folder = tempfile::tempdir().expect("a temporary folder");
-        let path = folder.path().join("voxa-3d.gif");
+        let path = folder.path().join("volsa-3d.gif");
         let mut making = Turntable::new(path.clone(), &scene(), [200.0, 100.0]);
         assert_eq!(making.progress(), (0, 72));
         let mut yaws = Vec::new();
@@ -293,7 +274,7 @@ mod tests {
         yaws.dedup();
         assert_eq!(yaws.len(), 72, "and every picture is from a different side");
         let notice = making.finish();
-        assert_eq!(notice.text, "Saved voxa-3d.gif");
+        assert_eq!(notice.text, "Saved volsa-3d.gif");
         let file = Cursor::new(std::fs::read(&path).expect("reads"));
         let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
         assert_eq!(frames, 72);
@@ -302,7 +283,7 @@ mod tests {
     #[test]
     fn a_turntable_with_no_pictures_drawn_says_so_and_writes_nothing() {
         let folder = tempfile::tempdir().expect("a temporary folder");
-        let path = folder.path().join("voxa-3d.gif");
+        let path = folder.path().join("volsa-3d.gif");
         let notice = Turntable::new(path.clone(), &scene(), [400.0, 300.0]).finish();
         assert_eq!(notice.kind, NoticeKind::Error);
         assert_eq!(notice.text, "There is no picture of that size to save.");
@@ -321,14 +302,14 @@ mod tests {
     #[test]
     fn what_is_said_while_a_turntable_is_put_together_gives_way_to_how_it_went() {
         let folder = tempfile::tempdir().expect("a temporary folder");
-        let making = drawn(folder.path().join("voxa-3d.gif"));
+        let making = drawn(folder.path().join("volsa-3d.gif"));
         let (saving, stopped) = (making.saving(), making.not_saved());
         assert_eq!(
             (saving.kind, saving.text.as_str()),
-            (NoticeKind::Info, "Saving voxa-3d.gif…")
+            (NoticeKind::Info, "Saving volsa-3d.gif…")
         );
         let said =
-            "voxa-3d.gif could not be saved: putting its pictures together stopped part-way.";
+            "volsa-3d.gif could not be saved: putting its pictures together stopped part-way.";
         assert_eq!(
             (stopped.kind, stopped.text.as_str()),
             (NoticeKind::Error, said)
@@ -341,16 +322,16 @@ mod tests {
     #[test]
     fn a_finished_turntable_is_put_together_on_a_worker_which_says_when_it_is_saved() {
         let folder = tempfile::tempdir().expect("a temporary folder");
-        let path = folder.path().join("voxa-3d.gif");
+        let path = folder.path().join("volsa-3d.gif");
         let (sender, reports) = std::sync::mpsc::channel();
         let mut session = crate::session::Session::new(sender, reports, 1 << 20, None);
         let meanwhile = finish_on(session.workers(), drawn(path.clone()));
-        assert_eq!(meanwhile.text, "Saving voxa-3d.gif…");
+        assert_eq!(meanwhile.text, "Saving volsa-3d.gif…");
         let said = |session: &crate::session::Session| {
             let notices = &session.state().notices;
             notices
                 .iter()
-                .any(|notice| notice.text == "Saved voxa-3d.gif")
+                .any(|notice| notice.text == "Saved volsa-3d.gif")
         };
         while !said(&session) {
             let heard = session.wait(std::time::Duration::from_secs(60));
@@ -359,17 +340,5 @@ mod tests {
         let file = Cursor::new(std::fs::read(&path).expect("reads"));
         let frames = GifDecoder::new(file).expect("a gif").into_frames().count();
         assert_eq!(frames, 72);
-    }
-
-    #[test]
-    fn the_progress_window_draws_and_is_not_stopped_unless_asked() {
-        let ctx = egui::Context::default();
-        let making = Turntable::new(PathBuf::from("voxa-3d.gif"), &scene(), [400.0, 300.0]);
-        let mut stopped = true;
-        let mut output = ctx.run_ui(RawInput::default(), |ui| {
-            stopped = progress(ui.ctx(), &making);
-        });
-        output.textures_delta.clear();
-        assert!(!stopped);
     }
 }

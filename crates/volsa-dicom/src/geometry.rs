@@ -1,7 +1,7 @@
 //! Where the slices of a stack lie: their order along the slice normal, the gaps between them,
 //! and the transform from the image grid to the patient.
 
-use voxa_core::{Affine, Patient, Voxel};
+use volsa_core::{Affine, Patient, Voxel};
 
 /// Slices closer together than this along the normal are at the same position.
 pub(crate) const SAME_POSITION_MM: f64 = 0.001;
@@ -122,7 +122,7 @@ fn dot(a: [f64; 3], b: [f64; 3]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use voxa_core::Point;
+    use volsa_core::Point;
 
     const AXIAL: [f64; 6] = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
 

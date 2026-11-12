@@ -1,18 +1,18 @@
-# Contributing to Voxa
+# Contributing to Volsa
 
-Thank you for helping. This file says how to build Voxa, how work is done here, and the rules
+Thank you for helping. This file says how to build Volsa, how work is done here, and the rules
 every change keeps. To report a fault or ask for something new, use the repository's
 [Issues](../../issues); a security vulnerability goes privately, as [SECURITY.md](SECURITY.md)
 says.
 
 ## Before you start
 
-- Voxa is not a medical device and is not for diagnostic use. Nothing in it may claim otherwise,
+- Volsa is not a medical device and is not for diagnostic use. Nothing in it may claim otherwise,
   and the sentence that says so stays as it is.
 - Never commit scan data or anything derived from a real person's scan, including screenshots,
   label files, measurements and tag values, and never put them in an issue or a pull request.
-  Tests build synthetic DICOM with `voxa_dicom::testkit`, and the `write_phantom` example writes
-  a made-up study to try Voxa on.
+  Tests build synthetic DICOM with `volsa_dicom::testkit`, and the `write_phantom` example writes
+  a made-up study to try Volsa on.
 - No model weights and no ONNX Runtime or DirectML files are committed to this repository.
   The zip a release offers carries ONNX Runtime, in its `runtime` folder with its licence and
   notices, taken from Microsoft's package when the release is built; it never carries
@@ -29,13 +29,16 @@ installed the first time you build. Then:
 
 ```bash
 cargo build
-cargo run -p voxa-app --example write_phantom -- phantom
-cargo run -p voxa-app -- phantom
+cargo run -p volsa-app --example write_phantom -- phantom
+cargo run -p volsa-app -- phantom
 ```
 
 The second command writes a small made-up study to the folder `phantom` (which git ignores) and
-the third opens it. The [README](README.md#building-from-source) says more: labels, the made-up
-head, and the tasks below.
+the third opens it. The user guide's pages
+[Building from source](https://thenewmanator15.github.io/volsa/building-from-source.html) and
+[Trying it without a scan](https://thenewmanator15.github.io/volsa/trying-it-without-a-scan.html)
+say more: labels, the made-up head, and the tasks below. The guide is the mdBook in
+[book/](book), checked with the code, and changed in the same way as it.
 
 The gate needs `cargo deny`, and the coverage task `cargo llvm-cov`:
 
@@ -44,14 +47,14 @@ cargo install --locked cargo-deny
 cargo install --locked cargo-llvm-cov
 ```
 
-Voxa is built and tried on Windows. The continuous integration also runs the gate on Ubuntu,
+Volsa is built and tried on Windows. The continuous integration also runs the gate on Ubuntu,
 where it first installs `libgtk-3-dev`, and `mesa-vulkan-drivers`, a Vulkan driver in software,
 so that the drawing tests run without a graphics card.
 
-The tests of `voxa-render` draw with a graphics device. On a computer with two,
+The tests of `volsa-render` draw with a graphics device. On a computer with two,
 `WGPU_POWER_PREF=high` has them use the faster one, and `WGPU_BACKEND` (`dx12` or `vulkan`)
 picks the backend. The tests that need the real labelling networks are marked `ignore`;
-`cargo xtask check-models`, with `VOXA_MODELS` and `VOXA_RUNTIME` naming a model folder and a
+`cargo xtask check-models`, with `VOLSA_MODELS` and `VOLSA_RUNTIME` naming a model folder and a
 runtime folder, runs them.
 
 ## How work is done
@@ -62,7 +65,7 @@ runtime folder, runs them.
 4. One logical change per commit, with a conventional message: `feat(dicom): ...`,
    `fix(render): ...`, `docs: ...`, `chore: ...`, `test: ...`, `refactor: ...`, `build: ...`,
    `ci: ...`. The subject says in plain words what changed for the person using or building
-   Voxa, for example `fix(app): a lost graphics device stops no work and loses nothing`.
+   Volsa, for example `fix(app): a lost graphics device stops no work and loses nothing`.
 5. Open a pull request against `main`. Its template lists what is checked, and the continuous
    integration runs the same gate.
 
@@ -77,10 +80,10 @@ other step that fails stops the gate there.
 ## Rules the checks enforce
 
 - `cargo fmt`, and `cargo clippy` with pedantic lints and warnings as errors.
-- No `unsafe` outside `voxa-render` and one module of `voxa-models`, `cards.rs` (the system's list
+- No `unsafe` outside `volsa-render` and one module of `volsa-models`, `cards.rs` (the system's list
   of graphics cards); any `unsafe` there carries a `// SAFETY:` comment.
 - Library code never panics: `unwrap`, `expect`, `panic!` and indexing that can panic are denied
-  outside tests. Return a `VoxaError` (or the crate's own `thiserror` enum) instead.
+  outside tests. Return a `VolsaError` (or the crate's own `thiserror` enum) instead.
 - Every public item has a doc comment.
 - Functions stay under 60 lines and source files under 400.
 - Dependencies must carry a licence on the allow-list in `deny.toml` and have no open advisory.
@@ -96,7 +99,7 @@ other step that fails stops the gate there.
 ## Rules the checks cannot enforce
 
 - Crates depend only downward: core, then dicom, volume, labels and models, then segment and
-  render, then app. `voxa-app` contains no image mathematics.
+  render, then app. `volsa-app` contains no image mathematics.
 - `Patient`, `Voxel` and `Screen` coordinates are different types. Converting between them takes an
   explicit `Affine`; never pass raw arrays across a crate boundary where a typed point exists.
 - Logs go through `tracing` and never contain a patient's name, identifier, birth date or any
@@ -114,5 +117,5 @@ old record, supersede it.
 
 ## Licence
 
-Voxa is licensed under either the MIT licence or the Apache License 2.0, at your option, and
+Volsa is licensed under either the MIT licence or the Apache License 2.0, at your option, and
 contributions are accepted under the same terms.

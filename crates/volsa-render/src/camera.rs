@@ -3,8 +3,8 @@
 
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
-use voxa_core::{Affine, Patient, Point, Screen};
-use voxa_volume::Ray;
+use volsa_core::{Affine, Patient, Point, Screen};
+use volsa_volume::Ray;
 
 use crate::vector::{dot, moved};
 use crate::view::{finite_or, positive_or};

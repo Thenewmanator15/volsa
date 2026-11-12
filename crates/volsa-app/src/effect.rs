@@ -125,6 +125,18 @@ pub enum Effect {
     StoreChoices(Choices),
     /// Something about the plugins the person added.
     Plugins(crate::plugins::PluginEffect),
+    /// Read the structured report in an entry of the open source as lines of text.
+    ReadDocument {
+        /// The entry that holds the report's file.
+        entry: String,
+    },
+    /// Write the PDF stored in an entry of the open source to the place the person chose.
+    SaveDocumentPdf {
+        /// The entry that holds the file the PDF is stored in.
+        entry: String,
+        /// Where to write the copy.
+        to: PathBuf,
+    },
     /// Nothing to do.
     None,
 }

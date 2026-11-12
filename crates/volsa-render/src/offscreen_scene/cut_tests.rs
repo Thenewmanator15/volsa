@@ -1,6 +1,6 @@
 //! Pictures of a volume cut open, and of the 2D slice drawn inside it.
 
-use voxa_core::Point;
+use volsa_core::Point;
 
 use super::tests::{CORE, IN_THE_SHELL, MIDDLE, SHELL, at, drawn};
 use super::*;

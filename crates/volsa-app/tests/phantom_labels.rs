@@ -3,9 +3,9 @@
 
 use std::path::Path;
 
-use voxa_app::table_beside;
-use voxa_core::{Patient, Point};
-use voxa_labels::{LabelSet, Side, Trust, label_set, read_labels, read_table};
+use volsa_app::table_beside;
+use volsa_core::{Patient, Point};
+use volsa_labels::{LabelSet, Side, Trust, label_set, read_labels, read_table};
 
 #[path = "../examples/write_phantom/labels.rs"]
 mod labels;

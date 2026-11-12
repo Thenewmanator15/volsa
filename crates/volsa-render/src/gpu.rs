@@ -2,31 +2,53 @@
 
 use std::sync::{Mutex, OnceLock, PoisonError, mpsc};
 
-use egui_wgpu::wgpu;
+use egui_wgpu::{
+    RenderState, RendererOptions, WgpuConfiguration, WgpuSetupCreateNew, WgpuSetupExisting, wgpu,
+};
 
+use self::found::{Found, found_in};
 use crate::lost::{self, DeviceWatch};
 use crate::slice_pipeline::RenderError;
+
+mod found;
 
 /// The format of the picture drawn: 8-bit red, green, blue and alpha, with no gamma curve, so
 /// the grey read back is the grey the shader wrote.
 pub(crate) const TARGET: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const BYTES_PER_PIXEL: u32 = 4;
+/// How a graphics device with no window is asked to set its memory aside, on a graphics card
+/// and on the system's software graphics alike, and the window's on a card: in blocks of a few
+/// megabytes, each large texture or buffer in exactly its own size. wgpu's default sets aside
+/// 192 MiB for the first small thing made (on a card, 128 MiB of its memory and 64 MiB of the
+/// computer's; with software graphics, all of it the computer's), and a block of 256 MiB for a
+/// 150 MiB volume, and Windows counts all of it as the program's. Volsa holds a few large
+/// things, which the smaller blocks suit. The window on software graphics keeps wgpu's
+/// default, for a reason its own device setup gives.
+pub const fn memory_hints() -> wgpu::MemoryHints {
+    wgpu::MemoryHints::MemoryUsage
+}
 
 /// Devices started without a window all come from one adapter (the tests' software one
 /// aside), and start one at a time. A run of the tests on many threads, each looking for an
 /// adapter of its own and starting a device on it, stopped for good on one machine's
 /// driver. One adapter was enough to cure it there; taking turns as well costs little,
 /// since starting a device on an adapter already found is quick.
+///
+/// On Windows such a device does not try OpenGL either, see [`found::backends_without_a_window`]:
+/// with it, a run of the tests stopped for good now and then on a machine with an NVIDIA
+/// card, since the driver's OpenGL side can stop every thread of the program from starting
+/// or ending once a thread that used it has ended. For the same reason no test makes a
+/// graphics instance of its own: [`render_state_without_a_window`] hands out this one.
 static STARTING: Mutex<()> = Mutex::new(());
 
 /// The adapter those devices come from, looked for once: the search is most of the time a
 /// start would otherwise take.
-static ADAPTER: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static ADAPTER: OnceLock<Option<Found>> = OnceLock::new();
 
 /// The adapter emulated in software, looked for once, for the tests that draw on it even on
 /// a machine with a graphics card of its own.
 #[cfg(test)]
-static SOFTWARE: OnceLock<Option<wgpu::Adapter>> = OnceLock::new();
+static SOFTWARE: OnceLock<Option<Found>> = OnceLock::new();
 
 /// A graphics device with no window.
 pub(crate) struct Gpu {
@@ -105,21 +127,11 @@ impl Gpu {
     /// of those asked for in turn, looked for the first time a device is started on it.
     /// `false` asks for the machine's own adapter, `true` for one emulated in software.
     fn start_on(
-        found: &OnceLock<Option<wgpu::Adapter>>,
+        found: &OnceLock<Option<Found>>,
         in_software: &[bool],
     ) -> Result<Self, RenderError> {
         let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
-        let adapter = found
-            .get_or_init(|| find_adapter(in_software))
-            .as_ref()
-            .ok_or(RenderError::NoAdapter)?;
-        let wanted = wgpu::DeviceDescriptor {
-            label: Some("voxa headless"),
-            required_limits: adapter.limits(),
-            ..Default::default()
-        };
-        let (device, queue) = pollster::block_on(adapter.request_device(&wanted))
-            .map_err(|error| RenderError::Device(error.to_string()))?;
+        let (device, queue) = found_in(found, in_software)?.start_headless_device()?;
         let watch = Some(DeviceWatch::on(&device, || {}));
         Ok(Self {
             device,
@@ -159,7 +171,7 @@ impl Gpu {
             depth_or_array_layers: 1,
         };
         let target = self.device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("voxa headless picture"),
+            label: Some("volsa headless picture"),
             size: extent,
             mip_level_count: 1,
             sample_count: 1,
@@ -172,7 +184,7 @@ impl Gpu {
         let row_bytes = width * BYTES_PER_PIXEL;
         let padded_row = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let copied = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("voxa headless copy"),
+            label: Some("volsa headless copy"),
             size: u64::from(padded_row) * u64::from(height),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
@@ -206,7 +218,7 @@ impl Gpu {
         let padded_row = row_bytes.next_multiple_of(wgpu::COPY_BYTES_PER_ROW_ALIGNMENT);
         let rows = extent.height * extent.depth_or_array_layers;
         let copied = self.device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("voxa headless copy"),
+            label: Some("volsa headless copy"),
             size: u64::from(padded_row) * u64::from(rows),
             usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
             mapped_at_creation: false,
@@ -256,30 +268,55 @@ impl Gpu {
         let bytes = copied
             .get_mapped_range(..)
             .map_err(|error| failed(error.to_string()))?;
-        let picture = bytes
-            .chunks(padded_row)
-            .flat_map(|row| row.iter().take(row_bytes).copied())
-            .collect();
-        Ok(picture)
+        let rows = bytes.len() / padded_row.max(1);
+        Ok(unpadded(&bytes, row_bytes, padded_row, rows))
     }
 }
 
-/// The first adapter found of those asked for in turn: `false` asks for the machine's own,
-/// `true` for one emulated in software. Which backend and which adapter can be chosen from
-/// outside, to try more than one graphics device on a machine: `WGPU_BACKEND` and
-/// `WGPU_POWER_PREF`.
-fn find_adapter(in_software: &[bool]) -> Option<wgpu::Adapter> {
-    let from_outside = wgpu::InstanceDescriptor::new_without_display_handle_from_env();
-    let instance = wgpu::Instance::new(from_outside);
-    let adapter = |force_fallback_adapter| {
-        let wanted = wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::from_env().unwrap_or_default(),
-            force_fallback_adapter,
-            ..Default::default()
-        };
-        pollster::block_on(instance.request_adapter(&wanted)).ok()
+/// The first `rows` rows of a picture copied with each row padded to `padded_row` bytes,
+/// without the padding: `row_bytes` of each, a whole row at a time. A row the bytes do not
+/// hold whole is left out.
+fn unpadded(bytes: &[u8], row_bytes: usize, padded_row: usize, rows: usize) -> Vec<u8> {
+    let mut picture = Vec::with_capacity(rows * row_bytes);
+    for row in bytes.chunks(padded_row.max(1)).take(rows) {
+        if let Some(kept) = row.get(..row_bytes) {
+            picture.extend_from_slice(kept);
+        }
+    }
+    picture
+}
+
+/// What a window has to draw with, made without a window: a device started on the adapter
+/// the other devices with no window come from, and the instance that adapter was found with,
+/// set up for egui-wgpu to draw the interface on. The device is asked for as egui-wgpu asks
+/// for a window's on that adapter (its default limits, not all the adapter could give), so it
+/// is the kind a window has. For the tests of the interface; nothing else in Volsa uses it.
+/// It is started in turn with every other device, and makes no graphics instance of its own.
+///
+/// # Errors
+///
+/// [`RenderError::NoAdapter`] when the machine has no graphics adapter, not even one
+/// emulated in software (on Windows, with `WGPU_BACKEND` not set, there is none where only
+/// OpenGL could draw), and [`RenderError::Device`] when the adapter found will not start or
+/// egui-wgpu cannot be set up on it.
+pub fn render_state_without_a_window() -> Result<RenderState, RenderError> {
+    let _turn = STARTING.lock().unwrap_or_else(PoisonError::into_inner);
+    let found = found_in(&ADAPTER, &[false, true])?;
+    let windows_kind = WgpuSetupCreateNew::without_display_handle();
+    let wanted = (windows_kind.device_descriptor)(&found.adapter);
+    let (device, queue) = found.start_device(&wanted)?;
+    let existing = WgpuSetupExisting {
+        instance: found.instance.clone(),
+        adapter: found.adapter.clone(),
+        device,
+        queue,
     };
-    in_software.iter().find_map(|&software| adapter(software))
+    let config = WgpuConfiguration {
+        wgpu_setup: existing.into(),
+        ..Default::default()
+    };
+    let made = RenderState::create(&config, &found.instance, None, RendererOptions::default());
+    pollster::block_on(made).map_err(|error| RenderError::Device(error.to_string()))
 }
 
 /// One render pass that clears the picture to black and lets `draw` draw over it.
@@ -290,7 +327,7 @@ fn draw_into(
 ) {
     let view = target.create_view(&wgpu::TextureViewDescriptor::default());
     let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-        label: Some("voxa headless"),
+        label: Some("volsa headless"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
             view: &view,
             depth_slice: None,
@@ -307,3 +344,6 @@ fn draw_into(
     });
     draw(&mut pass);
 }
+
+#[cfg(test)]
+mod tests;

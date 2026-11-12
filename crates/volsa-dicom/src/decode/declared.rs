@@ -6,7 +6,7 @@
 use dicom_core::value::Value;
 use dicom_dictionary_std::tags;
 use dicom_object::DefaultDicomObject;
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 /// The most bytes one frame may take once decoded: 256 MiB. No MRI image comes near it: a
 /// slice of 1024 by 1024 values of 16 bits takes 2 MiB, and a 4K screen picture in colour
@@ -88,21 +88,21 @@ impl Declared {
     ///
     /// # Errors
     ///
-    /// [`VoxaError::Decode`], in a sentence, when one frame would take more than
+    /// [`VolsaError::Decode`], in a sentence, when one frame would take more than
     /// [`MOST_FRAME_BYTES`] once decoded, or when pixels stored uncompressed take fewer bytes
     /// than the header says they do.
-    pub(crate) fn check(&self) -> Result<(), VoxaError> {
+    pub(crate) fn check(&self) -> Result<(), VolsaError> {
         let frame = self.frame_bytes();
         if frame > MOST_FRAME_BYTES {
             let (takes, most) = (frame.div_ceil(MEGABYTE), MOST_FRAME_BYTES / MEGABYTE);
-            return Err(VoxaError::Decode(format!(
+            return Err(VolsaError::Decode(format!(
                 "its header says each image takes {takes} MB, more than any MRI image and \
-                 more than the {most} MB Voxa makes room for"
+                 more than the {most} MB Volsa makes room for"
             )));
         }
         let (stored, present) = (self.stored_bytes(), self.present);
         match present {
-            Some(present) if present < stored => Err(VoxaError::Decode(format!(
+            Some(present) if present < stored => Err(VolsaError::Decode(format!(
                 "its header says its pixels take {stored} bytes, but the file holds \
                  {present}: it is damaged or cut short"
             ))),

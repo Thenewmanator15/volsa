@@ -1,7 +1,7 @@
 //! Series that hold several volumes: one image at every position for each echo, diffusion
 //! weighting or time point.
 
-use voxa_core::{SeriesId, SeriesKind, SeriesProblem, VolumeSet};
+use volsa_core::{SeriesId, SeriesKind, SeriesProblem, VolumeSet};
 
 use super::tests::indexed;
 use super::*;

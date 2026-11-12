@@ -4,8 +4,8 @@
 
 use std::path::{Path, PathBuf};
 
-use voxa_labels::{LabelSet, label_set, read_labels, read_table};
-use voxa_models::RunsOn;
+use volsa_labels::{LabelSet, label_set, read_labels, read_table};
+use volsa_models::RunsOn;
 
 use super::lab::{Lab, made_by_run};
 use super::stand_ins::{PATIENCE, StandIn, WHEN, one_at_a_time};
@@ -17,7 +17,7 @@ use crate::testing::{FINE_SCAN, SCOUT, THICK_SCAN, id, made_up_labels, written_l
 use crate::views::series_key;
 
 const NOT_KEPT: &str = "These labels could not be kept on this computer. They are shown now and \
-                        will be gone when Voxa closes.";
+                        will be gone when Volsa closes.";
 const NOT_DELETED: &str = "The labels kept for this scan could not be deleted from this computer.";
 
 pub(super) fn key() -> String {
@@ -33,7 +33,7 @@ pub(super) fn notice(said: Action) -> (NoticeKind, String) {
 }
 
 /// What the worker says on finding a kept result.
-fn found(said: Action) -> (voxa_core::SeriesId, String, PathBuf, PathBuf) {
+fn found(said: Action) -> (volsa_core::SeriesId, String, PathBuf, PathBuf) {
     match said {
         Action::Labelling(LabellingAction::KeptFound {
             series,

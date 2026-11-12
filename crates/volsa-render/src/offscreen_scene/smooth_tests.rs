@@ -1,7 +1,7 @@
 //! Pictures of a plane drawn from the curve through a volume's values, beside the plain ones.
 
-use voxa_core::{Affine, Point, Volume, WindowLevel};
-use voxa_volume::{PlaneKind, coefficients, plane_of, sample_cubic};
+use volsa_core::{Affine, Point, Volume, WindowLevel};
+use volsa_volume::{PlaneKind, coefficients, plane_of, sample_cubic};
 
 use crate::plane_view::PlaneView;
 use crate::prepared::{MAX_VOLUME_BYTES, Prepared};

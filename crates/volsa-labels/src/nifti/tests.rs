@@ -1,7 +1,7 @@
 //! Reading label volumes: the kinds of number, either byte order, gzip, where the voxels
 //! lie, and every way a file can be wrong.
 
-use voxa_core::Point;
+use volsa_core::Point;
 
 use super::*;
 use crate::testkit::{NiftiOptions, Quatern, gzipped, nifti};
@@ -44,7 +44,7 @@ fn a_label_volume_is_read_with_its_numbers_in_order_and_placed_in_the_patient() 
     let grid = read_labels(&nifti(&counting())).expect("reads");
     assert_eq!(grid.dims, [2, 3, 4]);
     assert_eq!(grid.ids, (0..24).collect::<Vec<u32>>());
-    // The file's world has x to the patient's right and y to the front; Voxa's has them to
+    // The file's world has x to the patient's right and y to the front; Volsa's has them to
     // the left and the back. Up is up in both.
     let at = patient(&grid, [1.0, 2.0, 3.0]);
     assert!(close(at, [-11.0, -22.0, 33.0]), "{at:?}");

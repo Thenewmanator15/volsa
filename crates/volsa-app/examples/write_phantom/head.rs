@@ -1,9 +1,9 @@
 //! The converter's made-up head, written as a study: a brain's shape that is nobody's, to label.
 //!
 //! The model folder's `check` folder holds the head (`volume.f32`, with where it lies in
-//! `case.json`). Here each of its slices becomes a DICOM file, so Voxa opens it as it opens
+//! `case.json`). Here each of its slices becomes a DICOM file, so Volsa opens it as it opens
 //! any export. The values are rounded to the nearest sixty-fourth and stored as 16-bit
-//! numbers, and the rescale slope is one sixty-fourth, so what Voxa reads back is exactly what
+//! numbers, and the rescale slope is one sixty-fourth, so what Volsa reads back is exactly what
 //! was stored.
 //!
 //! With `whole` the head is put in the middle of a grid of air as large as a common 1 mm scan
@@ -13,7 +13,7 @@ use std::io::{Error, ErrorKind, Result};
 use std::path::Path;
 
 use serde_json::Value;
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
+use volsa_dicom::testkit::{SliceOptions, classic_slice};
 
 /// Stored steps to one unit of the head's values.
 const STEPS: f64 = 64.0;

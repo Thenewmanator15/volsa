@@ -1,4 +1,4 @@
-//! What the tables Voxa writes (CSV) have in common: how a field is written.
+//! What the tables Volsa writes (CSV) have in common: how a field is written.
 
 /// One field of the table: in quotation marks, with any of its own doubled, when it holds a
 /// comma, a quotation mark or a line break.

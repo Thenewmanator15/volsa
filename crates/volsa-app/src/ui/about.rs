@@ -1,21 +1,22 @@
-//! The About window: what Voxa is and what it is for, its version, its licences and credits
+//! The About window: what Volsa is and what it is for, its version, its licences and credits
 //! and the disclaimer.
-//! And the window it opens, that shows the notices of everything Voxa is built from.
+//! And the window it opens, that shows the notices of everything Volsa is built from.
 
 use std::sync::LazyLock;
 
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
-use super::scrolled;
-use super::theme;
+use super::commands::{self, Request};
+use super::{floating, scrolled, theme};
+use crate::state::{AppState, Notice, NoticeKind};
 
 /// What is said about licences and credits, a line each.
 pub const LICENCES: [&str; 7] = [
-    "Voxa is licensed under either the MIT licence or the Apache License 2.0, as you prefer.",
+    "Volsa is licensed under either the MIT licence or the Apache License 2.0, as you prefer.",
     "It is built on other people's libraries, each under its own open-source licence.",
     concat!(
-        "The voxa.exe a release offers has Microsoft's C runtime built in, which is under ",
+        "The volsa.exe a release offers has Microsoft's C runtime built in, which is under ",
         "Microsoft's own terms, not an open-source licence."
     ),
     "Typefaces: Ubuntu Light (Ubuntu Font Licence 1.0), Hack (MIT, and the Bitstream Vera \
@@ -27,28 +28,53 @@ pub const LICENCES: [&str; 7] = [
     "THIRD-PARTY-NOTICES.txt and NOTICE, beside the program, hold the full texts.",
 ];
 
-/// What Voxa is for, as `docs/intended-use.md` says it: the window shows this and then the
+/// What Volsa is for, as `docs/intended-use.md` says it: the window shows this and then the
 /// disclaimer, which together are that page's first paragraph, word for word.
-pub const INTENDED_USE: &str = "Voxa is for looking at MRI scans on your own computer: your \
-     own scans, and scans used for learning, teaching or research. It shows the images, lets you \
-     measure them and can show labels made by a model, but it does not diagnose, screen for or \
-     rule out anything, and its measurements and labels are not clinical results. Questions \
-     about anyone's health belong with a qualified clinician.";
+pub const INTENDED_USE: &str = "Volsa is for looking at MRI and CT scans, and other DICOM files at a basic \
+     level, on your own computer: your own scans, and scans used for learning, teaching or \
+     research. It shows the images, lets you measure them and can show labels made by a model, \
+     but it does not diagnose, screen for or rule out anything, and its measurements and labels \
+     are not clinical results. Questions about anyone's health belong with a qualified \
+     clinician.";
 
 /// What is said above the path of the log. A crash is logged by the place in the source code
-/// where it happened, which for a library can be a path on the computer Voxa was built on.
+/// where it happened, which for a library can be a path on the computer Volsa was built on.
 pub const LOG_SAYS: &str = concat!(
-    "A log of what Voxa did is kept here. It holds nothing about a patient and none of your ",
-    "files' names. A crash is logged by the place in the source code of Voxa, or of a ",
+    "A log of what Volsa did is kept here. It holds nothing about a patient and none of your ",
+    "files' names. A crash is logged by the place in the source code of Volsa, or of a ",
     "library, where it happened."
 );
 
-/// Voxa's version, as written in its package.
+/// The key of the notice that says where the log is: asking again takes the old one's place.
+const LOG_NOTICE_KEY: &str = "log";
+/// The title of the window that shows the notices of everything Volsa is built from.
+const NOTICES_TITLE: &str = "Licences and notices";
+
+/// Volsa's version, as written in its package.
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// Voxa's own notice, with the credit to `SynthSeg`: the `NOTICE` file that comes with it.
+/// The notice that says where the log of this run is, or that there is none.
+pub fn where_the_log_is() -> Notice {
+    log_notice(crate::log::path())
+}
+
+/// The notice that says the log is at `path`, if it is anywhere.
+fn log_notice(path: Option<&std::path::Path>) -> Notice {
+    let text = match path {
+        Some(path) => format!("The log of this run is at {}.", path.display()),
+        None => "Volsa is not keeping a log in this run.".to_owned(),
+    };
+    Notice {
+        kind: NoticeKind::Info,
+        text,
+        details: Vec::new(),
+        key: Some(LOG_NOTICE_KEY),
+    }
+}
+
+/// Volsa's own notice, with the credit to `SynthSeg`: the `NOTICE` file that comes with it.
 pub const NOTICE: &str = include_str!("../../../../NOTICE");
-/// The licence and notice texts of every package built into Voxa: the
+/// The licence and notice texts of every package built into Volsa: the
 /// `THIRD-PARTY-NOTICES.txt` that comes with it, which `cargo xtask notices` writes. Kept in
 /// the program too, so that they go wherever it is copied.
 pub const THIRD_PARTY: &str = include_str!("../../../../THIRD-PARTY-NOTICES.txt");
@@ -64,12 +90,28 @@ static LINES: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
 
 /// The interface's own note, kept between frames, that the notices window is open.
 fn notices_open() -> egui::Id {
-    egui::Id::new("voxa: the notices window is open")
+    egui::Id::new("volsa: the notices window is open")
 }
 
 /// Open the notices window: what the button in the About window does.
-fn open_notices(ctx: &egui::Context) {
+pub(super) fn open_notices(ctx: &egui::Context) {
     ctx.data_mut(|data| data.insert_temp(notices_open(), true));
+}
+
+/// Close the notices window, which Esc does when it was opened last.
+pub(super) fn close_notices(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(notices_open(), false));
+}
+
+/// Whether the notices window is open.
+pub(super) fn notices_are_open(ctx: &egui::Context) -> bool {
+    ctx.data(|data| data.get_temp::<bool>(notices_open()))
+        .unwrap_or(false)
+}
+
+/// The notices window's own name, which it keeps its place under.
+fn notices_id() -> egui::Id {
+    egui::Id::new("volsa: licences and notices")
 }
 
 /// What a window's frame and title take of the height of the window it is shown in.
@@ -78,29 +120,34 @@ const AROUND: f32 = 64.0;
 const BUTTON_ROOM: f32 = 28.0;
 
 /// The interface's own name for the About window, which it keeps its place under.
-fn named() -> egui::Id {
-    egui::Id::new("voxa: about")
+pub(super) fn id() -> egui::Id {
+    egui::Id::new("volsa: about")
 }
 
 /// Show the About window while `open` is true; closing it sets `open` to false. In a window
 /// too short to hold it all, its text scrolls, with the bar in sight, and the button that opens
 /// the notices stays below it. The notices window is shown here too, for as long as it is
-/// open. Gives what egui said of the text, while the window is shown.
-pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
-    let room = ctx.content_rect().height();
-    let about = egui::Window::new("About Voxa")
-        .id(named())
+/// open. What the buttons of the window ask of the window go onto `asked`. Gives what egui said
+/// of the text, while the window is shown.
+pub fn show_in(
+    ctx: &egui::Context,
+    state: &AppState,
+    open: &mut bool,
+    asked: &mut Vec<Request>,
+) -> Option<ScrollAreaOutput<()>> {
+    let room = floating::area(ctx).height();
+    let window = egui::Window::new("About Volsa");
+    let about = floating::over(window, ctx)
+        .id(id())
         .open(open)
         .collapsible(false)
         .resizable(false)
-        .default_height(ctx.content_rect().height())
+        .default_height(room)
         .show(ctx, |ui| {
             scrolled::solid_bars(ui);
             let most = (room - 2.0 * AROUND - BUTTON_ROOM).max(AROUND);
-            let text = scrolled::up_and_down(most).show(ui, contents);
-            if ui.small_button("Licences and notices…").clicked() {
-                open_notices(ui.ctx());
-            }
+            let text = scrolled::up_and_down(most).show(ui, |ui| contents(ui, state, asked));
+            commands::offer_small(ui, "about.notices", state, None, (&mut Vec::new(), asked));
             text
         });
     let id = notices_open();
@@ -112,32 +159,51 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
     about.and_then(|window| window.inner)
 }
 
-/// What the About window says: what Voxa is, its version, the disclaimer, its licences and
+/// [`show_in`] for a window with nothing open, whose buttons ask nothing: what the tests of the
+/// window's look draw.
+#[cfg(test)]
+pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
+    let mut asked = Vec::new();
+    let shown = show_in(ctx, &AppState::default(), open, &mut asked);
+    // What the window does when its button asks for the notices.
+    if asked.contains(&Request::Licences) {
+        open_notices(ctx);
+    }
+    shown
+}
+
+/// What the About window says: what Volsa is, its version, the disclaimer, its licences and
 /// credits, and where its log is.
-fn contents(ui: &mut egui::Ui) {
-    ui.heading("Voxa");
+fn contents(ui: &mut egui::Ui, state: &AppState, asked: &mut Vec<Request>) {
+    ui.heading("Volsa");
     ui.label(format!("Version {VERSION}"));
-    ui.label("A viewer for MRI scans.");
+    ui.label("A viewer for MRI and CT scans.");
     ui.add_space(8.0);
     ui.label(INTENDED_USE);
     ui.label(
         RichText::new(theme::DISCLAIMER)
             .strong()
-            .color(theme::WARNING),
+            .color(theme::palette(ui.ctx()).warning),
     );
     ui.add_space(8.0);
     for line in LICENCES {
-        ui.label(RichText::new(line).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(line)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
     }
     if let Some(log) = crate::log::path() {
         ui.add_space(8.0);
-        ui.label(RichText::new(LOG_SAYS).small().color(theme::QUIET_TEXT));
+        ui.label(
+            RichText::new(LOG_SAYS)
+                .small()
+                .color(theme::palette(ui.ctx()).quiet_text),
+        );
         ui.horizontal(|ui| {
             let path = log.display().to_string();
             ui.label(RichText::new(&path).small().monospace());
-            if ui.small_button("Copy").clicked() {
-                ui.ctx().copy_text(path);
-            }
+            commands::offer_small(ui, "log.copy", state, None, (&mut Vec::new(), asked));
         });
     }
 }
@@ -147,7 +213,9 @@ fn contents(ui: &mut egui::Ui) {
 /// Only the lines in view are laid out, so the window stays quick however long the notices.
 fn notices(ctx: &egui::Context, open: &mut bool) {
     // Wide enough for the 78 columns most of the texts are written to.
-    egui::Window::new("Licences and notices")
+    let window = egui::Window::new(NOTICES_TITLE);
+    floating::over(window, ctx)
+        .id(notices_id())
         .open(open)
         .collapsible(false)
         .default_size([700.0, 440.0])
@@ -172,7 +240,7 @@ mod tests {
     use crate::ui::scrolled::{Scrolled, bar_drawn};
 
     /// The name of the button in the About window that opens the notices.
-    const BUTTON: &str = "Licences and notices…";
+    const BUTTON: &str = "Licences and notices…, Show the licences and notices";
 
     #[test]
     fn the_window_shows_and_can_be_left_open() {
@@ -186,13 +254,13 @@ mod tests {
         assert!(open);
     }
 
-    /// The About window in a Voxa window `width` by `height` points large, in Voxa's look:
+    /// The About window in a Volsa window `width` by `height` points large, in Volsa's look:
     /// what its text held and showed, whether the text's bar is drawn, where the window is,
     /// and where the button that opens the notices is, as a screen reader is told.
     fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect, egui::Rect) {
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         ctx.enable_accesskit();
         let (mut scrolled, mut bar, mut button) = (None, false, None);
         for _ in 0..3 {
@@ -212,7 +280,7 @@ mod tests {
             let named = nodes.iter().find(|(_, node)| node.label() == Some(BUTTON));
             button = named.and_then(|(_, node)| node.bounds());
         }
-        let window = ctx.memory(|memory| memory.area_rect(named()));
+        let window = ctx.memory(|memory| memory.area_rect(id()));
         let window = window.expect("the window is shown");
         let button = button.expect("the button is there");
         let corner = |x: f64, y: f64| egui::pos2(narrowed(x), narrowed(y));
@@ -250,7 +318,7 @@ mod tests {
         // The smallest window, with the interface drawn at 150%.
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(427.0, 320.0));
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         let mut open = true;
         for _ in 0..3 {
             let input = egui::RawInput {
@@ -263,9 +331,25 @@ mod tests {
             // No renderer is behind these passes to take the font texture.
             output.textures_delta.clear();
         }
-        let shown = ctx.memory(|memory| memory.area_rect(named()));
+        let shown = ctx.memory(|memory| memory.area_rect(id()));
         let shown = shown.expect("the window is shown");
         assert!(screen.contains_rect(shown), "{shown:?}");
+    }
+
+    #[test]
+    fn the_place_of_the_log_is_said_in_an_information_notice() {
+        let path = std::path::Path::new("logs").join("volsa.log");
+        let said = log_notice(Some(&path));
+        assert_eq!(said.kind, NoticeKind::Info);
+        assert!(
+            said.text.contains(&path.display().to_string()),
+            "{}",
+            said.text
+        );
+        assert_eq!(said.key, Some("log"));
+        let none = log_notice(None);
+        assert_eq!(none.kind, NoticeKind::Info);
+        assert!(none.text.contains("not keeping a log"), "{}", none.text);
     }
 
     #[test]

@@ -1,9 +1,9 @@
 //! Labelled parts in the state: the labels open on a study, which of their parts are shown
 //! and how solid each is, and which one is selected.
 
-use voxa_core::{Patient, Point, SeriesId, StudyId};
-use voxa_labels::{Made, Part, Verdict};
-use voxa_render::{Look, Overlay, PartLook};
+use volsa_core::{Patient, Point, SeriesId, StudyId};
+use volsa_labels::{Made, Part, Verdict};
+use volsa_render::{Look, Overlay, PartLook};
 
 use crate::state::AppState;
 
@@ -13,8 +13,8 @@ pub const NOWHERE_NEAR: &str =
 /// What is said when a label file is opened and there is no volume to put its labels on.
 pub const NOTHING_TO_LABEL: &str =
     "Labels are put on the 3D view of a scan. Open the scan first, then its labels.";
-/// What is said when the labels named as Voxa was started cannot be opened yet.
-pub const LABELS_WAIT: &str = "The labels named when Voxa was started are waiting: this series \
+/// What is said when the labels named as Volsa was started cannot be opened yet.
+pub const LABELS_WAIT: &str = "The labels named when Volsa was started are waiting: this series \
                                has no 3D view to put them on. They open on the first series \
                                shown that has one.";
 /// A notice about labels there is nothing to put on takes the place of an earlier one,
@@ -51,7 +51,7 @@ pub struct PartShown {
 pub enum NamesFrom {
     /// A table of names found beside the labels, or chosen.
     Table,
-    /// The list of the model that made the labels, in a run of Voxa's own.
+    /// The list of the model that made the labels, in a run of Volsa's own.
     Model,
     /// Nowhere: the parts are called after their numbers.
     #[default]
@@ -117,9 +117,9 @@ pub fn is_label_file(path: &std::path::Path) -> bool {
 /// A part's name as it is said to the pointer: with its side, if it has one.
 pub fn name_of(part: &Part) -> String {
     let side = match part.side {
-        voxa_labels::Side::Left => ", left",
-        voxa_labels::Side::Right => ", right",
-        voxa_labels::Side::Midline => "",
+        volsa_labels::Side::Left => ", left",
+        volsa_labels::Side::Right => ", right",
+        volsa_labels::Side::Midline => "",
     };
     format!("{}{side}", part.name)
 }
@@ -127,7 +127,7 @@ pub fn name_of(part: &Part) -> String {
 /// The study a series belongs to.
 pub fn study_of(state: &AppState, series: &SeriesId) -> Option<StudyId> {
     let studies = &state.index.as_ref()?.studies;
-    let holds = |study: &&voxa_core::StudyInfo| study.series.iter().any(|one| one.id == *series);
+    let holds = |study: &&volsa_core::StudyInfo| study.series.iter().any(|one| one.id == *series);
     studies.iter().find(holds).map(|study| study.id.clone())
 }
 

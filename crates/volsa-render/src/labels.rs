@@ -6,8 +6,8 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
 use egui_wgpu::wgpu;
-use voxa_core::{Affine, Patient, Voxel};
-use voxa_labels::LabelSet;
+use volsa_core::{Affine, Patient, Voxel};
+use volsa_labels::LabelSet;
 
 use crate::volume_texture::{texture, write};
 
@@ -82,12 +82,12 @@ impl LabelsOnDevice {
         }
         let rows = u32::try_from(set.parts.len()).ok()? / LOOKS_ACROSS + 1;
         // Watched for running out of room, as the volume itself is.
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let kind = wgpu::TextureFormat::R16Uint;
-        let parts = texture(device, "voxa label parts", set.dims, kind);
+        let parts = texture(device, "volsa label parts", set.dims, kind);
         write(device, queue, &parts, set.dims, &set.numbers);
         let looks = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("voxa label looks"),
+            label: Some("volsa label looks"),
             size: wgpu::Extent3d {
                 width: LOOKS_ACROSS,
                 height: rows,
@@ -100,7 +100,7 @@ impl LabelsOnDevice {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         });
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             parts.destroy();
             looks.destroy();
             return None;
@@ -120,7 +120,7 @@ impl LabelsOnDevice {
             parts: set.parts.len(),
             number: PLACED.fetch_add(1, Ordering::Relaxed) + 1,
         };
-        let solid = |part: &voxa_labels::Part| PartLook {
+        let solid = |part: &volsa_labels::Part| PartLook {
             colour: part.colour,
             opacity: 1.0,
         };

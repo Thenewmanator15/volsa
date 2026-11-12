@@ -1,5 +1,7 @@
 # Voxa design
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-05, revised 2026-10-07
 Status: draft for review
 

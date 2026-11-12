@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use serde::ser::{Serialize, Serializer};
 
 use super::WriteError;
-use crate::made::{MAX_MADE_LINE, VoxaObject, cut};
+use crate::made::{MAX_MADE_LINE, VolsaObject, cut};
 use crate::table::{
     Entry, MAX_ENTRIES, MAX_HOW, MAX_NAME, MAX_TABLE_BYTES, Side, Table, Trust, Verdict,
     colour_for, kept,
@@ -15,7 +15,7 @@ use crate::table::{
 /// Write a table of names as the text of a JSON file, in the shape the labelling pipeline
 /// writes: `regions`, each name with its group, its colour, the number for each side and how
 /// it was made; `model` when a model made the labels; `qc` for the model's own check; and
-/// a `voxa` object that says who made them.
+/// a `volsa` object that says who made them.
 ///
 /// What is written is read back as it was by [`read_table`](crate::read_table) when each
 /// name's entries lie together, left before right before midline, each with one number, one
@@ -50,7 +50,7 @@ pub fn write_table(table: &Table) -> Result<String, WriteError> {
     let document = Document {
         title: kept(&table.title, MAX_NAME),
         model: by_model(&groups).then(|| model_name(table)),
-        voxa: table.made.as_ref().map(VoxaObject::of),
+        volsa: table.made.as_ref().map(VolsaObject::of),
         regions: InOrder(regions),
         qc: table.verdict.as_ref().and_then(Check::of),
     };
@@ -112,7 +112,7 @@ struct Document {
     #[serde(skip_serializing_if = "Option::is_none")]
     model: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    voxa: Option<VoxaObject>,
+    volsa: Option<VolsaObject>,
     regions: InOrder<Region>,
     #[serde(skip_serializing_if = "Option::is_none")]
     qc: Option<Check>,

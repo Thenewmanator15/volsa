@@ -1,7 +1,7 @@
 //! Actions about labelled parts: opening and closing labels, and what is shown of them.
 
-use voxa_core::StudyId;
-use voxa_labels::boxes_meet;
+use volsa_core::StudyId;
+use volsa_labels::boxes_meet;
 
 use super::labelling;
 use crate::action::{Action, Effect};

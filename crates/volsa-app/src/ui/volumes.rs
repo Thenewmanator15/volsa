@@ -1,8 +1,9 @@
 //! Which volume of a series is shown, and the two buttons that step between its volumes.
 
 use egui::Ui;
-use voxa_core::SeriesInfo;
+use volsa_core::SeriesInfo;
 
+use super::commands::{self, Request};
 use crate::action::Action;
 use crate::state::AppState;
 
@@ -18,42 +19,32 @@ pub fn label(info: &SeriesInfo) -> Option<String> {
     })
 }
 
-/// In the toolbar: the volume the active viewport shows, with a button either side to step to
-/// the one before and the one after. Nothing unless that viewport shows a series of several.
-pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+/// The volume the active viewport shows, with a button either side to step to the one before
+/// and the one after. Nothing unless that viewport shows a series of several. Gives what the
+/// buttons ask of the window, if anything.
+pub fn stepper(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
     let viewport = state.active;
     let shown = state.viewports.get(viewport);
     let listed = shown
         .and_then(|shown| shown.series.as_ref())
         .and_then(|series| state.series(series));
-    let Some(info) = listed.map(|listed| &listed.info) else {
-        return;
-    };
-    let (Some(set), Some(label)) = (&info.set, label(info)) else {
-        return;
-    };
-    // The three go onto the next row of the toolbar together when they must.
+    let info = listed.map(|listed| &listed.info)?;
+    let label = label(info)?;
+    // The three go onto the next row together when they must.
     if ui.available_size_before_wrap().x < width_of(ui, &label) {
         ui.end_row();
     }
-    ui.separator();
+    // Each button is greyed at its end of the volumes.
     let together = ui.horizontal(|ui| {
-        let back = ui.add_enabled(set.at > 0, egui::Button::new("◀"));
+        let back = commands::button(ui, "volume.before", state, None);
         ui.label(label);
-        let on = ui.add_enabled(set.at + 1 < set.count, egui::Button::new("▶"));
-        (back, on)
+        let on = commands::button(ui, "volume.after", state, None);
+        back.or(on)
     });
-    let (back, on) = together.inner;
-    if back.on_hover_text("The volume before ([)").clicked() {
-        actions.push(Action::StepVolume { viewport, by: -1 });
-    }
-    if on.on_hover_text("The volume after (])").clicked() {
-        actions.push(Action::StepVolume { viewport, by: 1 });
-    }
+    together.inner.and_then(|does| does.run(state, actions))
 }
 
-/// How wide the stepper is: a line between it and what is before it, a button either side
-/// and the words between them, with the spaces.
+/// How wide the stepper is: a button either side and the words between them, with the spaces.
 fn width_of(ui: &Ui, label: &str) -> f32 {
     let wide = |text: &str, style: egui::TextStyle| {
         let font = style.resolve(ui.style());
@@ -65,12 +56,12 @@ fn width_of(ui: &Ui, label: &str) -> f32 {
     let spacing = ui.spacing();
     let button = wide("◀", egui::TextStyle::Button) + 2.0 * spacing.button_padding.x;
     let words = wide(label, egui::TextStyle::Body);
-    2.0 * button + words + 4.0 * spacing.item_spacing.x + spacing.icon_spacing
+    2.0 * button + words + 3.0 * spacing.item_spacing.x
 }
 
 #[cfg(test)]
 mod tests {
-    use voxa_core::{SeriesId, VolumeSet};
+    use volsa_core::{SeriesId, VolumeSet};
 
     use super::*;
 
@@ -136,7 +127,8 @@ mod tests {
             let mut found = named.filter(|node| node.label() == Some(wanted));
             found.find_map(egui::accesskit::Node::bounds).expect(wanted)
         };
-        let (back, on) = (bounds("◀"), bounds("▶"));
+        // A screen reader is told what each button does, not its arrow.
+        let (back, on) = (bounds("The volume before"), bounds("The volume after"));
         assert!((back.y0 - on.y0).abs() < 0.5, "one row: {back:?} {on:?}");
         assert!(on.x1 <= f64::from(WIDE), "inside the toolbar: {on:?}");
     }

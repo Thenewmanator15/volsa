@@ -41,7 +41,7 @@ pub(super) fn card(number: u32, kind: CardKind, own_bytes: u64) -> Card {
     }
 }
 
-/// An integrated card (card 0) of 128 MiB, a discrete card (card 1) of 16 GiB that Voxa
+/// An integrated card (card 0) of 128 MiB, a discrete card (card 1) of 16 GiB that Volsa
 /// draws on and holds 1 GiB of, no budget read for either, and 20 GiB of ordinary memory free.
 pub(super) fn room() -> Room {
     Room {
@@ -108,7 +108,7 @@ fn a_scan_too_large_whole_is_offered_cut_to_the_head() {
 
 #[test]
 fn with_little_ordinary_memory_free_the_head_is_offered_on_the_processor_alone() {
-    // The first set-up (no budget known, so the card has 16 GiB less the 1 GiB Voxa holds),
+    // The first set-up (no budget known, so the card has 16 GiB less the 1 GiB Volsa holds),
     // with the ordinary memory down from 20 GiB to 10 GiB. The head needs 13.04 GiB on the
     // card, which has 15, and the scores network's 10.25 GiB fits there too, but a run on a
     // card asks the computer for 19.56 GiB of ordinary memory and one on the processor for
@@ -154,7 +154,7 @@ fn automatic_offers_only_discrete_cards_in_the_systems_order() {
 }
 
 #[test]
-fn a_discrete_cards_room_is_its_budget_else_its_memory_less_what_voxa_holds() {
+fn a_discrete_cards_room_is_its_budget_else_its_memory_less_what_volsa_holds() {
     let need = needs(WHOLE, STANDARD, Device::Card(id(1)));
     assert_eq!(need, 7_168_000_000);
     let cuts = |own: u64, budgets: Vec<Option<u64>>, drawing_on: Option<u32>| {
@@ -175,13 +175,13 @@ fn a_discrete_cards_room_is_its_budget_else_its_memory_less_what_voxa_holds() {
     // card has and, in the next, less.
     assert_eq!(cuts(GIB, vec![Some(need)], Some(1)), both);
     assert_eq!(cuts(100 * GIB, vec![Some(need - 1)], Some(1)), head);
-    // With no budget, Voxa's own hold is taken off the card it draws on, to the byte.
+    // With no budget, Volsa's own hold is taken off the card it draws on, to the byte.
     assert_eq!(cuts(need + GIB, vec![None], Some(1)), both);
     assert_eq!(cuts(need + GIB - 1, vec![None], Some(1)), head);
     // A missing entry is no budget.
     assert_eq!(cuts(need + GIB, vec![], Some(1)), both);
     assert_eq!(cuts(need + GIB - 1, vec![], Some(1)), head);
-    // The hold is not taken off a card Voxa does not draw on, or when it draws on none.
+    // The hold is not taken off a card Volsa does not draw on, or when it draws on none.
     assert_eq!(cuts(need + GIB - 1, vec![None], Some(0)), both);
     assert_eq!(cuts(need + GIB - 1, vec![None], None), both);
     // A hold larger than the card leaves it no room, and does not wrap round.
@@ -353,7 +353,7 @@ fn a_card_is_the_same_card_wherever_the_systems_list_has_it() {
         let found = rungs(WHOLE, HEAD, STANDARD, &turned(None), by_place);
         assert_eq!(found, Vec::new());
     }
-    // What Voxa holds is taken off the card it draws on, which is card 1 wherever it stands:
+    // What Volsa holds is taken off the card it draws on, which is card 1 wherever it stands:
     // with a byte too little left for the whole scan, only the head is offered there.
     let need = needs(WHOLE, STANDARD, Device::Card(id(1)));
     let cuts = |room: &Room| {

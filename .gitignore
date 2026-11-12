@@ -8,3 +8,5 @@
 /phantom/
 # The converter under tools/ is Python; what it leaves behind when run stays out.
 __pycache__/
+# The user guide mdBook builds.
+/book/book

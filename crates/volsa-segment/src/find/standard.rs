@@ -1,11 +1,11 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `build_model` in SynthSeg/predict_synthseg.py, translated to Rust and changed
-// for Voxa.
+// for Volsa.
 //! The standard network. It runs twice, on the image and on the image's mirror, and its two
 //! answers are averaged: `SynthSeg` does the same inside its own model (`build_model`, where it
 //! is given `flip_indices`).
 
-use voxa_models::{Numbers, Role, RunError, Tensor};
+use volsa_models::{Numbers, Role, RunError, Tensor};
 
 use super::{Halves, Image, NOT_FINITE, Networks, Stage, all_finite, failed, room};
 

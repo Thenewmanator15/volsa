@@ -1,55 +1,23 @@
-//! What the workers leave to the graphics device, and what they hand to it themselves.
+//! What the workers leave to the graphics device. They hand it nothing themselves.
 
 use super::tests::{Bench, folder_of};
 use super::volume_tests::{build, counted, stored, until_the_volume_ends};
 use super::*;
 use crate::testing::{THICK_SCAN, id};
+use volsa_core::Grid;
 
 #[test]
-fn with_the_blocks_left_to_the_device_a_volume_is_made_ready_without_them() {
-    let made_ready = |leave: bool| {
-        let bench = Bench::with_budget(1 << 20);
-        let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
-        let index = bench.index(folder.path()).expect("indexes");
-        bench.workers.leave_to_the_device(leave, false);
-        build(&bench, &index, THICK_SCAN);
-        until_the_volume_ends(&bench);
-        let ready = lock(&bench.volumes).take_prepared(&id(THICK_SCAN));
-        ready.expect("made ready").has_blocks()
-    };
-    assert!(made_ready(false), "worked out on the worker");
-    assert!(!made_ready(true), "left for the device to work out");
-}
-
-#[test]
-fn given_the_graphics_device_a_worker_hands_the_volume_to_it_as_well_as_making_it_ready() {
-    let made_ready = |bench: &Bench| {
-        let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
-        let index = bench.index(folder.path()).expect("indexes");
-        build(bench, &index, THICK_SCAN);
-        until_the_volume_ends(bench);
-        let ready = lock(&bench.volumes).take_prepared(&id(THICK_SCAN));
-        ready.expect("made ready")
-    };
-    let without = Bench::with_budget(1 << 20);
+fn a_volume_the_card_can_hold_has_no_copy_made_for_it() {
+    let bench = Bench::with_budget(1 << 20);
+    let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
+    let index = bench.index(folder.path()).expect("indexes");
+    build(&bench, &index, THICK_SCAN);
+    until_the_volume_ends(&bench);
+    assert!(lock(&bench.volumes).for_card(&id(THICK_SCAN)).is_none());
     assert!(
-        !made_ready(&without).is_handed_over(),
-        "no device to hand it to"
+        stored(&bench, THICK_SCAN).is_some(),
+        "the card holds the volume itself"
     );
-    let Ok(mut scene) = voxa_render::HeadlessScene::new() else {
-        eprintln!("skipped: no graphics adapter here, not even a software one");
-        return;
-    };
-    let with = Bench::with_budget(1 << 20);
-    let (device, queue) = scene.device();
-    with.workers.give_device(device, queue);
-    let ready = made_ready(&with);
-    assert!(
-        ready.is_handed_over(),
-        "its values are on the device already"
-    );
-    scene.upload_prepared(&ready).expect("taken up");
-    assert!(!ready.is_handed_over());
 }
 
 #[test]
@@ -61,7 +29,7 @@ fn a_curve_left_to_the_device_is_worked_out_on_a_worker_only_when_asked_outright
     until_the_volume_ends(&bench);
     bench.drain();
     let series = id(THICK_SCAN);
-    bench.workers.leave_to_the_device(false, true);
+    bench.workers.leave_to_the_device(true);
     let ask = Effect::BuildSmooth {
         series: series.clone(),
     };
@@ -87,11 +55,14 @@ fn a_volume_is_still_made_and_reported_when_the_windows_device_is_lost() {
         return;
     };
     // Watched as the window's is, and then lost.
-    let watch = voxa_render::DeviceWatch::on(&device, || {});
+    let watch = volsa_render::DeviceWatch::on(&device, || {});
     crate::testing::lose(&device);
     assert!(watch.is_lost());
+    let _ = queue;
     let bench = Bench::with_budget(1 << 20);
-    bench.workers.give_device(device, queue);
+    bench
+        .workers
+        .set_card_room(volsa_render::CardRoom::of(&device, None));
     let folder = folder_of(&counted(THICK_SCAN, 30, |_, _| {}));
     let index = bench.index(folder.path()).expect("indexes");
     build(&bench, &index, THICK_SCAN);

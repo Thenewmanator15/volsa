@@ -1,5 +1,7 @@
 # Acceptance: reading more kinds of MRI export
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-14. Made on the branch `any-mri`, and released in 0.5.0 with labelling (see
 [acceptance-0.5.0.md](acceptance-0.5.0.md)). The design is in
 [superpowers/specs/2026-10-13-voxa-any-mri-design.md](superpowers/specs/2026-10-13-voxa-any-mri-design.md)

@@ -3,9 +3,9 @@
 
 use std::path::PathBuf;
 
-use voxa_segment::Stage;
+use volsa_segment::Stage;
 
-use super::labelling_result_tests::{by_voxa, read_with};
+use super::labelling_result_tests::{by_volsa, read_with};
 use super::labelling_tests::{
     able, cards, failure, label, looked, nothing_runs, open, running, said, stage,
 };
@@ -30,7 +30,7 @@ fn second_run() -> AppState {
 /// What a worker reports of labels that fill the scene's volume.
 fn result(state: &AppState, run: Option<u64>) -> Action {
     let volume = state.scene.corners.expect("the volume is built");
-    read_with(volume, Some(by_voxa()), run)
+    read_with(volume, Some(by_volsa()), run)
 }
 
 #[test]

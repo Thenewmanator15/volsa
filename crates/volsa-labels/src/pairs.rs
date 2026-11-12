@@ -1,6 +1,8 @@
 //! Parts that are the same structure on the two sides of the patient, taken together, and
 //! how much the two differ.
 
+use std::collections::HashMap;
+
 use crate::set::Part;
 use crate::table::Side;
 
@@ -19,37 +21,52 @@ pub struct Pair {
     pub midline: Option<usize>,
 }
 
+/// The entries made so far for one name within a group, by their place among all the entries,
+/// and how many of them have a part on the left, on the right and on the midline. A side's
+/// parts fill the entries in order, so the first entry still free on a side is the one after
+/// the last filled on it.
+#[derive(Default)]
+struct Named {
+    entries: Vec<usize>,
+    filled: [usize; 3],
+}
+
 /// The parts of a set as one entry for each name within a group, in the order first met. A
 /// second part with the same name, group and side as one before starts an entry of its own.
+/// The work grows with the number of parts and no faster, however many names there are.
 pub fn pairs(parts: &[Part]) -> Vec<Pair> {
     let mut paired: Vec<Pair> = Vec::new();
+    let mut named: HashMap<(&str, &str), Named> = HashMap::new();
     for (place, part) in parts.iter().enumerate() {
-        let fits = |pair: &&mut Pair| {
-            let free = match part.side {
-                Side::Left => pair.left.is_none(),
-                Side::Right => pair.right.is_none(),
-                Side::Midline => pair.midline.is_none(),
-            };
-            pair.name == part.name && pair.group == part.group && free
+        let side = match part.side {
+            Side::Left => 0,
+            Side::Right => 1,
+            Side::Midline => 2,
         };
-        let mut fresh = Pair {
-            name: part.name.clone(),
-            group: part.group.clone(),
-            left: None,
-            right: None,
-            midline: None,
+        let known = named
+            .entry((part.name.as_str(), part.group.as_str()))
+            .or_default();
+        let Some(filled) = known.filled.get_mut(side) else {
+            continue;
         };
-        let pair = match paired.iter_mut().find(fits) {
-            Some(pair) => pair,
-            None => &mut fresh,
-        };
-        match part.side {
-            Side::Left => pair.left = Some(place),
-            Side::Right => pair.right = Some(place),
-            Side::Midline => pair.midline = Some(place),
-        }
-        if fresh.left.or(fresh.right).or(fresh.midline).is_some() {
-            paired.push(fresh);
+        let at = known.entries.get(*filled).copied().unwrap_or_else(|| {
+            known.entries.push(paired.len());
+            paired.push(Pair {
+                name: part.name.clone(),
+                group: part.group.clone(),
+                left: None,
+                right: None,
+                midline: None,
+            });
+            paired.len() - 1
+        });
+        *filled += 1;
+        if let Some(pair) = paired.get_mut(at) {
+            match part.side {
+                Side::Left => pair.left = Some(place),
+                Side::Right => pair.right = Some(place),
+                Side::Midline => pair.midline = Some(place),
+            }
         }
     }
     paired

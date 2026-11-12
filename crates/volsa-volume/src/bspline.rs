@@ -7,7 +7,7 @@
 //! The curve passes through every measured value. Between them it is smooth, which is not
 //! the same as showing more detail than was measured.
 
-use voxa_core::Volume;
+use volsa_core::Volume;
 
 /// The pole of the cubic B-spline's filter: the square root of 3, less 2.
 const POLE: f32 = -0.267_949_2;
@@ -176,7 +176,7 @@ fn narrowed(sum: f64) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use voxa_core::{Affine, Point};
+    use volsa_core::{Affine, Point};
 
     use super::*;
     use crate::sample::sample;

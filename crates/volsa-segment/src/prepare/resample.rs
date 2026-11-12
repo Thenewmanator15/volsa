@@ -1,6 +1,6 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `resample_volume` in ext/lab2im/edit_volumes.py, translated to Rust and
-// changed for Voxa.
+// changed for Volsa.
 //! Bringing a volume to 1 mm along its own axes, as `SynthSeg`'s `resample_volume` does.
 //!
 //! With `f` the spacing in millimetres along an axis of `n` voxels:
@@ -29,7 +29,7 @@
 
 use std::borrow::Cow;
 
-use voxa_core::{Affine, Patient, Volume, Voxel};
+use volsa_core::{Affine, Grid, Patient, Volume, Voxel};
 
 use super::{FEWEST, LONGEST, narrowed, whole};
 
@@ -53,7 +53,7 @@ fn is_needed(spacing: [f64; 3]) -> bool {
 /// How many voxels of the 1 mm grid there are to one voxel of the volume, along its columns,
 /// rows and slices: its spacing in millimetres when it is resampled, 1 when it is left as it
 /// is.
-pub(super) fn steps(volume: &Volume) -> [f64; 3] {
+pub(super) fn steps(volume: &(impl Grid + ?Sized)) -> [f64; 3] {
     let spacing = volume.spacing_mm();
     if is_needed(spacing) {
         spacing
@@ -66,7 +66,7 @@ pub(super) fn steps(volume: &Volume) -> [f64; 3] {
 /// volume's own counts when it needs no resampling. Worked out from the sizes and the
 /// spacing alone, without reading a value. A spacing far past any scan's gives no voxels, or
 /// the most a count can hold.
-pub(super) fn sides(volume: &Volume) -> [u32; 3] {
+pub(super) fn sides(volume: &(impl Grid + ?Sized)) -> [u32; 3] {
     let spacing = volume.spacing_mm();
     if !is_needed(spacing) {
         return volume.dims();
@@ -325,7 +325,7 @@ fn blend(work: &[f64], dims: [usize; 3], readings: &[Vec<Reading>; 3]) -> Vec<f3
 
 /// Where the 1 mm grid lies in the patient: each column of the volume's transform divided by
 /// its spacing, and the origin moved back by half of `f - 1` of the new steps along each
-/// axis. The same sum in Voxa's left-posterior-superior as in `SynthSeg`'s
+/// axis. The same sum in Volsa's left-posterior-superior as in `SynthSeg`'s
 /// right-anterior-superior, since the two differ only in the sign of two rows.
 fn placement(volume: &Volume, spacing: [f64; 3]) -> Affine<Voxel, Patient> {
     let old = volume.voxel_to_patient();

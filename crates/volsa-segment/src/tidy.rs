@@ -1,6 +1,6 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `postprocess` in SynthSeg/predict_synthseg.py, with the lab2im functions it
-// calls, translated to Rust and changed for Voxa.
+// calls, translated to Rust and changed for Volsa.
 //! Tidying what the networks found into labels on the volume's own grid, as `SynthSeg`'s own
 //! program tidies it. That program goes one of two ways, by which networks ran, and so does
 //! [`tidy`].
@@ -50,8 +50,8 @@
 //! looked for. Every list here that grows with the scan is asked for in a way that can be
 //! refused: running out of memory is [`RunError::NoRoom`], not the end of the program.
 
-use voxa_labels::LabelGrid;
-use voxa_models::{Lists, Numbers, RunError, Tensor, Wanted};
+use volsa_labels::LabelGrid;
+use volsa_models::{Lists, Numbers, RunError, Tensor, Wanted};
 
 use crate::find::{Found, failed, holds, room};
 use crate::prepare::Back;

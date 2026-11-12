@@ -1,7 +1,7 @@
 //! Volumes to draw and ways to measure the pictures drawn of them, for this crate's tests.
 
-use voxa_core::{Affine, Patient, Point, Volume, Voxel, WindowLevel};
-use voxa_labels::{LabelSet, Part, Side, Trust};
+use volsa_core::{Affine, Patient, Point, Volume, Voxel, WindowLevel};
+use volsa_labels::{LabelSet, Part, Side, Trust};
 
 use crate::camera::{Camera, NamedView};
 use crate::offscreen_scene::HeadlessScene;

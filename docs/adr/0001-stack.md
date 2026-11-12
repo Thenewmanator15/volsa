@@ -1,5 +1,7 @@
 # 1. Rust with egui and wgpu
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 Date: 2026-10-05. Status: accepted.
 
 ## Context

@@ -1,4 +1,4 @@
-//! Which of the licences a package offers Voxa takes it under, and which licence a text that
+//! Which of the licences a package offers Volsa takes it under, and which licence a text that
 //! comes with a package is the text of.
 
 use std::fs;
@@ -11,7 +11,7 @@ use super::standard::licence_ids;
 const NONE: [&str; 0] = [];
 
 #[test]
-fn of_a_choice_the_most_permissive_licence_voxa_accepts_is_taken() {
+fn of_a_choice_the_most_permissive_licence_volsa_accepts_is_taken() {
     let cases: [(&str, Option<&[&str]>); 18] = [
         ("MIT OR Apache-2.0", Some(&["MIT"])),
         ("Apache-2.0 OR MIT", Some(&["MIT"])),

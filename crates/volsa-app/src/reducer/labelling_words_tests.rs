@@ -1,7 +1,7 @@
 //! Labelling in the state: the words that say why a run cannot start and what will run.
 
-use voxa_models::{CardId, CardKind, RunsOn};
-use voxa_segment::ModelChoice;
+use volsa_models::{CardId, CardKind, RunsOn};
+use volsa_segment::ModelChoice;
 
 use super::labelling_tests::{
     able, card, cards, looked, looked_on, reading_labels, running, slices_apart,
@@ -29,7 +29,7 @@ fn it_says_in_a_sentence_why_a_scan_cannot_be_labelled_yet() {
     let cases = [
         (
             thick_scan_ready(),
-            "Voxa has not yet checked whether this computer can label a scan.",
+            "Volsa has not yet checked whether this computer can label a scan.",
         ),
         (not_possible, "No models were found."),
         (
@@ -69,7 +69,7 @@ fn line(choice: ModelChoice, mm: f64, cortex: bool, runs_on: RunsOn) -> String {
 }
 
 #[test]
-fn left_to_voxa_the_line_says_which_model_was_picked_and_why() {
+fn left_to_volsa_the_line_says_which_model_was_picked_and_why() {
     let card_a = "the graphics card (Made-up card A)";
     let thin = "Standard was picked because the slices are no more than 3 mm apart.";
     let thick = "Robust was picked because the slices are more than 3 mm apart.";

@@ -1,6 +1,6 @@
 //! Pictures of a volume drawn on a graphics device with no window, and measured.
 
-use voxa_core::WindowLevel;
+use volsa_core::WindowLevel;
 
 use super::*;
 use crate::camera::NamedView;

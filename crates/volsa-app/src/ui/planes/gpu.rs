@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use egui::{Rect, Ui};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
-use voxa_core::WindowLevel;
-use voxa_render::{
+use volsa_core::WindowLevel;
+use volsa_render::{
     LabelsOnDevice, Overlay, PlanePipeline, PlaneView, SmoothedTexture, VolumePipeline,
 };
 

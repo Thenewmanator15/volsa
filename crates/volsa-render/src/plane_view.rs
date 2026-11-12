@@ -1,8 +1,8 @@
 //! What a panel shows of a plane through a volume: which plane, at what scale, and which
 //! part of it is in the middle of the panel.
 
-use voxa_core::{Patient, Point};
-use voxa_volume::Plane;
+use volsa_core::{Patient, Point};
+use volsa_volume::Plane;
 
 /// The least a plane view can be zoomed to: the whole volume at half size.
 pub const MIN_PLANE_ZOOM: f64 = 0.5;
@@ -96,7 +96,7 @@ fn narrowed(pixels: f64) -> f32 {
 
 #[cfg(test)]
 mod tests {
-    use voxa_volume::{PlaneKind, plane_of};
+    use volsa_volume::{PlaneKind, plane_of};
 
     use super::*;
     use crate::testing::ball;

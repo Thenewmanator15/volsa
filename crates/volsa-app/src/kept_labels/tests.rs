@@ -4,8 +4,8 @@
 use std::path::Path;
 
 use tempfile::TempDir;
-use voxa_core::SeriesId;
-use voxa_labels::{label_set, read_labels, read_table};
+use volsa_core::SeriesId;
+use volsa_labels::{label_set, read_labels, read_table};
 
 use super::*;
 use crate::testing::{made_up_labels, written_labels as written};
@@ -224,6 +224,6 @@ fn saved_labels_are_written_under_a_name_that_ends_as_a_gzipped_nifti_file_does(
     assert_eq!(saved_as("head.gz"), named("head.nii.gz"));
     assert_eq!(saved_as("head"), named("head.nii.gz"));
     assert_eq!(saved_as("labels.2"), named("labels.2.nii.gz"));
-    // And the table beside it is found again where Voxa looks for it.
+    // And the table beside it is found again where Volsa looks for it.
     assert_eq!(table_for(&saved_as("head.gz")), named("head.json"));
 }

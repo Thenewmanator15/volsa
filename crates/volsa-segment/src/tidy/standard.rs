@@ -1,11 +1,11 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `postprocess` in SynthSeg/predict_synthseg.py, translated to Rust and changed
-// for Voxa.
+// for Volsa.
 //! What is kept of the standard network's answer: `SynthSeg`'s tidying with `fast` off. The
 //! largest piece of everything is found on the padded grid, and then the largest piece of
 //! each class of structures above the lowest.
 
-use voxa_models::{Lists, RunError, Structure};
+use volsa_models::{Lists, RunError, Structure};
 
 use super::{Chances, KEEP_ABOVE, counts};
 use crate::find::room;

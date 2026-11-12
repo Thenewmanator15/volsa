@@ -1,5 +1,5 @@
 {
- "what": "Lists of made-up single precision numbers, each with its sum as NumPy adds along the last axis of an array, which is how SynthSeg adds a voxel's chances: 7, 9, 15, 33, 130 and 255 numbers, on each side of the lengths at which NumPy's way of adding changes. The script stops if NumPy no longer adds by the rule Voxa follows.",
+ "what": "Lists of made-up single precision numbers, each with its sum as NumPy adds along the last axis of an array, which is how SynthSeg adds a voxel's chances: 7, 9, 15, 33, 130 and 255 numbers, on each side of the lengths at which NumPy's way of adding changes. The script stops if NumPy no longer adds by the rule Volsa follows.",
  "made_with": {
   "numpy": "2.5.3"
  },

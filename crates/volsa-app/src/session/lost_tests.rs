@@ -3,7 +3,7 @@
 
 use std::path::{Path, PathBuf};
 
-use voxa_render::DeviceWatch;
+use volsa_render::DeviceWatch;
 
 use super::Session;
 use super::tests::{open_until, ready_in_3d, session_keeping, until, zip_of};

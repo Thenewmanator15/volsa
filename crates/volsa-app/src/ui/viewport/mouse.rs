@@ -3,6 +3,7 @@
 use egui::{Event, MouseWheelUnit, PointerButton, Rect, Ui};
 
 use super::super::overlay::ViewportInput;
+use crate::annotations::Tool;
 
 /// How far a touchpad must scroll, in points, to count as one notch of a wheel.
 const POINTS_PER_NOTCH: f32 = 50.0;
@@ -35,6 +36,16 @@ pub(super) fn gather(
         (input.wheel, input.zooming) = turned(ui, part_notch);
     }
     input
+}
+
+/// What the mouse did over a viewport, as it matters with `tool` in hand. A double-click
+/// fits the picture only while navigating: with a measuring tool in hand it finishes what
+/// is being drawn, and the picture must not move under it.
+pub(super) fn for_tool(input: ViewportInput, tool: Tool) -> ViewportInput {
+    ViewportInput {
+        double_clicked: input.double_clicked && tool == Tool::Navigate,
+        ..input
+    }
 }
 
 /// How many whole notches the wheel turned towards the person this frame, and whether Ctrl

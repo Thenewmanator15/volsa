@@ -4,8 +4,8 @@
 use std::collections::BTreeSet;
 use std::path::PathBuf;
 
-use voxa_labels::read_labels;
-use voxa_models::RunsOn;
+use volsa_labels::read_labels;
+use volsa_models::RunsOn;
 
 use super::kept_tests::{key, notice, set_of};
 use super::lab::Lab;
@@ -17,7 +17,7 @@ use crate::state::NoticeKind;
 use crate::testing::{made_up_labels, written_labels};
 
 const SAVED: &str = "The labels and their table of names were saved.";
-const NOT_SAVED: &str = "These labels could not be saved as a file. Only labels that Voxa \
+const NOT_SAVED: &str = "These labels could not be saved as a file. Only labels that Volsa \
                          made can be saved, and the folder must be one that can be written to.";
 
 /// Labels from a run, not kept, and settled; and where to save them.
@@ -83,7 +83,7 @@ fn labels_shown_from_a_kept_result_are_saved_as_they_were_kept() {
 }
 
 #[test]
-fn labels_that_were_not_made_by_voxa_are_not_saved() {
+fn labels_that_were_not_made_by_volsa_are_not_saved() {
     let lab = Lab::keeping(StandIn::roomy());
     let (labels, _) = written_labels();
     let (from, plain) = (
@@ -93,7 +93,7 @@ fn labels_that_were_not_made_by_voxa_are_not_saved() {
     std::fs::write(&from, &labels).expect("writes");
     let (_, mut table) = made_up_labels();
     table.made = None;
-    let text = voxa_labels::write_table(&table).expect("the table is written");
+    let text = volsa_labels::write_table(&table).expect("the table is written");
     std::fs::write(&plain, text).expect("writes");
     let read = Effect::ReadLabels {
         labels: from,

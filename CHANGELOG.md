@@ -1,18 +1,20 @@
 # Changelog
 
-All notable changes to Voxa are recorded here. The format follows
+All notable changes to Volsa are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/).
+
+Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
 ### Added
 
 - Plugins: models a person adds themselves. **Add a plugin…**, under **Added by you** in the
-  Parts tab, takes a folder holding a `plugin.json` and an ONNX network someone else made.
-  Voxa checks the folder, shows a card that says first "Added by you, not part of Voxa. Voxa
+  Tools tab, takes a folder holding a `plugin.json` and an ONNX network someone else made.
+  Volsa checks the folder, shows a card that says first "Added by you, not part of Volsa. Volsa
   has not checked what this model does. Not for diagnostic use.", then what the plugin says of
-  itself and every setting Voxa will prepare a scan with, and copies it only on **Add**. It
+  itself and every setting Volsa will prepare a scan with, and copies it only on **Add**. It
   then measures what the network needs on the processor and on each graphics card with memory
   of its own. **Run** prepares the scan in the open from a fixed menu (the grid along the
   scan's own axes at the plugin's spacing, one centred box or blocks, percentile, z-score or
@@ -22,23 +24,357 @@ All notable changes to Voxa are recorded here. The format follows
   names that the plugin does not list is warned of, run only after **Run anyway**, and stamped
   on the result; a description that names none is stamped "Contrast not confirmed". Label maps
   run now; one number, a value map and an alignment are part of the format and refused as not
-  yet run. Voxa downloads no plugin, recommends none and links to none.
+  yet run. Volsa downloads no plugin, recommends none and links to none.
   [docs/plugins.md](docs/plugins.md) is for people who make one, and
   [record 0007](docs/adr/0007-plugins.md) says why it is built as it is.
 
 ### Security
 
-- A plugin's network runs only in a helper process, `voxa.exe --plugin-helper`, held in a
-  Windows job object that ends it with Voxa or on **Stop**, lets it start no process and caps
-  its memory at what it was measured to need; if it fails or ends early, Voxa says so and goes
-  on. Before ONNX Runtime sees a network file, Voxa reads its structure itself and refuses any
+- A plugin's network runs only in a helper process, `volsa.exe --plugin-helper`, held in a
+  Windows job object that ends it with Volsa or on **Stop**, lets it start no process and caps
+  its memory at what it was measured to need; if it fails or ends early, Volsa says so and goes
+  on. Before ONNX Runtime sees a network file, Volsa reads its structure itself and refuses any
   operator outside standard ONNX, local functions, data outside the plugin's listed files, and
   files past the reader's limits. Every listed file is checked by name, size and SHA-256 when
   added, and the network's sum again by the helper before every run. Scan values reach the
   helper through pipes only. SECURITY.md has a "Plugins" section; the helper is not a sandbox,
   so add plugins only from sources you trust.
 
+### Fixed
+
+Four ways measurements or saved 3D views kept from an earlier run could be lost, found by
+reading the code on 9 November 2026. None was reported by anyone using Volsa.
+
+- A measurement made in the moment before a scan's kept measurements had been read was
+  written in their place. Nothing is now written until they have been read; what was measured
+  meanwhile is put after them, numbered on from them, and both are written together.
+- A file of saved views that could not be read (damaged, cut short, or written by another
+  version) was treated as empty, and the next view saved was written over it, losing every
+  other scan's views. It is now put aside as `views.json.unread` first, as the measurements'
+  file already was. The same is now so of the preferences and of what was chosen for
+  labelling: all four files Volsa keeps are read and written by one rule, in one place, and a
+  file that cannot be read is put aside under its own name with `.unread` after it.
+- A region measured over a value that is not a number (which only a damaged or unusual file
+  holds) had a mean that was not a number, and the measurements' file written with it could
+  not be read again for any scan. Such values are now left out of a region, and a list that
+  still holds one is not written: Volsa says the measurements could not be written, and the
+  file stays as it was.
+- Two saves made close together for two different scans could leave the earlier one out.
+  Each scan's saves are now counted by themselves, for measurements and for saved views.
+
+Five ways Volsa could stop or stand still on a very large or unusual file, found by the same
+reading. None was reported by anyone using Volsa.
+
+- When the graphics card truly had no room for a volume, Volsa stopped, where it was meant to
+  halve the volume and try again. The card calls whatever is then asked of the texture it did
+  not make a mistake of the program's, and only a lack of room was watched for. Both are now
+  watched for together, in every place a volume, its labels or its smooth planes are put on
+  the card.
+- "Label this scan" made its 32-bit copy of the whole scan before it looked at whether the
+  scan was too large to label. A scan too large is now told so from its sizes alone, with no
+  copy made, and a copy there is no memory for is refused in words.
+- A scan stored as one file of many frames was read and parsed again for every 32 MiB of its
+  volume: a 1.5 GB file some fifty times over. It is now opened once for the whole volume.
+- A label file with tens of thousands of different numbers and no table of names made the
+  Labels tab stand still: left and right parts were paired by going through every pair for
+  every part. Pairing now takes one pass.
+- A label file whose header claims far more voxels than it holds asked for all of that memory
+  at once, and Volsa stopped if it was not to be had. That is now a file too large to hold.
+
+Six ways the window could show something other than what was there, found by the same
+reading. None was reported by anyone using Volsa.
+
+- A scan clicked while its export was still being read could stay black until it was
+  scrolled: its slices were asked for before there was anything to read them from. They are
+  asked for again when the reading ends.
+- A measurement begun in one of the three plane views was kept when the wheel moved that view
+  to another layer, so an angle or a region could be finished across two layers, and then
+  vanish from every view. What is begun on one layer is now given up when the view shows
+  another, as it already was on the slices.
+- A region drawn on a slice was shown in the plane views with its width and height changed
+  over when the scan is stored turned a quarter round in its plane. A region is now drawn
+  along its own two half-widths everywhere.
+- The DICOM tags window, opened from a scan's card or from a document, went on listing that
+  file after another export was opened. It now goes back to the slice shown.
+- When the graphics card turned a volume down and a smaller one was put in its place, the
+  3D view went on drawing the rough preview. It now draws the volume.
+- Dragging for brightness and contrast before a scan's first slice had appeared set a window
+  worked out from nothing and gave up the automatic one. The drag now waits for the slice.
+
+### Changed
+
+- A slice is now shown the same way round whatever way its file stores it, by the one
+  convention the three plane views already kept. From above or from the front, the patient's
+  left is on the right of the screen with Radiological on and on the left with it off; the
+  front of the head is at the top of a slice from above, and the head at the top of one from
+  the front. From the side, the front of the head is on the left and the head at the top.
+  Before, a slice was shown as its file stored it, and the switch only mirrored it: a scan
+  taken with the patient lying face down had the patient's left on the left with
+  Radiological on, the other way from what the switch says and from the plane views beside
+  it. Such a scan is now turned half round. A scan stored the usual way looks as it did, the
+  letters at the edges were and are right, and your own flips and turns are made to the
+  picture as before. The owner decided this on 11 November 2026: one convention, kept
+  everywhere.
+
+## [0.7.1] - 2026-11-01
+
+The first download of Volsa. 0.7.0's release build stopped at its checks, so no 0.7.0 download
+was ever made: this release is 0.7.0 with the two fixes and the shorter READMEs below.
+Everything the notes of 0.7.0 in CHANGELOG.md describe is in it: a new window, made so that
+someone who has never seen Volsa can open an export, find the brain scan and measure something
+on it without help; very large scans that open faster and in less memory; and a damaged file
+nested too deeply refused instead of stopping Volsa. Volsa is not a medical device and is not
+for diagnostic use.
+
+### Changed
+
+- The README is a short front page. What it held is now in a user guide on GitHub Pages,
+  https://thenewmanator15.github.io/volsa/, an mdBook built from `book/` and checked with the
+  code: the wording rule, every page in its table of contents, and every link. Its page on
+  what Volsa is for, and its page on the files labelling needs, include `docs/intended-use.md`
+  and `docs/models.md` themselves, so they cannot drift from the copies in the zip. The
+  README.txt in the zip holds what is needed with no network (starting Volsa, the SmartScreen
+  warning, checking the download, what it needs, what it keeps and how to remove it) and points
+  to the guide for the rest.
+
+### Fixed
+
+0.7.0's release build stopped at two checks.
+
+- On Linux, clippy found a needless `return` in the program's build script, which only builds
+  Windows' icon and details and so does nothing on Linux. It is written without one.
+- On GitHub's Windows machine, which has no graphics card and so only the system's software
+  graphics (WARP), a test that assumed a card failed. It holds a device with no window (the
+  tests', and the checking and measuring tools') to the small memory blocks a card's device
+  is given, and with software graphics such a device was given wgpu's own way, which sets
+  aside 192 MiB for the first small thing made where small blocks set aside about 12 MiB.
+  Every device with no window is now given small blocks. The window is not changed: on
+  software graphics it keeps wgpu's own way, as in 0.7.0 (see Known limits).
+
+### Known limits
+
+- On a computer with no graphics card, Volsa's window sets aside about 200 MiB more memory
+  than it needs: with the made-up study open on software graphics, its peak is about 540 MiB,
+  against about 335 MiB with the small blocks a card's device is given. It keeps wgpu's own
+  way there because, with small blocks, one run in 31 of the made-up study stayed busy and
+  never drew; why is still to be found.
+
+## [0.7.0] - 2026-11-01
+
+The first public release. A new window, made so that someone who has never seen Volsa can open
+an export, find the brain scan and measure something on it without help; very large scans open
+faster and in less memory; and a damaged file nested too deeply is refused instead of stopping
+Volsa. What Volsa does with a scan is the same; the controls are grouped by what you want to do,
+and more kinds of file open. Volsa is not a medical device and is not for diagnostic use.
+
+Every version before this one was made in private. 0.6.0 was made ready as the first public
+release and never published, so its work comes out first here, with this release's: the
+download for Windows with ONNX Runtime in it for labelling, the notices and credits that go
+with it, a window that fits any screen, and the fixes of an audit of what a public release
+needs. Its notes are under 0.6.0, below.
+
+### Added
+
+- **Measuring on the slices.** Rulers, angles, regions and markers can be drawn on the slices
+  as well as on the planes and in 3D, from the moment a slice is shown, without waiting for the
+  3D volume. A scan with a pixel spacing but no position is measured within the picture and its
+  measurements say they come from the file's pixel spacing; a scan with no pixel spacing is not
+  measured in millimetres, and the tools say why. Measurement labels move apart, with a line to
+  what they belong to, so that they do not cover one another or the corner text; in the
+  smallest window at twice the size two can still touch. A table of measurements saved as CSV
+  ends with a column, `scale` (`patient`, or `pixel spacing` where the millimetres come from the
+  picture's own pixel spacing alone), and measurements saved as JSON say the same in `scale`.
+  The file Volsa keeps them in, `annotations.json`, is written as 0.6.0 wrote it unless a
+  measurement is in a picture's own pixel spacing, and then in a newer form (version 2) that
+  0.6.0 does not read: it shows no measurements and, at its first save, sets the file aside as
+  `annotations.json.unread`.
+- **Measuring on a slice by keyboard.** With a measuring tool in hand, Tab to a viewport: a small
+  cross marks a point on the slice, the arrow keys move it (ten pixels with Shift) and Enter
+  places it, so a ruler, angle, region or marker can be made without the mouse; Up and Down then
+  move the point and Page Up and Page Down still change the slice; a press of the mouse on the
+  viewport gives the arrows back to the slices until the next Tab into it. Esc gives up what was begun.
+  The planes and the 3D view still take the mouse alone.
+- **Reports and other documents.** A DICOM structured report is listed in **Other files** and
+  opens as text in the middle of the window, headed "Shown as text. The original report is
+  the reference." Its dates are written in words ("2 January 2020"), its line breaks are kept,
+  and each report scrolls on its own. A PDF stored in DICOM is listed and can be saved as a
+  PDF where you choose (**Save a copy as PDF…**, an action search finds); Volsa starts no other
+  program. Other files Volsa cannot show are listed with their kind in
+  words and their tags.
+- **Help topics**, a few plain sentences each, found by search: opening an export, finding
+  your scan, brightness, measuring and where its millimetres come from, left and right,
+  labels, and what Volsa is not for.
+- `VOLSA_CAPTURE_SHOW` gains `tab-view`, `tab-measure`, `tab-3d`, `tab-labels` and `tab-tools`,
+  `search`, `notices`, `light`, `other`, `3d`, `slices3d` and `preview` (the 3D preview of a
+  long series while it is decoded); `planes` and `quad` both choose
+  the Planes arrangement. `cargo run --release -p volsa-app --example measure_window` times the
+  window's bars, rail and panel for a made-up study of 500 series.
+- `docs/quality/` starts three documents kept from now on: the requirements, each traced to the
+  test or check that shows it is met; a risk register; and a usability file.
+
+- One memory budget for decoded scans: 2 GiB, or a quarter of the computer's memory if that
+  is less, set by hand in `preferences.json` as `memory_mib` (256 to 65,536). Past it, the
+  slabs of a large series wait in a file of Volsa's own in its local folder, which only Volsa
+  can open and which is deleted when the series is closed, when Volsa closes, and at the next
+  start after a stop. If the file cannot be made, Volsa says so and keeps the series in memory.
+- Before building a 3D view Volsa checks that the system can still give it the memory it needs,
+  and says so in a sentence when it cannot, in place of running out.
+
+### Changed
+
+- **Voxa is now Volsa.** A live trade mark made the old name a risk. The program is
+  `volsa.exe`, in a zip named `volsa-0.7.0-windows-x64.zip`; its window, About and notices say
+  Volsa; its crates are `volsa-*`; its environment variables begin `VOLSA_` (`VOLSA_MODELS`,
+  `VOLSA_RUNTIME`, `VOLSA_CAPTURE` and the rest); and its repository is
+  `github.com/Thenewmanator15/volsa`. Volsa keeps what it keeps in folders of its own named
+  `Volsa` and reads nothing Voxa kept in the folders named `Voxa`, so what is said below of
+  files written by 0.6.0 holds only for such files copied into Volsa's folders by hand. A label
+  table or a table of measurements Volsa writes names it as `volsa`, where Voxa wrote `voxa`.
+- **The window has five parts.** A bar across the top (**Open**, the study's name and date, a
+  search box, help, the theme and a menu, **⋯**); a rail of scans down the left; the pictures
+  in the middle, under a strip that arranges them; a panel of tabs at the right (**View**,
+  **Measure**, **3D**, **Labels** and **Tools**); and, along the bottom, the disclaimer and the
+  notices. The three rows of buttons that were across the top, the measurements window and
+  the Parts tab are gone: what they held is in the tabs, and the Parts tab is the Labels tab
+  (what labels there are) and the Tools tab (making them).
+- **Volsa opens on the slices**, not the 3D view. The strip above the pictures chooses
+  **Slices** (with one, two or four viewports), **Slices + 3D**, **Planes** (the three planes
+  and the 3D view) or **3D** alone. The arrangement is not kept between runs. The strip says
+  which slice is shown while slices are in sight, and in a narrow middle folds its buttons
+  into one menu so that every arrangement can still be chosen.
+- **Search.** Ctrl+K, `/` or a click on the box opens it; it finds the actions by their names
+  and by other words for them, and also the parts of open labels, the scans of the export and
+  the help topics. Every button and every key is one of the actions, but for the rows that
+  belong to one item (a measurement's Remove, a saved view's Delete), the answers to a question
+  and the turntable window's Cancel. A result says where its action lives ("In the View
+  tab"); one that cannot be used now is listed with the reason; one that throws work away asks
+  first, as its button does. A word an action is searched by, spelt out, ranks with a word of
+  its name, so that "size" offers the measuring tools before the size of the interface.
+  A slash opens it with Shift held too, as a keyboard where a slash needs Shift has it. Nothing
+  typed into it is kept.
+- **The rail of scans** lists the scans first, each with a plain name made only from what the
+  files say and the scanner's own description beneath it; locating images, scanned pages,
+  reports and other files are under **Other files**, closed until opened. An export with the
+  studies of more than one person says so and groups them by person. A scan Volsa can only show
+  as a plain stack, or cannot read, has a small mark on its card; its sentence is in the
+  card's hover text and is posted as a notice when it is opened. Only the cards in sight are
+  drawn, so the window's bars, rail and panel take about a sixth of the time 0.6.0's bars and list
+  of series did for a made-up study of 500 series, on one computer (the usability file has the
+  numbers). A **«** at the top of the rail folds it to a strip, which says "Scans"; **B** folds
+  it too. A card says how far apart the slices are only when the files gave the distance. A
+  scan's body part is written out where the files give a code ("Cervico-thoracic spine"), and
+  T2* counts as T2.
+- **Patient details** start hidden in every run. The patient's name and identifier are left
+  out of the rail, the viewports, the tag browser, the titles of documents and reports, and the
+  notices (a skipped file is named by its last part only); a scanned page, a screenshot,
+  another picture saved by a program, or a radiotherapy image or dose shows an icon in place of
+  its thumbnail; and a report's text is shown with the name and identifier replaced by
+  [hidden] where the file writes them, an item that holds a name as "Name hidden", and a line
+  under the heading that says when anything was replaced. An export of documents alone hides
+  the name its own files give. A name written some other way in a report's free text may still
+  show, and an identifier shorter than four letters or digits is not looked for, so that it
+  cannot change a number in a report.
+- **The tabs.** **View** has the brightness and contrast, the way round the patient is drawn,
+  the slices and playback. A CT scan offers the windows brain, soft tissue, lung and bone, and
+  the value under the pointer is in Hounsfield units (HU) unless the file says its values are in
+  another unit; an MR scan keeps Auto, Soft and Hard. The window and level are written with the
+  figures that matter, as the corner of the picture writes them. The slices start again after
+  the last one when the **Start again after the last slice** switch is on (it was a **Loop**
+  box). With no scan shown, or a report open, the controls of the pictures and of 3D are greyed
+  with their reason and the tab says so in a line in place of the window and level fields.
+  The value read under the pointer on a plane is the nearest voxel's, never a blend. **Measure** (which **M** shows) has the rulers, angles, regions and markers and what
+  has been measured, and says how to draw once a tool is in hand, and that Esc puts it down. **3D** has the looks, the sides, the cuts, the saved views and saving a picture or
+  a turntable, and says so when the arrangement shows no 3D view. **Labels** says who made the
+  labels and the model's own check first, then an overview by group, then the parts; in a short
+  window the part that stays in place scrolls too, so the list keeps room. **Tools** has
+  **Label this scan**, and a place for tools added later.
+- **Notices** are in one place at the bottom right: the newest one, how many there are, and a
+  list of all of them, each with **Dismiss**. Nothing is shown in red. A skipped file is
+  counted in words ("2 files are not scans or documents Volsa lists") and no longer reads
+  "2 files skipped".
+- **Light and dark themes**, and the system's choice, from the top bar. The pictures stay on
+  black in both. Every pair of text and background meets the WCAG AA contrast.
+- **A small window.** The window works down to 640 by 480 at the display's scale. The rail starts
+  folded in a window under 960 points across; under 760 both side columns fold, no more than
+  one is open at a time, and the pictures keep at least 200 points; the top bar keeps **Open**,
+  the search box and the menu. The tab panel has a **»** that folds it, as **P** does; the
+  rail has a **«**, as **B** does. A fold the window made itself is not kept as yours. At 640
+  by 480 with the interface at twice its size, the icons of the folded panel are made smaller
+  to fit.
+- Volsa remembers, as before, the window's size, the size of the interface, how wide the rail
+  and the panel are, how many viewports, the **Patient's left on the right** and **Link the
+  views** switches and how labels are drawn; and now also which tab is open, whether you folded the rail or the panel,
+  and the theme. A settings file written by 0.6.0 opens with its settings: the width of
+  the column of pictures becomes the panel's.
+- **Every control, scan card and viewport has a name a screen reader can say**, and the hand-
+  drawn ones say what they show ("Axial slice 88 of 176"). Tab goes through the bar, the rail,
+  the pictures, the panel and the notices in that order, and the arrow keys move between cards.
+  After Tab the letter keys of the window still work; with the keyboard on a picture, a ring
+  shows it and the arrow keys step through its slices; Space and Enter stay a focused button's.
+  A letter pressed while a menu is open belongs to the menu, not to the picture behind it, and
+  the Esc that closes a menu does not also close a window. Esc puts the tool down or closes the
+  window opened last; it no longer gives the 3D view the large part, as 0.6.0 did.
+- **Volsa asks before it throws work away.** Closing the labels (which parts were hidden, faded
+  or chosen is forgotten, and labels Volsa made and has not kept are lost), deleting the
+  labels kept for a scan, and deleting a saved view each ask first, with the safe answer in
+  hand, from the button and from the search alike. **Clear all** in the Measure tab can be
+  undone after another scan has been looked at and this one is shown again.
+- The turntable's progress window opens over the pictures, like the other windows that float,
+  and Esc stops it. A long title on a document no longer pushes its buttons out of the window.
+- **The model's own check** of labels Volsa made is said in plain words, with no scores on the
+  screen (they are in the hover text), and first when it fails.
+- Volsa is for looking at MRI and CT scans, and other DICOM files at a basic level, which the
+  owner approved with the design. `docs/intended-use.md` and the About window say so.
+
+- Very large scans open faster and in less memory. A series is decoded straight into one
+  copy of its values as stored, at 16 bits where the files are (0.6.0 held two 32-bit copies
+  and every decoded slice beside them): the made-up 2,000-slice CT peaked at 4.7 GB in 0.6.0
+  and peaks at about 2.3 GB now, of which 1 GB is the graphics card's copy of the volume, which
+  Windows also counts as Volsa's. It is in 3D in full detail in about 1.5 s (0.6.0: 2.9 s,
+  halved), and a series of more than 256 slices shows a labelled preview in 3D within about
+  half a second while the rest is decoded.
+- Zips open as fast as folders when they are not in the file cache: each reader of a zip
+  reads through a handle of its own (the made-up CT's compressed zip decoded in 9 s cold,
+  now in 1.2 s).
+- The 3D view shows long series in full detail. A series longer than the graphics card's
+  largest 3D side is held in up to four textures; the 2,000-slice CT is no longer halved on
+  any card. Smooth planes are not offered for such a series: the curve would need as much
+  memory again, and the planes say so.
+- The window hands a volume to its graphics card itself, a slab each frame, and says so
+  while it does. With Windows' software graphics, resizing the window while a scan loaded
+  could stop Volsa; it no longer does.
+- Indexing reads files' headers on several threads: about twice as fast for a folder of
+  2,000 files.
+- A picture read back from the graphics card is copied a row at a time, not a byte at a
+  time.
+- A slice's preset windows are worked out when it is shown, not for every slice decoded for
+  a volume.
+
+### Fixed
+
+- The tests and the checking tools no longer try OpenGL on Windows. With OpenGL, a run of
+  the tests could stop for good on a computer with some NVIDIA drivers. The window is not
+  changed.
+
+### Security
+
+- A damaged or crafted DICOM file whose sequences nest very deeply no longer stops Volsa. The
+  DICOM library builds each level of nesting by calling itself again, with no limit, so a file
+  of a few tens of kilobytes could use up the stack of the thread reading it, which ends the
+  program at once and cannot be caught. Volsa now walks every file before the library builds
+  it, with the library's own step-by-step reader, and refuses one nested more than 64 deep
+  (real files nest some ten to twenty deep at most): while an export is indexed, and when a
+  file is opened whole for its pictures, its tags, its report or its PDF. A refused file is
+  listed by its own name, without the folders it lies in, with the reason
+  "nested too deeply to read safely", in the warning "1 file was not read", and the rest of the
+  export opens; a lone file says "That file was not read: it is nested too deeply to read
+  safely". The threads that read files now have a 16 MiB stack, as a second line of defence.
+  The check costs about 3 microseconds a file.
+
 ## [0.6.0] - 2026-10-22
+
+Never published: this version was made ready but not released, and its work came out first in
+0.7.0.
 
 The sixth release, made for a first public release: a download for Windows, the notices and
 credits that go with it, a window that fits any screen, and smaller fixes found by an audit of
@@ -481,7 +817,8 @@ and is not for diagnostic use.
 - No FreeSurfer, NRRD or DICOM SEG files, no meshes, no correcting labels by hand, and no
   comparing the labels of two studies.
 - Opening the made-up study's folder reports two files skipped: its labels and their table,
-  which are not part of the scan.
+  which are not part of the scan. (From the redesign on, the notice reads "2 files are not scans
+  or documents Voxa lists".)
 
 ## [0.3.0] - 2026-10-10
 

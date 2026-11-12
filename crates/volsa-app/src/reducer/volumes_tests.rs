@@ -1,7 +1,7 @@
 //! Stepping between the volumes of a series that holds several.
 
-use voxa_core::WindowLevel;
-use voxa_render::Look;
+use volsa_core::WindowLevel;
+use volsa_render::Look;
 
 use super::scene_tests::{build, corners, select};
 use super::tests::frames_around;

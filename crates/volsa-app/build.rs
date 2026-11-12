@@ -1,7 +1,7 @@
-//! Gives `voxa.exe`, when it is built for Windows, the icon Explorer shows for it and the
+//! Gives `volsa.exe`, when it is built for Windows, the icon Explorer shows for it and the
 //! details it lists: its name, its version and its copyright. The icon is the window's own,
 //! drawn by `src/ui/icon/drawing.rs` at the sizes Explorer asks for and written as a Windows
-//! icon file. It gives it its manifest, `voxa.exe.manifest`, too: the system's message windows
+//! icon file. It gives it its manifest, `volsa.exe.manifest`, too: the system's message windows
 //! in today's look, the scale of each screen from the start, and Windows 10 and 11. The
 //! resource compiler of the Windows SDK, which building for Windows already needs, puts all
 //! three into the program.
@@ -14,7 +14,7 @@
 mod drawing;
 
 /// The program's manifest, beside this file.
-const MANIFEST: &str = "voxa.exe.manifest";
+const MANIFEST: &str = "volsa.exe.manifest";
 
 /// The sides, in pixels, of the pictures the icon file holds.
 #[cfg(windows)]
@@ -24,21 +24,31 @@ fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-changed=src/ui/icon/drawing.rs");
     println!("cargo:rerun-if-changed={MANIFEST}");
-    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
-        return;
-    }
-    #[cfg(windows)]
-    if let Err(why) = resources() {
-        println!("cargo:warning=voxa.exe is built without its icon and version details: {why}");
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        for_windows();
     }
 }
 
+/// The icon, the details and the manifest of a program built for Windows, on Windows; a
+/// warning if they cannot be put into it.
+#[cfg(windows)]
+fn for_windows() {
+    if let Err(why) = resources() {
+        println!("cargo:warning=volsa.exe is built without its icon and version details: {why}");
+    }
+}
+
+/// Built for Windows on another system, the program goes without them: the resource compiler
+/// is Windows'. The same function on every system keeps `main` the same on every system.
+#[cfg(not(windows))]
+fn for_windows() {}
+
 /// Writes the icon file, and has the resource compiler put it, the details and the manifest
-/// into the program `voxa`.
+/// into the program `volsa`.
 #[cfg(windows)]
 fn resources() -> Result<(), String> {
     let out = std::env::var_os("OUT_DIR").ok_or("cargo named no folder for the build")?;
-    let icon = std::path::Path::new(&out).join("voxa.ico");
+    let icon = std::path::Path::new(&out).join("volsa.ico");
     std::fs::write(&icon, icon_file()).map_err(|error| error.to_string())?;
     let icon = icon
         .to_str()
@@ -52,17 +62,17 @@ fn resources() -> Result<(), String> {
     resource
         .set_icon(icon)
         .set_manifest_file(manifest)
-        .set("ProductName", "Voxa")
-        .set("FileDescription", "Voxa")
-        .set("InternalName", "voxa")
-        .set("OriginalFilename", "voxa.exe")
+        .set("ProductName", "Volsa")
+        .set("FileDescription", "Volsa")
+        .set("InternalName", "volsa")
+        .set("OriginalFilename", "volsa.exe")
         .set("LegalCopyright", "Copyright (c) 2026 TheNEwmanator15")
         .set(
             "Comments",
-            "Voxa is not a medical device and is not for diagnostic use.",
+            "Volsa is not a medical device and is not for diagnostic use.",
         );
     resource
-        .compile_for("voxa")
+        .compile_for("volsa")
         .map_err(|error| error.to_string())
 }
 

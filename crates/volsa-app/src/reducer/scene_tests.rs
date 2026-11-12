@@ -1,11 +1,12 @@
 //! The 3D scene in the state: which series it shows, its camera, its cuts.
 
-use voxa_core::{Patient, Point};
-use voxa_render::{Camera, Look, NamedView};
+use volsa_core::{Patient, Point};
+use volsa_render::{Camera, Look, NamedView};
 
 use super::tests::{frames_around, loaded, showing};
 use super::*;
-use crate::scene::{MainPanel, Scene, SceneStatus};
+use crate::pictures::Pictures;
+use crate::scene::{Scene, SceneStatus};
 use crate::state::Layout;
 use crate::testing::{FINE_SCAN, LOCALISER, SINGLE, THICK_SCAN, id, with_odd_series};
 
@@ -41,18 +42,32 @@ pub(super) fn corners() -> [Point<Patient>; 8] {
     })
 }
 
-/// A state whose scene shows the 30-slice series, with its volume built.
-pub(super) fn ready() -> AppState {
+/// A state whose scene shows the 30-slice series, with its volume built, before the
+/// measurements kept for the series have been read.
+pub(super) fn built() -> AppState {
     let mut state = showing(THICK_SCAN);
     let (series, corners) = (id(THICK_SCAN), corners());
     reduce(&mut state, Action::VolumeReady { series, corners });
     state
 }
 
+/// A state whose scene shows the 30-slice series, with its volume built and the measurements
+/// kept for it read: there were none.
+pub(super) fn ready() -> AppState {
+    let mut state = built();
+    let (series, items) = (id(THICK_SCAN), Vec::new());
+    reduce(&mut state, Action::AnnotationsLoaded { series, items });
+    state
+}
+
 #[test]
-fn a_fresh_scene_is_empty_and_has_the_large_part_of_the_window() {
+fn a_fresh_scene_is_empty_and_the_window_shows_the_slices() {
     let state = AppState::default();
-    assert_eq!(state.main, MainPanel::Scene);
+    assert_eq!(
+        state.pictures,
+        Pictures::Slices,
+        "a newcomer measures on a slice"
+    );
     assert_eq!(state.scene, Scene::default());
     assert_eq!(
         (state.scene.series.clone(), &state.scene.status),
@@ -184,7 +199,10 @@ fn a_set_of_locating_images_says_why_it_has_no_3d_view() {
 fn a_single_slice_says_that_3d_needs_more() {
     let mut state = AppState::default();
     reduce(&mut state, Action::IndexProgress(with_odd_series()));
-    assert_eq!(select(&mut state, 0, SINGLE), frames_around(SINGLE, 0));
+    // Its slice is measured on all the same, so what was measured on it before is asked for.
+    let mut asked = frames_around(SINGLE, 0);
+    asked.push(Effect::LoadAnnotations { series: id(SINGLE) });
+    assert_eq!(select(&mut state, 0, SINGLE), asked);
     let SceneStatus::Unavailable(lines) = &state.scene.status else {
         panic!("{:?}", state.scene.status);
     };

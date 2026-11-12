@@ -12,6 +12,9 @@
 
 #[cfg(test)]
 mod tests;
+mod total;
+
+pub use total::total_memory;
 
 /// A card with less memory of its own than this shares the computer's: 2 GiB.
 const INTEGRATED_BELOW: u64 = 2 << 30;

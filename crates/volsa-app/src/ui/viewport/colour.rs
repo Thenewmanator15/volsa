@@ -1,9 +1,9 @@
 //! A slice stored in colour, drawn in its own colours: no window, the same view.
 
 use egui::{Color32, ColorImage, Mesh, Rect, Shape, TextureHandle, TextureOptions, Ui, pos2, vec2};
-use voxa_core::Point;
-use voxa_dicom::Frame;
-use voxa_render::ViewTransform;
+use volsa_core::Point;
+use volsa_dicom::Frame;
+use volsa_render::ViewTransform;
 
 use super::narrowed;
 

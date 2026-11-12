@@ -1,8 +1,8 @@
 //! Finding the point of a volume a person is pointing at in a picture of it.
 
-use voxa_core::{Patient, Point, Volume, WindowLevel};
-use voxa_labels::{LabelSet, first_part};
-use voxa_volume::{Ray, first_hit};
+use volsa_core::{Grid, Patient, Point, WindowLevel};
+use volsa_labels::{LabelSet, first_part};
+use volsa_volume::{Ray, first_hit};
 
 use crate::scene::{MAX_CUTS, SceneParams};
 use crate::vector::{dot, unit};
@@ -22,7 +22,7 @@ pub fn surface_threshold(window: WindowLevel) -> f32 {
 /// shows tissue, or the slice drawn in the scene, whichever comes first. `None` where the
 /// picture shows nothing.
 pub fn pick(
-    volume: &Volume,
+    volume: &(impl Grid + ?Sized),
     scene: &SceneParams,
     viewport: [f32; 2],
     at: [f32; 2],
@@ -114,6 +114,7 @@ mod tests {
     use crate::camera::NamedView;
     use crate::scene::{CutPlane, Look, SlicePlane};
     use crate::testing::{ball, scene_of};
+    use volsa_core::Volume;
 
     const PICTURE: [f32; 2] = [96.0, 96.0];
     const MIDDLE: [f32; 2] = [48.0, 48.0];
@@ -133,7 +134,7 @@ mod tests {
     }
 
     /// The ball's labels seen from one side, as the Parts look draws them.
-    fn parts_from(view: NamedView) -> (voxa_labels::LabelSet, SceneParams) {
+    fn parts_from(view: NamedView) -> (volsa_labels::LabelSet, SceneParams) {
         let scene = scene_of(&ball(), view, Look::Parts);
         (crate::testing::ball_labels([0.0; 3]), scene)
     }

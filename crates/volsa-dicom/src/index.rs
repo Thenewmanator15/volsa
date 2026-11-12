@@ -2,15 +2,19 @@
 
 use std::collections::BTreeMap;
 
-use voxa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyId, StudyInfo, VoxaError};
+use volsa_core::{SeriesId, SeriesInfo, SeriesKind, SeriesProblem, StudyInfo, VolsaError};
 
 use crate::decode::unreadable;
+use crate::document::IndexedDocument;
 use crate::geometry::{
     SAME_POSITION_MM, StackGeometry, is_image_plane, median, same_plane, stack_geometry,
 };
-use crate::header::{Header, Told, read_header_from};
-use crate::source::{MAX_ENTRY_BYTES, SeriesSource};
+use crate::header::{Header, Told};
+use crate::nesting::Refused;
+use crate::source::SeriesSource;
 
+mod found;
+mod threads;
 mod volumes;
 
 /// A gap further than this fraction from the typical gap makes a stack uneven.
@@ -46,15 +50,22 @@ pub struct Index {
     pub studies: Vec<StudyInfo>,
     /// Every series, study by study in the order of `studies`, then by series number.
     pub series: Vec<IndexedSeries>,
-    /// Names of the entries that are not DICOM images, in name order.
+    /// Names of the entries that are neither DICOM images nor documents, in name order.
     pub skipped: Vec<String>,
+    /// The entries that are not read, each with the reason, in name order.
+    pub refused: Vec<Refused>,
+    /// The DICOM files that hold no image but a document: reports, PDFs and the like, in study
+    /// order, then by entry name.
+    pub documents: Vec<IndexedDocument>,
 }
 
 /// Read the header of every entry in `source` and group the images into studies and series.
 ///
 /// Only headers are read, never pixels: of each file, no more than its header needs (see
-/// [`SeriesSource::visit_files`]). Entries that are not DICOM images are listed in
-/// [`Index::skipped`]; a `DICOMDIR` is passed over without comment, and without being read.
+/// [`SeriesSource::visit_files`]). A DICOM file with no image is listed in
+/// [`Index::documents`]; any other entry that is not a DICOM image is listed in
+/// [`Index::skipped`], and a file refused unread, with why, in [`Index::refused`]. A `DICOMDIR`
+/// is passed over without comment, and without being read.
 /// `on_progress` is given the index so far each time a new series appears, at intervals in
 /// between, and once more with the finished index.
 ///
@@ -64,25 +75,32 @@ pub struct Index {
 pub fn index(
     source: &mut dyn SeriesSource,
     on_progress: &mut dyn FnMut(&Index),
-) -> Result<Index, VoxaError> {
+) -> Result<Index, VolsaError> {
     let mut found = Found::default();
     let mut seen = 0;
-    source.visit_files(&mut |name, contents| {
-        let at = seen;
-        seen += 1;
-        if is_directory_file(name) {
-            return Ok(());
+    if let Some(runs) = threads::read_on_threads(source) {
+        // Read on several threads; taken in here in name order, as if read in turn.
+        for (read, error) in runs {
+            for (name, read) in read {
+                if found.take(name, read, seen) {
+                    on_progress(&found.index());
+                }
+                seen += 1;
+            }
+            if let Some(error) = error {
+                return Err(error);
+            }
         }
-        let Some(header) = read_header_from(contents, MAX_ENTRY_BYTES)? else {
-            found.skipped.push(name.to_owned());
-            return Ok(());
-        };
-        let starts_a_series = found.add(name.to_owned(), header);
-        if starts_a_series || at % REPORT_EVERY == 0 {
-            on_progress(&found.index());
-        }
-        Ok(())
-    })?;
+    } else {
+        source.visit_files(&mut |name, contents| {
+            let read = threads::read_one(name, contents)?;
+            if found.take(name.to_owned(), read, seen) {
+                on_progress(&found.index());
+            }
+            seen += 1;
+            Ok(())
+        })?;
+    }
     let finished = found.index();
     on_progress(&finished);
     Ok(finished)
@@ -127,78 +145,8 @@ struct Found {
     /// Images by series identifier, each list in the order the images arrived.
     series: BTreeMap<String, Vec<Image>>,
     skipped: Vec<String>,
-}
-
-impl Found {
-    /// Add an image. True when it is the first of its series.
-    fn add(&mut self, entry: String, header: Header) -> bool {
-        let images = self.series.entry(series_key(&entry, &header)).or_default();
-        images.push(Image { entry, header });
-        images.len() == 1
-    }
-
-    /// The index of everything added so far.
-    fn index(&self) -> Index {
-        let mut by_study: BTreeMap<&str, (StudyInfo, Vec<IndexedSeries>)> = BTreeMap::new();
-        for (id, images) in &self.series {
-            let Some(first) = images.first().map(|image| &image.header) else {
-                continue;
-            };
-            let (_, listed) = by_study
-                .entry(first.study_uid.as_str())
-                .or_insert_with(|| (study_info(first), Vec::new()));
-            listed.extend(volumes::listed(id, images));
-        }
-        let mut studies: Vec<_> = by_study.into_values().collect();
-        studies.sort_by(|(a, _), (b, _)| {
-            (a.date.is_none(), &a.date, &a.id).cmp(&(b.date.is_none(), &b.date, &b.id))
-        });
-        let mut index = Index {
-            skipped: self.skipped.clone(),
-            ..Index::default()
-        };
-        index.skipped.sort();
-        for (mut study, mut listed) in studies {
-            listed.sort_by(|a, b| in_the_list(&a.info).cmp(&in_the_list(&b.info)));
-            study.series = listed.iter().map(|series| series.info.clone()).collect();
-            index.studies.push(study);
-            index.series.append(&mut listed);
-        }
-        index
-    }
-}
-
-/// Where a series comes in its study's list: by its number, then its identifier, with the
-/// volumes of a series that holds several kept together and in their own order.
-fn in_the_list(info: &SeriesInfo) -> (i32, &SeriesId, usize) {
-    match &info.set {
-        Some(set) => (info.number, &set.of, set.at),
-        None => (info.number, &info.id, 0),
-    }
-}
-
-/// Single-frame files share their series; a file holding many frames is a series by itself.
-fn series_key(entry: &str, header: &Header) -> String {
-    if !header.multi_frame {
-        return header.series_uid.clone();
-    }
-    let own = if header.sop_uid.is_empty() {
-        entry
-    } else {
-        header.sop_uid.as_str()
-    };
-    format!("{}/{own}", header.series_uid)
-}
-
-fn study_info(header: &Header) -> StudyInfo {
-    StudyInfo {
-        id: StudyId(header.study_uid.clone()),
-        date: header.study_date.clone(),
-        description: header.study_description.clone(),
-        patient_name: header.patient_name.clone(),
-        patient_id: header.patient_id.clone(),
-        series: Vec::new(),
-    }
+    refused: Vec<Refused>,
+    documents: Vec<IndexedDocument>,
 }
 
 /// One slice of a series, before the slices are put in order.
@@ -238,7 +186,7 @@ fn slices_of(image: &Image) -> impl Iterator<Item = Slice<'_>> {
 
 /// What the files say of how a series was acquired, from the header it is described from.
 /// Images in several planes are in none of them as a series.
-fn facts(first: &Header, problems: &[SeriesProblem]) -> voxa_core::ScanFacts {
+fn facts(first: &Header, problems: &[SeriesProblem]) -> volsa_core::ScanFacts {
     let mut scan = first.scan.clone();
     if problems.contains(&SeriesProblem::MixedOrientations) {
         scan.plane = None;
@@ -285,9 +233,8 @@ fn assembled(
         .find_map(|image| unreadable(&image.header.transfer_syntax));
     problems.extend(unreadable.map(SeriesProblem::UnsupportedTransferSyntax));
     let [between_rows, between_cols] = first.pixel_spacing.unwrap_or([1.0, 1.0]);
-    let between_slices = step
-        .or(first.slice_thickness.filter(|mm| *mm > 0.0))
-        .unwrap_or(1.0);
+    let slice_step = step.or(first.slice_thickness.filter(|mm| *mm > 0.0));
+    let between_slices = slice_step.unwrap_or(1.0);
     let scan = facts(first, &problems);
     IndexedSeries {
         info: SeriesInfo {
@@ -299,20 +246,29 @@ fn assembled(
             cols: first.cols,
             slices: slices.len(),
             spacing_mm: [between_cols, between_rows, between_slices],
+            slice_step_given: slice_step.is_some(),
+            spacing_given: first.pixel_spacing.is_some(),
             voxel_to_patient,
             problems,
             scan,
             colour: first.colour,
+            rescale_type: first.rescale_type.clone(),
+            inverted: first.inverted,
             ..SeriesInfo::default()
         },
-        slices: slices
-            .iter()
-            .map(|slice| SliceRef {
-                entry: slice.entry.to_owned(),
-                frame: slice.frame,
-            })
-            .collect(),
+        slices: slice_refs(&slices),
     }
+}
+
+/// Where to find each of `slices`, in their order.
+fn slice_refs(slices: &[Slice<'_>]) -> Vec<SliceRef> {
+    slices
+        .iter()
+        .map(|slice| SliceRef {
+            entry: slice.entry.to_owned(),
+            frame: slice.frame,
+        })
+        .collect()
 }
 
 /// Where the stack lies in the patient, or why that cannot be said.
@@ -372,6 +328,10 @@ mod reading_tests;
 #[cfg(test)]
 mod scan_tests;
 #[cfg(test)]
+mod spacing_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod threads_tests;
 #[cfg(test)]
 mod volumes_tests;

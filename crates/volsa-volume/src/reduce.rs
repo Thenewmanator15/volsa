@@ -1,7 +1,7 @@
 //! Making a volume smaller: to fit a graphics card that cannot hold it whole, and to know
 //! which parts of it are empty.
 
-use voxa_core::{Affine, Volume, Voxel};
+use volsa_core::{Affine, Grid, HeldVolume, SlabRaw, SliceIn, Stored, Volume, Voxel};
 
 /// How many bytes a voxel takes on the graphics card.
 const BYTES_PER_VOXEL: u64 = 2;
@@ -46,6 +46,89 @@ fn block_mean(volume: &Volume, col: u32, row: u32, slice: u32) -> f32 {
         }
     }
     sum / f32::from(count.max(1))
+}
+
+/// The most bytes in one slab of a halved held volume.
+const HALVED_SLAB_BYTES: usize = 32 << 20;
+
+/// A held volume with half as many voxels each way, in the same place in the patient, held
+/// the same way with the same rescale: each new voxel is the mean of the block it replaces,
+/// as [`halved`] makes it, rounded to the nearest whole number where the numbers are whole.
+/// For a graphics card that cannot hold the volume whole; what is measured is always read
+/// from the volume itself. `None` if the volume cannot be held halved.
+pub fn halved_held(held: &HeldVolume) -> Option<HeldVolume> {
+    let dims = held.dims().map(|count| count.div_ceil(2));
+    let onto_old: Affine<Voxel, Voxel> =
+        Affine::from_columns([2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0], [0.5; 3]);
+    let to_patient = onto_old.then(&held.voxel_to_patient());
+    let (stored, rescale) = (held.stored(), held.rescale());
+    let half = HeldVolume::new(dims, to_patient, stored, rescale, HALVED_SLAB_BYTES)?;
+    for slice in 0..dims[2] {
+        let means = slice_means(held, slice)?;
+        put_means(&half, slice, &means)?;
+    }
+    Some(half)
+}
+
+/// The means of the blocks that make new slice `slice` of a halved held volume, as numbers.
+fn slice_means(held: &HeldVolume, slice: u32) -> Option<Vec<f64>> {
+    let [cols, rows, slices] = held.dims();
+    let read = |at: u32| {
+        held.with_slice(at, |raw| -> Vec<f64> {
+            match raw {
+                SlabRaw::Unsigned(numbers) => numbers.iter().map(|n| f64::from(*n)).collect(),
+                SlabRaw::Signed(numbers) => numbers.iter().map(|n| f64::from(*n)).collect(),
+                SlabRaw::Float(values) => values.iter().map(|v| f64::from(*v)).collect(),
+            }
+        })
+    };
+    let old: Vec<Vec<f64>> = [2 * slice, 2 * slice + 1]
+        .into_iter()
+        .filter(|at| *at < slices)
+        .map(read)
+        .collect::<Option<_>>()?;
+    let [new_cols, new_rows] = [cols.div_ceil(2), rows.div_ceil(2)];
+    let mut means = Vec::with_capacity(new_cols as usize * new_rows as usize);
+    for row in 0..new_rows {
+        for col in 0..new_cols {
+            let (mut sum, mut count) = (0.0, 0.0);
+            for numbers in &old {
+                for (c, r) in [(0, 0), (1, 0), (0, 1), (1, 1)] {
+                    let (c, r) = (2 * col + c, 2 * row + r);
+                    if c < cols && r < rows {
+                        sum += numbers.get((r * cols + c) as usize).copied().unwrap_or(0.0);
+                        count += 1.0;
+                    }
+                }
+            }
+            means.push(if count > 0.0 { sum / count } else { 0.0 });
+        }
+    }
+    Some(means)
+}
+
+/// Put a halved slice of means in, as the volume holds its numbers.
+#[expect(
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss,
+    reason = "a mean of numbers that fit lies between them, and fits too"
+)]
+fn put_means(half: &HeldVolume, slice: u32, means: &[f64]) -> Option<()> {
+    let put = match half.stored() {
+        Stored::Unsigned16 => {
+            let numbers: Vec<u16> = means.iter().map(|m| m.round() as u16).collect();
+            half.put_slice(slice, SliceIn::Unsigned(&numbers))
+        }
+        Stored::Signed16 => {
+            let numbers: Vec<i16> = means.iter().map(|m| m.round() as i16).collect();
+            half.put_slice(slice, SliceIn::Signed(&numbers))
+        }
+        Stored::Float32 => {
+            let values: Vec<f32> = means.iter().map(|m| *m as f32).collect();
+            half.put_slice(slice, SliceIn::Float(&values))
+        }
+    };
+    put.ok()
 }
 
 /// How many times a volume of `dims` must be halved before no side is longer than `max_side`

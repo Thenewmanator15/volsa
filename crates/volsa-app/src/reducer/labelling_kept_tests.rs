@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-use super::labelling_result_tests::{by_voxa, read_with};
+use super::labelling_result_tests::{by_volsa, read_with};
 use super::labelling_tests::{able, label, open, running};
 use super::scene_tests::{corners, select};
 use super::tests::showing;
@@ -50,11 +50,11 @@ fn nothing_kept(state: &AppState) -> bool {
     state.labelling.kept.is_none() && state.labelling.kept_files.is_none()
 }
 
-/// Labels of the scene's study, made by Voxa, open on it.
+/// Labels of the scene's study, made by Volsa, open on it.
 fn open_labels(state: &mut AppState) {
     reduce(state, open());
     let volume = state.scene.corners.expect("the volume is built");
-    reduce(state, read_with(volume, Some(by_voxa()), None));
+    reduce(state, read_with(volume, Some(by_volsa()), None));
     assert_eq!(state.labels.status, LabelsStatus::Ready);
 }
 
@@ -132,7 +132,7 @@ fn showing_the_kept_result_reads_its_two_files_as_labels_on_the_study() {
     assert_eq!(state.labels.study, study_of(&state, &id(THICK_SCAN)));
     // They come back as labels read from a file, and are taken in as such.
     let volume = state.scene.corners.expect("the volume is built");
-    reduce(&mut state, read_with(volume, Some(by_voxa()), None));
+    reduce(&mut state, read_with(volume, Some(by_volsa()), None));
     assert_eq!(state.labels.status, LabelsStatus::Ready);
 }
 

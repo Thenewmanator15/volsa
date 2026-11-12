@@ -1,7 +1,7 @@
 //! Labelling in the state: a run belongs to the series it was started on, and the state ends
 //! it when the scene moves to another series, since the worker ends it without a word.
 
-use super::labelling_result_tests::{by_voxa, read_with};
+use super::labelling_result_tests::{by_volsa, read_with};
 use super::labelling_tests::{able, failure, nothing_runs, running, said};
 use super::scene_tests::select;
 use super::*;
@@ -78,7 +78,7 @@ fn labels_on_their_way_from_a_run_the_scene_left_are_not_taken() {
     // Another series of the same study: the run is over all the same.
     select(&mut state, 0, FINE_SCAN);
     let before = state.labels.clone();
-    let late = read_with(volume, Some(by_voxa()), Some(1));
+    let late = read_with(volume, Some(by_volsa()), Some(1));
     assert_eq!(reduce(&mut state, late), []);
     assert_eq!(state.labels, before);
     assert_eq!(state.labels.status, LabelsStatus::None);
@@ -88,8 +88,8 @@ fn labels_on_their_way_from_a_run_the_scene_left_are_not_taken() {
 fn a_runs_labels_that_lie_nowhere_near_the_volume_are_refused_and_never_held() {
     let mut state = running();
     let volume = state.scene.corners.expect("the volume is built");
-    let far = volume.map(|corner| voxa_core::Point::new(corner.x + 900.0, corner.y, corner.z));
-    let effects = reduce(&mut state, read_with(far, Some(by_voxa()), Some(1)));
+    let far = volume.map(|corner| volsa_core::Point::new(corner.x + 900.0, corner.y, corner.z));
+    let effects = reduce(&mut state, read_with(far, Some(by_volsa()), Some(1)));
     assert_eq!(effects, [Effect::DropLabels]);
     assert!(nothing_runs(&state));
 }
@@ -97,7 +97,7 @@ fn a_runs_labels_that_lie_nowhere_near_the_volume_are_refused_and_never_held() {
 #[test]
 fn the_workers_are_asked_to_hold_a_runs_labels_only_when_the_state_takes_them() {
     let volume = running().scene.corners.expect("the volume is built");
-    let late = || read_with(volume, Some(by_voxa()), Some(1));
+    let late = || read_with(volume, Some(by_volsa()), Some(1));
     let mut taken = running();
     assert_eq!(reduce(&mut taken, late()), [Effect::TakeLabels { run: 1 }]);
     // Stop is pressed, or the scene moves to another series, between the worker's report and

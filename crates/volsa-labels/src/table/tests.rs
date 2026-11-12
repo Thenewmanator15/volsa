@@ -1,7 +1,7 @@
 //! Tables of names in the three shapes read, label sets built from them, and what is said
 //! of a part in words.
 
-use voxa_core::Affine;
+use volsa_core::Affine;
 
 use super::*;
 use crate::nifti::LabelGrid;

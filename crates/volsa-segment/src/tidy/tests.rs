@@ -6,8 +6,8 @@
 use std::path::Path;
 
 use serde_json::Value;
-use voxa_core::{Affine, Patient, Voxel};
-use voxa_models::{Lists, ModelSide, Structure, Tensor, Wanted};
+use volsa_core::{Affine, Patient, Voxel};
+use volsa_models::{Lists, ModelSide, Structure, Tensor, Wanted};
 
 use super::{summed, tidy};
 use crate::{Back, Found};
@@ -115,7 +115,7 @@ pub(super) fn found(
     }
 }
 
-/// A golden case: what Voxa has when it comes to tidy, and `SynthSeg`'s labels for the same.
+/// A golden case: what Volsa has when it comes to tidy, and `SynthSeg`'s labels for the same.
 pub(super) struct Case {
     found: Found,
     /// The robust networks, when `SynthSeg` tidied the case the way it calls fast.

@@ -73,7 +73,7 @@ pub fn packages(
     if let Some((name, version)) = shipped.iter().find(|key| !is_found(key)) {
         let why = "so its licence cannot be found";
         return Err(format!(
-            "{name} {version} is built into Voxa, but cargo metadata does not describe it, {why}"
+            "{name} {version} is built into Volsa, but cargo metadata does not describe it, {why}"
         ));
     }
     Ok(found)

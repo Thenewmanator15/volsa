@@ -1,22 +1,67 @@
-//! The list of keys, opened with `?`.
+//! The help, opened with `?`: short topics for people looking at their own scans, above the list
+//! of every key and what the mouse does.
 
 use egui::RichText;
 use egui::scroll_area::ScrollAreaOutput;
 
-use super::overlay::SHORTCUTS;
-use super::scrolled;
-use super::theme;
+use super::{commands, floating, scrolled, theme};
+
+#[cfg(test)]
+mod drawn_tests;
+#[cfg(test)]
+mod open_tests;
+mod topics;
+#[cfg(test)]
+mod wording_sources;
+#[cfg(test)]
+mod wording_tests;
+
+pub use topics::TOPICS;
+
+/// The heading over the topics.
+const TOPICS_HEADING: &str = "Topics";
+/// The heading over the keys and what the mouse does.
+const KEYS_HEADING: &str = "Keys and mouse";
+
+/// Where the topic the help is to open at is kept until the window has drawn it.
+const AT: &str = "volsa: the help topic to open at";
+
+/// Do what asking for the help does: with no topic it opens the help, or shuts it if it is
+/// open; with a topic it opens the help at that topic, whether it was open or not.
+pub fn ask(ctx: &egui::Context, open: &mut bool, topic: Option<&'static str>) {
+    match topic {
+        None => *open = !*open,
+        Some(topic) => {
+            *open = true;
+            ctx.data_mut(|data| data.insert_temp(egui::Id::new(AT), topic));
+        }
+    }
+}
+
+/// The topic the help is to open at, if one was asked for and is not yet drawn.
+fn asked_for(ctx: &egui::Context) -> Option<&'static str> {
+    ctx.data(|data| data.get_temp(egui::Id::new(AT)))
+}
+
+/// Forget the topic asked for: it is drawn, or the help was shut before it could be.
+fn forget_the_topic(ctx: &egui::Context) {
+    ctx.data_mut(|data| data.remove::<&'static str>(egui::Id::new(AT)));
+}
 
 /// What the mouse does over a viewport, for the same window.
-pub const MOUSE: [(&str, &str); 14] = [
+pub const MOUSE: [(&str, &str); 15] = [
     ("Wheel", "Move through the slices"),
     ("Ctrl + wheel", "Zoom about the pointer"),
     ("Middle drag", "Move the picture"),
     (
         "Right drag",
-        "Change the window: across for width, down for centre",
+        "Change the window: across for width, down for level",
     ),
     ("Double-click", "Fit the whole picture in the viewport"),
+    (
+        "Click or drag, on a slice",
+        "Draw with the tool in hand, in the viewport chosen",
+    ),
     (
         "Click or drag, in a plane view",
         "Move the position, or draw with the tool in hand",
@@ -34,11 +79,11 @@ pub const MOUSE: [(&str, &str); 14] = [
         "Select it. Rest the pointer on a part for its name",
     ),
     (
-        "Click Label this scan, in the Parts tab",
-        "Label the scan with Voxa's own networks. The menu beside it chooses how",
+        "Click Label this scan, in the Tools tab",
+        "Label the scan with Volsa's own networks. The menu beside it chooses how",
     ),
     (
-        "Click Stop, in the Parts tab",
+        "Click Stop, in the Tools tab",
         "Stop labelling the scan now. No labels are made",
     ),
 ];
@@ -51,18 +96,27 @@ const WIDEST: f32 = 860.0;
 const BESIDE: f32 = 760.0;
 
 /// The interface's own name for the window, which it keeps its place under.
-fn named() -> egui::Id {
-    egui::Id::new("voxa: keys and mouse")
+pub(super) fn id() -> egui::Id {
+    egui::Id::new("volsa: help")
 }
 
-/// Show the reference while `open` is true; closing it sets `open` to false. In a window too
-/// small to hold it all, it scrolls, with its bar in sight; in a narrow one, what each key
-/// does follows it. Gives what egui said of its list, while it is shown.
+/// Show the help while `open` is true; closing it sets `open` to false. The topics come first,
+/// each closed until it is clicked, except the one asked for (see [`ask`]), which is opened and
+/// brought into sight; then the keys and the mouse. In a window too small to hold it all, it
+/// scrolls, with its bar in sight; in a narrow one, what each key does follows it. Gives what
+/// egui said of its list, while it is shown.
 pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>> {
-    let room = ctx.content_rect().size();
+    if !*open {
+        // A topic asked for as the help was shut is not for the next time it is opened.
+        forget_the_topic(ctx);
+    }
+    let at = asked_for(ctx);
+    let room = floating::area(ctx).size();
     let wide = (room.x - AROUND).clamp(AROUND, WIDEST);
-    let shown = egui::Window::new("Keys and mouse")
-        .id(named())
+    let window = egui::Window::new("Help");
+    let mut in_sight = false;
+    let shown = floating::over(window, ctx)
+        .id(id())
         .open(open)
         .collapsible(false)
         .auto_sized()
@@ -72,6 +126,9 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
             scrolled::solid_bars(ui);
             let most = (room.y - 2.0 * AROUND).max(AROUND);
             scrolled::up_and_down(most).show(ui, |ui| {
+                in_sight = topics(ui, at);
+                ui.add_space(8.0);
+                ui.label(RichText::new(KEYS_HEADING).strong());
                 if wide >= BESIDE {
                     side_by_side(ui);
                 } else {
@@ -79,12 +136,55 @@ pub fn show(ctx: &egui::Context, open: &mut bool) -> Option<ScrollAreaOutput<()>
                 }
             })
         });
+    if in_sight {
+        forget_the_topic(ctx);
+    }
     shown.and_then(|window| window.inner)
 }
 
+/// The topics, each a heading that opens to its words. The topic `at` is opened, and brought
+/// to the top of the list once the window has its size, which it learns in a pass of its own
+/// that is not seen. Gives whether that was done.
+fn topics(ui: &mut egui::Ui, at: Option<&str>) -> bool {
+    let mut brought = false;
+    ui.label(RichText::new(TOPICS_HEADING).strong());
+    for topic in &TOPICS {
+        let asked = at == Some(topic.id);
+        let header = egui::CollapsingHeader::new(topic.title)
+            .id_salt(("volsa: help topic", topic.id))
+            .open(asked.then_some(true))
+            .show(ui, |ui| {
+                ui.add(egui::Label::new(topic.body).wrap());
+            });
+        if asked && !ui.is_sizing_pass() {
+            let jump = egui::style::ScrollAnimation::none();
+            header
+                .header_response
+                .scroll_to_me_animation(Some(egui::Align::TOP), jump);
+            brought = true;
+        }
+    }
+    brought
+}
+
+/// Every key Volsa answers to, from the list of actions, with what it does: each action that
+/// has a key, in the list's order.
+pub fn keys_listed() -> Vec<(&'static str, &'static str)> {
+    let keyed = commands::all().iter();
+    keyed
+        .filter_map(|command| Some((command.key?.shown, command.name)))
+        .collect()
+}
+
+/// What the reference lists, in order: the keys, then what the mouse does.
+fn listed() -> impl Iterator<Item = (&'static str, &'static str)> {
+    keys_listed().into_iter().chain(MOUSE)
+}
+
 /// A key or mouse action, as the reference names it.
-fn key(input: &str) -> RichText {
-    RichText::new(input).monospace().color(theme::ACCENT)
+fn key(ui: &egui::Ui, input: &str) -> RichText {
+    let accent = theme::palette(ui.ctx()).accent;
+    RichText::new(input).monospace().color(accent)
 }
 
 /// Each key with what it does beside it, in two columns.
@@ -93,9 +193,9 @@ fn side_by_side(ui: &mut egui::Ui) {
         .num_columns(2)
         .spacing([24.0, 6.0])
         .show(ui, |ui| {
-            for (input, does) in SHORTCUTS.iter().chain(&MOUSE) {
-                ui.label(key(input));
-                ui.add(egui::Label::new(*does).wrap());
+            for (input, does) in listed() {
+                ui.label(key(ui, input));
+                ui.add(egui::Label::new(does).wrap());
                 ui.end_row();
             }
         });
@@ -106,13 +206,46 @@ fn run_on(ui: &mut egui::Ui) {
     let keys = egui::TextStyle::Monospace.resolve(ui.style());
     let words = egui::TextStyle::Body.resolve(ui.style());
     let colour = ui.visuals().text_color();
-    for (input, does) in SHORTCUTS.iter().chain(&MOUSE) {
+    for (input, does) in listed() {
         let mut line = egui::text::LayoutJob::default();
-        let named = egui::TextFormat::simple(keys.clone(), theme::ACCENT);
+        let named = egui::TextFormat::simple(keys.clone(), theme::palette(ui.ctx()).accent);
         line.append(input, 0.0, named);
         line.append(does, 12.0, egui::TextFormat::simple(words.clone(), colour));
         ui.add(egui::Label::new(line).wrap());
     }
+}
+
+/// Every piece of text the reference draws, open in a window `width` by `height` points
+/// large, after it has had a frame to lay itself out.
+#[cfg(test)]
+pub fn drawn_words(width: f32, height: f32) -> Vec<String> {
+    fn words_of(shape: &egui::Shape, into: &mut Vec<String>) {
+        match shape {
+            egui::Shape::Text(text) => into.push(text.galley.text().to_owned()),
+            egui::Shape::Vec(shapes) => shapes.iter().for_each(|shape| words_of(shape, into)),
+            _ => {}
+        }
+    }
+    let ctx = egui::Context::default();
+    theme::apply(&ctx, theme::ThemeChoice::Dark);
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
+    let mut words = Vec::new();
+    for _ in 0..2 {
+        let input = egui::RawInput {
+            screen_rect: Some(screen),
+            ..egui::RawInput::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            let _ = show(ui.ctx(), &mut true);
+        });
+        // No renderer is behind this pass to take the font texture.
+        output.textures_delta.clear();
+        words.clear();
+        for clipped in &output.shapes {
+            words_of(&clipped.shape, &mut words);
+        }
+    }
+    words
 }
 
 #[cfg(test)]
@@ -130,7 +263,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(SHORTCUTS.len() + MOUSE.len(), 34);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 43);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
@@ -139,10 +272,12 @@ mod tests {
         let label = MOUSE
             .iter()
             .find(|(input, _)| input.contains("Label this scan"));
-        let (_, does) = label.expect("what the button that labels does is listed");
-        assert!(does.contains("Voxa's own networks"), "{does}");
+        let (where_it_is, does) = label.expect("what the button that labels does is listed");
+        assert!(where_it_is.ends_with("in the Tools tab"), "{where_it_is}");
+        assert!(does.contains("Volsa's own networks"), "{does}");
         let stop = MOUSE.iter().find(|(input, _)| input.contains("Stop"));
-        let (_, does) = stop.expect("what Stop does is listed");
+        let (where_it_is, does) = stop.expect("what Stop does is listed");
+        assert!(where_it_is.ends_with("in the Tools tab"), "{where_it_is}");
         assert!(does.contains("Stop labelling"), "{does}");
         let in_3d = MOUSE
             .iter()
@@ -151,12 +286,38 @@ mod tests {
         assert_eq!(in_3d, 5, "what the mouse does in the 3D view is listed too");
     }
 
-    /// The reference shown in a Voxa window `width` by `height` points large, in Voxa's
+    #[test]
+    fn the_list_of_keys_has_the_ones_for_measuring_and_the_screen() {
+        let listed = keys_listed();
+        let does = |key: &str| listed.iter().find(|(shown, _)| *shown == key);
+        let does = |key| does(key).map(|(_, does)| *does);
+        for key in [
+            "Ctrl+Z",
+            "Ctrl+Y or Ctrl+Shift+Z",
+            "M",
+            "B",
+            "F11",
+            "?",
+            "Ctrl+K or /",
+        ] {
+            assert!(does(key).is_some(), "{key}");
+        }
+        let escape = does("Esc").expect("listed");
+        assert!(escape.contains("tool"), "Esc puts the tool down: {escape}");
+        for key in ["Ctrl+=", "Ctrl+-", "Ctrl+0"] {
+            let size = does(key).expect("listed");
+            assert!(size.contains("interface"), "{key}: {size}");
+        }
+        let pages = does("Page Up").expect("listed");
+        assert!(pages.contains("Ten slices"), "{pages}");
+    }
+
+    /// The reference shown in a Volsa window `width` by `height` points large, in Volsa's
     /// look: what its list held and showed, whether the list's bar is drawn, and where the
     /// reference is.
     fn drawn_in(width: f32, height: f32) -> (Scrolled, bool, egui::Rect) {
         let ctx = egui::Context::default();
-        theme::apply(&ctx);
+        theme::apply(&ctx, theme::ThemeChoice::Dark);
         let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, height));
         let mut open = true;
         let (mut scrolled, mut bar) = (None, false);
@@ -173,7 +334,7 @@ mod tests {
             let shown = scrolled.map_or(egui::Rect::NOTHING, |scrolled| scrolled.shown);
             bar = bar_drawn(&output.shapes, shown);
         }
-        let shown = ctx.memory(|memory| memory.area_rect(named()));
+        let shown = ctx.memory(|memory| memory.area_rect(id()));
         let shown = shown.expect("the reference is shown");
         (scrolled.expect("its list is laid out"), bar, shown)
     }

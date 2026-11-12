@@ -33,7 +33,7 @@ fn model_of(labels: &Labels) -> String {
 }
 
 /// How the labelling model's own check of its work went, as the `model_check` column says it:
-/// `passed` only when nothing scored below the line, as the Parts tab says it; `failed`; or
+/// `passed` only when nothing scored below the line, as the Labels tab says it; `failed`; or
 /// `not given` for labels that carry no check.
 fn check_of(labels: &Labels) -> &'static str {
     match &labels.verdict {

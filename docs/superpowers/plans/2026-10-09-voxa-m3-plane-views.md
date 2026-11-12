@@ -1,5 +1,7 @@
 # Voxa Milestone 3 (Plane views and measurement) Implementation Plan
 
+> Volsa was earlier called Voxa. This record keeps the name it was written with.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Beside the 3D view the person sees the same volume in axial, coronal and sagittal planes that all pass through one position they can move from any view, and can measure on it: distances, angles, region statistics and named markers, listed, undoable, kept between sessions and exportable.

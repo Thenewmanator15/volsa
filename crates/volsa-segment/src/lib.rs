@@ -48,7 +48,7 @@ mod toward;
 pub use find::{Found, Networks, Stage, find};
 pub use label::{LabelError, Labelled, ModelChoice, THICK_MM, choose, label};
 pub use pieces::largest_piece;
-pub use prepare::{Back, PrepareError, Prepared, Sizes, Turn, prepare, resampled, sizes};
+pub use prepare::{Back, PrepareError, Prepared, Sizes, Turn, fits, prepare, resampled, sizes};
 pub use table::{FAIL_BELOW, table};
 pub use tidy::tidy;
 pub use toward::Toward;

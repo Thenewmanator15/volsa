@@ -120,12 +120,12 @@ fn an_error_from_the_visitor_ends_the_visit_with_that_error() {
         let outcome = source.visit_files(&mut |_, _| {
             visits += 1;
             if visits == 2 {
-                Err(VoxaError::NotDicom)
+                Err(VolsaError::NotDicom)
             } else {
                 Ok(())
             }
         });
-        assert!(matches!(outcome, Err(VoxaError::NotDicom)), "{outcome:?}");
+        assert!(matches!(outcome, Err(VolsaError::NotDicom)), "{outcome:?}");
         assert_eq!(visits, 2, "no file after the error is visited");
     }
 }

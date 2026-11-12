@@ -1,14 +1,14 @@
-"""Make the arrays Voxa's tests are held against, with SynthSeg's own Python.
+"""Make the arrays Volsa's tests are held against, with SynthSeg's own Python.
 
     python make_golden.py SYNTHSEG_CHECKOUT [GROUP ...]
 
 SYNTHSEG_CHECKOUT is a copy of github.com/BBillot/SynthSeg; no weights are needed. Each group
-of cases is written under crates/voxa-segment/tests/golden/GROUP/. With no group named, every
+of cases is written under crates/volsa-segment/tests/golden/GROUP/. With no group named, every
 group is made. README.md beside this file says what each case holds and in what order.
 
 Every volume here is made up from a seed, so a second run writes the same bytes.
 
-This script ships nothing and is no part of Voxa: it is not built, run or tested by cargo.
+This script ships nothing and is no part of Volsa: it is not built, run or tested by cargo.
 """
 
 import json
@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 TOOLS = Path(__file__).resolve().parents[1]
-GOLDEN = TOOLS.parent / "crates" / "voxa-segment" / "tests" / "golden"
+GOLDEN = TOOLS.parent / "crates" / "volsa-segment" / "tests" / "golden"
 
 sys.path.insert(0, str(TOOLS / "synthseg-to-onnx"))
 from convert import use_synthseg  # noqa: E402  (how SynthSeg's Keras 2 code is made importable)
@@ -30,7 +30,7 @@ VOLUME_HOLDS = ("little-endian f32; columns fastest, then rows, then slices: "
                 "values[(slice * rows + row) * cols + col]")
 IMAGE_HOLDS = ("little-endian f32; the image before padding, as the network's [x, y, z] with z fastest: "
                "values[(x * size_y + y) * size_z + z]")
-TO_PATIENT = ("voxel (column, row, slice) to the patient in left-posterior-superior millimetres, as Voxa holds it: "
+TO_PATIENT = ("voxel (column, row, slice) to the patient in left-posterior-superior millimetres, as Volsa holds it: "
               "where a step along each axis leads, and where voxel (0, 0, 0) lies. SynthSeg was given the same "
               "with the x and y rows negated (right-anterior-superior). The transform a case starts from holds "
               "32-bit floats, as a NIfTI file does: take each number as one. The transform of a resampled volume "
@@ -66,14 +66,14 @@ def affine(linear, origin) -> np.ndarray:
 
 
 def to_patient(aff_ras: np.ndarray) -> dict:
-    """SynthSeg's right-anterior-superior transform as Voxa holds one: left-posterior-superior."""
+    """SynthSeg's right-anterior-superior transform as Volsa holds one: left-posterior-superior."""
     lps = np.diag([-1.0, -1.0, 1.0, 1.0]) @ aff_ras
     numbers = lambda column: [float(v) + 0.0 for v in column]  # + 0.0: no minus zero in the file
     return {"columns": [numbers(lps[:3, c]) for c in range(3)], "origin": numbers(lps[:3, 3])}
 
 
 def write_floats(path: Path, array: np.ndarray, fastest: str) -> None:
-    """`fastest` is "first" for a volume in Voxa's order, "last" for a network's image."""
+    """`fastest` is "first" for a volume in Volsa's order, "last" for a network's image."""
     path.write_bytes(np.asarray(array).astype("<f4").tobytes(order="F" if fastest == "first" else "C"))
 
 
@@ -331,7 +331,7 @@ def box_group(checkout: Path, out: Path) -> None:
 CHANCES_HOLD = ("little-endian f32; the chance of each structure at each voxel of the padded grid, as a network's "
                 "[x, y, z, structure] with the structure fastest: "
                 "values[((x * padded_y + y) * padded_z + z) * structures + structure]")
-AREAS_HOLD = ("one byte a voxel of the padded grid: the cortex area there as Voxa's cortex network gives it, 1 plus "
+AREAS_HOLD = ("one byte a voxel of the padded grid: the cortex area there as Volsa's cortex network gives it, 1 plus "
               "the place of the largest of the chances of areas 1 to 68; [x, y, z] with z fastest: "
               "values[(x * padded_y + y) * padded_z + z]")
 LABELS_HOLD = ("little-endian i32; SynthSeg's label at each voxel of the grid as stored: columns fastest, then rows, "
@@ -563,7 +563,7 @@ def as_numpy_adds(values: np.ndarray) -> np.float32:
 
 
 def eight_abreast(values: np.ndarray, halved=True, at_eight=True, rest_last=True) -> np.float32:
-    """The same sum by the rule written out, which is the one Voxa follows. Under eight numbers are added in turn.
+    """The same sum by the rule written out, which is the one Volsa follows. Under eight numbers are added in turn.
     Up to 128 are added in eight lanes, every eighth number to a lane; the lanes are added in pairs, and what is
     left over is added in turn. A longer list is halved at a multiple of eight, and its halves are added. The
     three switches each break one part of the rule, to see that a list can tell."""
@@ -587,7 +587,7 @@ def eight_abreast(values: np.ndarray, halved=True, at_eight=True, rest_last=True
 def sums(out: Path) -> None:
     """Lists of made-up single precision numbers, each with its sum as NumPy adds along the last axis of an array,
     which is how SynthSeg adds a voxel's chances: 7, 9, 15, 33, 130 and 255 numbers, on each side of the lengths
-    at which NumPy's way of adding changes. The script stops if NumPy no longer adds by the rule Voxa follows."""
+    at which NumPy's way of adding changes. The script stops if NumPy no longer adds by the rule Volsa follows."""
     rng = seeded("tidy", "sums")
     # The ways of adding that each list must tell from NumPy's: the numbers added in turn, a long list not halved or
     # halved anywhere, and what is left over added before the lanes. (One number left over is added the same either
@@ -604,7 +604,7 @@ def sums(out: Path) -> None:
             numbers = rng.random(count, dtype=np.float32)
             ours = as_numpy_adds(numbers)
             if ours != eight_abreast(numbers):
-                raise SystemExit(f"NumPy does not add {count} numbers by the rule Voxa follows.")
+                raise SystemExit(f"NumPy does not add {count} numbers by the rule Volsa follows.")
             if all(ours != other(numbers) for other in others):
                 break
         kept.append({"numbers": [float(number) for number in numbers], "sum": float(ours)})

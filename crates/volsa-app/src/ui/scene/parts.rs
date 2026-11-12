@@ -1,9 +1,9 @@
 //! The Parts look in the scene: which labelled part is under a point of the picture, and
 //! what a click on it asks for.
 
-use voxa_core::{Patient, Point};
-use voxa_labels::LabelSet;
-use voxa_render::{Look, pick_part};
+use volsa_core::{Patient, Point};
+use volsa_labels::LabelSet;
+use volsa_render::{Look, pick_part};
 
 use super::scene_params;
 use crate::action::Action;
@@ -13,7 +13,7 @@ use crate::state::AppState;
 
 /// What the scene says of itself in the Parts look.
 pub const CAPTION: &str =
-    "Solids are labels made elsewhere, drawn as given: Voxa did not find them in this scan.";
+    "Solids are labels made elsewhere, drawn as given: Volsa did not find them in this scan.";
 
 /// A part at least this solid is what the pointer is on. A fainter one is seen through:
 /// the pointer is on the first solid part behind it, if there is one.
@@ -56,7 +56,7 @@ pub fn selected_by(state: &AppState, part: Option<usize>) -> Option<Action> {
 
 #[cfg(test)]
 mod tests {
-    use voxa_render::Look;
+    use volsa_render::Look;
 
     use super::*;
     use crate::reducer::reduce;
@@ -127,7 +127,7 @@ mod tests {
             "in another look"
         );
         reduce(&mut state, Action::SceneLook(Look::Parts));
-        state.labels.study = Some(voxa_core::StudyId("another".to_owned()));
+        state.labels.study = Some(volsa_core::StudyId("another".to_owned()));
         assert!(
             !drawn(&state),
             "labels of another study are not drawn as solids here"
@@ -139,7 +139,7 @@ mod tests {
     fn a_faded_part_does_not_take_the_pointer_from_a_solid_one_seen_through_it() {
         let (mut state, set, viewport) = solids();
         // From the patient's left, the left half, part 1, is in front of the right, part 0.
-        reduce(&mut state, Action::SceneView(voxa_render::NamedView::Left));
+        reduce(&mut state, Action::SceneView(volsa_render::NamedView::Left));
         let middle = [viewport[0] / 2.0, viewport[1] / 2.0];
         let seen =
             |state: &AppState| part_seen(state, &set, viewport, middle).map(|(part, _)| part);

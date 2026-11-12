@@ -1,7 +1,7 @@
 //! Saved views in the state: saving, applying, deleting, and loading those kept from before.
 
-use voxa_core::WindowLevel;
-use voxa_render::Look;
+use volsa_core::WindowLevel;
+use volsa_render::Look;
 
 use super::scene_tests::{build, ready, select};
 use super::tests::{frames_around, loaded};

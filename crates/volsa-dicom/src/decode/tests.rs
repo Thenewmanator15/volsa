@@ -4,7 +4,7 @@ use dicom_core::{DataElement, PrimitiveValue, VR};
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
 use proptest::prelude::*;
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use super::*;
 use crate::index::SliceRef;
@@ -15,7 +15,7 @@ use crate::testkit::{
 const NAME: &str = "slice.dcm";
 const JPEG_LS_LOSSLESS: &str = "1.2.840.10008.1.2.4.80";
 
-fn decode(bytes: Vec<u8>, frame: Option<u32>) -> Result<Frame, VoxaError> {
+fn decode(bytes: Vec<u8>, frame: Option<u32>) -> Result<Frame, VolsaError> {
     let mut source = MemorySource::new(vec![(NAME.to_owned(), bytes)]);
     let slice = SliceRef {
         entry: NAME.to_owned(),
@@ -145,7 +145,7 @@ fn decode_names_a_compression_it_has_never_heard_of() {
     };
     let error = decode(classic_slice(&opts), None).expect_err("cannot be read");
     assert!(
-        matches!(&error, VoxaError::UnsupportedTransferSyntax(name) if name == made_up),
+        matches!(&error, VolsaError::UnsupportedTransferSyntax(name) if name == made_up),
         "{error:?}"
     );
 }
@@ -158,7 +158,7 @@ fn decode_names_a_compression_it_knows_of_but_cannot_read() {
     };
     let error = decode(classic_slice(&opts), None).expect_err("cannot be read");
     assert!(
-        matches!(&error, VoxaError::UnsupportedTransferSyntax(name) if name.contains("JPEG-LS")),
+        matches!(&error, VolsaError::UnsupportedTransferSyntax(name) if name.contains("JPEG-LS")),
         "{error:?}"
     );
 }
@@ -170,7 +170,7 @@ fn decode_reports_truncated_pixels_instead_of_panicking() {
         ..SliceOptions::default()
     };
     let result = decode(classic_slice(&opts), None);
-    assert!(matches!(result, Err(VoxaError::Decode(_))), "{result:?}");
+    assert!(matches!(result, Err(VolsaError::Decode(_))), "{result:?}");
 }
 
 #[test]
@@ -183,7 +183,7 @@ fn decode_reports_a_frame_the_file_does_not_have() {
         frames,
     });
     let result = decode(file, Some(3));
-    assert!(matches!(result, Err(VoxaError::Decode(_))), "{result:?}");
+    assert!(matches!(result, Err(VolsaError::Decode(_))), "{result:?}");
 }
 
 #[test]
@@ -194,7 +194,7 @@ fn decode_declines_colour_images_in_plain_words() {
     });
     let error = decode(bytes, None).expect_err("colour is out of scope for this milestone");
     assert!(
-        matches!(&error, VoxaError::Decode(why) if why.contains("colour")),
+        matches!(&error, VolsaError::Decode(why) if why.contains("colour")),
         "{error:?}"
     );
 }
@@ -202,7 +202,7 @@ fn decode_declines_colour_images_in_plain_words() {
 #[test]
 fn decode_of_bytes_that_are_not_dicom_says_so() {
     let result = decode(b"%PDF-1.7 a report".to_vec(), None);
-    assert!(matches!(result, Err(VoxaError::NotDicom)), "{result:?}");
+    assert!(matches!(result, Err(VolsaError::NotDicom)), "{result:?}");
 }
 
 #[test]
@@ -214,15 +214,15 @@ fn decode_of_an_entry_the_source_lacks_is_an_error() {
     };
     let result = decode_slice(&mut source, &slice);
     assert!(
-        matches!(result, Err(VoxaError::MissingEntry(_))),
+        matches!(result, Err(VolsaError::MissingEntry(_))),
         "{result:?}"
     );
 }
 
 #[test]
 fn a_panic_inside_a_decoder_becomes_a_decode_error() {
-    let result: Result<Frame, VoxaError> = guarded(|| panic!("a codec gave up"));
-    assert!(matches!(result, Err(VoxaError::Decode(_))), "{result:?}");
+    let result: Result<Frame, VolsaError> = guarded(|| panic!("a codec gave up"));
+    assert!(matches!(result, Err(VolsaError::Decode(_))), "{result:?}");
 }
 
 #[test]
@@ -272,14 +272,14 @@ fn an_opened_file_gives_any_of_its_frames_without_being_read_again() {
         let frame = file.decode(Some(u32::from(i))).expect("decodes");
         assert_eq!(frame.values, vec![f32::from(i * 10); 16]);
     }
-    assert!(matches!(file.decode(Some(4)), Err(VoxaError::Decode(_))));
+    assert!(matches!(file.decode(Some(4)), Err(VolsaError::Decode(_))));
 }
 
 #[test]
 fn opening_a_file_says_what_stops_it_being_decoded() {
     assert!(matches!(
         ImageFile::open(b"%PDF-1.7"),
-        Err(VoxaError::NotDicom)
+        Err(VolsaError::NotDicom)
     ));
     let jpeg_ls = SliceOptions {
         transfer_syntax: JPEG_LS_LOSSLESS.to_owned(),
@@ -288,7 +288,7 @@ fn opening_a_file_says_what_stops_it_being_decoded() {
     let result = ImageFile::open(&classic_slice(&jpeg_ls));
     assert!(matches!(
         result,
-        Err(VoxaError::UnsupportedTransferSyntax(_))
+        Err(VolsaError::UnsupportedTransferSyntax(_))
     ));
 }
 

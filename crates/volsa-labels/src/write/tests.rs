@@ -6,7 +6,7 @@ use std::io::Read;
 use flate2::read::MultiGzDecoder;
 use proptest::collection::vec;
 use proptest::prelude::*;
-use voxa_core::{Affine, Patient, Voxel};
+use volsa_core::{Affine, Patient, Voxel};
 
 use super::{WriteError, write_labels};
 use crate::nifti::{LabelGrid, read_labels};

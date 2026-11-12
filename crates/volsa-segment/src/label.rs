@@ -1,6 +1,6 @@
 // Ported from SynthSeg (https://github.com/BBillot/SynthSeg), Copyright 2020 Benjamin Billot,
 // Apache License 2.0: `predict` in SynthSeg/predict_synthseg.py, translated to Rust and changed for
-// Voxa.
+// Volsa.
 //! From a volume all the way to a label set: the volume is made ready, the networks are run,
 //! what they found is tidied, and the table that names it is made. Each step is the one
 //! `SynthSeg`'s own program takes for the networks that were asked for: the standard network's
@@ -11,9 +11,9 @@
 //! know of the run is said in notes: that slices far apart make a rough map, and that the
 //! scan was cut to the head.
 
-use voxa_core::Volume;
-use voxa_labels::{LabelGrid, Table};
-use voxa_models::{Cut, Lists, RunError, Wanted};
+use volsa_core::Volume;
+use volsa_labels::{LabelGrid, Table};
+use volsa_models::{Cut, Lists, RunError, Wanted};
 
 use crate::find::{Networks, Stage, find};
 use crate::prepare::{Back, PrepareError, Prepared, prepare};

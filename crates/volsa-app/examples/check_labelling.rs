@@ -1,17 +1,17 @@
 //! Labels the largest series of an export that has a 3D view, with no window, on every
-//! place Voxa would try, and prints a line for each: how many voxels the networks were given,
+//! place Volsa would try, and prints a line for each: how many voxels the networks were given,
 //! where, how many seconds the labelling took, how many parts it made and whether the model's
 //! own check of its work passed. A place that fails prints its reason, and the next is tried.
 //!
 //! ```text
-//! VOXA_MODELS=some/model-folder VOXA_RUNTIME=some/runtime-folder \
-//!     cargo run --release -p voxa-app --example check_labelling -- some/export [standard|robust] [no-areas]
+//! VOLSA_MODELS=some/model-folder VOLSA_RUNTIME=some/runtime-folder \
+//!     cargo run --release -p volsa-app --example check_labelling -- some/export [standard|robust] [no-areas]
 //! ```
 //!
-//! `VOXA_MODELS` names a model folder and `VOXA_RUNTIME` the folder that holds the runtime.
-//! Left to itself the model is the one Voxa picks for the series, with the cortex divided into
-//! its areas, as the button in the Parts tab does. The places are those that
-//! `voxa_models::rungs` offers this computer when Voxa is left to choose: the whole scan on
+//! `VOLSA_MODELS` names a model folder and `VOLSA_RUNTIME` the folder that holds the runtime.
+//! Left to itself the model is the one Volsa picks for the series, with the cortex divided into
+//! its areas, as the button in the Tools tab does. The places are those that
+//! `volsa_models::rungs` offers this computer when Volsa is left to choose: the whole scan on
 //! each discrete card, then on the processor, then the scan cut to the head on each, then on
 //! the processor. A card the system lists twice is tried once. The seconds are counted from
 //! the call that labels to the label set made, which is what a worker does between the button
@@ -26,14 +26,14 @@ use std::sync::Arc;
 use std::sync::mpsc::channel;
 use std::time::{Duration, Instant};
 
-use voxa_app::{Action, NoticeKind, SceneStatus, Session};
-use voxa_core::{SeriesId, Volume};
-use voxa_labels::label_set;
-use voxa_models::{
+use volsa_app::{Action, NoticeKind, SceneStatus, Session};
+use volsa_core::{Grid, SeriesId, Volume};
+use volsa_labels::label_set;
+use volsa_models::{
     Cut, Device, FreeMemory, Model, Network, Role, Room, RunError, Rung, RunsOn, Runtime, Stop,
     Wanted, budget, cards, free_memory, read_model, rungs, unheld, why_not,
 };
-use voxa_segment::{ModelChoice, Networks, choose, label, sizes};
+use volsa_segment::{ModelChoice, Networks, choose, label, sizes};
 
 /// How long the workers may take over one thing before the check gives up.
 const PATIENCE: Duration = Duration::from_secs(300);
@@ -65,7 +65,7 @@ fn main() -> ExitCode {
 fn usage() -> ExitCode {
     eprintln!(
         "Usage: check_labelling EXPORT [standard|robust] [no-areas]   \
-         (VOXA_MODELS names a model folder, VOXA_RUNTIME the runtime's folder)"
+         (VOLSA_MODELS names a model folder, VOLSA_RUNTIME the runtime's folder)"
     );
     ExitCode::from(2)
 }
@@ -97,7 +97,7 @@ fn until(session: &mut Session, done: impl Fn(&Session) -> bool) -> Result<(), S
 fn indexed(session: &Session) -> bool {
     let state = session.state();
     let opened = state.viewports.first();
-    let failed = |notice: &voxa_app::Notice| notice.kind == NoticeKind::Error;
+    let failed = |notice: &volsa_app::Notice| notice.kind == NoticeKind::Error;
     opened.is_some_and(|shown| shown.series.is_some()) || state.notices.iter().any(failed)
 }
 
@@ -139,7 +139,11 @@ fn largest(session: &mut Session, export: &Path) -> Result<Scan, String> {
     }
     let (_, id) = most.ok_or("No series of the export has a 3D view.")?;
     show(session, &id)?;
-    let volume = session.volume(&id).ok_or("The volume is not kept.")?;
+    let volume = session
+        .volume(&id)
+        .and_then(|held| held.to_volume(0..held.dims()[2]))
+        .map(Arc::new)
+        .ok_or("The volume is not kept.")?;
     let listed = session.state().series(&id);
     let spacing_mm = listed
         .map(|one| one.info.spacing_mm)
@@ -254,8 +258,8 @@ fn on_one_place(
 
 /// Label the scan on every place offered. Whether any gave labels.
 fn check(export: &Path, choice: ModelChoice, cortex: bool) -> Result<bool, String> {
-    let models = folder("VOXA_MODELS", "a model folder")?;
-    let runtime = folder("VOXA_RUNTIME", "the folder that holds the runtime")?;
+    let models = folder("VOLSA_MODELS", "a model folder")?;
+    let runtime = folder("VOLSA_RUNTIME", "the folder that holds the runtime")?;
     let model = read_model(&models).map_err(said)?;
     let runtime = Runtime::load(&runtime).map_err(said)?;
     // A session with nothing kept between runs.

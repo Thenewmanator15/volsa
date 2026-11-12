@@ -3,9 +3,9 @@
 
 use std::path::PathBuf;
 
-use voxa_core::{Patient, Point};
-use voxa_labels::{Made, Part, Side, Trust, Verdict};
-use voxa_render::{Look, Overlay};
+use volsa_core::{Patient, Point};
+use volsa_labels::{Made, Part, Side, Trust, Verdict};
+use volsa_render::{Look, Overlay};
 
 use super::scene_tests::{corners, ready, select};
 use super::tests::showing;
@@ -325,7 +325,7 @@ fn labels_stay_with_their_study_and_are_not_forgotten_when_another_is_looked_at(
     );
     assert_eq!(state.labels.status, LabelsStatus::Ready);
     // A study the labels are not of.
-    state.labels.study = Some(voxa_core::StudyId("another study".to_owned()));
+    state.labels.study = Some(volsa_core::StudyId("another study".to_owned()));
     assert!(!on_this_series(&state));
     assert_eq!(state.labels.parts.len(), 3, "still held");
 }
@@ -345,7 +345,7 @@ fn the_parts_look_needs_labels_on_the_series_and_is_drawn_as_a_surface_without()
         (state.scene.look, look_drawn(&state)),
         (Look::Parts, Look::Parts)
     );
-    state.labels.study = Some(voxa_core::StudyId("another study".to_owned()));
+    state.labels.study = Some(volsa_core::StudyId("another study".to_owned()));
     assert_eq!(
         look_drawn(&state),
         Look::Surface,
@@ -377,7 +377,7 @@ fn the_models_check_and_who_made_the_labels_come_with_them_and_go_with_them() {
         corners: corners(),
         names_from: NamesFrom::Nothing,
         made: Some(Made {
-            by: "Voxa 9.8.7".to_owned(),
+            by: "Volsa 9.8.7".to_owned(),
             ..Made::default()
         }),
         run: None,
@@ -386,7 +386,7 @@ fn the_models_check_and_who_made_the_labels_come_with_them_and_go_with_them() {
     assert_eq!(state.labels.verdict, Some(verdict));
     assert_eq!(state.labels.names_from, NamesFrom::Nothing);
     let by = state.labels.made.as_ref().map(|made| made.by.as_str());
-    assert_eq!(by, Some("Voxa 9.8.7"));
+    assert_eq!(by, Some("Volsa 9.8.7"));
     reduce(&mut state, Action::CloseLabels);
     assert_eq!(state.labels.made, None);
 }

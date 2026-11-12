@@ -88,7 +88,7 @@ fn a_device_has_what_a_run_counts_on_there_or_none_when_it_is_no_place_to_run() 
     // The processor has the ordinary memory free; so does a card that shares it.
     assert_eq!(room.space_on(Device::Processor), Some(20 * GIB));
     assert_eq!(room.space_on(Device::Card(id(0))), Some(20 * GIB));
-    // A discrete card with no budget read has its own memory less what Voxa holds of it.
+    // A discrete card with no budget read has its own memory less what Volsa holds of it.
     assert_eq!(room.space_on(Device::Card(id(1))), Some(15 * GIB));
     room.budgets = vec![None, Some(6 * GIB)];
     assert_eq!(room.space_on(Device::Card(id(1))), Some(6 * GIB));

@@ -2,7 +2,7 @@
 //! is worked out in patient millimetres and scan values, never from a picture on the screen.
 
 use serde::{Deserialize, Serialize};
-use voxa_core::{Patient, Point, Volume};
+use volsa_core::{Grid, Patient, Point};
 
 use crate::plane::Plane;
 use crate::sample::sample;
@@ -51,10 +51,10 @@ pub struct RegionStats {
 /// from the middle of the plane, its half-widths `radii_mm` along the plane's sides.
 ///
 /// The ellipse is sampled on a square grid half the volume's finest voxel spacing apart, each
-/// sample blended from the eight voxels round it, and only samples inside the volume are
-/// counted. `None` when a radius is not above zero or no sample falls inside the volume.
+/// sample blended from the eight voxels round it, and only samples inside the volume that
+/// are finite numbers are counted. `None` when a radius is not above zero or no sample is.
 pub fn ellipse_stats(
-    volume: &Volume,
+    volume: &(impl Grid + ?Sized),
     plane: &Plane,
     centre_mm: [f64; 2],
     radii_mm: [f64; 2],
@@ -82,7 +82,9 @@ pub fn ellipse_stats(
         for col in spread(left, right, apart) {
             let inside = ((col - across) / wide).powi(2) + ((row - down) / high).powi(2) <= 1.0;
             let value = inside.then(|| sample(volume, plane.at([col, row])));
-            if let Some(value) = value.flatten() {
+            // A value that is not a finite number is no value of the scan: counted, it would
+            // make the mean and the spread not numbers either.
+            if let Some(value) = value.flatten().filter(|value| value.is_finite()) {
                 seen.take(value);
             }
         }
@@ -92,7 +94,7 @@ pub fn ellipse_stats(
 
 /// How far the volume's box reaches across and down a plane, each as (least, most), in
 /// millimetres from the plane's middle.
-fn reach(volume: &Volume, plane: &Plane) -> ((f64, f64), (f64, f64)) {
+fn reach(volume: &(impl Grid + ?Sized), plane: &Plane) -> ((f64, f64), (f64, f64)) {
     let none = (f64::INFINITY, f64::NEG_INFINITY);
     let widen = |(least, most): (f64, f64), at: f64| (least.min(at), most.max(at));
     let on_plane = volume.corners().map(|corner| plane.of(corner).0);

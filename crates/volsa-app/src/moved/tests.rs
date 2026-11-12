@@ -1,4 +1,4 @@
-//! What Voxa 0.5.0 and earlier kept of scans in the roaming settings folder is moved to the
+//! What 0.5.0 and earlier kept of scans in the roaming settings folder is moved to the
 //! folder on this computer alone, once, whole, and never twice.
 
 use std::path::Path;
@@ -43,9 +43,9 @@ fn files_in(folder: &Path) -> Vec<String> {
     found
 }
 
-/// A roaming settings folder as Voxa 0.5.0 left it: the preferences, the saved views, the
+/// A roaming settings folder as 0.5.0 left it: the preferences, the saved views, the
 /// annotations, the choices for labelling, two kept results, and a file of views half
-/// written when Voxa stopped.
+/// written when Volsa stopped.
 fn as_0_5_0_left_it() -> TempDir {
     let roaming = tempfile::tempdir().expect("a temporary folder");
     let files: [(&str, &[u8]); 9] = [
@@ -90,7 +90,7 @@ fn what_is_kept_of_scans_is_moved_whole_and_the_preferences_stay() {
     assert_eq!(
         moved.sentence().as_deref(),
         Some(
-            "Moved Voxa's kept files out of the roaming settings folder into the local one: \
+            "Moved Volsa's kept files out of the roaming settings folder into the local one: \
              annotations.json, choices.json, views.json, views.json.new and 4 files of \
              kept labelling results."
         )
@@ -136,7 +136,7 @@ fn a_different_file_already_in_the_local_folder_is_kept_and_the_old_one_left_whe
     assert_eq!(
         moved.sentence().as_deref(),
         Some(
-            "Moved Voxa's kept files out of the roaming settings folder into the local one: \
+            "Moved Volsa's kept files out of the roaming settings folder into the local one: \
              annotations.json, choices.json, views.json.new and 2 files of kept labelling \
              results. Left views.json and 2 files of kept labelling results in the roaming \
              settings folder: the local one has a different file of the same name, or the move \
@@ -218,7 +218,7 @@ fn a_file_copied_to_another_drive_is_put_in_place_before_the_old_one_goes() {
 }
 
 #[test]
-fn the_sentence_names_only_voxas_own_files_and_counts_the_rest() {
+fn the_sentence_names_only_volsas_own_files_and_counts_the_rest() {
     let moved = Moved {
         files: vec!["views.json".to_owned()],
         results: 1,
@@ -228,7 +228,7 @@ fn the_sentence_names_only_voxas_own_files_and_counts_the_rest() {
     assert_eq!(
         moved.sentence().as_deref(),
         Some(
-            "Moved Voxa's kept files out of the roaming settings folder into the local one: \
+            "Moved Volsa's kept files out of the roaming settings folder into the local one: \
              views.json and 1 file of kept labelling results."
         )
     );
@@ -239,7 +239,7 @@ fn the_sentence_names_only_voxas_own_files_and_counts_the_rest() {
     assert_eq!(
         only_results.sentence().as_deref(),
         Some(
-            "Moved Voxa's kept files out of the roaming settings folder into the local one: \
+            "Moved Volsa's kept files out of the roaming settings folder into the local one: \
              2 files of kept labelling results."
         )
     );

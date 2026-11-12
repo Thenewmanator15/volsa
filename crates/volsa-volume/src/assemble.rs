@@ -1,8 +1,8 @@
 //! Stacking the slices of a series into a volume, and saying why a series cannot be one.
 
-use voxa_core::{SeriesInfo, SeriesProblem, Volume};
+use volsa_core::{SeriesInfo, SeriesProblem, Volume};
 
-/// Why a series cannot be shown in 3D. Each reads as a sentence for the person using Voxa.
+/// Why a series cannot be shown in 3D. Each reads as a sentence for the person using Volsa.
 #[derive(Debug, Clone, PartialEq, thiserror::Error)]
 pub enum VolumeError {
     /// The series is of pictures stored in colour, which have no values to make a volume of.
@@ -84,7 +84,7 @@ pub fn value_range(volume: &Volume) -> Option<(f32, f32)> {
 
 #[cfg(test)]
 mod tests {
-    use voxa_core::{Affine, SeriesId, SeriesProblem};
+    use volsa_core::{Affine, SeriesId, SeriesProblem};
 
     use super::*;
 

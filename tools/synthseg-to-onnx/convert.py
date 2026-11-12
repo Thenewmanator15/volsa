@@ -1,8 +1,8 @@
-"""Turn SynthSeg 2.0's files into a model folder that Voxa reads.
+"""Turn SynthSeg 2.0's files into a model folder that Volsa reads.
 
 Builds SynthSeg's networks as SynthSeg's own build_model does (SynthSeg/predict_synthseg.py,
 Copyright 2020 Benjamin Billot, Apache License 2.0), keeping its layer names; translated
-and changed for Voxa, as docs/models.md says.
+and changed for Volsa, as docs/models.md says.
 
     python convert.py SYNTHSEG_CHECKOUT OUT_FOLDER
 
@@ -11,9 +11,9 @@ its `models` folder. OUT_FOLDER receives six `.onnx` networks, `model.json`, and
 folder holding a made-up volume and what SynthSeg's own program made of it.
 
 `model.json` is written last, and only if the converted networks give SynthSeg's own answer
-(see check.py). A folder without it is not a model folder, and Voxa refuses it.
+(see check.py). A folder without it is not a model folder, and Volsa refuses it.
 
-This script ships nothing and is no part of Voxa: it is not built, run or tested by cargo.
+This script ships nothing and is no part of Volsa: it is not built, run or tested by cargo.
 """
 
 import hashlib
@@ -97,7 +97,7 @@ def read_lists(checkout: Path) -> dict:
 
 
 def name_and_side(name: str) -> dict:
-    """SynthSeg's names carry the side in front; Voxa keeps the two apart."""
+    """SynthSeg's names carry the side in front; Volsa keeps the two apart."""
     lower = name.lower()
     for prefix, side in (("left ", "left"), ("right ", "right"), ("ctx-lh-", "left"), ("ctx-rh-", "right")):
         if lower.startswith(prefix):
@@ -168,7 +168,7 @@ def to_onnx(model, channels: int):
 
 
 def write_networks(checkout: Path, out: Path, lists: dict) -> None:
-    """Convert the six networks and make each take and give what Voxa needs."""
+    """Convert the six networks and make each take and give what Volsa needs."""
     import numpy as np
     import onnx
     from ext.lab2im import edit_tensors
@@ -252,7 +252,7 @@ def main() -> None:
         "checked": checked,
     }
     (out / "model.json").write_text(json.dumps(listing, indent=1), encoding="utf-8")
-    print(f"model.json written: the folder {out} is ready for Voxa.")
+    print(f"model.json written: the folder {out} is ready for Volsa.")
 
 
 if __name__ == "__main__":

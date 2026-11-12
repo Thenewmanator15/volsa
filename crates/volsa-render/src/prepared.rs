@@ -7,8 +7,8 @@ use std::cell::Cell;
 use egui_wgpu::wgpu;
 use half::f16;
 use rayon::prelude::*;
-use voxa_core::{Affine, Patient, Volume, Voxel};
-use voxa_volume::{block_maxima, halved, halvings_needed};
+use volsa_core::{Affine, Patient, Volume, Voxel};
+use volsa_volume::{block_maxima, halved, halvings_needed};
 
 /// The side, in voxels, of the blocks whose largest values are kept.
 pub(crate) const BLOCK: u32 = 8;
@@ -112,9 +112,9 @@ impl Prepared {
         if self.dims.iter().any(|side| *side == 0 || *side > longest) {
             return false;
         }
-        let room = device.push_error_scope(wgpu::ErrorFilter::OutOfMemory);
+        let room = crate::lost::RoomWatch::on(device);
         let values = crate::volume_texture::values_on(device, queue, self);
-        if pollster::block_on(room.pop()).is_some() {
+        if room.ran_out() {
             values.destroy();
             return false;
         }

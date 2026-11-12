@@ -1,7 +1,7 @@
 //! What a 3D picture of a volume is drawn from, apart from the volume itself: where it is seen
 //! from, through which window, in which look, and the planes that cut it open.
 
-use voxa_core::{Affine, Patient, Point, Voxel, WindowLevel};
+use volsa_core::{Affine, Patient, Point, Voxel, WindowLevel};
 
 use crate::camera::{Camera, ORBIT_DEGREES_PER_PX};
 use crate::vector::{cross, dot, moved, turned_about, unit};
@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn the_plane_of_a_slice_passes_through_its_middle_and_faces_out_of_it() {
-        use voxa_core::Affine;
+        use volsa_core::Affine;
         // 4 x 4 voxels of 1 mm in slices 5 mm apart, going up the patient.
         let placed = |step: [f64; 3]| {
             Affine::from_columns([1.0, 0.0, 0.0], [0.0, 1.0, 0.0], step, [-10.0, -20.0, 0.0])

@@ -21,7 +21,7 @@ use crate::model::{KIND_SYNTHSEG, MODEL_FORMAT, ModelSide, Role, Structure, hex,
 use crate::network::{Network, RunError};
 use crate::tensor::Tensor;
 
-/// Everything `model.json` holds that Voxa reads. The default describes a folder that reads
+/// Everything `model.json` holds that Volsa reads. The default describes a folder that reads
 /// without complaint; change what a test is about.
 #[derive(Debug, Clone, PartialEq)]
 pub struct FolderOptions {

@@ -2,13 +2,13 @@
 //! number for every voxel. The format is described at <https://nifti.nimh.nih.gov/nifti-1>.
 //!
 //! A NIfTI file places its voxels in a world whose x runs to the patient's right, y to the
-//! front and z up. Voxa's patient space is DICOM's: x to the left, y to the back, z up. So x
+//! front and z up. Volsa's patient space is DICOM's: x to the left, y to the back, z up. So x
 //! and y change sign on the way in, and nothing else does.
 
 use std::io::Read;
 
 use flate2::read::MultiGzDecoder;
-use voxa_core::{Affine, Patient, Voxel};
+use volsa_core::{Affine, Patient, Voxel};
 
 /// The most voxels a label volume may have: enough for 512 x 512 voxels in 1024 slices.
 pub const MAX_LABEL_VOXELS: u64 = 256 << 20;
@@ -39,10 +39,10 @@ pub enum NiftiError {
     #[error("This is not a NIfTI file, so it cannot be opened as labels.")]
     NotNifti,
     /// It is the second version of the format.
-    #[error("This is a NIfTI-2 file. Voxa reads the first version of NIfTI.")]
+    #[error("This is a NIfTI-2 file. Volsa reads the first version of NIfTI.")]
     Nifti2,
     /// Its values are in a second file.
-    #[error("This NIfTI file keeps its values in a second file. Voxa reads the single-file kind.")]
+    #[error("This NIfTI file keeps its values in a second file. Volsa reads the single-file kind.")]
     TwoFiles,
     /// It holds more than one volume.
     #[error("This file holds more than one volume, so it is not one set of labels.")]
@@ -63,8 +63,8 @@ pub enum NiftiError {
         "This file does not say where its voxels lie in the patient, so they cannot be placed."
     )]
     NoPlace,
-    /// It has more voxels than Voxa holds as labels.
-    #[error("This file has more voxels than Voxa will hold as labels.")]
+    /// It has more voxels than Volsa holds as labels.
+    #[error("This file has more voxels than Volsa will hold as labels.")]
     TooLarge,
     /// It ends before its values do.
     #[error("This file ends before its values do, or is damaged.")]
@@ -145,7 +145,11 @@ fn values(
     voxels: u64,
 ) -> Result<Vec<u32>, NiftiError> {
     let voxels = usize::try_from(voxels).map_err(|_| NiftiError::TooLarge)?;
-    let mut ids = Vec::with_capacity(voxels);
+    // The header alone says how many there are, and it may say far more than the file holds:
+    // memory that is not to be had is a file too large, not the end of the program.
+    let mut ids = Vec::new();
+    ids.try_reserve_exact(voxels)
+        .map_err(|_| NiftiError::TooLarge)?;
     let mut piece = vec![0_u8; PIECE - PIECE % kind.bytes()];
     while ids.len() < voxels {
         let wanted = ((voxels - ids.len()) * kind.bytes()).min(piece.len());

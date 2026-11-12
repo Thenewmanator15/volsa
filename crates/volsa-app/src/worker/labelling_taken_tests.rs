@@ -5,8 +5,8 @@
 
 use std::sync::Arc;
 
-use voxa_labels::LabelSet;
-use voxa_models::RunsOn;
+use volsa_labels::LabelSet;
+use volsa_models::RunsOn;
 
 use super::lab::{Lab, stages};
 use super::stand_ins::{PATIENCE, StandIn, one_at_a_time};
@@ -14,7 +14,7 @@ use crate::action::{Action, Effect};
 use crate::labelling::LabellingAction;
 
 /// The name of the thread a run, or a look, goes on.
-const OWN_THREAD: &str = "voxa-labelling";
+const OWN_THREAD: &str = "volsa-labelling";
 
 /// The labels of a first run, not kept, taken in by the state.
 fn first_taken(lab: &Lab) -> Arc<LabelSet> {

@@ -1,6 +1,6 @@
 //! Series whose slices cannot be placed by one transform, though each file states a position.
 
-use voxa_core::SeriesProblem;
+use volsa_core::SeriesProblem;
 
 use super::tests::{heights, indexed, stack};
 use crate::testkit::{SliceOptions, classic_slice};
@@ -84,7 +84,7 @@ fn index_treats_directions_that_are_not_directions_as_missing_geometry() {
 }
 
 #[test]
-fn index_flags_a_series_compressed_in_a_way_voxa_cannot_read() {
+fn index_flags_a_series_compressed_in_a_way_volsa_cannot_read() {
     // The header reads normally; it is the pixels that could not be decoded.
     let jpeg_ls = SliceOptions {
         transfer_syntax: "1.2.840.10008.1.2.4.80".to_owned(),

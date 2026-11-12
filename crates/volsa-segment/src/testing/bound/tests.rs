@@ -1,9 +1,9 @@
 //! Tests of the bound a run on the real networks is held to. The sums are worked out by hand
-//! from the figures of `voxa-models`: Voxa's own 200 bytes a voxel, the scores network's
+//! from the figures of `volsa-models`: Volsa's own 200 bytes a voxel, the scores network's
 //! 3.1 GiB (3 328 599 654 bytes) on the processor and 8.4 GiB (9 019 431 321) on a card, and
 //! a quarter more.
 
-use voxa_models::{CardId, Device, Wanted};
+use volsa_models::{CardId, Device, Wanted};
 
 use super::{Bound, shares_memory};
 
@@ -20,7 +20,7 @@ fn bound() -> Bound {
 
 #[test]
 fn a_run_is_allowed_what_asks_says_and_what_the_test_holds_beside_it() {
-    // Processor: 100 x 200 = 20 000 of Voxa's own, and the scores network's 3 328 599 654 is
+    // Processor: 100 x 200 = 20 000 of Volsa's own, and the scores network's 3 328 599 654 is
     // more than the networks' 100 x 700 = 70 000; the sum 3 328 619 654 and a quarter more
     // is 4 160 774 567.
     assert_eq!(bound().allowed(Device::Processor), 4_160_774_567 + 60);

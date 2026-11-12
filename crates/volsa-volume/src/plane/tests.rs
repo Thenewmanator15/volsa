@@ -1,5 +1,5 @@
 use proptest::prelude::*;
-use voxa_core::Affine;
+use volsa_core::Affine;
 
 use super::*;
 use crate::testing::ball;

@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 use tempfile::TempDir;
 
 use super::*;
-use voxa_render::{Camera, NamedView};
+use volsa_core::Grid;
+use volsa_render::{Camera, NamedView};
 
 use crate::scene::{Scene, SceneStatus};
 use crate::state::NoticeKind;
@@ -124,7 +125,10 @@ fn opening_an_export_with_other_files_in_it_says_how_many_were_skipped() {
     let (_folder, zip) = zip_of(&files);
     let mut session = session();
     open_until(&mut session, &zip, first_viewport_has_its_slice);
-    assert_eq!(notice_texts(&session), ["1 file skipped"]);
+    assert_eq!(
+        notice_texts(&session),
+        ["1 file is not a scan or a document Volsa lists"]
+    );
     assert_eq!(session.state().notices[0].details, ["readme.txt"]);
 }
 
@@ -365,9 +369,8 @@ fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
         let key = (id(FINE_SCAN), slice);
         session.state().windows.contains_key(&key)
     };
-    until(&mut session, |session| {
-        (0..64).all(|slice| has_its_windows(session, slice))
-    });
+    // Windows are worked out for the slice shown, the middle one, and no other.
+    until(&mut session, |session| has_its_windows(session, 32));
     let in_the_cache = |slice: &usize| {
         let cache = session.cache().lock().expect("no worker panicked");
         cache.contains(&series, *slice)
@@ -380,7 +383,7 @@ fn a_series_shown_in_3d_is_held_once_and_its_slices_are_read_from_the_volume() {
             .cached(&series, slice as usize)
             .expect("read from the volume");
         assert_eq!((frame.rows, frame.cols, frame.values.len()), (8, 8, 64));
-        assert_eq!(Some(frame.values[9]), volume.get(1, 1, slice));
+        assert_eq!(Some(frame.values[9]), volume.value(1, 1, slice));
     }
     assert!(
         session.cached(&series, 64).is_none(),

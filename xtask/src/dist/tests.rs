@@ -22,7 +22,7 @@ impl Made {
         for (_, from) in DOCUMENTS {
             write(&root.path().join(from), &format!("the text of {from}"));
         }
-        write(&root.path().join("build/voxa.exe"), "a made-up program");
+        write(&root.path().join("build/volsa.exe"), "a made-up program");
         let runtime = root.path().join("runtime-files");
         for name in [
             "onnxruntime.dll",
@@ -49,7 +49,7 @@ impl Made {
     /// Packs version 9.8.7 into `dist`, with the runtime folder if `runtime`, and for this
     /// computer alone if `local`.
     fn pack_as(&self, runtime: bool, local: bool) -> Result<super::Made, String> {
-        let (program, runtime_files) = (self.path("build/voxa.exe"), self.path("runtime-files"));
+        let (program, runtime_files) = (self.path("build/volsa.exe"), self.path("runtime-files"));
         let sources = Sources {
             program: &program,
             root: self.root.path(),
@@ -79,7 +79,7 @@ fn entries(zip: &Path) -> Vec<(String, String)> {
 }
 
 const PROGRAM_AND_DOCUMENTS: [&str; 9] = [
-    "voxa.exe",
+    "volsa.exe",
     "README.txt",
     "LICENSE-MIT",
     "LICENSE-APACHE",
@@ -94,8 +94,8 @@ const PROGRAM_AND_DOCUMENTS: [&str; 9] = [
 fn the_package_is_one_folder_with_the_program_its_documents_and_the_runtime() {
     let made = Made::new();
     let packed = made.pack(true).expect("packed");
-    assert_eq!(packed.zip, made.path("dist/voxa-9.8.7-windows-x64.zip"));
-    assert_eq!(packed.folder, made.path("dist/voxa-9.8.7"));
+    assert_eq!(packed.zip, made.path("dist/volsa-9.8.7-windows-x64.zip"));
+    assert_eq!(packed.folder, made.path("dist/volsa-9.8.7"));
     let runtime = [
         "runtime/onnxruntime.dll",
         "runtime/onnxruntime_providers_shared.dll",
@@ -108,10 +108,10 @@ fn the_package_is_one_folder_with_the_program_its_documents_and_the_runtime() {
     // The zip holds the folder, its runtime folder and every file, each as it came.
     let zipped = entries(&packed.zip);
     let names: Vec<&str> = zipped.iter().map(|(name, _)| name.as_str()).collect();
-    let mut wanted = vec!["voxa-9.8.7/", "voxa-9.8.7/runtime/"];
+    let mut wanted = vec!["volsa-9.8.7/", "volsa-9.8.7/runtime/"];
     let files: Vec<String> = expected
         .iter()
-        .map(|name| format!("voxa-9.8.7/{name}"))
+        .map(|name| format!("volsa-9.8.7/{name}"))
         .collect();
     wanted.extend(files.iter().map(String::as_str));
     assert_eq!(names, wanted);
@@ -122,19 +122,19 @@ fn the_package_is_one_folder_with_the_program_its_documents_and_the_runtime() {
             .map(|(_, text)| text.clone())
     };
     assert_eq!(
-        text("voxa-9.8.7/voxa.exe").as_deref(),
+        text("volsa-9.8.7/volsa.exe").as_deref(),
         Some("a made-up program")
     );
     assert_eq!(
-        text("voxa-9.8.7/MODELS.md").as_deref(),
+        text("volsa-9.8.7/MODELS.md").as_deref(),
         Some("the text of docs/models.md")
     );
     assert_eq!(
-        text("voxa-9.8.7/INTENDED-USE.txt").as_deref(),
+        text("volsa-9.8.7/INTENDED-USE.txt").as_deref(),
         Some("the text of docs/intended-use.md")
     );
     assert_eq!(
-        text("voxa-9.8.7/runtime/onnxruntime.dll").as_deref(),
+        text("volsa-9.8.7/runtime/onnxruntime.dll").as_deref(),
         Some("the made-up onnxruntime.dll")
     );
     // The folder beside the zip holds the same files, and DirectML is in neither.
@@ -215,7 +215,7 @@ fn a_local_package_goes_without_them_says_so_and_is_named_not_for_release() {
     let packed = made.pack_as(true, true).expect("packed");
     assert_eq!(
         packed.zip,
-        made.path("dist/voxa-9.8.7-windows-x64-local.zip")
+        made.path("dist/volsa-9.8.7-windows-x64-local.zip")
     );
     assert!(packed.files.contains(&"runtime/onnxruntime.dll".to_owned()));
     assert!(
@@ -240,7 +240,7 @@ fn a_local_package_goes_without_them_says_so_and_is_named_not_for_release() {
     assert!(packed.missing.is_empty(), "{:?}", packed.missing);
     assert_eq!(
         packed.zip,
-        made.path("dist/voxa-9.8.7-windows-x64-local.zip")
+        made.path("dist/volsa-9.8.7-windows-x64-local.zip")
     );
 }
 
@@ -269,7 +269,7 @@ fn a_file_the_package_must_carry_that_is_not_there_stops_it_and_is_named() {
 fn packing_again_replaces_what_was_packed_before() {
     let made = Made::new();
     made.pack(true).expect("packed");
-    write(&made.path("dist/voxa-9.8.7/left over.txt"), "from before");
+    write(&made.path("dist/volsa-9.8.7/left over.txt"), "from before");
     let packed = made.pack(false).expect("packed again");
     assert!(!packed.folder.join("left over.txt").exists());
     assert!(!packed.folder.join("runtime").exists());
@@ -280,8 +280,8 @@ fn packing_again_replaces_what_was_packed_before() {
 fn the_version_and_the_target_folder_are_what_cargo_metadata_says() {
     let said = json!({
         "packages": [
-            {"name": "voxa-core", "version": "1.0.0"},
-            {"name": "voxa-app", "version": "0.5.0"},
+            {"name": "volsa-core", "version": "1.0.0"},
+            {"name": "volsa-app", "version": "0.5.0"},
         ],
         "target_directory": "C:\\made\\up\\target",
     });
@@ -289,7 +289,7 @@ fn the_version_and_the_target_folder_are_what_cargo_metadata_says() {
     assert_eq!(version, "0.5.0");
     assert_eq!(target, Path::new("C:\\made\\up\\target"));
     let without =
-        json!({"packages": [{"name": "voxa-core", "version": "1.0.0"}], "target_directory": "t"});
+        json!({"packages": [{"name": "volsa-core", "version": "1.0.0"}], "target_directory": "t"});
     assert_eq!(version_and_target(&without), None);
 }
 

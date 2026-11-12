@@ -1,6 +1,7 @@
 //! Fitting the window to the screen it opens on, and keeping how the window is set out: its
-//! size, how much of its width the series list and the column take, whether the list is
-//! shown, and the size of the interface.
+//! size, how much of its width the series list and the tab panel take, whether the list is
+//! shown, which tab the panel shows and whether either is folded, and the size of the interface.
+//! In a narrow window the two fold on their own (see [`folds`]).
 //!
 //! Sizes and places here are in points at the interface's usual size, which is what Windows
 //! calls the window's size at its display scale: a laptop screen of 1920 by 1080 pixels at
@@ -8,7 +9,8 @@
 
 use egui::{ViewportCommand, pos2, vec2};
 
-use crate::prefs::{Arrangement, SMALLEST_WINDOW};
+use super::panel::PanelState;
+use crate::prefs::{Arrangement, PANEL_SHARE, SMALLEST_WINDOW};
 
 /// What is kept clear along the bottom of a screen for the taskbar. The window library cannot
 /// say how much of a screen the taskbar takes; Windows 11's is 48 points high, at the bottom.
@@ -98,8 +100,13 @@ pub struct Screen {
     arrangement: Arrangement,
     /// Whether the series list is shown.
     pub list_shown: bool,
+    /// The tab panel: which tab it shows, whether it is folded and how wide it is.
+    pub panel: PanelState,
     /// What opening has still to do, until it is done.
     opening: Option<Opening>,
+    /// How the side columns were when last settled, for the window to fold them itself while
+    /// it is narrow.
+    folds: folds::Folds,
 }
 
 /// What the window does as it opens.
@@ -116,18 +123,34 @@ impl Screen {
     /// A window to be set out as `remembered` has it. It is fitted to its screen as it opens
     /// if `fit`, and the series list is hidden as it opens if `hide_list`.
     pub fn new(remembered: Arrangement, fit: bool, hide_list: bool) -> Self {
+        let panel = PanelState::remembered(
+            remembered.panel_share,
+            remembered.panel_folded,
+            &remembered.tab,
+        );
+        let rail_folded = remembered.rail_folded;
         Self {
             arrangement: remembered,
             list_shown: false,
+            panel,
             opening: Some(Opening { fit, hide_list }),
+            folds: folds::Folds::new(!panel.folded, !rail_folded),
         }
     }
 
-    /// How the window is set out now, with the interface at `interface_size`.
+    /// How the window is set out now, with the interface at `interface_size`. The panel's width
+    /// is the person's only once it has been dragged to one, or was kept from a run in which it
+    /// was; and its fold only when the person folded it, not the window.
     pub fn arrangement(&self, interface_size: f32) -> Arrangement {
+        let share = self.panel.share;
+        let chosen = self.arrangement.panel_share.is_some() || (share - PANEL_SHARE).abs() > 1e-6;
         Arrangement {
             interface_size,
-            ..self.arrangement
+            panel_share: chosen.then_some(share),
+            panel_folded: self.panel_folded_by_choice(),
+            rail_folded: self.rail_folded_by_choice(),
+            tab: self.panel.tab.name().to_owned(),
+            ..self.arrangement.clone()
         }
     }
 
@@ -136,19 +159,9 @@ impl Screen {
         self.arrangement.list_share
     }
 
-    /// The share of the middle of the window the column takes.
-    pub fn column_share(&self) -> f32 {
-        self.arrangement.column_share
-    }
-
     /// Give the series list `share` of the window's width.
     pub fn set_list_share(&mut self, share: f32) {
         self.arrangement.list_share = share;
-    }
-
-    /// Give the column `share` of the middle of the window.
-    pub fn set_column_share(&mut self, share: f32) {
-        self.arrangement.column_share = share;
     }
 
     /// Whether the window has opened, and been fitted to its screen if it was to be.
@@ -174,6 +187,7 @@ impl Screen {
             let resized = sides.into_iter().any(|(now, was)| (now - was).abs() > 0.5);
             if resized {
                 ctx.send_viewport_cmd(ViewportCommand::InnerSize(vec2(wide, high)));
+                self.awaits(wide);
             }
             if let Some([x, y]) = placed.at {
                 let corner = pos2(x / zoom, y / zoom);
@@ -181,8 +195,17 @@ impl Screen {
             }
             width = Some(placed.inner[0]);
         }
+        self.list_shown = self.list_opens_shown(width, zoom, opening.hide_list);
+        // Shown, or not, as the window opens, which is not the person opening or folding it.
+        self.rail_shown_as_it_opens();
+    }
+
+    /// Whether the series list is shown as the window opens, with `width` points across if
+    /// that is known, at interface size `zoom`: not if the person left it folded, nor in a
+    /// window too narrow for it, nor when `hide` asks for it hidden.
+    fn list_opens_shown(&self, width: Option<f32>, zoom: f32, hide: bool) -> bool {
         let wide = width.is_none_or(|width| list_starts_shown(width, zoom));
-        self.list_shown = wide && !opening.hide_list;
+        wide && !hide && !self.arrangement.rail_folded
     }
 
     /// Note the window's size as it is now, to be remembered, unless it is minimised,
@@ -254,6 +277,8 @@ fn measure(frame: &eframe::Frame) -> Option<Seen> {
 fn as_points(points: f64) -> f32 {
     points as f32
 }
+
+mod folds;
 
 #[cfg(test)]
 mod tests;

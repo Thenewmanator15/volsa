@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use voxa_labels::{LabelSet, Table, label_set, read_labels, read_table};
+use volsa_labels::{LabelSet, Table, label_set, read_labels, read_table};
 
 use super::kept::{MAX_SAVED_BYTES, Saved};
 use super::{Shared, Workers, lock, shielded};
@@ -21,7 +21,7 @@ const MAX_TABLE_FILE_BYTES: u64 = 8 << 20;
 pub const NAMES_NOT_READ: &str =
     "The table of names for these labels could not be read, so the parts are shown by number.";
 const NOT_READ: &str = "The label file could not be read.";
-const TOO_LARGE: &str = "The label file is larger than Voxa will read.";
+const TOO_LARGE: &str = "The label file is larger than Volsa will read.";
 const STOPPED: &str = "Reading the labels stopped part-way.";
 /// The notice about names takes the place of an earlier one about names.
 const NAMES: &str = "label names";
@@ -108,7 +108,7 @@ impl Workers {
 
 impl Shared {
     /// Read a label file and its table into a label set, and say where its names came from.
-    /// If Voxa made the labels, their two files are given too, as they were read, so that the
+    /// If Volsa made the labels, their two files are given too, as they were read, so that the
     /// labels can be saved again exactly as they were. What goes wrong is a sentence for the
     /// person, with no path in it.
     fn labels_from(
@@ -142,12 +142,12 @@ impl Shared {
     }
 }
 
-/// The two files of labels Voxa made, as they were read; labels from elsewhere, and any that
-/// are too long to be Voxa's, have none, and are not saved from here.
+/// The two files of labels Volsa made, as they were read; labels from elsewhere, and any that
+/// are too long to be Volsa's, have none, and are not saved from here.
 fn saved_from(labels: Vec<u8>, table: Option<&(Table, String)>) -> Option<Saved> {
     let (table, text) = table?;
-    let voxas = table.made.is_some() && labels.len() <= MAX_SAVED_BYTES;
-    voxas.then(|| Saved {
+    let volsas = table.made.is_some() && labels.len() <= MAX_SAVED_BYTES;
+    volsas.then(|| Saved {
         labels,
         table: text.clone(),
     })

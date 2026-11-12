@@ -1,26 +1,54 @@
-//! The grid of viewports: what each one draws, what is written over it, and its mouse.
+//! The grid of viewports: what each one draws, what is written over it, what is measured on
+//! it, and its mouse.
 
 use std::sync::{Arc, Mutex, PoisonError};
 
 use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
-use voxa_core::{SeriesId, SeriesInfo, StudyInfo};
-use voxa_dicom::Frame;
-use voxa_render::{SlicePipeline, ViewTransform};
+use volsa_core::{SeriesId, SeriesInfo, StudyInfo};
+use volsa_dicom::Frame;
+use volsa_render::{SlicePipeline, ViewTransform};
 
 use super::overlay;
 use super::theme;
 use crate::action::Action;
+use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
 
 mod annotate;
+mod by_keys;
 mod colour;
 mod mouse;
+mod said;
+mod tools;
+mod value;
 
 pub(super) use mouse::turned as wheel_turned;
+pub use tools::Drafts;
 
 /// Where a viewport gets a decoded slice from, by series and place: `None` until it is there.
 pub type Frames<'a> = dyn Fn(&SeriesId, usize) -> Option<Arc<Frame>> + 'a;
+
+/// Where a viewport reads a single value of a slice from, by series, place and the pixel as its
+/// column and row: for the value under the pointer, which is asked for as the pointer moves.
+/// `None` when the value is not there to be read, or the slice is a picture in colour.
+pub type ValueAt<'a> = dyn Fn(&SeriesId, usize, (usize, usize)) -> Option<f32> + 'a;
+
+/// Where a viewport reads the values of a slice from, where they lie, by series and place: the
+/// values are handed to the reader given, if they are there to be read and the slice is not a
+/// picture in colour. For what a region drawn on a slice holds, read once as it is finished.
+pub type ReadSlice<'a> = dyn Fn(&SeriesId, usize, &mut dyn FnMut(SliceValues<'_>)) + 'a;
+
+/// What a viewport reads slices from: the whole decoded slice, to draw it, a single value of
+/// it, to say what is under the pointer, and its values in place, to measure on it.
+pub struct Slices<'a> {
+    /// A whole decoded slice.
+    pub frame: &'a Frames<'a>,
+    /// One value of a slice.
+    pub value: &'a ValueAt<'a>,
+    /// A slice's values, where they lie.
+    pub read: &'a ReadSlice<'a>,
+}
 
 /// Space between neighbouring viewports, in points.
 pub const GAP: f32 = 4.0;
@@ -156,16 +184,26 @@ fn narrowed(value: f64) -> f32 {
 }
 
 /// Draw the viewports of the current layout into `area`, and turn what the mouse does over
-/// each into actions.
+/// each into actions: what it asks of the viewport, and what it measures on the slice the
+/// active one shows. `held` is what each viewport keeps between frames: what is on the
+/// graphics device, and what is being drawn on its slice. With no `area`, the arrangement
+/// shown has no viewports: nothing is drawn, and what was being drawn on a slice is given up,
+/// not kept for when the slices are shown again.
 pub fn show(
     ui: &mut Ui,
-    area: Rect,
+    area: Option<Rect>,
     state: &AppState,
-    frames: &Frames<'_>,
-    gpus: &mut [Gpu],
+    slices: &Slices<'_>,
+    (gpus, drafts): (&mut [Gpu], &mut Drafts),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) {
+    let Some(area) = area else {
+        drafts.give_up();
+        return;
+    };
+    let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
+    drafts.keep_up(state, cancel);
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
         let Some(viewport) = state.viewports.get(at) else {
             continue;
@@ -175,42 +213,77 @@ pub fn show(
             ui.id().with(("viewport", at)),
             Sense::click_and_drag(),
         );
+        // With a measuring tool in hand and the keyboard on the viewport, the arrows and Enter
+        // are the point's: they are taken here, before the keys of the actions look.
+        let keyed = by_keys::take(ui, &response, state, at);
         ui.painter().rect_filled(cell, 0, Color32::BLACK);
-        let placement = viewport.series.as_ref().and_then(|id| state.series(id));
-        let placement = placement.and_then(|series| series.info.voxel_to_patient.as_ref());
-        let shown = overlay::display_view(placement, &viewport.view, state.radiological);
-        let pane = Pane {
-            state,
-            at,
-            cell,
-            shown,
-        };
+        let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
-            (Some(gpu), Some(render)) => slice(ui, &pane, frames, gpu, render),
+            (Some(gpu), Some(render)) => slice(ui, &pane, slices.frame, gpu, render),
             _ => false,
         };
         if drawn {
-            annotate::overlays(ui, &pane);
+            let value = value::under_pointer(&pane, slices.value, response.hover_pos());
+            let taken = annotate::overlays(ui, &pane, value);
+            let held = (&mut *drafts, slices.read);
+            actions.extend(tools::measure(ui, &pane, &response, held, (&taken, &keyed)));
         }
-        if let Some(text) = message(state, at, drawn) {
-            let font = egui::TextStyle::Body.resolve(ui.style());
-            ui.painter().text(
-                cell.center(),
-                Align2::CENTER_CENTER,
-                text,
-                font,
-                theme::QUIET_TEXT,
-            );
-        }
-        if at == state.active {
-            let line = Stroke::new(ACTIVE_BORDER, theme::ACCENT);
-            ui.painter().rect_stroke(cell, 0, line, StrokeKind::Inside);
+        written_over(ui, &pane, drawn);
+        // With the keyboard on a viewport the arrows are Volsa's, to step through its slices.
+        by_keys::keep(ui.ctx(), &response, drafts, at);
+        by_keys::announce(&response, state, at, drafts, &keyed);
+        if response.has_focus() {
+            focus_ring(ui, cell);
         }
         let mut unused = 0.0;
         let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
+        let input = mouse::for_tool(input, state.tool);
         actions.extend(overlay::input_to_actions(at, &input));
+    }
+}
+
+/// Viewport `at` of `state` being drawn in `cell` this frame, with the view its slice is drawn
+/// with: the person's own, mirrored if the convention asks.
+fn pane(state: &AppState, at: usize, cell: Rect) -> Pane<'_> {
+    let viewport = state.viewports.get(at);
+    let shown = viewport.and_then(|viewport| state.series(viewport.series.as_ref()?));
+    let placement = shown.and_then(|series| series.info.voxel_to_patient.as_ref());
+    let view = viewport.map_or_else(ViewTransform::fit, |viewport| viewport.view);
+    Pane {
+        state,
+        at,
+        cell,
+        shown: overlay::display_view(placement, &view, state.radiological),
+    }
+}
+
+/// Mark the viewport that has the keyboard, inside its edge, in the colour of what is selected.
+fn focus_ring(ui: &Ui, cell: Rect) {
+    let line = Stroke::new(2.0, ui.visuals().selection.stroke.color);
+    let inside = cell.shrink(ACTIVE_BORDER + 1.0);
+    ui.painter()
+        .rect_stroke(inside, 0, line, StrokeKind::Inside);
+}
+
+/// Write over a viewport why it has no picture, if it has none, and mark it if it is the
+/// active one.
+fn written_over(ui: &Ui, pane: &Pane<'_>, drawn: bool) {
+    if let Some(text) = message(pane.state, pane.at, drawn) {
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        ui.painter().text(
+            pane.cell.center(),
+            Align2::CENTER_CENTER,
+            text,
+            font,
+            theme::QUIET_TEXT,
+        );
+    }
+    if pane.at == pane.state.active {
+        let line = Stroke::new(ACTIVE_BORDER, theme::ACCENT);
+        ui.painter()
+            .rect_stroke(pane.cell, 0, line, StrokeKind::Inside);
     }
 }
 
@@ -263,4 +336,14 @@ fn slice(
 }
 
 #[cfg(test)]
+mod by_keys_tests;
+#[cfg(test)]
+mod by_keys_window_tests;
+#[cfg(test)]
+mod in_hand_tests;
+#[cfg(test)]
+mod labels_tests;
+#[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tools_tests;

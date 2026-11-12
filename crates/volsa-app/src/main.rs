@@ -1,4 +1,4 @@
-//! Volsa: a viewer for MRI scans. Not a medical device; not for diagnostic use.
+//! Volsa: a viewer for MRI and CT scans. Not a medical device; not for diagnostic use.
 
 // A release build for Windows opens no console window beside its own. What it would have
 // printed there is said in a message window instead.

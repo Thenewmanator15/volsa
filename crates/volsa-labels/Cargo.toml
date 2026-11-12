@@ -1,5 +1,5 @@
 [package]
-name = "voxa-labels"
+name = "volsa-labels"
 description = "Labelled parts from files: NIfTI label volumes, tables of names, and the volume of each part."
 version.workspace = true
 edition.workspace = true
@@ -8,7 +8,7 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-voxa-core.workspace = true
+volsa-core.workspace = true
 flate2.workspace = true
 serde.workspace = true
 serde_json.workspace = true

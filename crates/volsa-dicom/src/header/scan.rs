@@ -3,7 +3,7 @@
 use dicom_core::Tag;
 use dicom_dictionary_std::tags;
 use dicom_object::InMemDicomObject;
-use voxa_core::{Family, Plane, ScanFacts};
+use volsa_core::{Family, Plane, ScanFacts};
 
 use super::{first_item, floats, text};
 

@@ -1,12 +1,12 @@
 # synthseg-to-onnx
 
-Turns SynthSeg 2.0's files into a model folder that Voxa reads. It is a tool for a person to
-run once; it is no part of Voxa, and cargo neither builds, runs nor tests it.
+Turns SynthSeg 2.0's files into a model folder that Volsa reads. It is a tool for a person to
+run once; it is no part of Volsa, and cargo neither builds, runs nor tests it.
 
 **It ships nothing.** No weights are in this repository. You bring SynthSeg's files, and what
 this writes stays on your computer.
 
-Voxa is not a medical device and is not for diagnostic use, and neither is anything made here.
+Volsa is not a medical device and is not for diagnostic use, and neither is anything made here.
 
 ## What it needs
 
@@ -41,8 +41,8 @@ It takes a few minutes. It writes, into the model folder:
 
 - `standard.onnx`, `robust_1.onnx`, `robust_2.onnx`, `robust_3.onnx`, `cortex.onnx`,
   `scores.onnx`: the six networks;
-- `check/`: a made-up head and what SynthSeg's own program made of it, for Voxa's own tests;
-- `model.json`, last: the list Voxa checks the folder against.
+- `check/`: a made-up head and what SynthSeg's own program made of it, for Volsa's own tests;
+- `model.json`, last: the list Volsa checks the folder against.
 
 ## What it does
 
@@ -56,7 +56,7 @@ It takes a few minutes. It writes, into the model folder:
    axis, with SynthSeg's own one-axis kernels (`graphs.add_blur`; converter version 2). As one
    convolution with the 3 x 3 x 3 kernel the runtime asked the processor for about 3 000
    bytes a voxel more; this way it asks for nothing more, and the labels are the same.
-3. **Makes each network take and give only what Voxa needs.** A network whose answer feeds
+3. **Makes each network take and give only what Volsa needs.** A network whose answer feeds
    another gives a byte for each voxel, not thirty-three probabilities; a map of classes goes
    in as bytes and is spread inside the file; the last network of each model gives its
    probabilities in two halves, because DirectML hands back no more than about 2 GiB at once.
@@ -76,7 +76,7 @@ level for each kind of tissue, blurred a little, shaded and made noisy. It is no
 
 That the labels are right. The check shows that the converted networks say what SynthSeg
 says. Whether SynthSeg is right about a given scan is another question, and the model's own
-scores, which Voxa shows, are only the model's opinion of its own work.
+scores, which Volsa shows, are only the model's opinion of its own work.
 
 ## The files
 

@@ -1,7 +1,7 @@
 //! Finding a part: the one at a point of the patient, and the first one a line of sight
 //! meets. Both read the label volume on its own grid; nothing is resampled.
 
-use voxa_core::{Patient, Point, Voxel};
+use volsa_core::{Patient, Point, Voxel};
 
 use crate::set::LabelSet;
 

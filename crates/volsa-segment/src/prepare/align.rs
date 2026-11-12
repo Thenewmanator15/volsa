@@ -8,7 +8,7 @@
 //! written for a transform to right-anterior-superior millimetres. Volsa's is to
 //! left-posterior-superior, so its x and y rows change sign before the rules are applied.
 
-use volsa_core::Volume;
+use volsa_core::{Grid, Volume};
 
 use crate::Toward;
 
@@ -42,7 +42,7 @@ impl Turn {
     /// it, judged by the transform back from the patient to the voxels: the largest number,
     /// whatever its sign, in the column of that direction. An axis is turned round when it
     /// runs away from its direction.
-    pub(super) fn of(volume: &Volume, steps: [f64; 3]) -> Self {
+    pub(super) fn of(volume: &(impl Grid + ?Sized), steps: [f64; 3]) -> Self {
         Self::towards(
             volume,
             steps,
@@ -56,7 +56,7 @@ impl Turn {
     /// chosen and mended as `SynthSeg`'s own turn does; then the image's axes take them in the order of
     /// the code, each turned round when the volume's step runs away from its letter. With the
     /// code right, front, top this is exactly `SynthSeg`'s own turn.
-    pub fn towards(volume: &Volume, steps: [f64; 3], towards: [Toward; 3]) -> Self {
+    pub fn towards(volume: &(impl Grid + ?Sized), steps: [f64; 3], towards: [Toward; 3]) -> Self {
         let [across, down, through] = steps;
         // The grid's transform is the volume's with each step made shorter, so its transform
         // back has each number made as many times larger. (Changing the sign of a row of a

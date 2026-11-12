@@ -6,7 +6,7 @@
 use std::path::Path;
 
 use serde_json::Value;
-use voxa_models::{Lists, Role, Tensor};
+use volsa_models::{Lists, Role, Tensor};
 
 use super::tests::{
     BOX, GRID, Shelf, image, lists, no_scores, plain_image, put_top, run, three, wanted,
@@ -65,7 +65,7 @@ fn given_to_scores(lists: &Lists, robust: bool, size: [usize; 3], top: &[u8]) ->
     inputs.remove(0)
 }
 
-/// Holds the box Voxa cuts from a case's map against the one Python cut.
+/// Holds the box Volsa cuts from a case's map against the one Python cut.
 fn the_box_is_pythons(name: &str) {
     let case = case(name);
     // Each place is a score class of its own here, so the box holds places, as Python's does.

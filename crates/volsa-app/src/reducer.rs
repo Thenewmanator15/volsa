@@ -2,15 +2,20 @@
 
 use std::collections::HashMap;
 
-use volsa_core::SeriesId;
-use volsa_dicom::best_series;
+use volsa_core::{SeriesId, SeriesInfo};
+use volsa_dicom::{Index, best_series};
 
-use crate::action::{Action, Effect};
+use crate::action::{Action, DocumentAction, Effect};
+use crate::naming::{Group, group_of};
+use crate::people::first_of;
+use crate::pictures::Pictures;
 use crate::planes::Planes;
-use crate::scene::{MainPanel, Scene};
+use crate::scene::Scene;
 use crate::state::{AppState, Notice, NoticeKind, PresetWindows, ViewportState};
 
 mod annotations;
+mod documents;
+mod found;
 mod frame;
 mod labelling;
 mod labels;
@@ -24,6 +29,8 @@ mod volumes;
 
 /// The key of the notice that counts skipped files.
 const SKIPPED: &str = "skipped";
+/// The key of the notice that lists the files refused unread, with why.
+const REFUSED: &str = "refused";
 /// The key of the notice that says a source could not be opened.
 const OPENING: &str = "opening";
 /// The key of the notice that says saved views could not be written.
@@ -45,8 +52,9 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let before = link::Before::of(state, &action);
     let smoothed = planes::smoothing(state);
     let mut effects = act(state, action);
-    if fit && state.main == MainPanel::Scene {
-        // The key that shows the whole slice again shows the whole volume again too.
+    if fit && state.pictures.given(&state.scene.status) == Pictures::Scene {
+        // The key that shows the whole slice again shows the whole volume again too, while the
+        // 3D view is shown alone.
         scene::refit(state);
     }
     effects.extend(if rebuild {
@@ -59,6 +67,7 @@ pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     effects.extend(plugins::keep(state));
     planes::settle(state);
     annotations::settle(state, was.as_ref());
+    annotations::awaited(state, &effects);
     effects.extend(link::keep(state, &before));
     effects.extend(planes::keep_curve(state, &smoothed));
     frame::keep(state);
@@ -80,7 +89,7 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::SetTagFilter(_)
         | Action::DismissNotice(_)
         | Action::Post(_)
-        | Action::SetMain(_) => {
+        | Action::SetPictures(_) => {
             window(state, action);
             Vec::new()
         }
@@ -102,6 +111,8 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         | Action::CutRemove { .. }
         | Action::ShowSliceInScene(_)
         | Action::VolumeProgress { .. }
+        | Action::PreviewReady { .. }
+        | Action::SceneWanted(_)
         | Action::VolumeReady { .. }
         | Action::VolumeFailed { .. } => scene::reduce(state, action),
         Action::Views(about_views) => views::reduce(state, about_views),
@@ -114,6 +125,9 @@ fn act(state: &mut AppState, action: Action) -> Vec<Effect> {
         }
         Action::Labelling(about_labelling) => labelling::reduce(state, about_labelling),
         Action::Plugins(about_plugins) => plugins::reduce(state, about_plugins),
+        about_a_document if documents::concerns(&about_a_document) => {
+            documents::reduce(state, about_a_document)
+        }
         about_labels if labels::concerns(&about_labels) => labels::reduce(state, about_labels),
         about_a_viewport => viewport::reduce(state, about_a_viewport),
     }
@@ -140,8 +154,10 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
                 .collect();
         }
         Action::IndexProgress(index) => {
-            post(state, SKIPPED, skipped_notice(&index.skipped));
+            post(state, SKIPPED, found::skipped_notice(&index.skipped));
+            post(state, REFUSED, found::refused_notice(&index.refused));
             state.index = Some(index);
+            state.index_changes += 1;
         }
         Action::IndexFailed(why) => {
             let notice = Notice {
@@ -156,6 +172,7 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
             // Thumbnails first: the request for the whole of the series opened is then the
             // newer one for that series, and is not set aside in favour of its thumbnail.
             let mut effects = vec![Effect::RequestThumbnails];
+            effects.extend(shown_again(state));
             effects.extend(open_best(state));
             return effects;
         }
@@ -187,17 +204,18 @@ fn source(state: &mut AppState, action: Action) -> Vec<Effect> {
 /// and what the person chose to see is kept; everything about the scan is gone.
 fn emptied(state: &AppState) -> AppState {
     AppState {
+        index_changes: state.index_changes + 1,
+        opened: state.opened + 1,
         layout: state.layout,
         active: state.active,
         radiological: state.radiological,
         show_patient: state.show_patient,
-        main: state.main,
+        pictures: state.pictures,
         scene: Scene {
             viewport: state.scene.viewport,
             ..Scene::default()
         },
         planes: Planes {
-            column: state.planes.column,
             linked: state.planes.linked,
             smooth: state.planes.smooth,
             ..Planes::default()
@@ -222,7 +240,7 @@ fn window(state: &mut AppState, action: Action) {
         Action::ToggleRadiological => state.radiological = !state.radiological,
         Action::TogglePatient => state.show_patient = !state.show_patient,
         Action::SetTagFilter(filter) => state.tag_filter = filter,
-        Action::SetMain(panel) => state.main = panel,
+        Action::SetPictures(pictures) => state.pictures = pictures,
         Action::Post(notice) => match notice.key {
             Some(key) => post(state, key, Some(notice)),
             None => state.notices.push(notice),
@@ -234,7 +252,20 @@ fn window(state: &mut AppState, action: Action) {
     }
 }
 
-/// Show the most detailed series in the first viewport, unless that viewport is in use.
+/// Ask again for the slices of every series a viewport shows. A series chosen while the
+/// export was still being read was asked for before there was anything to read it from, and
+/// what was asked then was let go of without a word: left at that, its viewport would stay
+/// black until the person scrolled it.
+fn shown_again(state: &AppState) -> Vec<Effect> {
+    let shown = state.viewports.iter().filter_map(|viewport| {
+        let series = viewport.series.clone()?;
+        let around = viewport.slice;
+        Some(Effect::RequestFrames { series, around })
+    });
+    shown.collect()
+}
+
+/// Show the series to open first in the first viewport, unless that viewport is in use.
 fn open_best(state: &mut AppState) -> Vec<Effect> {
     let free = state
         .viewports
@@ -243,8 +274,8 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
     let best = state
         .index
         .as_ref()
-        .and_then(best_series)
-        .map(|series| series.info.id.clone());
+        .and_then(first_to_open)
+        .map(|info| info.id.clone());
     match best {
         Some(series) if free => viewport::reduce(
             state,
@@ -253,28 +284,35 @@ fn open_best(state: &mut AppState) -> Vec<Effect> {
                 series,
             },
         ),
-        _ => Vec::new(),
+        // With no series at all, the first document is what there is to show.
+        None => {
+            let index = state.index.as_ref().filter(|index| index.series.is_empty());
+            let first = index.and_then(crate::documents::first);
+            let opened = first
+                .map(|document| Action::Document(DocumentAction::Open(document.entry.clone())));
+            opened.map_or_else(Vec::new, |open| documents::reduce(state, open))
+        }
+        Some(_) => Vec::new(),
     }
+}
+
+/// The series to open first. The scans come first, always: the best of them as the index
+/// chooses it, the most detailed of the volumes; with none, the scan of the most pixels, the
+/// earlier of two as large; and with no scans at all, the first of the other files as the rail
+/// lists them.
+fn first_to_open(index: &Index) -> Option<&SeriesInfo> {
+    let all = || index.series.iter().map(|series| &series.info);
+    let scans = || all().filter(|info| group_of(info) == Group::Scans);
+    let best = best_series(index).map(|series| &series.info);
+    best.filter(|info| group_of(info) == Group::Scans)
+        .or_else(|| scans().rev().max_by_key(|info| info.voxel_count()))
+        .or_else(|| first_of(index, Group::Other))
 }
 
 /// Replace the notice with this key, or remove it when there is nothing to say.
 fn post(state: &mut AppState, key: &'static str, notice: Option<Notice>) {
     state.notices.retain(|notice| notice.key != Some(key));
     state.notices.extend(notice);
-}
-
-fn skipped_notice(skipped: &[String]) -> Option<Notice> {
-    let text = match skipped.len() {
-        0 => return None,
-        1 => "1 file skipped".to_owned(),
-        several => format!("{several} files skipped"),
-    };
-    Some(Notice {
-        kind: NoticeKind::Info,
-        text,
-        details: skipped.to_vec(),
-        key: Some(SKIPPED),
-    })
 }
 
 /// Give a viewport still waiting for its automatic window the one worked out for the slice it
@@ -298,9 +336,15 @@ fn settle_window(
 }
 
 #[cfg(test)]
+mod annotations_awaited_tests;
+#[cfg(test)]
+mod annotations_left_tests;
+#[cfg(test)]
 mod annotations_tests;
 #[cfg(test)]
 mod colour_tests;
+#[cfg(test)]
+mod documents_tests;
 #[cfg(test)]
 mod frame_tests;
 #[cfg(test)]
@@ -324,11 +368,15 @@ mod labels_tests;
 #[cfg(test)]
 mod link_tests;
 #[cfg(test)]
+mod pictures_tests;
+#[cfg(test)]
 mod planes_tests;
 #[cfg(test)]
 mod plugins_tests;
 #[cfg(test)]
 mod scene_camera_tests;
+#[cfg(test)]
+mod scene_preview_tests;
 #[cfg(test)]
 mod scene_tests;
 #[cfg(test)]

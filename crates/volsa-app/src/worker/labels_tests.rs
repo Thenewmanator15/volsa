@@ -4,8 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use tempfile::TempDir;
-use voxa_labels::testkit::{NiftiOptions, gzipped, nifti};
-use voxa_labels::{NiftiError, Side};
+use volsa_labels::testkit::{NiftiOptions, gzipped, nifti};
+use volsa_labels::{NiftiError, Side};
 
 use super::labels::{NAMES_NOT_READ, table_beside};
 use super::tests::Bench;
@@ -213,7 +213,7 @@ fn a_table_that_is_named_is_the_one_read() {
 fn a_table_that_says_who_made_the_labels_is_reported_with_it() {
     let bench = Bench::with_budget(1 << 20);
     let made = r#"{"regions": {"hippocampus": {"ids": {"left": 17, "right": 53}}},
-        "voxa": {"by": "Voxa 9.8.7", "when": "2099-01-02 03:04", "notes": ["One."]}}"#;
+        "volsa": {"by": "Volsa 9.8.7", "when": "2099-01-02 03:04", "notes": ["One."]}}"#;
     let folder = folder(&[
         ("labels_a.nii.gz", &volume(4)),
         ("labels_a.json", made.as_bytes()),
@@ -225,7 +225,7 @@ fn a_table_that_says_who_made_the_labels_is_reported_with_it() {
     let made = made.expect("the table says who made them");
     assert_eq!(
         (made.by.as_str(), made.when.as_str()),
-        ("Voxa 9.8.7", "2099-01-02 03:04")
+        ("Volsa 9.8.7", "2099-01-02 03:04")
     );
     assert_eq!(made.notes, ["One."]);
     assert_eq!(
@@ -241,7 +241,7 @@ fn the_newest_read_is_the_one_kept_and_dropping_gives_it_up() {
     read(&bench, folder.path().join("small.nii.gz"));
     read(&bench, folder.path().join("large.nii.gz"));
     // However long the reading takes: until the newer labels are the ones kept.
-    let larger = |set: std::sync::Arc<voxa_labels::LabelSet>| set.dims == [6, 6, 6];
+    let larger = |set: std::sync::Arc<volsa_labels::LabelSet>| set.dims == [6, 6, 6];
     bench.until(|bench| bench.workers.labels().is_some_and(larger));
     let reports = bench.drain();
     let last = reports

@@ -2,10 +2,10 @@
 
 use std::path::PathBuf;
 
-use voxa_core::{Patient, Point};
-use voxa_dicom::testkit::{SliceOptions, classic_slice};
-use voxa_labels::{Made, Part, Side, Trust};
-use voxa_segment::{ModelChoice, Stage};
+use volsa_core::{Patient, Point};
+use volsa_dicom::testkit::{SliceOptions, classic_slice};
+use volsa_labels::{Made, Part, Side, Trust};
+use volsa_segment::{ModelChoice, Stage};
 
 use super::labelling_tests::{
     STOPPED, able, cards, label, looked, nothing_runs, open, reading_labels, running, said,
@@ -30,7 +30,7 @@ fn parts() -> Vec<Part> {
     vec![part(Side::Left), part(Side::Right)]
 }
 
-/// What a worker reports of labels that fill `corners`, made by Voxa or not, by a run or
+/// What a worker reports of labels that fill `corners`, made by Volsa or not, by a run or
 /// read from a file.
 pub(super) fn read_with(
     corners: [Point<Patient>; 8],
@@ -48,17 +48,17 @@ pub(super) fn read_with(
     }
 }
 
-/// Who made labels: Voxa.
-pub(super) fn by_voxa() -> Made {
+/// Who made labels: Volsa.
+pub(super) fn by_volsa() -> Made {
     Made {
-        by: "Voxa 9.8.7".to_owned(),
+        by: "Volsa 9.8.7".to_owned(),
         ..Made::default()
     }
 }
 
 /// What a worker reports of the first run, finished, whose labels fill `corners`.
 fn came_back(corners: [Point<Patient>; 8]) -> Action {
-    read_with(corners, Some(by_voxa()), Some(1))
+    read_with(corners, Some(by_volsa()), Some(1))
 }
 
 /// A run on, with labels of the same study already open.
@@ -66,14 +66,14 @@ fn running_with_labels() -> AppState {
     let mut state = able();
     reduce(&mut state, open());
     let volume = state.scene.corners.expect("the volume is built");
-    reduce(&mut state, read_with(volume, Some(by_voxa()), None));
+    reduce(&mut state, read_with(volume, Some(by_volsa()), None));
     assert_eq!(state.labels.status, LabelsStatus::Ready);
     assert_eq!(label(&mut state).len(), 1);
     state
 }
 
 /// The 30-slice series in one study and the 64-slice series in another.
-fn two_studies() -> voxa_dicom::Index {
+fn two_studies() -> volsa_dicom::Index {
     let another = (0..64).map(|place| {
         let options = SliceOptions {
             study_uid: "1.2.3.99".to_owned(),
@@ -109,7 +109,7 @@ fn labels_that_come_back_are_taken_in_as_those_of_the_study_that_was_labelled() 
     assert_eq!(state.labels.parts, parts());
     assert_eq!(state.labels.title, "A made-up head");
     let by = state.labels.made.as_ref().map(|made| made.by.as_str());
-    assert_eq!(by, Some("Voxa 9.8.7"));
+    assert_eq!(by, Some("Volsa 9.8.7"));
     assert_eq!(state.labels.study, study_of(&state, &id(THICK_SCAN)));
     assert!(on_this_series(&state));
 }
@@ -212,7 +212,7 @@ fn closing_labels_stops_a_run_and_empties_them() {
 fn a_label_file_read_while_no_run_is_on_is_a_file_and_leaves_the_run_state_alone() {
     // A run asked for while the file is being read is refused, so the file's labels are
     // never taken for a run's; with or without the mark of who made them.
-    for made in [Some(by_voxa()), None] {
+    for made in [Some(by_volsa()), None] {
         let mut state = reading_labels();
         assert_eq!(label(&mut state), [], "refused while the file is read");
         let volume = state.scene.corners.expect("the volume is built");

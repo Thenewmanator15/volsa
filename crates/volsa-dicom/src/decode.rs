@@ -6,13 +6,17 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use dicom_object::{DefaultDicomObject, ReadError};
 use dicom_pixeldata::{PhotometricInterpretation, PixelDecoder};
 use dicom_transfer_syntax_registry::{TransferSyntaxIndex, TransferSyntaxRegistry};
-use voxa_core::VoxaError;
+use volsa_core::VolsaError;
 
 use crate::index::SliceRef;
+use crate::nesting::{TOO_DEEP, TooDeep, check_nesting};
 use crate::source::SeriesSource;
 
 mod colour;
 mod declared;
+mod stored;
+
+pub use stored::{StoredFrame, StoredSamples};
 
 use declared::Declared;
 
@@ -38,13 +42,13 @@ pub struct Frame {
 ///
 /// # Errors
 ///
-/// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
-/// it; [`VoxaError::NotDicom`] when the entry is not a DICOM file; [`VoxaError::Decode`] when
-/// the file is damaged or cut short, says its images are larger than Voxa makes room for (see
-/// [`ImageFile::open`]), is in a kind of colour Voxa does not show, or lacks the frame asked
+/// [`VolsaError::UnsupportedTransferSyntax`], naming the compression, when Volsa cannot read
+/// it; [`VolsaError::NotDicom`] when the entry is not a DICOM file; [`VolsaError::Decode`] when
+/// the file is damaged or cut short, says its images are larger than Volsa makes room for (see
+/// [`ImageFile::open`]), is in a kind of colour Volsa does not show, or lacks the frame asked
 /// for; and the
 /// source's own error when the entry cannot be read from it.
-pub fn decode_slice(source: &mut dyn SeriesSource, slice: &SliceRef) -> Result<Frame, VoxaError> {
+pub fn decode_slice(source: &mut dyn SeriesSource, slice: &SliceRef) -> Result<Frame, VolsaError> {
     let bytes = source.read(&slice.entry)?;
     ImageFile::open(&bytes)?.decode(slice.frame)
 }
@@ -56,22 +60,22 @@ pub struct ImageFile {
 }
 
 impl ImageFile {
-    /// Parse a file and check that its images are of a kind Voxa can decode.
+    /// Parse a file and check that its images are of a kind Volsa can decode.
     ///
     /// # Errors
     ///
-    /// [`VoxaError::NotDicom`] when the bytes are not a DICOM file,
-    /// [`VoxaError::UnsupportedTransferSyntax`], naming the compression, when Voxa cannot read
-    /// it, and [`VoxaError::Decode`] when the file is damaged or its images are in a kind of
-    /// colour Voxa does not show. A file is refused before any room is made for its pixels
+    /// [`VolsaError::NotDicom`] when the bytes are not a DICOM file,
+    /// [`VolsaError::UnsupportedTransferSyntax`], naming the compression, when Volsa cannot read
+    /// it, and [`VolsaError::Decode`] when the file is damaged or its images are in a kind of
+    /// colour Volsa does not show. A file is refused before any room is made for its pixels
     /// when it says one of its images takes more than 256 MiB once decoded, larger than any
     /// MRI image, or when its pixels are stored uncompressed and it holds fewer bytes of them
     /// than it says.
-    pub fn open(bytes: &[u8]) -> Result<Self, VoxaError> {
+    pub fn open(bytes: &[u8]) -> Result<Self, VolsaError> {
         guarded(|| {
             let file = open(bytes)?;
             if let Some(name) = unreadable(file.meta().transfer_syntax()) {
-                return Err(VoxaError::UnsupportedTransferSyntax(name));
+                return Err(VolsaError::UnsupportedTransferSyntax(name));
             }
             colour::check(&file)?;
             if let Some(declared) = Declared::of(&file) {
@@ -86,13 +90,13 @@ impl ImageFile {
     ///
     /// # Errors
     ///
-    /// [`VoxaError::Decode`] when the pixel data are damaged or cut short, or the file has no
+    /// [`VolsaError::Decode`] when the pixel data are damaged or cut short, or the file has no
     /// such frame.
-    pub fn decode(&self, frame: Option<u32>) -> Result<Frame, VoxaError> {
+    pub fn decode(&self, frame: Option<u32>) -> Result<Frame, VolsaError> {
         guarded(|| self.values_of(frame.unwrap_or(0)))
     }
 
-    fn values_of(&self, frame: u32) -> Result<Frame, VoxaError> {
+    fn values_of(&self, frame: u32) -> Result<Frame, VolsaError> {
         let decoded = self
             .file
             .decode_pixel_data_frame(frame)
@@ -103,7 +107,7 @@ impl ImageFile {
         let mut values: Vec<f32> = decoded.to_vec_frame(0).map_err(|error| damaged(&error))?;
         let (rows, cols) = (decoded.rows(), decoded.columns());
         if values.len() != rows as usize * cols as usize {
-            return Err(VoxaError::Decode(
+            return Err(VolsaError::Decode(
                 "the pixel data do not match the image size".to_owned(),
             ));
         }
@@ -119,24 +123,27 @@ impl ImageFile {
     }
 }
 
-/// Parse a whole file, naming the compression when that is what stops it being read.
-pub(crate) fn open(bytes: &[u8]) -> Result<DefaultDicomObject, VoxaError> {
+/// Parse a whole file, naming the compression when that is what stops it being read. A file
+/// nested too deeply is refused before the library is given it.
+pub(crate) fn open(bytes: &[u8]) -> Result<DefaultDicomObject, VolsaError> {
+    check_nesting(bytes, None)
+        .map_err(|TooDeep| VolsaError::Decode(format!("the file is {TOO_DEEP}")))?;
     dicom_object::from_reader(Cursor::new(bytes)).map_err(|error| match error {
         ReadError::ReadUnrecognizedTransferSyntax { uid, .. } => {
-            VoxaError::UnsupportedTransferSyntax(uid.trim_end_matches(['\0', ' ']).to_owned())
+            VolsaError::UnsupportedTransferSyntax(uid.trim_end_matches(['\0', ' ']).to_owned())
         }
         ReadError::ReadUnsupportedTransferSyntax { name, .. }
         | ReadError::ReadUnsupportedTransferSyntaxWithSuggestion { name, .. } => {
-            VoxaError::UnsupportedTransferSyntax(name.to_owned())
+            VolsaError::UnsupportedTransferSyntax(name.to_owned())
         }
         ReadError::ReadPreambleBytes { .. } | ReadError::ParseMetaDataSet { .. } => {
-            VoxaError::NotDicom
+            VolsaError::NotDicom
         }
-        _ => VoxaError::Decode("the file is damaged or cut short".to_owned()),
+        _ => VolsaError::Decode("the file is damaged or cut short".to_owned()),
     })
 }
 
-/// The name of a transfer syntax whose images Voxa cannot decode; `None` when it can. A
+/// The name of a transfer syntax whose images Volsa cannot decode; `None` when it can. A
 /// syntax unknown to the DICOM library is named by its identifier.
 pub(crate) fn unreadable(uid: &str) -> Option<String> {
     let uid = uid.trim_end_matches(['\0', ' ']);
@@ -147,8 +154,8 @@ pub(crate) fn unreadable(uid: &str) -> Option<String> {
     }
 }
 
-fn damaged(error: &dicom_pixeldata::Error) -> VoxaError {
-    VoxaError::Decode(format!(
+fn damaged(error: &dicom_pixeldata::Error) -> VolsaError {
+    VolsaError::Decode(format!(
         "the pixel data are damaged or incomplete ({error})"
     ))
 }
@@ -166,9 +173,9 @@ fn invert(values: &mut [f32]) {
 
 /// Run a reader or decoder, turning a panic inside it into an error. They are other people's
 /// code, fed whatever the file holds; one bad file must not stop the program.
-pub(crate) fn guarded<T>(work: impl FnOnce() -> Result<T, VoxaError>) -> Result<T, VoxaError> {
+pub(crate) fn guarded<T>(work: impl FnOnce() -> Result<T, VolsaError>) -> Result<T, VolsaError> {
     catch_unwind(AssertUnwindSafe(work)).unwrap_or_else(|_| {
-        Err(VoxaError::Decode(
+        Err(VolsaError::Decode(
             "the reader failed on this file".to_owned(),
         ))
     })
@@ -180,5 +187,7 @@ mod colour_tests;
 mod compressed_tests;
 #[cfg(test)]
 mod declared_tests;
+#[cfg(test)]
+mod stored_tests;
 #[cfg(test)]
 mod tests;

@@ -98,14 +98,14 @@ fn of_a_choice_the_licence_taken_is_named_and_the_texts_of_the_others_are_left_o
     let written = notices(&metadata(&more(root.path())), &shipped(&listed()), &KNOWN).unwrap();
     let lambda = entry(&written, "lambda 1.3.0");
     assert!(
-        lambda.contains(&"  Voxa takes it under: Apache-2.0"),
+        lambda.contains(&"  Volsa takes it under: Apache-2.0"),
         "{lambda:?}"
     );
     number(&lambda, "LICENSE-APACHE");
     assert!(!written.contains("LICENSE-GPLv2") && !written.contains("Made-up GPL."));
     // The zlib licence asks less than MIT; a file whose name does not say is known by its words.
     let mu = entry(&written, "mu 0.8.9");
-    assert!(mu.contains(&"  Voxa takes it under: Zlib"), "{mu:?}");
+    assert!(mu.contains(&"  Volsa takes it under: Zlib"), "{mu:?}");
     number(&mu, "LICENSE-ZLIB.md");
     assert!(
         !mu.iter().any(|line| line.starts_with("  LICENSE:")),

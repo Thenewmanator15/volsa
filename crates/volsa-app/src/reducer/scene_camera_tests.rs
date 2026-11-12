@@ -2,12 +2,13 @@
 
 use std::path::PathBuf;
 
-use voxa_core::Point;
-use voxa_render::{Camera, CutPlane, Look, MAX_CUTS, NamedView};
+use volsa_core::Point;
+use volsa_render::{Camera, CutPlane, Look, MAX_CUTS, NamedView};
 
 use super::scene_tests::{corners, ready};
 use super::*;
-use crate::scene::{MainPanel, Scene};
+use crate::pictures::Pictures;
+use crate::scene::Scene;
 
 #[test]
 fn a_new_size_refits_an_untouched_camera_and_keeps_what_a_moved_one_shows() {
@@ -129,7 +130,7 @@ fn a_cut_can_be_moved_turned_and_removed() {
 }
 
 #[test]
-fn the_look_the_slice_and_the_main_panel_are_remembered() {
+fn the_look_the_slice_and_the_arrangement_are_remembered() {
     let mut state = ready();
     reduce(&mut state, Action::SceneLook(Look::Vr));
     reduce(&mut state, Action::ShowSliceInScene(true));
@@ -142,16 +143,16 @@ fn the_look_the_slice_and_the_main_panel_are_remembered() {
         ),
         (Look::Vr, true, 1)
     );
-    reduce(&mut state, Action::SetMain(MainPanel::Stack));
-    assert_eq!(state.main, MainPanel::Stack);
-    reduce(&mut state, Action::SetMain(MainPanel::Scene));
-    assert_eq!(state.main, MainPanel::Scene);
+    reduce(&mut state, Action::SetPictures(Pictures::SlicesAndScene));
+    assert_eq!(state.pictures, Pictures::SlicesAndScene);
+    reduce(&mut state, Action::SetPictures(Pictures::Scene));
+    assert_eq!(state.pictures, Pictures::Scene);
 }
 
 #[test]
 fn opening_another_path_empties_the_scene() {
     let mut state = ready();
-    reduce(&mut state, Action::SetMain(MainPanel::Stack));
+    reduce(&mut state, Action::SetPictures(Pictures::Planes));
     reduce(
         &mut state,
         Action::SceneResized {
@@ -166,15 +167,16 @@ fn opening_another_path_empties_the_scene() {
     };
     assert_eq!(state.scene, empty);
     assert_eq!(
-        state.main,
-        MainPanel::Stack,
+        state.pictures,
+        Pictures::Planes,
         "how the window is laid out is kept"
     );
 }
 
 #[test]
-fn fitting_also_shows_the_whole_volume_again_while_the_scene_is_the_large_panel() {
+fn fitting_also_shows_the_whole_volume_again_while_the_3d_view_is_shown_alone() {
     let mut state = ready();
+    reduce(&mut state, Action::SetPictures(Pictures::Scene));
     reduce(&mut state, Action::SceneOrbit { by: [40.0, 10.0] });
     reduce(
         &mut state,
@@ -192,18 +194,20 @@ fn fitting_also_shows_the_whole_volume_again_while_the_scene_is_the_large_panel(
     );
     assert_ne!(refitted.mm_per_px, turned.mm_per_px);
 
-    reduce(&mut state, Action::SetMain(MainPanel::Stack));
-    reduce(
-        &mut state,
-        Action::SceneZoom {
-            factor: 5.0,
-            about: [0.0, 0.0],
-        },
-    );
-    let zoomed = state.scene.camera;
-    reduce(&mut state, Action::Fit { viewport: 0 });
-    assert_eq!(
-        state.scene.camera, zoomed,
-        "with the slices large, only they are fitted"
-    );
+    for others in [Pictures::Slices, Pictures::SlicesAndScene, Pictures::Planes] {
+        reduce(&mut state, Action::SetPictures(others));
+        reduce(
+            &mut state,
+            Action::SceneZoom {
+                factor: 5.0,
+                about: [0.0, 0.0],
+            },
+        );
+        let zoomed = state.scene.camera;
+        reduce(&mut state, Action::Fit { viewport: 0 });
+        assert_eq!(
+            state.scene.camera, zoomed,
+            "{others:?}: with the slices or the planes shown, only they are fitted"
+        );
+    }
 }

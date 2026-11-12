@@ -2,8 +2,8 @@
 //! of a volume, and the curve through its values. Each is held to what the processor makes.
 
 use half::f16;
-use voxa_core::{Affine, Point, Volume, WindowLevel};
-use voxa_volume::{PlaneKind, plane_of};
+use volsa_core::{Affine, Point, Volume, WindowLevel};
+use volsa_volume::{PlaneKind, plane_of};
 
 use crate::camera::{Camera, NamedView};
 use crate::plane_view::PlaneView;

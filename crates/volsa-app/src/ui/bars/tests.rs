@@ -2,10 +2,11 @@
 
 use egui::{Id, Pos2, RawInput, Rect, WidgetRect, WidgetRects, vec2};
 
-use super::show;
+use super::{Kept, show};
 use crate::prefs::SMALLEST_WINDOW;
 use crate::state::{AppState, Notice, NoticeKind};
-use crate::ui::theme;
+use crate::ui::search::Search;
+use crate::ui::theme::{self, ThemeChoice};
 
 /// What was laid out: where the disclaimer is and its id, where the pictures go, and every
 /// widget of the pass.
@@ -16,12 +17,12 @@ struct Laid {
     widgets: WidgetRects,
 }
 
-/// Lay the frame out in `screen` at interface size `zoom`, with a long notice on the status
+/// Lay the frame out in `screen` at interface size `zoom`, with a long notice on the bottom
 /// line, and the pictures in what is left, as the window does: a few passes, for the panels
 /// to take their sizes.
 fn laid_out(screen: Rect, zoom: f32) -> Laid {
     let ctx = egui::Context::default();
-    theme::apply(&ctx);
+    theme::apply(&ctx, theme::ThemeChoice::Dark);
     ctx.options_mut(|options| options.zoom_factor = zoom);
     let mut state = AppState::default();
     state.notices.push(Notice {
@@ -35,6 +36,7 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
         key: None,
     });
     let mut laid = (Rect::NOTHING, Id::NULL, Rect::NOTHING);
+    let (mut search, mut kept) = (Search::default(), Kept::default());
     for _ in 0..4 {
         let input = RawInput {
             screen_rect: Some(screen),
@@ -42,7 +44,8 @@ fn laid_out(screen: Rect, zoom: f32) -> Laid {
         };
         let mut output = ctx.run_ui(input, |ui| {
             let mut actions = Vec::new();
-            let (_, disclaimer) = show(ui, &state, true, &mut actions);
+            let (_, line) = show(ui, &state, &mut search, &mut kept, &mut actions);
+            let disclaimer = line.disclaimer;
             let pictures = egui::CentralPanel::default().show(ui, |ui| {
                 ui.allocate_space(ui.available_size());
             });
@@ -100,4 +103,32 @@ fn the_disclaimer_is_whole_and_uncovered_in_the_smallest_window_at_twice_the_siz
         "the pictures have {:?} of the window",
         laid.pictures
     );
+}
+
+#[test]
+fn choosing_a_theme_draws_the_whole_pass_again_in_it() {
+    let ctx = egui::Context::default();
+    theme::apply(&ctx, ThemeChoice::Dark);
+    let mut kept = Kept::default();
+    assert_eq!(kept.theme, ThemeChoice::System);
+    let screen = Rect::from_min_size(Pos2::ZERO, vec2(400.0, 300.0));
+    let (mut passes, mut in_the_pass) = (Vec::new(), Vec::new());
+    let input = RawInput {
+        screen_rect: Some(screen),
+        ..RawInput::default()
+    };
+    let mut output = ctx.run_ui(input, |ui| {
+        passes.push(theme::palette(ui.ctx()));
+        // Asked for in the first pass, as the theme button's request is.
+        if passes.len() == 1 {
+            kept.choose(ui.ctx(), ThemeChoice::Light);
+        }
+        in_the_pass.push(ui.visuals().dark_mode);
+    });
+    output.textures_delta.clear();
+    assert_eq!(kept.theme, ThemeChoice::Light);
+    // The pass that was running is run again, and its whole is in the new theme.
+    assert_eq!(passes, [theme::Palette::DARK, theme::Palette::LIGHT]);
+    assert_eq!(in_the_pass, [true, false], "the root of the window too");
+    assert!(!ctx.global_style().visuals.dark_mode);
 }

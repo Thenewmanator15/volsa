@@ -1,8 +1,8 @@
-//! The made-up study that `write_phantom` writes holds one series of each kind Voxa tells
+//! The made-up study that `write_phantom` writes holds one series of each kind Volsa tells
 //! apart, and none of them at fault.
 
-use voxa_core::SeriesKind;
-use voxa_dicom::{index, open_source};
+use volsa_core::SeriesKind;
+use volsa_dicom::{index, open_source};
 
 #[path = "../examples/write_phantom/labels.rs"]
 mod labels;

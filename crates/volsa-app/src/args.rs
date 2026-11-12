@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 /// What to say for `--help`.
 pub const USAGE: &str = "\
-Volsa, a viewer for MRI scans.
+Volsa, a viewer for MRI and CT scans.
 
 Usage: volsa [PATH] [--labels FILE]
 

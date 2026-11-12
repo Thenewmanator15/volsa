@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use super::{VoxaApp, capture, icon};
+use super::{VolsaApp, capture, icon};
 use crate::prefs::SMALLEST_WINDOW;
 
 /// The size the window opens at, in points at the interface's usual size, when no size is
@@ -12,20 +12,30 @@ const OPENS_AT: [f32; 2] = [1024.0, 640.0];
 /// interface.
 const PICTURE: [f32; 2] = [1440.0, 900.0];
 
-impl VoxaApp {
+impl VolsaApp {
     /// Make ready what a picture of the window wants: the interface at the size it asks for,
-    /// everything at rest rather than fading in, and the windows it wants open in it.
+    /// everything at rest rather than fading in, the windows and the tab it wants open in it,
+    /// and the pictures arranged as it asks.
     pub(super) fn set_up_a_picture(&mut self, ctx: &egui::Context) {
         ctx.set_zoom_factor(capture::zoom().unwrap_or(1.0));
         // A picture is of things as they come to rest, not part-way through fading in.
         ctx.all_styles_mut(|style| style.animation_time = 0.0);
         // A picture for the documentation may want one of the windows open in it.
         let wanted = std::env::var(capture::SHOW_VARIABLE).unwrap_or_default();
-        let asked = |word: &str| capture::asks_for(&wanted, word);
-        self.tags.open = asked("tags");
-        self.measure.open = asked("list");
-        self.help_open = asked("keys");
-        self.about_open = asked("about");
+        let opens = capture::opens(&wanted);
+        self.tags.open = opens.tags;
+        self.rail.other_open = opens.other;
+        if opens.search {
+            self.search.open();
+        }
+        if let Some(tab) = capture::tab_asked(&wanted) {
+            self.screen.show_tab(tab);
+        }
+        if let Some(pictures) = capture::arrangement_asked(&wanted) {
+            self.dispatch(crate::action::Action::SetPictures(pictures));
+        }
+        self.help_open = opens.keys;
+        self.about_open = opens.about;
         self.pose = capture::pose(&wanted);
         self.label_pose = capture::label_pose(&wanted);
     }
@@ -48,11 +58,11 @@ fn opening_size(capturing: bool) -> [f32; 2] {
     [wide.max(least_w), high.max(least_h)]
 }
 
-/// Open the Voxa window and run until it is closed. `initial` is a scan to open at once,
+/// Open the Volsa window and run until it is closed. `initial` is a scan to open at once,
 /// and `labels` a label file to open on it as soon as it can be shown in 3D.
 ///
 /// If the window's code panics, the window is gone by the time the panic reaches here: the
-/// person is told that Voxa stopped and where its log is, in a message window of the system
+/// person is told that Volsa stopped and where its log is, in a message window of the system
 /// for a build with no console, and the panic then goes on to end the program. A picture of
 /// the window tells no one.
 ///
@@ -67,19 +77,20 @@ pub fn run(initial: Option<PathBuf>, labels: Option<PathBuf>) -> eframe::Result 
     // The screen the window is on is not known until the window is there: it opens at this
     // size and is fitted to its screen on its first frame.
     let viewport = egui::ViewportBuilder::default()
-        .with_title("Voxa")
+        .with_title("Volsa")
         .with_icon(icon::icon())
         .with_inner_size(opening_size(capturing))
         .with_min_inner_size(SMALLEST_WINDOW);
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport,
         ..Default::default()
     };
+    crate::device::ask_for_what_volumes_need(&mut options.wgpu_options);
     let create = move |creation: &eframe::CreationContext<'_>| -> Result<Box<dyn eframe::App>, _> {
-        Ok(Box::new(VoxaApp::new(creation, initial, labels)))
+        Ok(Box::new(VolsaApp::new(creation, initial, labels)))
     };
     let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        eframe::run_native("Voxa", options, Box::new(create))
+        eframe::run_native("Volsa", options, Box::new(create))
     }));
     ran.unwrap_or_else(|panic| {
         if let Some(said) = crate::said::after_a_crash(capturing, crate::log::path()) {

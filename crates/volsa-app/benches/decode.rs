@@ -1,14 +1,14 @@
 //! How long the three things a person waits for take: indexing an export, decoding a slice,
-//! and choosing a window for it. Run with `cargo bench -p voxa-app`.
+//! and choosing a window for it. Run with `cargo bench -p volsa-app`.
 
 use std::hint::black_box;
 use std::io::Write;
 use std::time::Duration;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use voxa_dicom::testkit::{MemorySource, SliceOptions, classic_slice};
-use voxa_dicom::{SliceRef, decode_slice, index, open_source};
-use voxa_volume::auto_window;
+use volsa_dicom::testkit::{MemorySource, SliceOptions, classic_slice};
+use volsa_dicom::{SliceRef, decode_slice, index, open_source};
+use volsa_volume::auto_window;
 
 /// One slice of a made-up series: `side` rows and columns of 16-bit values.
 fn slice(place: i32, side: u16) -> Vec<u8> {
@@ -49,6 +49,23 @@ fn index_200_slice_zip(c: &mut Criterion) {
     });
 }
 
+/// Reading the headers of a folder of 2,000 slices of 64 by 64, from opening it onwards: a
+/// long series, as a CT of the whole body is.
+fn index_2000_slice_folder(c: &mut Criterion) {
+    let folder = tempfile::tempdir().expect("a temporary folder");
+    std::fs::create_dir(folder.path().join("IMAGES")).expect("folder is made");
+    for place in 0..2000 {
+        let path = folder.path().join(format!("IMAGES/I{place:04}"));
+        std::fs::write(path, slice(place, 64)).expect("file is written");
+    }
+    c.bench_function("index a folder of 2,000 slices", |b| {
+        b.iter(|| {
+            let mut source = open_source(folder.path()).expect("opens");
+            black_box(index(source.as_mut(), &mut |_| {}).expect("indexes"))
+        });
+    });
+}
+
 /// Turning one stored slice of 512 by 512 into values, from its bytes in memory.
 fn decode_512_frame(c: &mut Criterion) {
     let name = "slice.dcm".to_owned();
@@ -80,6 +97,6 @@ fn quick() -> Criterion {
 criterion_group! {
     name = benches;
     config = quick();
-    targets = index_200_slice_zip, decode_512_frame, auto_window_512
+    targets = index_200_slice_zip, index_2000_slice_folder, decode_512_frame, auto_window_512
 }
 criterion_main!(benches);

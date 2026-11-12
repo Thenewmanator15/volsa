@@ -5,21 +5,21 @@
 //! does it keep the program going when the card is gone; left to itself, the next thing
 //! asked of the card stops the program. So the card is watched from the start. When it is
 //! gone, the window carries on without it, the work in hand goes on, and the person is told
-//! once to start Voxa again. A window that can paint nothing cannot show that, so it is said
+//! once to start Volsa again. A window that can paint nothing cannot show that, so it is said
 //! in a message box of the system as well as in the window's own notices and the log.
 
 mod message;
 
 use egui_wgpu::RenderState;
-use voxa_render::DeviceWatch;
+use volsa_render::DeviceWatch;
 
 use crate::action::Action;
 use crate::state::{Notice, NoticeKind};
 
-/// The key of the notice, which is Voxa's own words from first to last.
+/// The key of the notice, which is Volsa's own words from first to last.
 pub const KEY: &str = "graphics";
 /// What is said when the graphics card stops answering.
-pub const STOPPED: &str = "The graphics card stopped answering. Close Voxa and open it again. \
+pub const STOPPED: &str = "The graphics card stopped answering. Close Volsa and open it again. \
                            Nothing you made has been lost.";
 
 /// How the words are put in front of the person in a window of the system.
