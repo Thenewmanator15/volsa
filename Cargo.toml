@@ -41,7 +41,7 @@ pollster = "0.4"
 # Interface. The only wgpu in the tree is the one egui-wgpu re-exports.
 eframe = { version = "0.36", default-features = false }
 egui = "0.36"
-egui-wgpu = "0.36"
+egui-wgpu = "0.37"
 rfd = "0.17"
 
 # DICOM and archives.
