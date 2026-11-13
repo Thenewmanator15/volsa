@@ -142,6 +142,23 @@ pub fn on_this_series(state: &AppState) -> bool {
     state.labels.status == LabelsStatus::Ready && study.is_some() && study == state.labels.study
 }
 
+/// Whether the thin dark tubes of the scan in the scene can be highlighted now; if not, why.
+/// They can when the scene shows a series whose volume is built, and no labels are being read
+/// or made.
+///
+/// # Errors
+///
+/// The sentence that says why not.
+pub fn can_find_veins(state: &AppState) -> Result<(), &'static str> {
+    if crate::planes::grid(state).is_none() {
+        return Err("Highlighting needs a scan with a 3D view. Open one, or wait for its 3D view.");
+    }
+    if state.labels.status == LabelsStatus::Reading || state.labelling.running.is_some() {
+        return Err("Labels are being made or opened. Wait for them to finish.");
+    }
+    Ok(())
+}
+
 /// The look the scene is drawn in: the one chosen, except that Parts with no labels on this
 /// series, which has nothing to draw, is drawn as Surface.
 pub fn look_drawn(state: &AppState) -> Look {

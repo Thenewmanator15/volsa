@@ -92,6 +92,9 @@ pub enum LabellingAction {
     DeleteKept,
     /// Save the labels that are open to this file, with their table beside it.
     SaveLabelsAs(PathBuf),
+    /// Highlight the thin dark tubes, mostly veins, of the scan in the scene, and open them as
+    /// its labels.
+    FindVeins,
 }
 
 /// Labelling in the state.

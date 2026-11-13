@@ -10,6 +10,11 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ### Added
 
+- **Highlight veins**, in the Tools tab under "Part of Volsa": a filter (no trained model) that
+  finds thin dark tubes in the scan shown, mostly veins on an SWI or T2* scan, and opens them as
+  labels with one part, "Dark tubes (mostly veins)", marked approximate: drawn over the planes
+  and as a solid in the 3D view. It runs on the processor in a few seconds and opens in place of
+  any labels open. A scan not named as SWI or T2* is warned of in the result.
 - Sliders in the View tab: **Brightness** and **Contrast** beside the W and L numbers (slide right
   for brighter and sharper), a **Slice** slider, and a **Speed** slider for playback.
 - Plugins: models a person adds themselves. **Add a plugin…**, under **Added by you** in the

@@ -44,3 +44,24 @@ fn labels_opened_with_nothing_to_put_them_on_are_not_read_and_the_person_is_told
     assert_eq!(reduce(&mut state, open()).len(), 1);
     assert_eq!(said(&state), Vec::<String>::new());
 }
+
+#[test]
+fn highlighting_veins_starts_once_there_is_a_volume_and_not_twice_at_once() {
+    let find = || Action::Labelling(crate::labelling::LabellingAction::FindVeins);
+    let mut state = showing(THICK_SCAN);
+    assert_eq!(reduce(&mut state, find()), []);
+    assert_eq!(state.labels.status, LabelsStatus::None);
+    assert!(crate::labels::can_find_veins(&state).is_err());
+    let mut state = ready();
+    assert_eq!(crate::labels::can_find_veins(&state), Ok(()));
+    let effects = reduce(&mut state, find());
+    assert!(
+        matches!(effects.as_slice(), [Effect::FindVeins { .. }]),
+        "{effects:?}"
+    );
+    assert_eq!(state.labels.status, LabelsStatus::Reading);
+    assert!(
+        crate::labels::can_find_veins(&state).is_err(),
+        "not twice at once"
+    );
+}

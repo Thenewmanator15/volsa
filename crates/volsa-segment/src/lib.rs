@@ -44,6 +44,7 @@ mod table;
 pub mod testing;
 mod tidy;
 mod toward;
+mod veins;
 
 pub use find::{Found, Networks, Stage, find};
 pub use label::{LabelError, Labelled, ModelChoice, THICK_MM, choose, label};
@@ -52,3 +53,6 @@ pub use prepare::{Back, PrepareError, Prepared, Sizes, Turn, fits, prepare, resa
 pub use table::{FAIL_BELOW, table};
 pub use tidy::tidy;
 pub use toward::Toward;
+pub use veins::{
+    VEINS_COLOUR, VEINS_GROUP, VEINS_HOW, VEINS_PART, VEINS_TITLE, VeinsError, veins, veins_table,
+};

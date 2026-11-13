@@ -4643,6 +4643,7 @@ dependencies = [
 name = "volsa-segment"
 version = "0.7.1"
 dependencies = [
+ "rayon",
  "serde_json",
  "thiserror 2.0.21",
  "volsa-core",

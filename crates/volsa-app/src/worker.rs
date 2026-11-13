@@ -33,6 +33,7 @@ mod post;
 mod preview;
 mod shown;
 mod tags;
+mod veins;
 mod views;
 mod volume;
 
@@ -212,6 +213,7 @@ impl Workers {
             Effect::StoreAnnotations { series, items } => self.store_annotations(&series, items),
             kept @ (Effect::LoadPlaces { .. } | Effect::StorePlaces { .. }) => self.places(kept),
             Effect::ReadLabels { labels, table } => self.read_labels(labels, table),
+            Effect::FindVeins { series, named } => self.find_veins(&series, named),
             Effect::ReadDocument { entry } => self.read_document(entry),
             Effect::SaveDocumentPdf { entry, to } => self.save_document_pdf(entry, to),
             Effect::DropLabels => self.drop_labels(),

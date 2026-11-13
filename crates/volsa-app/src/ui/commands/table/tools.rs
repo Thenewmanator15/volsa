@@ -12,7 +12,7 @@ use crate::plugins::ADD_ACTION;
 use crate::state::AppState;
 use crate::ui::parts::Asked;
 use crate::ui::parts::labelling::Wants;
-use crate::ui::tabs::{LABEL_BUTTON, LABEL_TOOL};
+use crate::ui::tabs::{LABEL_BUTTON, LABEL_TOOL, VEINS_BUTTON, VEINS_TOOL};
 
 /// Why the scan cannot be labelled now, in a sentence; the Tools tab says why in full.
 const CANNOT_LABEL: &str = "Volsa cannot label this scan now. The Tools tab says why.";
@@ -233,6 +233,22 @@ pub(super) const COMMANDS: &[Command] = &[
         "Folder of the runtime…",
         Wants::RuntimeFolder,
     ),
+    Command {
+        id: "tools.veins",
+        name: VEINS_TOOL,
+        label: VEINS_BUTTON,
+        explains: "Show thin dark tubes, mostly veins on an SWI or T2* scan, over the slices and \
+                   in 3D",
+        words: &["veins", "vessels", "swi", "swan", "tubes", "highlight"],
+        place: Place::Tab(Tab::Tools),
+        why_not: |state| {
+            crate::labels::can_find_veins(state)
+                .err()
+                .map(Why::Borrowed)
+        },
+        does: Does::Act(|_| Some(labelling(LabellingAction::FindVeins))),
+        ..PLAIN
+    },
     Command {
         id: ADD_ACTION,
         name: "Add a plugin…",

@@ -110,3 +110,17 @@ fn a_plugin_with_long_words_does_not_widen_the_narrowest_panel() {
     let _ = Hand::new(NARROW, 900.0).settle(draw);
     assert!(right.get() <= NARROW + 0.5, "{} points across", right.get());
 }
+
+#[test]
+fn highlight_veins_comes_after_labelling_and_its_button_highlights_them() {
+    let state = able();
+    let said = tools_written(&state);
+    assert!(
+        at(&said, "Label this scan") < at(&said, "Highlight veins"),
+        "{said}"
+    );
+    assert!(said.contains("not a trained model"), "{said}");
+    let (actions, _) = pressed(&state, "Highlight veins");
+    let finds = |action: &Action| matches!(action, Action::Labelling(LabellingAction::FindVeins));
+    assert!(actions.iter().any(finds), "{actions:?}");
+}

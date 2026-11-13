@@ -12,6 +12,8 @@ volsa-core.workspace = true
 volsa-labels.workspace = true
 volsa-models.workspace = true
 thiserror.workspace = true
+# Runs the dark-tube filter on every core.
+rayon.workspace = true
 
 [features]
 # The real networks behind `Networks`, for the tests that are given a runtime and a model

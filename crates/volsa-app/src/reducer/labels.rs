@@ -9,6 +9,7 @@ use crate::labels::{
     FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOTHING_TO_LABEL_KEY, NOWHERE_NEAR,
     PartShown, on_this_series, study_of,
 };
+use crate::naming::plain_name;
 use crate::planes::grid;
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -80,8 +81,28 @@ pub(super) fn open(
     labels: std::path::PathBuf,
     table: Option<std::path::PathBuf>,
 ) -> Vec<Effect> {
+    reading(state, |_| Effect::ReadLabels { labels, table })
+}
+
+/// Ask for the thin dark tubes of the scan in the scene to be found, and taken in as its
+/// labels, as a label file is read (see [`open`]).
+pub(super) fn find_veins(state: &mut AppState) -> Vec<Effect> {
+    // Named as the series list names it, which knows makers' own words such as GE's eSWAN.
+    let named = |state: &AppState, series: &volsa_core::SeriesId| {
+        let name = state.series(series).map(|listed| plain_name(&listed.info));
+        name.is_some_and(|name| name.contains("SWI") || name.contains("T2*"))
+    };
+    let series = state.scene.series.clone();
+    let named = series.as_ref().is_some_and(|series| named(state, series));
+    reading(state, |series| Effect::FindVeins { series, named })
+}
+
+/// Start labels being read, or made, for the series in the scene, by the effect `read` gives
+/// for it; or say that there is no volume to put them on.
+fn reading(state: &mut AppState, read: impl FnOnce(volsa_core::SeriesId) -> Effect) -> Vec<Effect> {
     let series = state.scene.series.clone().filter(|_| grid(state).is_some());
-    let Some(study) = series.and_then(|series| study_of(state, &series)) else {
+    let study = series.as_ref().and_then(|series| study_of(state, series));
+    let (Some(series), Some(study)) = (series, study) else {
         let notice = Notice {
             kind: NoticeKind::Warning,
             text: NOTHING_TO_LABEL.to_owned(),
@@ -98,8 +119,7 @@ pub(super) fn open(
         ..emptied(&state.labels)
     };
     let stopped = labelling::stop(state);
-    let read = Effect::ReadLabels { labels, table };
-    stopped.into_iter().chain([read]).collect()
+    stopped.into_iter().chain([read(series)]).collect()
 }
 
 /// Take in labels a worker has made or read, as the labels of `study`: every part shown,

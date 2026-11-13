@@ -90,6 +90,8 @@ pub enum Run {
     ToStart,
     /// One has been started.
     On,
+    /// It asks, by the word `veins`, for the dark tubes to be highlighted, not yet started.
+    VeinsToStart,
 }
 
 impl Run {
@@ -97,14 +99,21 @@ impl Run {
     pub fn asked(wanted: &str) -> Self {
         if asked(wanted, "labelled") {
             Self::ToStart
+        } else if asked(wanted, "veins") {
+            Self::VeinsToStart
         } else {
             Self::Not
         }
     }
 
     /// What starts the run, once labelling can run: given once. When this computer is known
-    /// not to be able to, the picture is of the strip as it is, and none is started.
+    /// not to be able to, the picture is of the strip as it is, and none is started. The dark
+    /// tubes are highlighted once the scene's volume is built.
     pub fn start(&mut self, state: &AppState) -> Option<Action> {
+        if *self == Self::VeinsToStart && crate::labels::can_find_veins(state).is_ok() {
+            *self = Self::On;
+            return Some(Action::Labelling(LabellingAction::FindVeins));
+        }
         if *self != Self::ToStart {
             return None;
         }
@@ -124,7 +133,7 @@ impl Run {
     pub fn is_over(self, state: &AppState) -> bool {
         match self {
             Self::Not => true,
-            Self::ToStart => false,
+            Self::ToStart | Self::VeinsToStart => false,
             Self::On => {
                 state.labelling.running.is_none() && state.labels.status != LabelsStatus::Reading
             }

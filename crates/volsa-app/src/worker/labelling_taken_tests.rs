@@ -137,3 +137,21 @@ fn a_run_and_a_look_go_on_threads_of_their_own_and_not_on_the_workers_pool() {
     assert_eq!(threads.len(), 4, "{threads:?}");
     assert!(threads.iter().all(|name| name == OWN_THREAD), "{threads:?}");
 }
+
+#[test]
+fn highlighting_veins_on_a_scan_with_no_tube_says_none_were_found() {
+    let _alone = one_at_a_time();
+    let lab = Lab::new(StandIn::roomy());
+    let series = crate::testing::id(crate::testing::THICK_SCAN);
+    let find = Effect::FindVeins {
+        series,
+        named: false,
+    };
+    lab.workers.run(find, None);
+    // The made-up head is a smooth ramp: it holds no tube, and that is said.
+    assert_eq!(
+        lab.next(),
+        Action::LabelsFailed(volsa_segment::VeinsError::NoneFound.to_string())
+    );
+    assert!(lab.workers.labels().is_none(), "nothing is held");
+}

@@ -85,6 +85,13 @@ pub enum Effect {
         /// The table of names; `None` to look for one beside the labels.
         table: Option<PathBuf>,
     },
+    /// Highlight the thin dark tubes of a series' volume, and take them in as labels read.
+    FindVeins {
+        /// The series.
+        series: SeriesId,
+        /// Whether its description names it as SWI or T2*, on which most such tubes are veins.
+        named: bool,
+    },
     /// Give up the labels kept, and any being read.
     DropLabels,
     /// Look for the models and the runtime, in these folders or where they are usually kept,
