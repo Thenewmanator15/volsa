@@ -10,6 +10,8 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ### Added
 
+- Sliders in the View tab: **Brightness** and **Contrast** beside the W and L numbers (slide right
+  for brighter and sharper), a **Slice** slider, and a **Speed** slider for playback.
 - Plugins: models a person adds themselves. **Add a plugin…**, under **Added by you** in the
   Tools tab, takes a folder holding a `plugin.json` and an ONNX network someone else made.
   Volsa checks the folder, shows a card that says first "Added by you, not part of Volsa. Volsa
