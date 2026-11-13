@@ -158,5 +158,5 @@ pub const OTHER_KINDS: &[Kind] = &[
 pub const CHANGERS: &[&str] = &[
     "FS", "FSAT", "FATSAT", "FAT", "SAT", "SPIR", "SPAIR", "WS", "WATER", "DIXON", "IDEAL", "OPP",
     "OUT", "IN", "INPHASE", "OPPHASE", "C", "CE", "GD", "GAD", "GADO", "POST", "CONTRAST", "SUB",
-    "MIP", "MINIP", "IR", "PSIR", "MT", "MTC",
+    "MIP", "MINIP", "IR", "PSIR", "MT", "MTC", "PHA", "PHASE", "FILT",
 ];

@@ -138,6 +138,7 @@ fn every_scanner_word_has_one_plain_name() {
         ("adc", "ADC map"),
         ("swi", "SWI"),
         ("swan", "SWI"),
+        ("eswan", "SWI"),
         ("stir", "STIR"),
         ("tof", "Angiography (TOF)"),
         ("mprage", "3D T1"),

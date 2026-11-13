@@ -24,6 +24,7 @@ pub(super) const WEIGHTINGS: &[(&str, &str)] = &[
     ("ADC", "ADC map"),
     ("SWI", "SWI"),
     ("SWAN", "SWI"),
+    ("ESWAN", "SWI"),
     ("STIR", "STIR"),
     ("TOF", "Angiography (TOF)"),
     ("MPRAGE", "3D T1"),

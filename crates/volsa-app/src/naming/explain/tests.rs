@@ -95,6 +95,16 @@ fn a_word_that_changes_the_contrast_stops_what_is_bright_being_said() {
         );
     }
     assert!(said_of("T1 FS").contains("also says \"FS\""));
+    // A filtered phase picture made from an eSWAN is still told its kind, not its brightness.
+    let phase = said_of("FILT_PHA: 3D Ax eSWAN");
+    assert!(
+        phase.starts_with("A susceptibility-weighted picture."),
+        "{phase}"
+    );
+    assert!(
+        phase.contains("which changes what is bright and dark"),
+        "{phase}"
+    );
 }
 
 #[test]
