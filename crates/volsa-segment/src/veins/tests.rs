@@ -130,3 +130,71 @@ fn a_scan_with_no_tube_says_none_were_found() {
         Volume::new([12, 12, 12], vec![100.0; 1728], Affine::identity()).expect("a volume");
     assert_eq!(veins(&bright, &|| false), Err(VeinsError::NoneFound));
 }
+
+/// Labels of a cube of 4 voxels 2 mm wide, all one part, "brain".
+fn coarse_labels() -> volsa_labels::LabelSet {
+    let placement =
+        Affine::from_columns([2.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 2.0], [0.0; 3]);
+    volsa_labels::LabelSet {
+        dims: [4; 3],
+        numbers: vec![1; 64],
+        placement,
+        parts: vec![volsa_labels::Part {
+            name: "brain".to_owned(),
+            group: String::new(),
+            side: volsa_labels::Side::Midline,
+            colour: [200; 3],
+            trust: volsa_labels::Trust::NotSaid,
+            voxels: 64,
+            ml: 0.512,
+        }],
+        title: "Made-up".to_owned(),
+        verdict: None,
+        made: None,
+    }
+}
+
+/// A line of tube 1 voxel thin, on a grid of 1 mm voxels, along x at y = 2, z = 2.
+fn fine_tube() -> volsa_labels::LabelGrid {
+    let mut ids = vec![0_u32; 512];
+    for x in 0..8 {
+        ids[(2 * 8 + 2) * 8 + x] = 1;
+    }
+    volsa_labels::LabelGrid {
+        dims: [8; 3],
+        ids,
+        placement: Affine::identity(),
+    }
+}
+
+#[test]
+fn tubes_are_put_onto_the_labels_open_as_one_more_part_and_counted() {
+    let set = super::veins_onto(&coarse_labels(), &fine_tube()).expect("put on");
+    let names: Vec<&str> = set.parts.iter().map(|part| part.name.as_str()).collect();
+    assert_eq!(names, ["brain", VEINS_PART]);
+    // The labels' voxel at x 0..4, y 1, z 1 holds the tube's line (at 2 mm), however thin.
+    for x in 0..4 {
+        assert_eq!(set.numbers[(4 + 1) * 4 + x], 2, "voxel {x} of the line");
+    }
+    assert_eq!(set.parts[1].voxels, 4);
+    assert_eq!(set.parts[0].voxels, 60, "the brain is counted again");
+    assert!((set.parts[1].ml - 0.032).abs() < 1e-9);
+    let again = super::veins_onto(&set, &fine_tube()).expect("put on again");
+    assert_eq!(again.parts.len(), 2, "taken over, not added twice");
+    assert_eq!(again.numbers, set.numbers);
+}
+
+#[test]
+fn tubes_outside_the_labels_box_are_none_found() {
+    let mut far = fine_tube();
+    far.placement = Affine::from_columns(
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [0.0, 0.0, 1.0],
+        [100.0; 3],
+    );
+    assert_eq!(
+        super::veins_onto(&coarse_labels(), &far),
+        Err(VeinsError::NoneFound)
+    );
+}

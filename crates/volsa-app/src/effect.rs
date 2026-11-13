@@ -91,6 +91,9 @@ pub enum Effect {
         series: SeriesId,
         /// Whether its description names it as SWI or T2*, on which most such tubes are veins.
         named: bool,
+        /// Where the names of the labels open on its study came from, when the tubes are to be
+        /// put onto them as one more part; `None` to open them alone.
+        onto: Option<crate::labels::NamesFrom>,
     },
     /// Give up the labels kept, and any being read.
     DropLabels,

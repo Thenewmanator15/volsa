@@ -23,15 +23,17 @@ pub const VEINS_TOOL: &str = "Highlight veins";
 pub const VEINS_BUTTON: &str = "Highlight veins";
 /// What the tool does, said under its button.
 pub const VEINS_ABOUT: &str = "Highlights thin dark tubes, mostly veins on an SWI or T2* scan, \
-                               over the slices and in 3D. A filter, not a trained model: some \
-                               are not veins, and not every vein is found. Opens in place of \
-                               any labels open.";
+                               over the slices and in 3D, on top of any labels open. A filter, \
+                               not a trained model: some are not veins, and not every vein is \
+                               found.";
+/// What the switch that shows or hides the veins found says.
+pub const VEINS_SHOW: &str = "Show veins";
 /// The heading over the tools that come with Volsa.
 const PART_OF_VOLSA: &str = "Part of Volsa";
 
 /// Every sentence the tab keeps in a constant, for the check that none suggests a finding.
 #[cfg(test)]
-pub(super) const TEXTS: [&str; 3] = [PART_OF_VOLSA, VEINS_TOOL, VEINS_ABOUT];
+pub(super) const TEXTS: [&str; 4] = [PART_OF_VOLSA, VEINS_TOOL, VEINS_ABOUT, VEINS_SHOW];
 
 /// Draw the Tools tab: under "Part of Volsa", labelling a brain scan; then the plugins the
 /// person has added, each with its buttons, and the button that adds one. Changes of state go
@@ -43,7 +45,13 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     let mut asked = labelling::strip(ui, state, actions);
     ui.add_space(8.0);
     ui.label(RichText::new(VEINS_TOOL).strong());
-    if let Some(does) = commands::button(ui, "tools.veins", state, None) {
+    // Once found, the veins are a part of the labels open: a switch shows or hides them.
+    if let Some(part) = crate::labels::veins_part(state) {
+        let mut shown = state.labels.is_shown(part);
+        if ui.checkbox(&mut shown, VEINS_SHOW).changed() {
+            actions.push(Action::PartShow { part, shown });
+        }
+    } else if let Some(does) = commands::button(ui, "tools.veins", state, None) {
         asked.extend(does.run(state, actions));
     }
     let why = crate::labels::can_find_veins(state).err();

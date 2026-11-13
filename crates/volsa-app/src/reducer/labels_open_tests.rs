@@ -65,3 +65,26 @@ fn highlighting_veins_starts_once_there_is_a_volume_and_not_twice_at_once() {
         "not twice at once"
     );
 }
+
+#[test]
+fn veins_are_put_onto_labels_open_on_the_study_and_open_alone_otherwise() {
+    let find = || Action::Labelling(crate::labelling::LabellingAction::FindVeins);
+    let (mut state, _) = crate::testing::labelled_head();
+    let effects = reduce(&mut state, find());
+    assert!(
+        matches!(
+            effects.as_slice(),
+            [Effect::FindVeins {
+                onto: Some(crate::labels::NamesFrom::Nothing),
+                ..
+            }]
+        ),
+        "{effects:?}"
+    );
+    let mut state = ready();
+    let effects = reduce(&mut state, find());
+    assert!(
+        matches!(effects.as_slice(), [Effect::FindVeins { onto: None, .. }]),
+        "{effects:?}"
+    );
+}

@@ -13,11 +13,14 @@ use volsa_core::Volume;
 use volsa_labels::{Entry, LabelGrid, MAX_LABEL_VOXELS, Side, Table, Trust};
 
 mod head;
+mod onto;
 mod pieces;
 mod smooth;
 #[cfg(test)]
 mod tests;
 mod tube;
+
+pub use onto::veins_onto;
 
 /// What the labels are of.
 pub const VEINS_TITLE: &str = "Dark tube-like structures";

@@ -94,7 +94,13 @@ pub(super) fn find_veins(state: &mut AppState) -> Vec<Effect> {
     };
     let series = state.scene.series.clone();
     let named = series.as_ref().is_some_and(|series| named(state, series));
-    reading(state, |series| Effect::FindVeins { series, named })
+    // Labels open on this study are kept, and the tubes put onto them as one more part.
+    let onto = on_this_series(state).then_some(state.labels.names_from);
+    reading(state, |series| Effect::FindVeins {
+        series,
+        named,
+        onto,
+    })
 }
 
 /// Start labels being read, or made, for the series in the scene, by the effect `read` gives

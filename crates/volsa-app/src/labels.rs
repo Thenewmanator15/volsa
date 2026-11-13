@@ -159,6 +159,14 @@ pub fn can_find_veins(state: &AppState) -> Result<(), &'static str> {
     Ok(())
 }
 
+/// The place among the parts of the veins found, when the labels on this series hold them.
+pub fn veins_part(state: &AppState) -> Option<usize> {
+    let parts = on_this_series(state).then_some(&state.labels.parts)?;
+    parts
+        .iter()
+        .position(|part| part.name == volsa_segment::VEINS_PART)
+}
+
 /// The look the scene is drawn in: the one chosen, except that Parts with no labels on this
 /// series, which has nothing to draw, is drawn as Surface.
 pub fn look_drawn(state: &AppState) -> Look {

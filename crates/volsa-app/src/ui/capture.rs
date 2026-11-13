@@ -318,9 +318,10 @@ impl VolsaApp {
                 self.session.dispatch(turn);
             }
         }
-        // A picture of a result that Volsa makes starts the run once it can, and waits for it.
-        let state = self.session.state();
-        let capture = self.capture.as_mut().filter(|_| picked);
+        // A picture of a result that Volsa makes starts the run once it can, after any labels
+        // named as Volsa started are open, and waits for it.
+        let (state, can_start) = (self.session.state(), picked && !self.labels.is_waiting());
+        let capture = self.capture.as_mut().filter(|_| can_start);
         if let Some(start) = capture.and_then(|capture| capture.label(state)) {
             self.session.dispatch(start);
         }

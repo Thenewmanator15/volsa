@@ -54,5 +54,6 @@ pub use table::{FAIL_BELOW, table};
 pub use tidy::tidy;
 pub use toward::Toward;
 pub use veins::{
-    VEINS_COLOUR, VEINS_GROUP, VEINS_HOW, VEINS_PART, VEINS_TITLE, VeinsError, veins, veins_table,
+    VEINS_COLOUR, VEINS_GROUP, VEINS_HOW, VEINS_PART, VEINS_TITLE, VeinsError, veins, veins_onto,
+    veins_table,
 };

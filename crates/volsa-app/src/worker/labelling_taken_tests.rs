@@ -146,6 +146,7 @@ fn highlighting_veins_on_a_scan_with_no_tube_says_none_were_found() {
     let find = Effect::FindVeins {
         series,
         named: false,
+        onto: None,
     };
     lab.workers.run(find, None);
     // The made-up head is a smooth ramp: it holds no tube, and that is said.

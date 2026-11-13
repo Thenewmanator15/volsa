@@ -124,3 +124,21 @@ fn highlight_veins_comes_after_labelling_and_its_button_highlights_them() {
     let finds = |action: &Action| matches!(action, Action::Labelling(LabellingAction::FindVeins));
     assert!(actions.iter().any(finds), "{actions:?}");
 }
+
+#[test]
+fn once_found_the_veins_are_a_switch_that_shows_and_hides_them() {
+    let (mut state, _) = crate::testing::labelled_head();
+    state.labels.parts[1].name = volsa_segment::VEINS_PART.to_owned();
+    let said = tools_written(&state);
+    assert!(said.contains("Show veins"), "{said}");
+    let (actions, _) = sweep_tools(&state);
+    assert!(
+        actions.contains(&Action::PartShow {
+            part: 1,
+            shown: false
+        }),
+        "the switch hides them: {actions:?}"
+    );
+    let finds = |action: &Action| matches!(action, Action::Labelling(LabellingAction::FindVeins));
+    assert!(!actions.iter().any(finds), "and does not look again");
+}
