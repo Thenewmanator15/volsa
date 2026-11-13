@@ -38,6 +38,9 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   from the files, and it describes the kind of scan, not what yours shows.
 - GE's eSWAN is named and explained as SWI; its filtered phase picture is told its kind and not
   what is bright and dark in it.
+- A picture of the window (`VOLSA_CAPTURE`) that labels a scan takes the folders of the models and
+  the runtime from `VOLSA_MODELS` and `VOLSA_RUNTIME`, as the labelling check does: a picture keeps
+  none of the person's choices, so it could only label with the models beside the program.
 - Volsa opens a scan where you left it. A series you have looked at before comes back on the
   slice it was on, zoomed, moved, flipped and turned as it was, and in the window you set, if
   you set one yourself; a window Volsa chose is chosen again. A study opens on the series that

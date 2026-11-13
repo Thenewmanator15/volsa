@@ -371,3 +371,23 @@ fn a_picture_is_dark_unless_it_asks_for_the_light_theme() {
     assert_eq!(theme_for("", false, Light), Light);
     assert_eq!(theme_for("", false, Dark), Dark);
 }
+
+#[test]
+fn a_picture_that_labels_is_given_its_folders_as_choices_the_models_first() {
+    use std::ffi::OsString;
+
+    use crate::labelling::LabellingAction::{SetModelsFolder, SetRuntimeFolder};
+    let named = |text: &str| Some(OsString::from(text));
+    assert_eq!(
+        labelling::folders_from(named("made-up models"), named("made-up runtime")),
+        [
+            SetModelsFolder("made-up models".into()),
+            SetRuntimeFolder("made-up runtime".into()),
+        ]
+    );
+    // A folder not named, or named by nothing, is no choice.
+    assert_eq!(
+        labelling::folders_from(None, named("")),
+        Vec::<crate::labelling::LabellingAction>::new()
+    );
+}

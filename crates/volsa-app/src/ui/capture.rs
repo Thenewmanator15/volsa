@@ -32,7 +32,7 @@ mod poses;
 mod series;
 mod tabs;
 
-pub use labelling::made_up_look;
+pub use labelling::{given_folders, made_up_look};
 pub use measured::sample_annotations;
 pub use motion::{Motion, frames_before, turn_at};
 pub use plugins::{made_up_look as made_up_plugins, shown as plugins_shown};

@@ -1,7 +1,11 @@
 //! What a picture of the window can ask for about labelling a scan: the strip in the Tools tab
 //! as it is on a computer that can label, whichever this one is (`labelling`), and a result
 //! that Volsa made itself (`labelled`), for which the picture starts a run and waits for it.
+//! A picture keeps none of the person's choices, so the folders of the models and the runtime
+//! for such a run are given to it by [`MODELS_VARIABLE`] and [`RUNTIME_VARIABLE`].
 
+use std::ffi::OsString;
+use std::path::PathBuf;
 use std::time::Duration;
 
 use volsa_models::{Card, CardId, CardKind};
@@ -11,6 +15,35 @@ use crate::action::Action;
 use crate::labelling::{LabellingAction, Ready, can_label};
 use crate::labels::LabelsStatus;
 use crate::state::AppState;
+
+/// The environment variable naming the folder of the models, for a picture that labels a
+/// scan: as the folder chosen under Options, for this run alone.
+pub const MODELS_VARIABLE: &str = "VOLSA_MODELS";
+/// The environment variable naming the folder that holds the runtime, likewise.
+pub const RUNTIME_VARIABLE: &str = "VOLSA_RUNTIME";
+
+/// The folders a picture is given for labelling, as the choices they stand for: none unless
+/// the run takes a picture. Nothing is kept: a picture keeps no choices.
+pub fn given_folders() -> Vec<LabellingAction> {
+    if std::env::var_os(VARIABLE).is_none() {
+        return Vec::new();
+    }
+    folders_from(
+        std::env::var_os(MODELS_VARIABLE),
+        std::env::var_os(RUNTIME_VARIABLE),
+    )
+}
+
+/// The choices these folders stand for, the models' first. A name that is empty is none.
+pub(super) fn folders_from(
+    models: Option<OsString>,
+    runtime: Option<OsString>,
+) -> Vec<LabellingAction> {
+    let folder = |name: Option<OsString>| name.filter(|name| !name.is_empty()).map(PathBuf::from);
+    let models = folder(models).map(LabellingAction::SetModelsFolder);
+    let runtime = folder(runtime).map(LabellingAction::SetRuntimeFolder);
+    models.into_iter().chain(runtime).collect()
+}
 
 /// How long a picture waits for a run of labelling, in place of the usual patience: a run
 /// takes minutes.

@@ -42,6 +42,10 @@ impl VolsaApp {
         // Whether this computer can label a scan is looked at once as Volsa starts, on a
         // worker, and again whenever a folder for it is chosen. A picture of the strip is
         // taken as if on a computer that can, and makes no look.
+        // A picture that labels a scan is given its folders, as if chosen, for this run alone.
+        for chosen in capture::given_folders() {
+            self.dispatch(Action::Labelling(chosen));
+        }
         let look = capture::made_up_look().unwrap_or(LabellingAction::Look);
         self.dispatch(Action::Labelling(look));
     }
