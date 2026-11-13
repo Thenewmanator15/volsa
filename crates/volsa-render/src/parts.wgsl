@@ -1,11 +1,14 @@
 // Draws labelled parts as lit solids by following a line of sight through a label volume for
 // every pixel of the picture. The volume holds a part number at every voxel, on its own grid
 // (0 is nothing); a small table holds each part's colour, with how solid it is as its alpha.
+// One part may be drawn through the rest, as if they were glass: the line of sight goes on
+// past the other solids to find it, and it is laid over them, fainter where it is behind.
 
 struct Scene {
     // The screen pixel (x, y), z millimetres beyond the camera's target, lies in the patient
     // at top_left + x * across + y * along + z * forward, in millimetres. The fourth number
-    // of top_left is 1 when blocks that hold no part are to be stepped over.
+    // of top_left is 1 when blocks that hold no part are to be stepped over. The fourth
+    // number of forward is the part drawn through the rest, 0 for none.
     across: vec4<f32>,
     along: vec4<f32>,
     forward: vec4<f32>,
@@ -45,6 +48,9 @@ const SHADOW: f32 = 0.35;
 const RIM: f32 = 0.75;
 // How far the selected part is paled on a flat face: a cut's, or where another part ends.
 const ON_A_FACE: f32 = 0.3;
+// How strong the part drawn through the rest is where other solids are wholly in front of
+// it, as a share of its strength where nothing is.
+const BEHIND: f32 = 0.55;
 const FAR: f32 = 1.0e30;
 // The least a line of sight must lean towards a plane to be taken as meeting it.
 const ALONGSIDE: f32 = 1.0e-6;
@@ -105,25 +111,28 @@ fn look_of(part: u32) -> vec4<f32> {
     return textureLoad(looks, vec2<i32>(i32(part % 256u), i32(part / 256u)), 0);
 }
 
-// 1 where a voxel holds a part that is shown, 0 where it does not.
-fn shown(voxel: vec3<i32>) -> f32 {
-    return select(0.0, 1.0, look_of(part_of(voxel)).a > 0.0);
+// 1 where a voxel holds a part that is shown and is among those `only` picks, 0 where not:
+// with `only` 0, any part but the one drawn through the rest; otherwise that part alone.
+fn shown(voxel: vec3<i32>, only: u32) -> f32 {
+    let part = part_of(voxel);
+    let picked = select(part != u32(scene.forward.w), part == only, only != 0u);
+    return select(0.0, 1.0, picked && look_of(part).a > 0.0);
 }
 
-// How much of what is round a place, given in voxels, is shown: the eight voxels about it,
-// blended by how near each is. A half is where the surface of the solids lies.
-fn share_shown(at: vec3<f32>) -> f32 {
+// How much of what is round a place, given in voxels, is shown, of the parts `only` picks:
+// the eight voxels about it, blended by how near each is. A half is where the surface lies.
+fn share_shown(at: vec3<f32>, only: u32) -> f32 {
     let base = floor(at);
     let part = at - base;
-    let corner = vec3<i32>(base);
+    let c = vec3<i32>(base);
     let near = mix(
-        mix(shown(corner), shown(corner + vec3<i32>(1, 0, 0)), part.x),
-        mix(shown(corner + vec3<i32>(0, 1, 0)), shown(corner + vec3<i32>(1, 1, 0)), part.x),
+        mix(shown(c, only), shown(c + vec3<i32>(1, 0, 0), only), part.x),
+        mix(shown(c + vec3<i32>(0, 1, 0), only), shown(c + vec3<i32>(1, 1, 0), only), part.x),
         part.y,
     );
     let far = mix(
-        mix(shown(corner + vec3<i32>(0, 0, 1)), shown(corner + vec3<i32>(1, 0, 1)), part.x),
-        mix(shown(corner + vec3<i32>(0, 1, 1)), shown(corner + vec3<i32>(1, 1, 1)), part.x),
+        mix(shown(c + vec3<i32>(0, 0, 1), only), shown(c + vec3<i32>(1, 0, 1), only), part.x),
+        mix(shown(c + vec3<i32>(0, 1, 1), only), shown(c + vec3<i32>(1, 1, 1), only), part.x),
         part.y,
     );
     return mix(near, far, part.z);
@@ -132,15 +141,18 @@ fn share_shown(at: vec3<f32>) -> f32 {
 // Which way, in the patient, the solids thicken fastest about a place given in voxels. It is
 // measured across four voxels each way, and again across two: label voxels make a surface of
 // small steps, and a slope taken over one step would light every step as a wall.
-fn into_the_solid(at: vec3<f32>) -> vec3<f32> {
+fn into_the_solid(at: vec3<f32>, only: u32) -> vec3<f32> {
     var slope = vec3<f32>(0.0);
     for (var reach = 1.0; reach < 2.5; reach += 1.0) {
         let col = vec3<f32>(reach, 0.0, 0.0);
         let row = vec3<f32>(0.0, reach, 0.0);
         let slice = vec3<f32>(0.0, 0.0, reach);
-        slope += ((share_shown(at + col) - share_shown(at - col)) * scene.to_col.xyz
-            + (share_shown(at + row) - share_shown(at - row)) * scene.to_row.xyz
-            + (share_shown(at + slice) - share_shown(at - slice)) * scene.to_slice.xyz) / reach;
+        let across_col = share_shown(at + col, only) - share_shown(at - col, only);
+        let across_row = share_shown(at + row, only) - share_shown(at - row, only);
+        let across_slice = share_shown(at + slice, only) - share_shown(at - slice, only);
+        slope += (across_col * scene.to_col.xyz
+            + across_row * scene.to_row.xyz
+            + across_slice * scene.to_slice.xyz) / reach;
     }
     return slope;
 }
@@ -188,10 +200,17 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let stride = max(scene.view.z, (leave - enter) / MAX_STEPS);
     let steps = i32(ceil((leave - enter) / stride));
     let chosen = u32(scene.view.w);
+    let through = u32(scene.forward.w);
     let stepping_over = scene.top_left.w > 0.5;
     var light = vec3<f32>(0.0);
     var stopped = 0.0;
+    // The part drawn through the rest, where the line first meets it, and how strongly.
+    var seen_through = vec3<f32>(0.0);
+    var through_strength = 0.0;
+    var found = through == 0u;
     // The part the line was last in, so that a part is drawn once where the line enters it.
+    // The part drawn through the rest is passed over here: a line that goes through it from
+    // one part back into the same is taken as never having left.
     var within = 0u;
     for (var i = 0; i < steps; i++) {
         let along = min(enter + (f32(i) + 0.5) * stride, leave);
@@ -224,36 +243,37 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
             within = 0u;
             continue;
         }
+        let first_on_a_cut = on_a_cut && i == 0;
+        let outside = max(along - stride, enter);
+        if part == through {
+            if !found {
+                // Lit by its own surface alone, and fainter the more is in front of it.
+                found = true;
+                var shade = 1.0;
+                if !first_on_a_cut {
+                    shade = lit(start, step, outside, along, through);
+                }
+                var colour = look.rgb;
+                if part == chosen {
+                    colour = mix(colour, vec3<f32>(1.0), ON_A_FACE);
+                }
+                seen_through = colour * shade;
+                through_strength = look.a * mix(1.0, BEHIND, stopped);
+            }
+            continue;
+        }
         if part == within {
             continue;
         }
-        let first_on_a_cut = on_a_cut && i == 0;
         var shade = 1.0;
         var colour = look.rgb;
         if !first_on_a_cut && within == 0u {
-            // Coming in from outside the solids: the surface is where half of what is round
-            // the line is shown, between the last step and this one, and it is lit by which
-            // way it faces. A cut's face, and a step from one part straight into the next,
-            // are flat and unlit.
-            var outside = max(along - stride, enter);
-            var inside = along;
-            for (var halving = 0; halving < 4; halving++) {
-                let between = 0.5 * (outside + inside);
-                if share_shown(start + between * step) >= 0.5 {
-                    inside = between;
-                } else {
-                    outside = between;
-                }
-            }
-            let slope = into_the_solid(start + inside * step);
-            let steep = length(slope);
-            if steep > 1.0e-6 {
-                let facing = max(dot(slope / steep, scene.forward.xyz), 0.0);
-                shade = SHADOW + (1.0 - SHADOW) * facing;
-                if part == chosen {
-                    let turned = 1.0 - facing;
-                    colour = mix(colour, vec3<f32>(1.0), RIM * turned * turned);
-                }
+            // Coming in from outside the solids: lit by which way the surface faces. A cut's
+            // face, and a step from one part straight into the next, are flat and unlit.
+            shade = lit(start, step, outside, along, 0u);
+            if part == chosen {
+                let turned = 1.0 - (shade - SHADOW) / (1.0 - SHADOW);
+                colour = mix(colour, vec3<f32>(1.0), RIM * turned * turned);
             }
         } else if part == chosen {
             // A flat face has no rim to pale: the whole of it is paled a little.
@@ -262,9 +282,33 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
         within = part;
         light += (1.0 - stopped) * look.a * colour * shade;
         stopped += (1.0 - stopped) * look.a;
-        if stopped > SOLID {
+        if stopped > SOLID && found {
             break;
         }
     }
-    return vec4<f32>(light, 1.0);
+    return vec4<f32>(mix(light, seen_through, through_strength), 1.0);
+}
+
+// How the surface the line comes in through, between `outside` and `inside` along it, is lit,
+// among the parts `only` picks (as `shown` takes it): the surface is where half of what is
+// round the line is shown, and it is lit by which way it faces. 1, fully lit, where no way
+// can be told.
+fn lit(start: vec3<f32>, step: vec3<f32>, outside: f32, inside: f32, only: u32) -> f32 {
+    var out = outside;
+    var into = inside;
+    for (var halving = 0; halving < 4; halving++) {
+        let between = 0.5 * (out + into);
+        if share_shown(start + between * step, only) >= 0.5 {
+            into = between;
+        } else {
+            out = between;
+        }
+    }
+    let slope = into_the_solid(start + into * step, only);
+    let steep = length(slope);
+    if steep <= 1.0e-6 {
+        return 1.0;
+    }
+    let facing = max(dot(slope / steep, scene.forward.xyz), 0.0);
+    return SHADOW + (1.0 - SHADOW) * facing;
 }

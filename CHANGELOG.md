@@ -13,8 +13,9 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 - **Highlight veins**, in the Tools tab under "Part of Volsa": a filter (no trained model) that
   finds thin dark tubes in the scan shown, mostly veins on an SWI or T2* scan, and shows them as
   one more part, "Dark tubes (mostly veins)", marked approximate, on top of any brain labels
-  open: over the planes and as a solid in the 3D view. A **Show veins** switch then turns them
-  on and off. It runs on the processor in a few seconds. A scan not named as SWI or T2* is
+  open: over the planes and as a solid in the 3D view, where they show through the brain
+  (fainter where they are behind it). A **Show veins** switch then turns them on and off, and a
+  **Strength** slider sets how strongly they show. It runs on the processor in a few seconds. A scan not named as SWI or T2* is
   warned of in the result.
 - Sliders in the View tab: **Brightness** and **Contrast** beside the W and L numbers (slide right
   for brighter and sharper), a **Slice** slider, and a **Speed** slider for playback.

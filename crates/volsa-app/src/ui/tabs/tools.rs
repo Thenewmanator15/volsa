@@ -23,17 +23,27 @@ pub const VEINS_TOOL: &str = "Highlight veins";
 pub const VEINS_BUTTON: &str = "Highlight veins";
 /// What the tool does, said under its button.
 pub const VEINS_ABOUT: &str = "Highlights thin dark tubes, mostly veins on an SWI or T2* scan, \
-                               over the slices and in 3D, on top of any labels open. A filter, \
+                               over the slices and in 3D, on top of any labels open; in 3D \
+                               they show through the brain. A filter, \
                                not a trained model: some are not veins, and not every vein is \
                                found.";
 /// What the switch that shows or hides the veins found says.
 pub const VEINS_SHOW: &str = "Show veins";
+/// What the slider that sets how strongly they show says. In 3D they show through the brain,
+/// fainter where they lie behind its surface.
+pub const VEINS_STRENGTH: &str = "Strength";
 /// The heading over the tools that come with Volsa.
 const PART_OF_VOLSA: &str = "Part of Volsa";
 
 /// Every sentence the tab keeps in a constant, for the check that none suggests a finding.
 #[cfg(test)]
-pub(super) const TEXTS: [&str; 4] = [PART_OF_VOLSA, VEINS_TOOL, VEINS_ABOUT, VEINS_SHOW];
+pub(super) const TEXTS: [&str; 5] = [
+    PART_OF_VOLSA,
+    VEINS_TOOL,
+    VEINS_ABOUT,
+    VEINS_SHOW,
+    VEINS_STRENGTH,
+];
 
 /// Draw the Tools tab: under "Part of Volsa", labelling a brain scan; then the plugins the
 /// person has added, each with its buttons, and the button that adds one. Changes of state go
@@ -50,6 +60,13 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
         let mut shown = state.labels.is_shown(part);
         if ui.checkbox(&mut shown, VEINS_SHOW).changed() {
             actions.push(Action::PartShow { part, shown });
+        }
+        let mut opacity = state.labels.shown.get(part).map_or(1.0, |how| how.opacity);
+        let slider = egui::Slider::new(&mut opacity, crate::labels::FAINTEST..=1.0)
+            .text(VEINS_STRENGTH)
+            .show_value(false);
+        if ui.add_enabled(shown, slider).changed() {
+            actions.push(Action::PartOpacity { part, opacity });
         }
     } else if let Some(does) = commands::button(ui, "tools.veins", state, None) {
         asked.extend(does.run(state, actions));

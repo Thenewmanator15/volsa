@@ -87,11 +87,13 @@ pub struct Labels {
 
 impl Labels {
     /// How each part is to look on the graphics device: its colour, and how solid it is,
-    /// which is not at all for a part that is hidden.
+    /// which is not at all for a part that is hidden. The veins found are drawn through the
+    /// other solids in 3D, so that those inside the brain are seen.
     pub fn looks(&self) -> Vec<PartLook> {
         let look = |(part, how): (&Part, &PartShown)| PartLook {
             colour: part.colour,
             opacity: if how.shown { how.opacity } else { 0.0 },
+            through: part.name == volsa_segment::VEINS_PART,
         };
         self.parts.iter().zip(&self.shown).map(look).collect()
     }

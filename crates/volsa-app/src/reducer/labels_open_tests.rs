@@ -88,3 +88,31 @@ fn veins_are_put_onto_labels_open_on_the_study_and_open_alone_otherwise() {
         "{effects:?}"
     );
 }
+
+#[test]
+fn the_veins_found_are_drawn_through_the_other_parts_in_3d_and_no_other_part_is() {
+    let part = |name: &str| volsa_labels::Part {
+        name: name.to_owned(),
+        group: String::new(),
+        side: volsa_labels::Side::Midline,
+        colour: [1, 2, 3],
+        trust: volsa_labels::Trust::Model,
+        voxels: 1,
+        ml: 1.0,
+    };
+    let shown = crate::labels::PartShown {
+        shown: true,
+        opacity: 0.4,
+    };
+    let labels = crate::labels::Labels {
+        parts: vec![part("Cortex"), part(volsa_segment::VEINS_PART)],
+        shown: vec![shown; 2],
+        ..crate::labels::Labels::default()
+    };
+    let through: Vec<bool> = labels.looks().iter().map(|look| look.through).collect();
+    assert_eq!(through, [false, true]);
+    assert!(
+        (labels.looks()[1].opacity - 0.4).abs() < f32::EPSILON,
+        "as strong as its slider"
+    );
+}

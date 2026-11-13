@@ -27,6 +27,10 @@ pub struct PartLook {
     pub colour: [u8; 3],
     /// How solid it is, from 0, hidden, to 1.
     pub opacity: f32,
+    /// Whether it is drawn through the other solids in 3D, as if they were glass, as strong
+    /// as its opacity where it is in front of them and fainter where it is behind. Only the
+    /// first part that asks for it is drawn so.
+    pub through: bool,
 }
 
 /// How labels are drawn over a plane.
@@ -49,6 +53,8 @@ struct Held {
     looks_view: wgpu::TextureView,
     /// The number of the part selected, counted from 1; 0 when none is.
     selected: AtomicU32,
+    /// The number of the part drawn through the rest, counted from 1; 0 when none is.
+    through: AtomicU32,
 }
 
 impl Drop for Held {
@@ -113,6 +119,7 @@ impl LabelsOnDevice {
                 parts,
                 looks,
                 selected: AtomicU32::new(0),
+                through: AtomicU32::new(0),
             }),
             dims: set.dims,
             patient_to_voxel,
@@ -123,6 +130,7 @@ impl LabelsOnDevice {
         let solid = |part: &volsa_labels::Part| PartLook {
             colour: part.colour,
             opacity: 1.0,
+            through: false,
         };
         let as_given: Vec<PartLook> = set.parts.iter().map(solid).collect();
         placed.set_looks(queue, &as_given, None);
@@ -162,6 +170,16 @@ impl LabelsOnDevice {
         self.held
             .selected
             .store(number.unwrap_or(0), Ordering::Relaxed);
+        let through = looks.iter().take(self.parts).position(|look| look.through);
+        let number = through.and_then(|part| u32::try_from(part + 1).ok());
+        self.held
+            .through
+            .store(number.unwrap_or(0), Ordering::Relaxed);
+    }
+
+    /// The number of the part drawn through the rest, counted from 1; 0 when none is.
+    pub(crate) fn through(&self) -> u32 {
+        self.held.through.load(Ordering::Relaxed)
     }
 
     /// The part at each voxel, as a shader reads it.

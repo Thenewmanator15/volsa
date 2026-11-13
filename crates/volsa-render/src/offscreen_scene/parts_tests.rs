@@ -61,6 +61,7 @@ fn all_shown(set: &LabelSet) -> Vec<PartLook> {
     let solid = |part: &volsa_labels::Part| PartLook {
         colour: part.colour,
         opacity: 1.0,
+        through: false,
     };
     set.parts.iter().map(solid).collect()
 }

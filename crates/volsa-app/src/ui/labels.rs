@@ -293,6 +293,7 @@ mod tests {
         let look = |opacity| volsa_render::PartLook {
             colour: [1, 2, 3],
             opacity,
+            through: false,
         };
         let mut sent = None;
         assert!(fresh(&mut sent, (vec![look(1.0)], None)), "the first time");

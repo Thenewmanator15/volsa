@@ -197,7 +197,11 @@ impl PartsPipeline {
         let params = Params {
             across,
             along,
-            forward,
+            // The fourth number is the part drawn through the rest, 0 for none.
+            forward: {
+                let [x, y, z, _] = forward;
+                [x, y, z, labels.through() as f32]
+            },
             top_left: {
                 // The fourth number says whether to step over the blocks that hold no part.
                 let [x, y, z, _] = four(to_patient.origin());
