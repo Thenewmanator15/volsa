@@ -31,6 +31,7 @@ mod plugins;
 mod pool;
 mod post;
 mod preview;
+pub(crate) mod segmentation;
 mod shown;
 mod tags;
 mod veins;
@@ -219,6 +220,7 @@ impl Workers {
                 onto,
             } => self.find_veins(&series, named, onto),
             Effect::ReadDocument { entry } => self.read_document(entry),
+            Effect::ReadSegmentation { entry } => self.read_segmentation(entry),
             Effect::SaveDocumentPdf { entry, to } => self.save_document_pdf(entry, to),
             Effect::DropLabels => self.drop_labels(),
             labelling @ (Effect::LookForLabelling { .. }

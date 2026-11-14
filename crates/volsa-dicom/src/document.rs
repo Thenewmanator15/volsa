@@ -27,6 +27,10 @@ pub enum DocumentKind {
     Report,
     /// A PDF stored in DICOM, which [`pdf_bytes`] gives back as the PDF file it was.
     Pdf,
+    /// A segmentation (DICOM SEG): parts another program marked on a scan, which
+    /// [`read_segmentation`](crate::read_segmentation) puts into one grid of segment numbers.
+    /// It holds pixels, yet it is listed here and never as a scan.
+    Segmentation,
     /// Something else that holds no image, named in words where Volsa knows the name of its
     /// SOP class and otherwise by the SOP class identifier itself.
     Other(String),
@@ -70,14 +74,20 @@ fn described(entry: &str, start: &[u8]) -> Option<IndexedDocument> {
         .read_until(tags::ENCAPSULATED_DOCUMENT)
         .from_reader(Cursor::new(start))
         .ok()?;
-    if holds_an_image(&file) {
+    let kind = kind_of(&sop_class_of(&file)?);
+    if kind != DocumentKind::Segmentation && holds_an_image(&file) {
         return None;
     }
-    let kind = kind_of(&sop_class_of(&file)?);
+    let title = match kind {
+        DocumentKind::Segmentation => segmentation_title(start)
+            .or_else(|| text(&file, tags::SERIES_DESCRIPTION))
+            .unwrap_or_default(),
+        _ => title_of(&file, &kind),
+    };
     Some(IndexedDocument {
         entry: entry.to_owned(),
         study_uid: text(&file, tags::STUDY_INSTANCE_UID)?,
-        title: title_of(&file, &kind),
+        title,
         date: text(&file, tags::CONTENT_DATE).or_else(|| text(&file, tags::STUDY_DATE)),
         patient_name: text(&file, tags::PATIENT_NAME),
         patient_id: text(&file, tags::PATIENT_ID),
@@ -95,7 +105,7 @@ fn holds_an_image(obj: &InMemDicomObject) -> bool {
 }
 
 /// The SOP class a file says it is of: its own, or failing that the one its file header names.
-fn sop_class_of(file: &DefaultDicomObject) -> Option<String> {
+pub(crate) fn sop_class_of(file: &DefaultDicomObject) -> Option<String> {
     text(file, tags::SOP_CLASS_UID).or_else(|| {
         let named = file
             .meta()
@@ -119,6 +129,9 @@ fn kind_of(sop_class: &str) -> DocumentKind {
     if sop_class == uids::ENCAPSULATED_PDF_STORAGE {
         return DocumentKind::Pdf;
     }
+    if sop_class == uids::SEGMENTATION_STORAGE {
+        return DocumentKind::Segmentation;
+    }
     if sop_class == uids::KEY_OBJECT_SELECTION_DOCUMENT_STORAGE {
         // The standard calls it a "Key Object Selection Document", which says little.
         return DocumentKind::Other("Key-image note".to_owned());
@@ -135,10 +148,21 @@ fn title_of(obj: &InMemDicomObject, kind: &DocumentKind) -> String {
         DocumentKind::Report => first_item(obj, tags::CONCEPT_NAME_CODE_SEQUENCE)
             .and_then(|code| text(code, tags::CODE_MEANING)),
         DocumentKind::Pdf => text(obj, tags::DOCUMENT_TITLE),
-        DocumentKind::Other(_) => None,
+        DocumentKind::Segmentation | DocumentKind::Other(_) => None,
     };
     own.or_else(|| text(obj, tags::SERIES_DESCRIPTION))
         .unwrap_or_default()
+}
+
+/// A segmentation's `ContentLabel`. It lies after the elements a document is first read as far
+/// as, so the file is read again, as far as its masks.
+fn segmentation_title(start: &[u8]) -> Option<String> {
+    check_nesting(start, Some(tags::PIXEL_DATA)).ok()?;
+    let file = OpenFileOptions::new()
+        .read_until(tags::PIXEL_DATA)
+        .from_reader(Cursor::new(start))
+        .ok()?;
+    text(&file, tags::CONTENT_LABEL)
 }
 
 /// `documents` in the order of `studies`, then by entry name. Those of a study that holds no

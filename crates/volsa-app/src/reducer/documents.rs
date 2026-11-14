@@ -1,5 +1,6 @@
 //! Documents of the export: opening one in the middle of the window, taking in what a worker
-//! read of it, closing it, and the one piece of work that saving a PDF calls for.
+//! read of it, closing it, the one piece of work that saving a PDF calls for, and opening a
+//! segmentation as labels.
 
 use volsa_dicom::{DocumentKind, IndexedDocument};
 
@@ -27,6 +28,15 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             if listed(state, &entry).is_some_and(|one| one.kind == DocumentKind::Pdf) =>
         {
             return vec![Effect::SaveDocumentPdf { entry, to }];
+        }
+        // Only a segmentation opens as labels.
+        Action::Document(DocumentAction::OpenAsLabels(entry)) => {
+            let segmentation = listed(state, &entry)
+                .filter(|one| one.kind == DocumentKind::Segmentation)
+                .map(|one| one.study_uid.clone());
+            if let Some(study_uid) = segmentation {
+                return super::labels::open_segmentation(state, entry, &study_uid);
+            }
         }
         _ => {}
     }
@@ -60,6 +70,6 @@ fn open(state: &mut AppState, entry: String) -> Vec<Effect> {
     });
     match kind {
         DocumentKind::Report => vec![Effect::ReadDocument { entry }],
-        DocumentKind::Pdf | DocumentKind::Other(_) => Vec::new(),
+        DocumentKind::Pdf | DocumentKind::Segmentation | DocumentKind::Other(_) => Vec::new(),
     }
 }

@@ -61,7 +61,11 @@ pub fn encapsulated_pdf(opts: &DocumentOptions, pdf: &[u8]) -> Vec<u8> {
 }
 
 /// The elements every made-up document has, none of them about an image.
-fn common_elements(opts: &DocumentOptions, sop_class: &str, modality: &str) -> InMemDicomObject {
+pub(super) fn common_elements(
+    opts: &DocumentOptions,
+    sop_class: &str,
+    modality: &str,
+) -> InMemDicomObject {
     let sop_instance = format!("{}.{}", opts.series_uid, opts.instance_number);
     let instance_number = opts.instance_number.to_string();
     let text = [

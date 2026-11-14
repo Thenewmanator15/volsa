@@ -45,12 +45,14 @@ pub fn first(index: &Index) -> Option<&IndexedDocument> {
     index.documents.get(place?)
 }
 
-/// What a document is, in words: "Report", "Report (PDF)", or for any other file what the
-/// standard calls it, such as "Key-image note". Without a control or format character.
+/// What a document is, in words: "Report", "Report (PDF)", "Segmentation", or for any other
+/// file what the standard calls it, such as "Key-image note". Without a control or format
+/// character.
 pub fn kind_words(kind: &DocumentKind) -> String {
     match kind {
         DocumentKind::Report => "Report".to_owned(),
         DocumentKind::Pdf => "Report (PDF)".to_owned(),
+        DocumentKind::Segmentation => "Segmentation".to_owned(),
         DocumentKind::Other(words) => printable(words),
     }
 }

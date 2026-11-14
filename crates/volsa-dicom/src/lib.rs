@@ -18,6 +18,7 @@ mod geometry;
 mod header;
 mod index;
 mod nesting;
+mod segmentation;
 mod source;
 mod tags;
 #[cfg(any(test, feature = "testkit"))]
@@ -31,6 +32,9 @@ pub use document::{
 pub use geometry::{StackGeometry, stack_geometry};
 pub use index::{Index, IndexedSeries, SliceRef, best_series, index};
 pub use nesting::{MAX_NESTING, READING_STACK_BYTES, Refused};
+pub use segmentation::{
+    MAX_SEGMENTATION_VOXELS, Segment, Segmentation, SegmentationError, read_segmentation,
+};
 pub use source::{Entry, SeriesSource, open_source};
 pub use tags::{TagRow, is_patient_identifying, list_tags};
 pub use volsa_core::VolsaError;

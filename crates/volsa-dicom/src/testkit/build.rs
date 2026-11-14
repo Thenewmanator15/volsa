@@ -12,8 +12,10 @@ use super::{
 mod colour;
 mod document;
 mod scan;
+mod segmentation;
 
 pub use document::{encapsulated_pdf, structured_report};
+pub use segmentation::{SegFrame, SegOptions, SegSegment, segmentation};
 
 const MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4";
 const ENHANCED_MR_IMAGE_STORAGE: &str = "1.2.840.10008.5.1.4.1.1.4.1";

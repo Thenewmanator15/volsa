@@ -91,7 +91,7 @@ pub(crate) fn check_nesting(bytes: &[u8], read_until: Option<Tag>) -> Result<(),
 
 /// How many bytes come before the file header: a 128-byte preamble when the magic code follows
 /// it, and otherwise none, as the library decides.
-fn preamble(bytes: &[u8]) -> u64 {
+pub(crate) fn preamble(bytes: &[u8]) -> u64 {
     if bytes.get(128..132) == Some(b"DICM".as_slice()) {
         128
     } else {

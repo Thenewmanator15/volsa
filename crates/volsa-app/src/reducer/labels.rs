@@ -7,7 +7,7 @@ use super::labelling;
 use crate::action::{Action, Effect};
 use crate::labels::{
     FAINTEST, Labels, LabelsStatus, NOTHING_TO_LABEL, NOTHING_TO_LABEL_KEY, NOWHERE_NEAR,
-    PartShown, on_this_series, study_of,
+    OTHER_STUDY, PartShown, on_this_series, study_of,
 };
 use crate::naming::plain_name;
 use crate::planes::grid;
@@ -82,6 +82,34 @@ pub(super) fn open(
     table: Option<std::path::PathBuf>,
 ) -> Vec<Effect> {
     reading(state, |_| Effect::ReadLabels { labels, table })
+}
+
+/// Ask for the segmentation (DICOM SEG) in `entry`, of the study `study_uid`, to be read and
+/// taken in as labels, as a label file is (see [`open`]). One made on another study than the
+/// scan in the scene is not read, and a notice says so. Once it is being read the document is
+/// closed, so that the labels are seen.
+pub(super) fn open_segmentation(
+    state: &mut AppState,
+    entry: String,
+    study_uid: &str,
+) -> Vec<Effect> {
+    let scene = state.scene.series.as_ref();
+    let study = scene.and_then(|series| study_of(state, series));
+    if study.is_some_and(|study| study.0 != study_uid) {
+        let notice = Notice {
+            kind: NoticeKind::Warning,
+            text: OTHER_STUDY.to_owned(),
+            details: Vec::new(),
+            key: Some(NOTHING_TO_PUT_THEM_ON),
+        };
+        super::post(state, NOTHING_TO_PUT_THEM_ON, Some(notice));
+        return Vec::new();
+    }
+    let effects = reading(state, |_| Effect::ReadSegmentation { entry });
+    if !effects.is_empty() {
+        state.document = None;
+    }
+    effects
 }
 
 /// Ask for the thin dark tubes of the scan in the scene to be found, and taken in as its
