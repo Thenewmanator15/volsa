@@ -116,3 +116,34 @@ fn the_veins_found_are_drawn_through_the_other_parts_in_3d_and_no_other_part_is(
         "as strong as its slider"
     );
 }
+
+#[test]
+fn labels_start_a_little_see_through_and_the_veins_found_fainter_still() {
+    let part = |name: &str| volsa_labels::Part {
+        name: name.to_owned(),
+        group: String::new(),
+        side: volsa_labels::Side::Midline,
+        colour: [1, 2, 3],
+        trust: volsa_labels::Trust::Model,
+        voxels: 1,
+        ml: 1.0,
+    };
+    let mut state = ready();
+    reduce(&mut state, open());
+    reduce(
+        &mut state,
+        Action::LabelsRead {
+            title: String::new(),
+            parts: vec![part("Cortex"), part(volsa_segment::VEINS_PART)],
+            verdict: None,
+            corners: super::scene_tests::corners(),
+            names_from: crate::labels::NamesFrom::Table,
+            made: None,
+            run: None,
+        },
+    );
+    let opacity: Vec<f32> = state.labels.shown.iter().map(|how| how.opacity).collect();
+    let (parts, veins) = (crate::labels::PARTS_AT_FIRST, crate::labels::VEINS_AT_FIRST);
+    assert_eq!(opacity, [parts, veins]);
+    assert!(veins < parts && parts < 1.0, "both start below solid");
+}

@@ -22,6 +22,12 @@ pub const LABELS_WAIT: &str = "The labels named when Volsa was started are waiti
 pub const NOTHING_TO_LABEL_KEY: &str = "nothing to label";
 /// The least solid a part can be faded to. Hiding a part is done by its switch.
 pub const FAINTEST: f32 = 0.1;
+/// How solid a part is when labels are first opened, before its slider is moved: solid enough
+/// to read, and see-through enough that the parts inside it show in 3D.
+pub const PARTS_AT_FIRST: f32 = 0.7;
+/// How strongly the veins found show when first put on, before their Strength slider is moved:
+/// enough to see, faint enough that the brain shows behind them in 3D.
+pub const VEINS_AT_FIRST: f32 = 0.45;
 
 /// Whether there are labels, and if not, why.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

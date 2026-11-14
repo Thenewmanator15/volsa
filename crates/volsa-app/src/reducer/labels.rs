@@ -154,14 +154,20 @@ pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId
         };
         return vec![Effect::DropLabels];
     }
-    let solid = PartShown {
+    // Parts start a little see-through, so that those inside others are seen in 3D; the veins
+    // found, drawn through the rest, start fainter still so that the brain shows behind them.
+    let start = |part: &volsa_labels::Part| PartShown {
         shown: true,
-        opacity: 1.0,
+        opacity: if part.name == volsa_segment::VEINS_PART {
+            crate::labels::VEINS_AT_FIRST
+        } else {
+            crate::labels::PARTS_AT_FIRST
+        },
     };
     state.labels = Labels {
         status: LabelsStatus::Ready,
         title,
-        shown: vec![solid; parts.len()],
+        shown: parts.iter().map(start).collect(),
         parts,
         selected: None,
         overlay: state.labels.overlay,

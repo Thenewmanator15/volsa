@@ -15,7 +15,7 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   one more part, "Dark tubes (mostly veins)", marked approximate, on top of any brain labels
   open: over the planes and as a solid in the 3D view, where they show through the brain
   (fainter where they are behind it). A **Show veins** switch then turns them on and off, and a
-  **Strength** slider sets how strongly they show. It runs on the processor in a few seconds. A scan not named as SWI or T2* is
+  **Strength** slider sets how strongly they show; they start at under half strength. It runs on the processor in a few seconds. A scan not named as SWI or T2* is
   warned of in the result.
 - Sliders in the View tab: **Brightness** and **Contrast** beside the W and L numbers (slide right
   for brighter and sharper), a **Slice** slider, and a **Speed** slider for playback.
@@ -135,6 +135,8 @@ reading. None was reported by anyone using Volsa.
 
 ### Changed
 
+- Labels now start a little see-through (70%) instead of solid, so that parts inside others show
+  in the 3D view. Each part's slider in the Labels tab still makes it solid.
 - A slice is now shown the same way round whatever way its file stores it, by the one
   convention the three plane views already kept. From above or from the front, the patient's
   left is on the right of the screen with Radiological on and on the left with it off; the

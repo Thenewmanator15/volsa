@@ -94,14 +94,14 @@ fn opening_labels_needs_a_volume_and_asks_a_worker_to_read_them() {
 }
 
 #[test]
-fn labels_that_are_read_start_all_shown_solid_and_outlined() {
+fn labels_that_are_read_start_all_shown_a_little_see_through_and_outlined() {
     let state = labelled();
     assert_eq!(state.labels.status, LabelsStatus::Ready);
     assert_eq!(state.labels.title, "A made-up head");
     assert_eq!(state.labels.parts, parts());
     let solid = PartShown {
         shown: true,
-        opacity: 1.0,
+        opacity: crate::labels::PARTS_AT_FIRST,
     };
     assert_eq!(state.labels.shown, [solid; 3]);
     assert_eq!(
@@ -115,7 +115,7 @@ fn labels_that_are_read_start_all_shown_solid_and_outlined() {
     assert!(
         looks
             .iter()
-            .all(|look| look.colour == [10, 20, 30] && look.opacity == 1.0)
+            .all(|look| look.colour == [10, 20, 30] && look.opacity < 1.0 && !look.through)
     );
 }
 
