@@ -57,7 +57,7 @@ impl Seen {
 
 /// A window of a fixed size, and the pointer in it.
 pub struct Hand {
-    ctx: Context,
+    pub ctx: Context,
     size: Vec2,
 }
 

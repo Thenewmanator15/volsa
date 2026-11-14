@@ -17,7 +17,7 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   at half, and a notice says so), from frames that may be oblique or leave out empty slices.
   Compressed masks, unevenly spaced frames, a segmentation of another study and damaged files
   are refused in a sentence.
-
+- Drag a scan from the list on the left onto any view to show it there.
 - **Highlight veins**, in the Tools tab under "Part of Volsa": a filter (no trained model) that
   finds thin dark tubes in the scan shown, mostly veins on an SWI or T2* scan, and shows them as
   one more part, "Dark tubes (mostly veins)", marked approximate, on top of any brain labels

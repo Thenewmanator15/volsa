@@ -219,6 +219,7 @@ button, no setting and no words.
 |---|---|---|---|---|
 | SL-01 | The View tab has Brightness and Contrast sliders beside the W and L numbers, moving the same window: sliding right is brighter and sharper. They reach from the Soft window of the slice shown, with half as much again on either side, and always hold the window shown, so a typed window is never pulled back. | | | `ui/tabs/view/sliders.rs::tests::the_sliders_reach_half_as_far_again_as_the_slice_spans_on_either_side`, `::a_window_typed_beyond_the_reach_is_held_whole`, `::a_window_of_no_width_still_gives_the_sliders_room` |
 | SL-02 | The View tab has a Slice slider (for a series of two slices or more) and a Speed slider for playback, each named for a screen reader and fitting the narrowest panel. | | | `ui/access_tests.rs::every_interactive_node_has_a_name`; `ui/tabs/view/about_tests.rs::the_sentences_wrap_within_the_narrowest_panel` |
+| SL-03 | A series' card in the rail can be dragged and let go over any slice viewport, which then shows it; while it is carried its name follows the pointer and the viewport under it is outlined. Let go anywhere else, nothing changes. A click on a card still shows it in the selected viewport. | | | `ui/rail/card_tests.rs::a_card_pressed_and_moved_carries_its_series_to_be_let_go_over_a_viewport`; `ui/viewport/dropped_tests.rs::a_series_let_go_over_a_viewport_is_shown_in_it`, `::a_series_let_go_elsewhere_changes_nothing` |
 
 ## VN: highlighting veins (13 November 2026)
 

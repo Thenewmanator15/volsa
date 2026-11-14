@@ -65,7 +65,9 @@ Volsa makes no network connections and has no telemetry. It keeps what it
 needs between runs in two folders of its own:
 
 - %APPDATA%\Volsa\config holds the window's settings (preferences.json)
-  and nothing about any scan.
+  and, in plugins, a copy of each plugin you added. Nothing in it is
+  about any scan. Plugins are models made by others, added under Added
+  by you in the Tools tab; the guide's Plugins page says more.
 - %LOCALAPPDATA%\Volsa\data holds what comes of your scans: the views you
   saved, your measurements, your choices for labelling, labelling results
   kept to be shown again, and the log, volsa.log. Nothing in it names a

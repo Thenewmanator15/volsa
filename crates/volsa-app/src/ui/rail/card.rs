@@ -21,6 +21,7 @@ use crate::ui::browser::{THUMBNAIL, caption, hover, may_have_thumbnail, title};
 use crate::ui::commands::{self, Request, TagsOf};
 use crate::ui::symbols::{self, Symbol};
 use crate::ui::theme;
+use crate::ui::viewport::Carried;
 
 /// How tall a card is.
 pub const HEIGHT: f32 = THUMBNAIL + 2.0 * PADDING;
@@ -113,7 +114,7 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) -> bo
     let info = card.info;
     let name = plain_name(info);
     let id = id_of(&info.id);
-    let response = ui.interact(rect, id, Sense::click());
+    let response = ui.interact(rect, id, Sense::click_and_drag());
     let called = called(&name, info);
     let said = said(&called, card.selected, info.kind().is_fault());
     response.widget_info(|| WidgetInfo::labeled(WidgetType::Button, true, &said));
@@ -140,6 +141,11 @@ pub fn show(ui: &mut Ui, rect: Rect, card: &Card<'_>, asks: &mut Asks<'_>) -> bo
     // Its words are put together only while the pointer rests on the card.
     let response = response.on_hover_ui(|ui| {
         ui.label(hover_of(info));
+    });
+    // Carried by the pointer, it can be let go over any viewport to be shown there.
+    response.dnd_set_drag_payload(Carried {
+        series: info.id.clone(),
+        name: name.clone(),
     });
     if response.clicked() {
         asks.actions.push(select(asks.state, &info.id));

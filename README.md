@@ -41,6 +41,7 @@ scan](https://thenewmanator15.github.io/volsa/labelling-a-brain-scan.html).
 [Getting help and reporting a fault](https://thenewmanator15.github.io/volsa/getting-help-and-reporting-a-fault.html) ·
 [A closer look](https://thenewmanator15.github.io/volsa/a-closer-look.html) ·
 [Labelling a brain scan](https://thenewmanator15.github.io/volsa/labelling-a-brain-scan.html) ·
+[Plugins](https://thenewmanator15.github.io/volsa/plugins.html) ·
 [Status](https://thenewmanator15.github.io/volsa/status.html) ·
 [Building from source](https://thenewmanator15.github.io/volsa/building-from-source.html) ·
 [Trying it without a scan](https://thenewmanator15.github.io/volsa/trying-it-without-a-scan.html) ·

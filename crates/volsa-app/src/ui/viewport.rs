@@ -14,10 +14,12 @@ use super::theme;
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
+pub use dropped::Carried;
 
 mod annotate;
 mod by_keys;
 mod colour;
+mod dropped;
 mod mouse;
 mod said;
 mod tools;
@@ -203,6 +205,7 @@ pub fn show(
         drafts.give_up();
         return;
     };
+    dropped::follow_pointer(ui);
     let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
     drafts.keep_up(state, cancel);
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
@@ -239,6 +242,7 @@ pub fn show(
         }
         let mut unused = 0.0;
         let part_notch = gpu.map_or(&mut unused, |gpu| &mut gpu.part_notch);
+        actions.extend(dropped::take(ui, &response, cell, at));
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
         let input = mouse::for_tool(input, state.tool);
         actions.extend(overlay::input_to_actions(at, &input));
@@ -341,6 +345,8 @@ fn slice(
 mod by_keys_tests;
 #[cfg(test)]
 mod by_keys_window_tests;
+#[cfg(test)]
+mod dropped_tests;
 #[cfg(test)]
 mod in_hand_tests;
 #[cfg(test)]
