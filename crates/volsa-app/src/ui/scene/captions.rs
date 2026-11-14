@@ -170,7 +170,11 @@ pub fn scene_params(state: &AppState, quality: f32) -> Option<SceneParams> {
     };
     Some(SceneParams {
         camera: scene.camera,
-        window: viewport.wl,
+        window: if crate::susceptibility::in_the_scene(state) {
+            crate::susceptibility::window_in_3d()
+        } else {
+            viewport.wl
+        },
         look: look_drawn(state),
         cuts: scene.cuts.clone(),
         slice: scene.slice_shown.then(plane_of_the_slice).flatten(),

@@ -63,6 +63,9 @@ pub struct Scene {
     /// Whether the scene's volume holds the series' own values or a susceptibility map worked
     /// out from them, which the slices, the planes and the 3D view then all show.
     pub map: MapState,
+    /// The look chosen before a map was shown, which the 3D view shows as a projection of
+    /// its brightest values; given back when the map goes.
+    pub look_before_map: Option<Look>,
 }
 
 /// What the volume of the scene's series holds: its own values, or a susceptibility map
@@ -101,6 +104,7 @@ impl Default for Scene {
             preview: false,
             wanted: true,
             map: MapState::Off,
+            look_before_map: None,
         }
     }
 }

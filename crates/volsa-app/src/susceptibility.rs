@@ -104,6 +104,13 @@ pub fn window() -> WindowLevel {
     WindowLevel::new(0.0, 2.0 * SUSCEPTIBILITY_WINDOW_PPB)
 }
 
+/// The window the map is shown through in 3D, where it is drawn as a projection of its
+/// brightest values: from 0, black, to [`SUSCEPTIBILITY_WINDOW_PPB`], white, so that what is
+/// drawn into the field shows bright on a black ground.
+pub fn window_in_3d() -> WindowLevel {
+    WindowLevel::new(SUSCEPTIBILITY_WINDOW_PPB / 2.0, SUSCEPTIBILITY_WINDOW_PPB)
+}
+
 /// The unit the values of `series` are read in: parts per billion while it shows a map, and
 /// otherwise the one its files give.
 pub fn unit<'a>(state: &AppState, series: &SeriesId, info: &'a SeriesInfo) -> Unit<'a> {

@@ -184,6 +184,11 @@ fn opening_another_series_gives_up_the_map_and_the_state_no_longer_claims_one() 
         },
     );
     assert_eq!(state.scene.map, MapState::Off);
+    assert_eq!(
+        state.scene.look,
+        volsa_render::Look::Surface,
+        "the look from before"
+    );
     assert!(!crate::susceptibility::shown(&state, &id(THICK_SCAN)));
     assert!(effects.contains(&Effect::DropSusceptibility), "{effects:?}");
     // And one being made is given up too.
@@ -221,6 +226,11 @@ fn opening_another_export_leaves_no_map_claimed() {
 #[test]
 fn back_to_the_phase_asks_for_its_volume_built_the_usual_way_and_keeps_the_view() {
     let mut state = map_shown();
+    assert_eq!(
+        state.scene.look,
+        volsa_render::Look::Mip,
+        "brightest values in 3D"
+    );
     reduce(&mut state, Action::SceneOrbit { by: [30.0, 10.0] });
     let camera = state.scene.camera;
     let effects = reduce(&mut state, Action::Labelling(LabellingAction::BackToPhase));
@@ -240,6 +250,11 @@ fn back_to_the_phase_asks_for_its_volume_built_the_usual_way_and_keeps_the_view(
         crate::scene::SceneStatus::Building { .. }
     ));
     assert_eq!(state.scene.camera, camera, "seen as it was");
+    assert_eq!(
+        state.scene.look,
+        volsa_render::Look::Surface,
+        "in the look from before"
+    );
     let viewport = &state.viewports[0];
     assert!(
         viewport.wl_pending && viewport.wl_auto,

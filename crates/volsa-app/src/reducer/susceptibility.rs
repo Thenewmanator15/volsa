@@ -47,7 +47,8 @@ pub(super) fn back(state: &mut AppState) -> Vec<Effect> {
         scene.untouched = before.untouched;
         scene.corners = before.corners;
         scene.frame = before.frame;
-        scene.look = before.look;
+        scene.look = before.look_before_map.unwrap_or(before.look);
+        scene.look_before_map = None;
         scene.cuts = before.cuts;
         scene.slice_shown = before.slice_shown;
         scene.keeps_view = true;
@@ -60,6 +61,9 @@ pub(super) fn back(state: &mut AppState) -> Vec<Effect> {
 /// own chosen for them as for a series just opened. Called before the scene changes.
 pub(super) fn leave(state: &mut AppState) -> Vec<Effect> {
     let was = std::mem::take(&mut state.scene.map);
+    if let Some(look) = state.scene.look_before_map.take() {
+        state.scene.look = look;
+    }
     if was == MapState::Off {
         return Vec::new();
     }
@@ -103,6 +107,11 @@ pub(super) fn arrived(state: &mut AppState, report: Action) -> Vec<Effect> {
 /// worked out from the phase's slices are forgotten.
 fn shown(state: &mut AppState, series: &SeriesId) -> Vec<Effect> {
     state.scene.map = MapState::Shown;
+    // A surface of a map would be the box of zeros round the head: what is drawn into the
+    // field is shown as a projection of the brightest values instead.
+    let scene = &mut state.scene;
+    scene.look_before_map.get_or_insert(scene.look);
+    scene.look = volsa_render::Look::Mip;
     forget_windows(state, series);
     let window = crate::susceptibility::window();
     for viewport in &mut state.viewports {
