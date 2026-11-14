@@ -37,7 +37,7 @@ rayon = "1.12"
 rustfft = "6.4"
 bytemuck = { version = "1.25", features = ["derive"] }
 half = "2.7"
-pollster = "0.4"
+pollster = "1.0"
 
 # Interface. The only wgpu in the tree is the one egui-wgpu re-exports.
 eframe = { version = "0.36", default-features = false }

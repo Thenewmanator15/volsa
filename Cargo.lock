@@ -4669,7 +4669,7 @@ dependencies = [
  "criterion",
  "egui-wgpu",
  "half",
- "pollster 0.4.0",
+ "pollster 1.0.1",
  "proptest",
  "rayon",
  "thiserror 2.0.21",
