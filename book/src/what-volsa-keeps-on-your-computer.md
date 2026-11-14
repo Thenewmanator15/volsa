@@ -10,9 +10,10 @@ In `%APPDATA%\Volsa\config`:
 | File | What it holds |
 |---|---|
 | `preferences.json` | The window's size, the size of the interface, how wide the rail of scans and the tab panel are, whether you folded either, which tab is open, the theme, how many viewports, the **Patient's left on the right** and **Link the views** switches, and how labels are drawn over the planes. Nothing about any scan. |
+| `plugins` | A copy of each [plugin](plugins.md) you added: its model and its `plugin.json`, made by someone else. Nothing about any scan. |
 
 `%APPDATA%` is the roaming part of your Windows profile, which a managed network may copy to
-its servers, so it holds nothing else.
+its servers, so it holds nothing about any scan.
 
 ## What comes of your scans, and the log
 
