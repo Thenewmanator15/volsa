@@ -39,6 +39,7 @@ mod label;
 mod notice_tests;
 mod pieces;
 mod prepare;
+mod susceptibility;
 mod table;
 #[cfg(feature = "testing")]
 pub mod testing;
@@ -50,6 +51,10 @@ pub use find::{Found, Networks, Stage, find};
 pub use label::{LabelError, Labelled, ModelChoice, THICK_MM, choose, label};
 pub use pieces::largest_piece;
 pub use prepare::{Back, PrepareError, Prepared, Sizes, Turn, fits, prepare, resampled, sizes};
+pub use susceptibility::{
+    PhaseFacts, SUSCEPTIBILITY_TITLE, SUSCEPTIBILITY_WINDOW_PPB, SusceptibilityError,
+    susceptibility,
+};
 pub use table::{FAIL_BELOW, table};
 pub use tidy::tidy;
 pub use toward::Toward;

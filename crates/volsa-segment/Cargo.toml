@@ -14,6 +14,8 @@ volsa-models.workspace = true
 thiserror.workspace = true
 # Runs the dark-tube filter on every core.
 rayon.workspace = true
+# The Fourier transforms of the susceptibility map.
+rustfft.workspace = true
 
 [features]
 # The real networks behind `Networks`, for the tests that are given a runtime and a model
