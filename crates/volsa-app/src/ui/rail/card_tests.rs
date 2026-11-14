@@ -362,3 +362,31 @@ fn a_card_that_has_the_keyboard_is_ringed_in_the_themes_colour_of_focus() {
         rings(&plain)
     );
 }
+
+#[test]
+fn a_card_pressed_and_moved_carries_its_series_to_be_let_go_over_a_viewport() {
+    let scan = series(1, "MR", "made-up t1", 20);
+    let state = export(vec![("MADE-UP-1", "Made^Up", vec![scan.clone()])]);
+    let (ctx, mut rail) = (seen::context(1.0), RailState::default());
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    let from = card_at(&drawn.seen, &scan).center();
+    let press = Event::PointerButton {
+        pos: from,
+        button: PointerButton::Primary,
+        pressed: true,
+        modifiers: Modifiers::NONE,
+    };
+    let _ = pass(
+        &ctx,
+        &state,
+        &mut rail,
+        vec![Event::PointerMoved(from), press],
+    );
+    let away = from + egui::vec2(60.0, 0.0);
+    let moved = pass(&ctx, &state, &mut rail, vec![Event::PointerMoved(away)]);
+    assert_eq!(moved.actions, [], "carried, not chosen");
+    let carried =
+        egui::DragAndDrop::payload::<crate::ui::viewport::Carried>(&ctx).expect("carried");
+    assert_eq!(carried.series, scan.id);
+    assert_eq!(carried.name, plain_name(&scan));
+}
