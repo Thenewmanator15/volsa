@@ -143,6 +143,10 @@ fn header(
     whole: bool,
     short: &Cell<bool>,
 ) -> Option<Header> {
+    // A segmentation holds masks, not a scan: it is listed as a document.
+    if crate::segmentation::is_segmentation(file) {
+        return None;
+    }
     let obj: &InMemDicomObject = file;
     let groups = items(obj, tags::PER_FRAME_FUNCTIONAL_GROUPS_SEQUENCE).len();
     let stated = int(obj, tags::NUMBER_OF_FRAMES)
@@ -210,7 +214,7 @@ fn of_the_plane(obj: &InMemDicomObject, group: Tag, wanted: Tag) -> Option<Vec<f
 
 /// What `read` finds in the file itself or, failing that, in the first item of `group` among
 /// the shared functional groups, then among those of the first frame.
-fn stated_or_grouped<T>(
+pub(crate) fn stated_or_grouped<T>(
     obj: &InMemDicomObject,
     group: Tag,
     read: impl Fn(&InMemDicomObject) -> Option<T>,
@@ -245,17 +249,17 @@ pub(crate) fn text(obj: &InMemDicomObject, tag: Tag) -> Option<String> {
     (!trimmed.is_empty()).then(|| trimmed.to_owned())
 }
 
-fn int(obj: &InMemDicomObject, tag: Tag) -> Option<i32> {
+pub(crate) fn int(obj: &InMemDicomObject, tag: Tag) -> Option<i32> {
     obj.get(tag)?.to_int::<i32>().ok()
 }
 
 /// Every number in a value; `None` when absent or when any part is not a finite number.
-fn floats(obj: &InMemDicomObject, tag: Tag) -> Option<Vec<f64>> {
+pub(crate) fn floats(obj: &InMemDicomObject, tag: Tag) -> Option<Vec<f64>> {
     let values = obj.get(tag)?.to_multi_float64().ok()?;
     values.iter().all(|v| v.is_finite()).then_some(values)
 }
 
-fn position(obj: &InMemDicomObject) -> Option<[f64; 3]> {
+pub(crate) fn position(obj: &InMemDicomObject) -> Option<[f64; 3]> {
     floats(obj, tags::IMAGE_POSITION_PATIENT).and_then(|v| <[f64; 3]>::try_from(v).ok())
 }
 

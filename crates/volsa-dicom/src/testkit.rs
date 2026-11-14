@@ -3,7 +3,8 @@
 //! Real scans never enter the repository, so every test builds the files it needs here: a
 //! single-frame MR slice ([`classic_slice`]), a whole series in one multi-frame file
 //! ([`enhanced_series`]), a structured report ([`structured_report`]), a PDF in a DICOM file
-//! ([`encapsulated_pdf`]), and a source held in memory ([`MemorySource`]).
+//! ([`encapsulated_pdf`]), a segmentation ([`segmentation`]), and a source held in memory
+//! ([`MemorySource`]).
 //!
 //! This is test support code: a mistake in a builder should stop the test at once, so unlike
 //! the rest of the crate it is allowed to panic.
@@ -19,7 +20,10 @@ mod report_item;
 #[cfg(test)]
 mod tests;
 
-pub use build::{classic_slice, encapsulated_pdf, enhanced_series, structured_report};
+pub use build::{
+    SegFrame, SegOptions, SegSegment, classic_slice, encapsulated_pdf, enhanced_series,
+    segmentation, structured_report,
+};
 pub use nested::{IMPLICIT_VR_LITTLE_ENDIAN, Nesting, nested_slice};
 pub use report_item::ReportItem;
 

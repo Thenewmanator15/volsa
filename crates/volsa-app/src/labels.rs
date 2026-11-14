@@ -10,6 +10,9 @@ use crate::state::AppState;
 /// What is said when labels turn out to lie nowhere near the series they were opened on.
 pub const NOWHERE_NEAR: &str =
     "These labels lie nowhere near this series. They were probably made from another scan.";
+/// What is said when a segmentation is opened on a scan of another study.
+pub const OTHER_STUDY: &str = "This segmentation was made on another study than the scan shown. \r
+                               Show a scan of its study first, then open it as labels.";
 /// What is said when a label file is opened and there is no volume to put its labels on.
 pub const NOTHING_TO_LABEL: &str =
     "Labels are put on the 3D view of a scan. Open the scan first, then its labels.";

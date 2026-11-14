@@ -10,6 +10,14 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ### Added
 
+- **Segmentations stored in DICOM (SEG)** are listed among an export's documents as
+  "Segmentation", and never as a scan. **Open as labels** shows its segments as labels over the
+  3D view of a scan of its study, named and coloured as the file says: over the planes and as
+  solids in 3D, like any labels. Binary and fractional masks are read (fractional ones are cut
+  at half, and a notice says so), from frames that may be oblique or leave out empty slices.
+  Compressed masks, unevenly spaced frames, a segmentation of another study and damaged files
+  are refused in a sentence.
+
 - **Highlight veins**, in the Tools tab under "Part of Volsa": a filter (no trained model) that
   finds thin dark tubes in the scan shown, mostly veins on an SWI or T2* scan, and shows them as
   one more part, "Dark tubes (mostly veins)", marked approximate, on top of any brain labels

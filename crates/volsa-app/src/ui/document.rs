@@ -2,9 +2,9 @@
 //! kind of document it is and its title, and then by kind. A structured report is shown as
 //! text, headed as not the reference, with its lines indented by how deep they lie and the
 //! text selectable. A PDF is not shown at all: Volsa has no PDF reader, and starts no other
-//! program for one; it offers a copy of the PDF to save where the person chooses. Any other
-//! file Volsa lists is named, and said to be one Volsa cannot show. Each has the tags of its
-//! file one button away.
+//! program for one; it offers a copy of the PDF to save where the person chooses. A segmentation
+//! can be opened as labels on the scan shown. Any other file Volsa lists is named, and said to
+//! be one Volsa cannot show. Each has the tags of its file one button away.
 //!
 //! What a report says is shown as the report wrote it, and the original report is the
 //! reference: the lines are the start of it, in its order, and when part was left out the
@@ -38,6 +38,9 @@ pub const LEFT_OUT: &str = "While patient details are hidden, the patient's name
 pub const CUT_SHORT: &str = "Part of this report is too long or too deeply nested to show here.";
 /// What a PDF stored in DICOM is said to be.
 pub const IS_A_PDF: &str = "This report is a PDF. Volsa does not show PDFs.";
+/// What a segmentation is said to be.
+pub const IS_A_SEGMENTATION: &str = "This segmentation marks parts of a scan. Volsa can show \r
+                                     them as labels over the 3D view of a scan of its study.";
 /// What is said of a file that is listed and that Volsa cannot show.
 pub const CANNOT_SHOW: &str = "Volsa cannot show this kind of file.";
 /// What is said while a report is being read.
@@ -90,6 +93,7 @@ pub fn show(
             match &document.kind {
                 DocumentKind::Report => report(ui, open, (document, state), kept),
                 DocumentKind::Pdf => asked.extend(pdf(ui, state, actions)),
+                DocumentKind::Segmentation => asked.extend(segmentation(ui, state, actions)),
                 DocumentKind::Other(_) => {
                     ui.label(CANNOT_SHOW);
                 }
@@ -178,6 +182,13 @@ fn pdf(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<Reque
     ui.label(IS_A_PDF);
     let save = commands::button(ui, "document.save_pdf", state, None);
     save.and_then(|does| does.run(state, actions))
+}
+
+/// A segmentation: it is said to be one, and it can be opened as labels on the scan shown.
+fn segmentation(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Option<Request> {
+    ui.label(IS_A_SEGMENTATION);
+    let open = commands::button(ui, "document.open_labels", state, None);
+    open.and_then(|does| does.run(state, actions))
 }
 
 #[cfg(test)]

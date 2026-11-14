@@ -31,12 +31,17 @@ fn no_other_files(state: &AppState) -> Option<Why> {
 
 /// Whether the document open is a PDF, which is the one kind of document a copy can be saved of.
 fn document_is_a_pdf(state: &AppState) -> bool {
+    open_document_is(state, &volsa_dicom::DocumentKind::Pdf)
+}
+
+/// Whether the document open is of this kind.
+fn open_document_is(state: &AppState, kind: &volsa_dicom::DocumentKind) -> bool {
     let open = state.document.as_ref();
     let held = state.index.as_ref().map(|index| &index.documents);
     let found = open
         .zip(held)
         .and_then(|(open, all)| all.iter().find(|document| document.entry == open.entry));
-    found.is_some_and(|document| document.kind == volsa_dicom::DocumentKind::Pdf)
+    found.is_some_and(|document| document.kind == *kind)
 }
 
 /// A size the interface can be drawn at, as the menu offers it.
@@ -303,6 +308,36 @@ pub(super) const COMMANDS: &[Command] = &[
         },
         // The document it is the copy of is the one open: see [`Does::run`].
         does: Does::Ask(Request::SaveDocumentPdf(String::new())),
+        ..PLAIN
+    },
+    Command {
+        id: "document.open_labels",
+        name: "Open the segmentation as labels",
+        label: "Open as labels",
+        explains: "Show its segments as labels over the 3D view of the scan shown",
+        words: &[
+            "segmentation",
+            "seg",
+            "labels",
+            "segments",
+            "open",
+            "document",
+        ],
+        place: Place::Document,
+        why_not: |state| {
+            if state.document.is_none() {
+                return Some(Why::Borrowed("No document is open."));
+            }
+            let segmentation = &volsa_dicom::DocumentKind::Segmentation;
+            (!open_document_is(state, segmentation))
+                .then_some(Why::Borrowed("Only a segmentation opens as labels."))
+        },
+        does: Does::Act(|state| {
+            let open = state.document.as_ref()?;
+            Some(Action::Document(DocumentAction::OpenAsLabels(
+                open.entry.clone(),
+            )))
+        }),
         ..PLAIN
     },
     Command {

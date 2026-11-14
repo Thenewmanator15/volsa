@@ -105,6 +105,12 @@ pub enum Effect {
     },
     /// Give up the susceptibility map kept, and any being worked out.
     DropSusceptibility,
+    /// Read the segmentation (DICOM SEG) in an entry of the open source, and take it in as
+    /// labels read.
+    ReadSegmentation {
+        /// The entry that holds the segmentation's file.
+        entry: String,
+    },
     /// Give up the labels kept, and any being read.
     DropLabels,
     /// Look for the models and the runtime, in these folders or where they are usually kept,

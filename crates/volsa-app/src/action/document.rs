@@ -1,5 +1,5 @@
-//! What can happen to the document open in the place of the pictures: a report or a PDF
-//! stored in the export.
+//! What can happen to the document open in the place of the pictures: a report, a PDF or
+//! a segmentation stored in the export.
 
 use std::path::PathBuf;
 
@@ -22,4 +22,7 @@ pub enum DocumentAction {
     /// Save the PDF stored in the document with this entry name (the first) to the place the
     /// person chose (the second).
     SavePdf(String, PathBuf),
+    /// Open the segmentation stored in the document with this entry name as labels on the scan
+    /// in the 3D view.
+    OpenAsLabels(String),
 }

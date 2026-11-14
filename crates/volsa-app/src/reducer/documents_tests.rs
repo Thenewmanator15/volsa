@@ -218,3 +218,83 @@ fn any_series_opens_before_a_document() {
     assert_eq!(state.viewports[0].series, Some(id(LOCALISER)));
     assert_eq!(state.document, None);
 }
+
+/// The entry of a made-up segmentation.
+const SEG: &str = "SEG/S0001";
+
+/// `state` with a segmentation of `study_uid` listed among its documents, and open.
+fn with_a_segmentation(mut state: AppState, study_uid: &str) -> AppState {
+    let listed = volsa_dicom::IndexedDocument {
+        entry: SEG.to_owned(),
+        study_uid: study_uid.to_owned(),
+        kind: volsa_dicom::DocumentKind::Segmentation,
+        title: "Made-up segments".to_owned(),
+        date: None,
+        patient_name: None,
+        patient_id: None,
+    };
+    if let Some(index) = state.index.as_mut() {
+        index.documents.push(listed);
+    }
+    open(&mut state, SEG);
+    state
+}
+
+fn open_as_labels(state: &mut AppState) -> Vec<Effect> {
+    reduce(
+        state,
+        Action::Document(DocumentAction::OpenAsLabels(SEG.to_owned())),
+    )
+}
+
+fn said(state: &AppState) -> Vec<String> {
+    let notices = state.notices.iter();
+    notices.map(|notice| notice.text.clone()).collect()
+}
+
+#[test]
+fn a_segmentation_opens_as_labels_only_onto_a_volume_of_its_study() {
+    use crate::labels::{LabelsStatus, NOTHING_TO_LABEL, OTHER_STUDY};
+    // With no volume, nothing is read and the person is told why.
+    let mut state = with_a_segmentation(with_documents(), "1.2.826.0.1.3680043.9.9999.1");
+    assert!(
+        state.document.is_some(),
+        "opening the document reads nothing"
+    );
+    assert_eq!(open_as_labels(&mut state), []);
+    assert_eq!(state.labels.status, LabelsStatus::None);
+    assert_eq!(said(&state), [NOTHING_TO_LABEL]);
+    // With a volume of its study, a worker is asked to read it, and the document gives way.
+    let ready = super::scene_tests::ready();
+    let study = crate::labels::study_of(&ready, &id(THICK_SCAN)).expect("a study");
+    let mut state = with_a_segmentation(ready, &study.0);
+    let asked = Effect::ReadSegmentation {
+        entry: SEG.to_owned(),
+    };
+    assert_eq!(open_as_labels(&mut state), [asked]);
+    assert_eq!(state.labels.status, LabelsStatus::Reading);
+    assert_eq!(state.labels.study, Some(study));
+    assert_eq!(state.document, None);
+    // One made on another study is not read onto this one.
+    let mut state = with_a_segmentation(super::scene_tests::ready(), "1.2.3.4.5");
+    assert_eq!(open_as_labels(&mut state), []);
+    assert_eq!(state.labels.status, LabelsStatus::None);
+    assert_eq!(said(&state), [OTHER_STUDY]);
+}
+
+#[test]
+fn only_a_segmentation_opens_as_labels() {
+    let mut state = super::scene_tests::ready();
+    let study = crate::labels::study_of(&state, &id(THICK_SCAN)).expect("a study");
+    if let Some(index) = state.index.as_mut() {
+        index.documents = scans_and_documents().documents;
+        for document in &mut index.documents {
+            document.study_uid.clone_from(&study.0);
+        }
+    }
+    for entry in [REPORT, PDF, NOTE, "not listed"] {
+        let asked = Action::Document(DocumentAction::OpenAsLabels(entry.to_owned()));
+        assert_eq!(reduce(&mut state, asked), [], "{entry}");
+    }
+    assert_eq!(state.labels.status, crate::labels::LabelsStatus::None);
+}
