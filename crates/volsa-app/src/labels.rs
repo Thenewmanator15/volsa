@@ -164,8 +164,16 @@ pub fn can_find_veins(state: &AppState) -> Result<(), &'static str> {
     if state.labels.status == LabelsStatus::Reading || state.labelling.running.is_some() {
         return Err("Labels are being made or opened. Wait for them to finish.");
     }
+    if state.scene.map != crate::scene::MapState::Off {
+        return Err(ON_A_MAP);
+    }
     Ok(())
 }
+
+/// Why nothing is found in, or labelled on, a susceptibility map: they work on the scan's own
+/// values.
+pub const ON_A_MAP: &str = "This works on the scan's own values, not on a susceptibility map. \
+                            Go back to the phase first.";
 
 /// The place among the parts of the veins found, when the labels on this series hold them.
 pub fn veins_part(state: &AppState) -> Option<usize> {

@@ -70,6 +70,8 @@ pub(super) fn reduce(state: &mut AppState, action: LabellingAction) -> Vec<Effec
         | LabellingAction::DeleteKept
         | LabellingAction::SaveLabelsAs(_)) => return about_kept_results(state, about_kept),
         LabellingAction::FindVeins => return labels::find_veins(state),
+        LabellingAction::MakeSusceptibility => return super::susceptibility::make(state),
+        LabellingAction::BackToPhase => return super::susceptibility::back(state),
     }
     if chosen {
         vec![Effect::StoreChoices(Choices::of(&state.labelling))]

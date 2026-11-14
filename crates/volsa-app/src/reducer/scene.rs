@@ -6,7 +6,7 @@ use volsa_volume::{VolumeError, can_be_volume};
 
 use crate::action::{Action, Effect};
 use crate::measuring::placement_of;
-use crate::scene::{Scene, SceneStatus};
+use crate::scene::{MapState, Scene, SceneStatus};
 use crate::state::AppState;
 
 pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
@@ -38,6 +38,12 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             scene.cuts.remove(cut);
         }
         Action::SceneWanted(wanted) => return wanted_or_not(state, wanted),
+        // A map being worked out is reported as a volume is, while the phase is shown.
+        report @ (Action::VolumeReady { .. } | Action::VolumeFailed { .. })
+            if scene.map == MapState::Making =>
+        {
+            return super::susceptibility::arrived(state, report);
+        }
         about_the_volume => return built(scene, about_the_volume).into_iter().collect(),
     }
     Vec::new()
@@ -152,6 +158,14 @@ fn another_volume_of_the_same(state: &AppState, series: Option<&SeriesId>) -> bo
 /// another volume of the one shown before: then the camera, the look, the cuts and the box
 /// they were fitted to are kept too.
 fn start(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
+    // A map shown in place of the series before is given up first.
+    let mut effects = super::susceptibility::leave(state);
+    effects.extend(afresh(state, series));
+    effects
+}
+
+/// The scene started afresh for `series`, as [`start`] says, with no map left to give up.
+fn afresh(state: &mut AppState, series: Option<SeriesId>) -> Vec<Effect> {
     let mut fresh = Scene {
         viewport: state.scene.viewport,
         wanted: state.scene.wanted,

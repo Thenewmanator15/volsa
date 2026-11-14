@@ -59,6 +59,8 @@ pub(super) fn overlays(ui: &Ui, pane: &Pane<'_>, value: Option<f32>) -> Vec<Rect
 
 /// The lines written in the four corners of a viewport. The last line of the bottom left corner
 /// is the `value` under the pointer, in the unit the scan's files give it, when there is one.
+/// A susceptibility map shown in place of the series says so under the series' name, and its
+/// values are read in parts per billion.
 pub(super) fn corners(
     pane: &Pane<'_>,
     info: &SeriesInfo,
@@ -73,7 +75,14 @@ pub(super) fn corners(
     let show_patient = pane.state.show_patient;
     let wl = viewport.wl;
     let mut corners = overlay::corner_text(study, info, viewport.slice, position, wl, show_patient);
-    let said = value.and_then(|value| overlay::value_line(value, &unit_of(info)));
+    let unit = match &viewport.series {
+        Some(series) if crate::susceptibility::shown(pane.state, series) => {
+            corners[1].push(crate::susceptibility::NOTE.to_owned());
+            crate::susceptibility::unit(pane.state, series, info)
+        }
+        _ => unit_of(info),
+    };
+    let said = value.and_then(|value| overlay::value_line(value, &unit));
     corners[2].extend(said.filter(|_| !info.colour));
     corners
 }

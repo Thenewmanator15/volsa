@@ -60,6 +60,22 @@ pub struct Scene {
     pub preview: bool,
     /// Whether the 3D scene is wanted at all: while it is not, no volume is built for it.
     pub wanted: bool,
+    /// Whether the scene's volume holds the series' own values or a susceptibility map worked
+    /// out from them, which the slices, the planes and the 3D view then all show.
+    pub map: MapState,
+}
+
+/// What the volume of the scene's series holds: its own values, or a susceptibility map
+/// worked out from its phase in their place.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum MapState {
+    /// The series' own values.
+    #[default]
+    Off,
+    /// Its own values, while a map is being worked out from them.
+    Making,
+    /// The map, in place of its own values.
+    Shown,
 }
 
 impl Scene {
@@ -84,6 +100,7 @@ impl Default for Scene {
             keeps_view: false,
             preview: false,
             wanted: true,
+            map: MapState::Off,
         }
     }
 }

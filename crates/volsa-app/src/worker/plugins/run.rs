@@ -64,7 +64,7 @@ impl Workers {
         if let Some(before) = lock(&self.shared.plugins.run).replace(stop.clone()) {
             before.stop();
         }
-        let volume = lock(&self.shared.volumes).get(&series);
+        let volume = lock(&self.shared.volumes).own(&series);
         let job = Job {
             run,
             id,

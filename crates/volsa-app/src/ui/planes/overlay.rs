@@ -8,7 +8,6 @@ use volsa_volume::{Plane, PlaneKind};
 use super::super::overlay::{EdgeLabels, letter, value_line};
 use super::super::theme;
 use crate::naming::plain_name;
-use crate::profile::unit_of;
 use crate::state::AppState;
 
 /// How much room is left clear round the position where the lines of the cross would meet,
@@ -81,8 +80,11 @@ pub fn value_under(
     at: Option<Point<Patient>>,
 ) -> Option<String> {
     let (scan, at) = scan.zip(at)?;
-    let info = &state.series(state.scene.series.as_ref()?)?.info;
-    value_line(nearest(scan, at)?, &unit_of(info))
+    let series = state.scene.series.as_ref()?;
+    let info = &state.series(series)?.info;
+    // A map shown in place of the series is read in its own unit.
+    let unit = crate::susceptibility::unit(state, series, info);
+    value_line(nearest(scan, at)?, &unit)
 }
 
 /// The value of the voxel `at` lies in, never a blend of several, as the value under the pointer

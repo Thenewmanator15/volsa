@@ -17,6 +17,14 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   (fainter where they are behind it). A **Show veins** switch then turns them on and off, and a
   **Strength** slider sets how strongly they show; they start at under half strength. It runs on the processor in a few seconds. A scan not named as SWI or T2* is
   warned of in the result.
+- **Susceptibility map**, in the Tools tab while a phase series of an SWI scan is shown (its
+  description holds "PHA" or "phase"): **Make a susceptibility map** works out, on the processor
+  in a few tens of seconds, an approximate map of how strongly tissue is drawn into the magnet's
+  field (veins and iron-rich areas bright) and shows it in place of the phase in the slices, the
+  planes and 3D, each saying "Susceptibility map (approximate), worked out from this phase",
+  through a window centred on 0 and 300 ppb wide, with values read in ppb. It is approximate: a
+  filtered phase gives smaller numbers than true, and it is not a measurement. **Back to the
+  phase** shows the phase again; opening another series does too.
 - Sliders in the View tab: **Brightness** and **Contrast** beside the W and L numbers (slide right
   for brighter and sharper), a **Slice** slider, and a **Speed** slider for playback.
 - Plugins: models a person adds themselves. **Add a plugin…**, under **Added by you** in the

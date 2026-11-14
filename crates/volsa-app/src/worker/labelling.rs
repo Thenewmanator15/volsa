@@ -206,7 +206,7 @@ impl Workers {
         let shared = &self.shared;
         let stop = Stop::new();
         shared.labelling.begin(stop.clone());
-        let volume = lock(&shared.volumes).get(&series);
+        let volume = lock(&shared.volumes).own(&series);
         let job = Job {
             run,
             number: shared.label_reads.fetch_add(1, Ordering::SeqCst) + 1,

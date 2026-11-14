@@ -46,7 +46,7 @@ impl Workers {
     pub(super) fn find_veins(&self, series: &SeriesId, named: bool, onto: Option<NamesFrom>) {
         let number = self.shared.label_reads.fetch_add(1, Ordering::SeqCst) + 1;
         let shared = Arc::clone(&self.shared);
-        let volume = lock(&self.shared.volumes).get(series);
+        let volume = lock(&self.shared.volumes).own(series);
         let held = lock(&self.shared.labels).clone();
         let asked = Asked {
             named,

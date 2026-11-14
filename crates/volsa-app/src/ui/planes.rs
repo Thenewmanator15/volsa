@@ -322,8 +322,11 @@ fn corner_text(
         interpolated_note(spacing, pitch(view.plane.across)?, pitch(view.plane.down)?)
     });
     let of_labels = parts::drawn(state).then(|| parts::labels_note(state).to_owned());
-    let notes: Vec<String> = panel_note(note, smooth)
+    let map =
+        crate::susceptibility::in_the_scene(state).then(|| crate::susceptibility::NOTE.to_owned());
+    let notes: Vec<String> = map
         .into_iter()
+        .chain(panel_note(note, smooth))
         .chain(of_labels)
         .collect();
     if let Some(note) = Some(notes.join("\n")).filter(|note| !note.is_empty()) {

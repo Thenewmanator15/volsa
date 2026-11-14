@@ -24,7 +24,7 @@ mod view;
 
 pub use measure::{MeasureTab, NOTHING_MEASURED, Save, save as save_measurements};
 pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
-pub use tools::{LABEL_BUTTON, LABEL_TOOL, VEINS_BUTTON, VEINS_TOOL};
+pub use tools::{LABEL_BUTTON, LABEL_TOOL, MAP_BACK, MAP_BUTTON, VEINS_BUTTON, VEINS_TOOL};
 pub use view::{LINK_SAYS, SMOOTH_SAYS};
 
 /// Every sentence the tabs keep in a constant, and the label and hint of each look and side of

@@ -24,6 +24,7 @@ mod places;
 mod planes;
 mod plugins;
 mod scene;
+mod susceptibility;
 mod viewport;
 mod views;
 mod volumes;

@@ -5,7 +5,7 @@ use volsa_core::SeriesId;
 
 use super::post;
 use crate::action::{Action, Effect};
-use crate::annotations::{Annotation, MAX_ANNOTATIONS, Tool};
+use crate::annotations::{Annotation, MAX_ANNOTATIONS, Shape, Tool};
 use crate::measuring::{scale_now, why_not_measurable};
 use crate::state::{AppState, Notice, NoticeKind};
 
@@ -36,10 +36,17 @@ pub(super) fn concerns(action: &Action) -> bool {
 /// list to be kept.
 pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     let scale = scale_now(state);
+    let on_a_map = crate::susceptibility::in_the_scene(state);
     let list = &mut state.annotations;
     let changed = match (action, scale) {
         (Action::SetTool(tool), Some(_)) => {
             state.tool = tool;
+            false
+        }
+        // A region keeps the values inside it with the series: not those of a map shown in
+        // its place.
+        (Action::AnnotationAdd(Shape::Region { .. }), Some(_)) if on_a_map => {
+            post(state, MEASUREMENTS, Some(not_on_a_map()));
             false
         }
         (Action::AnnotationAdd(shape), Some(scale)) => {
@@ -136,6 +143,17 @@ fn full() -> Notice {
         text: format!(
             "There are already {MAX_ANNOTATIONS} measurements. Remove one to add another."
         ),
+        details: Vec::new(),
+        key: Some(MEASUREMENTS),
+    }
+}
+
+/// What is said when a region is drawn on a susceptibility map.
+fn not_on_a_map() -> Notice {
+    Notice {
+        kind: NoticeKind::Warning,
+        text: "A region measures the scan's own values. Go back to the phase to measure one."
+            .to_owned(),
         details: Vec::new(),
         key: Some(MEASUREMENTS),
     }

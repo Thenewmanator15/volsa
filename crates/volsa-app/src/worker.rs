@@ -32,6 +32,7 @@ mod pool;
 mod post;
 mod preview;
 mod shown;
+mod susceptibility;
 mod tags;
 mod veins;
 mod views;
@@ -80,6 +81,9 @@ struct Shared {
     volumes: Arc<Mutex<VolumeStore>>,
     /// How many volumes have been asked for. One being built for an earlier request stops.
     builds: AtomicU64,
+    /// How many susceptibility maps have been asked for or given up. One worked out
+    /// for an earlier request is not kept.
+    maps: AtomicU64,
     /// What the window's graphics device can hold of a volume, and how. Until the window
     /// says, what every device made for the desktop can.
     card_room: Mutex<CardRoom>,
@@ -156,6 +160,7 @@ impl Workers {
             requests: AtomicU64::new(0),
             volumes,
             builds: AtomicU64::new(0),
+            maps: AtomicU64::new(0),
             card_room: Mutex::new(CardRoom::default()),
             device_does: volume::DeviceDoes::default(),
             wanted_volume: Mutex::new(None),
@@ -221,6 +226,7 @@ impl Workers {
             Effect::ReadDocument { entry } => self.read_document(entry),
             Effect::SaveDocumentPdf { entry, to } => self.save_document_pdf(entry, to),
             Effect::DropLabels => self.drop_labels(),
+            map @ (Effect::MakeSusceptibility { .. } | Effect::DropSusceptibility) => self.map(map),
             labelling @ (Effect::LookForLabelling { .. }
             | Effect::LabelScan { .. }
             | Effect::StopLabelling

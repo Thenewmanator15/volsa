@@ -48,6 +48,7 @@ mod session;
 mod settings;
 mod spill;
 mod state;
+mod susceptibility;
 #[cfg(test)]
 mod testing;
 mod ui;

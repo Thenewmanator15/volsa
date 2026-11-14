@@ -63,7 +63,7 @@ pub const VARIABLE: &str = "VOLSA_CAPTURE";
 ///   plane, `first` for the first series listed in place of the one Volsa opens itself, `stepped`
 ///   for the next volume of a series that holds several, `labelled` for a result that Volsa
 ///   makes itself (the picture starts a run and waits for it), `veins` for the dark tubes
-///   highlighted (likewise).
+///   highlighted and `susceptibility` for a susceptibility map of the phase shown (likewise).
 /// - The window: `nolist` for the rail of scans folded however wide the window is, `other` for
 ///   the other files open in the rail, `light` for the light theme in place of the dark one,
 ///   and `fitted` for the window fitted to the screen as it is when Volsa starts with no size

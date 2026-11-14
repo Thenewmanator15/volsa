@@ -28,7 +28,7 @@ fn with_a_plugin(folder: &str, why: &str) -> AppState {
 /// of it, and gather what was asked for.
 fn pressed(state: &AppState, name: &str) -> (Vec<Action>, Vec<Request>) {
     let (mut actions, mut requests) = (Vec::new(), Vec::new());
-    let found = Hand::new(NARROW, 900.0).click_named(name, &mut |ui| {
+    let found = Hand::new(NARROW, 1400.0).click_named(name, &mut |ui| {
         requests.extend(show(ui, state, &mut actions));
     });
     assert!(found, "there is a button called {name:?}");
@@ -141,4 +141,72 @@ fn once_found_the_veins_are_a_switch_that_shows_and_hides_them() {
     );
     let finds = |action: &Action| matches!(action, Action::Labelling(LabellingAction::FindVeins));
     assert!(!actions.iter().any(finds), "and does not look again");
+}
+
+/// A computer that can label, showing the 30-slice series named as GE names its phase, with
+/// the echo time and field strength its files would give.
+fn phase_shown() -> AppState {
+    let mut state = able();
+    let index = state.index.as_mut().expect("indexed");
+    let thick = crate::testing::id(crate::testing::THICK_SCAN);
+    let listed = index
+        .series
+        .iter_mut()
+        .find(|listed| listed.info.id == thick);
+    let info = &mut listed.expect("listed").info;
+    info.description = "FILT_PHA: 3D Ax eSWAN".to_owned();
+    info.scan.echo_ms = Some(25.0);
+    info.scan.field_t = Some(3.0);
+    state
+}
+
+#[test]
+fn a_phase_series_is_offered_a_susceptibility_map_whose_button_makes_it() {
+    let state = phase_shown();
+    let said = tools_written(&state);
+    assert!(
+        at(&said, "Highlight veins") < at(&said, "Susceptibility map"),
+        "{said}"
+    );
+    assert!(said.contains("Make a susceptibility map"), "{said}");
+    assert!(
+        said.contains("Approximate") && said.contains("Not a measurement"),
+        "what it is, and is not, is said under it: {said}"
+    );
+    let (actions, _) = pressed(&state, "Make a susceptibility map");
+    let makes = Action::Labelling(LabellingAction::MakeSusceptibility);
+    assert!(actions.contains(&makes), "{actions:?}");
+}
+
+#[test]
+fn a_series_that_is_not_phase_is_offered_no_map() {
+    let said = tools_written(&able());
+    assert!(!said.contains("Susceptibility map"), "{said}");
+}
+
+#[test]
+fn why_no_map_can_be_made_is_said_under_the_button() {
+    let mut state = phase_shown();
+    let index = state.index.as_mut().expect("indexed");
+    for listed in &mut index.series {
+        listed.info.scan.echo_ms = None;
+    }
+    let said = tools_written(&state);
+    assert!(said.contains("echo time and field strength"), "{said}");
+    let mut state = phase_shown();
+    state.scene.map = crate::scene::MapState::Making;
+    let said = tools_written(&state);
+    assert!(said.contains("being worked out"), "{said}");
+}
+
+#[test]
+fn while_the_map_is_shown_its_button_goes_back_to_the_phase() {
+    let mut state = phase_shown();
+    state.scene.map = crate::scene::MapState::Shown;
+    let said = tools_written(&state);
+    assert!(said.contains("in place of the phase"), "{said}");
+    assert!(!said.contains("Make a susceptibility map"), "{said}");
+    let (actions, _) = pressed(&state, "Back to the phase");
+    let back = Action::Labelling(LabellingAction::BackToPhase);
+    assert!(actions.contains(&back), "{actions:?}");
 }

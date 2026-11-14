@@ -92,6 +92,11 @@ pub enum Run {
     On,
     /// It asks, by the word `veins`, for the dark tubes to be highlighted, not yet started.
     VeinsToStart,
+    /// It asks, by the word `susceptibility`, for a susceptibility map of the phase shown, not
+    /// yet started.
+    MapToStart,
+    /// A susceptibility map has been asked for.
+    MapOn,
 }
 
 impl Run {
@@ -101,6 +106,8 @@ impl Run {
             Self::ToStart
         } else if asked(wanted, "veins") {
             Self::VeinsToStart
+        } else if asked(wanted, "susceptibility") {
+            Self::MapToStart
         } else {
             Self::Not
         }
@@ -108,11 +115,23 @@ impl Run {
 
     /// What starts the run, once labelling can run: given once. When this computer is known
     /// not to be able to, the picture is of the strip as it is, and none is started. The dark
-    /// tubes are highlighted once the scene's volume is built.
+    /// tubes are highlighted, and a susceptibility map made, once the scene's volume is built;
+    /// a map that cannot be made of the series then shown is not waited for.
     pub fn start(&mut self, state: &AppState) -> Option<Action> {
         if *self == Self::VeinsToStart && crate::labels::can_find_veins(state).is_ok() {
             *self = Self::On;
             return Some(Action::Labelling(LabellingAction::FindVeins));
+        }
+        if *self == Self::MapToStart {
+            let can = crate::susceptibility::can_make_map(state);
+            if can.is_ok() {
+                *self = Self::MapOn;
+                return Some(Action::Labelling(LabellingAction::MakeSusceptibility));
+            }
+            if crate::planes::grid(state).is_some() {
+                *self = Self::Not;
+            }
+            return None;
         }
         if *self != Self::ToStart {
             return None;
@@ -133,10 +152,12 @@ impl Run {
     pub fn is_over(self, state: &AppState) -> bool {
         match self {
             Self::Not => true,
-            Self::ToStart | Self::VeinsToStart => false,
+            Self::ToStart | Self::VeinsToStart | Self::MapToStart => false,
             Self::On => {
                 state.labelling.running.is_none() && state.labels.status != LabelsStatus::Reading
             }
+            // Shown, or given up with a word of why.
+            Self::MapOn => state.scene.map != crate::scene::MapState::Making,
         }
     }
 

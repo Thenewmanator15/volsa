@@ -95,6 +95,11 @@ pub enum LabellingAction {
     /// Highlight the thin dark tubes, mostly veins, of the scan in the scene, and open them as
     /// its labels.
     FindVeins,
+    /// Work out a susceptibility map from the phase series in the scene, and show it in place
+    /// of the phase.
+    MakeSusceptibility,
+    /// Give up the susceptibility map shown, and show the phase again.
+    BackToPhase,
 }
 
 /// Labelling in the state.
@@ -198,6 +203,9 @@ pub fn can_label(state: &AppState) -> Result<(), String> {
     }
     if state.labels.status == LabelsStatus::Reading {
         return Err(READING_LABELS.to_owned());
+    }
+    if state.scene.map != crate::scene::MapState::Off {
+        return Err(crate::labels::ON_A_MAP.to_owned());
     }
     if grid(state).is_some() {
         return Ok(());

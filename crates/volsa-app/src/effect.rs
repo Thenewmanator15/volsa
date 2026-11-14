@@ -95,6 +95,16 @@ pub enum Effect {
         /// put onto them as one more part; `None` to open them alone.
         onto: Option<crate::labels::NamesFrom>,
     },
+    /// Work out a susceptibility map from the phase volume kept for a series, keep it in that
+    /// volume's place and say it is ready as a volume is.
+    MakeSusceptibility {
+        /// The phase series.
+        series: SeriesId,
+        /// Its echo time and field strength, from its files.
+        facts: volsa_segment::PhaseFacts,
+    },
+    /// Give up the susceptibility map kept, and any being worked out.
+    DropSusceptibility,
     /// Give up the labels kept, and any being read.
     DropLabels,
     /// Look for the models and the runtime, in these folders or where they are usually kept,

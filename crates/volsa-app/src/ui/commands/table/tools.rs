@@ -12,7 +12,7 @@ use crate::plugins::ADD_ACTION;
 use crate::state::AppState;
 use crate::ui::parts::Asked;
 use crate::ui::parts::labelling::Wants;
-use crate::ui::tabs::{LABEL_BUTTON, LABEL_TOOL, VEINS_BUTTON, VEINS_TOOL};
+use crate::ui::tabs::{LABEL_BUTTON, LABEL_TOOL, MAP_BACK, MAP_BUTTON, VEINS_BUTTON, VEINS_TOOL};
 
 /// Why the scan cannot be labelled now, in a sentence; the Tools tab says why in full.
 const CANNOT_LABEL: &str = "Volsa cannot label this scan now. The Tools tab says why.";
@@ -247,6 +247,45 @@ pub(super) const COMMANDS: &[Command] = &[
                 .map(Why::Borrowed)
         },
         does: Does::Act(|_| Some(labelling(LabellingAction::FindVeins))),
+        ..PLAIN
+    },
+    Command {
+        id: "tools.susceptibility",
+        name: MAP_BUTTON,
+        label: MAP_BUTTON,
+        explains: "Work out an approximate susceptibility map from the phase of an SWI scan, and \
+                   show it in place of the phase",
+        words: &[
+            "susceptibility",
+            "qsm",
+            "phase",
+            "swi",
+            "swan",
+            "iron",
+            "map",
+        ],
+        place: Place::Tab(Tab::Tools),
+        why_not: |state| {
+            crate::susceptibility::can_make_map(state)
+                .err()
+                .map(Why::Borrowed)
+        },
+        does: Does::Act(|_| Some(labelling(LabellingAction::MakeSusceptibility))),
+        ..PLAIN
+    },
+    Command {
+        id: "tools.susceptibility.back",
+        name: MAP_BACK,
+        label: MAP_BACK,
+        explains: "Give up the susceptibility map shown, and show the phase again",
+        words: &["susceptibility", "qsm", "phase", "back", "map"],
+        place: Place::Tab(Tab::Tools),
+        why_not: |state| {
+            crate::susceptibility::can_go_back(state)
+                .err()
+                .map(Why::Borrowed)
+        },
+        does: Does::Act(|_| Some(labelling(LabellingAction::BackToPhase))),
         ..PLAIN
     },
     Command {

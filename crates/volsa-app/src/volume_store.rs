@@ -20,6 +20,9 @@ pub struct VolumeStore {
     /// A small, rough volume of a long series being built, for the window to take and draw
     /// until the volume itself is kept.
     preview: Option<(SeriesId, Volume)>,
+    /// True when the volume kept is a susceptibility map worked out from its series, held in
+    /// place of the series' own values.
+    map: bool,
 }
 
 impl VolumeStore {
@@ -34,13 +37,20 @@ impl VolumeStore {
         self.held.as_ref().map(|(_, volume)| Arc::clone(volume))
     }
 
+    /// The volume of a series, if that is the one kept and it holds the series' own values,
+    /// not a map worked out from them. What works on a scan's values reads it here.
+    pub fn own(&self, series: &SeriesId) -> Option<Arc<HeldVolume>> {
+        self.get(series).filter(|_| !self.map)
+    }
+
     /// Whether the volume of a series is the one kept.
     pub fn holds(&self, series: &SeriesId) -> bool {
         self.held.as_ref().is_some_and(|(of, _)| of == series)
     }
 
     /// Keep the volume of a series, in place of any kept before. The one kept before is
-    /// handed back, with its series.
+    /// handed back, with its series; a map kept before is not, its values not being its
+    /// series' own.
     pub fn put(
         &mut self,
         series: SeriesId,
@@ -49,7 +59,24 @@ impl VolumeStore {
         self.for_card = None;
         self.curve = None;
         self.preview = None;
-        self.held.replace((series, volume))
+        let was_map = std::mem::take(&mut self.map);
+        self.held.replace((series, volume)).filter(|_| !was_map)
+    }
+
+    /// Keep a susceptibility map worked out from a series in place of its volume, as
+    /// [`VolumeStore::put`] keeps a volume.
+    pub fn put_map(&mut self, series: SeriesId, map: Arc<HeldVolume>) {
+        self.put(series, map);
+        self.map = true;
+    }
+
+    /// Give up the volume kept if it is a susceptibility map; whether it was.
+    pub fn drop_map(&mut self) -> bool {
+        let was_map = self.map;
+        if was_map {
+            self.clear();
+        }
+        was_map
     }
 
     /// Keep a copy of a series' volume halved to fit the graphics device, with how many
@@ -153,11 +180,42 @@ impl VolumeStore {
         self.for_card = None;
         self.curve = None;
         self.preview = None;
+        self.map = false;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_map_is_shown_in_place_of_its_series_but_is_never_taken_for_its_own_values() {
+        let mut store = VolumeStore::default();
+        let head = id(THICK_SCAN);
+        store.put(head.clone(), volume(1.0));
+        assert_eq!(value_of(store.own(&head)), Some(1.0));
+        store.put_map(head.clone(), volume(7.0));
+        assert_eq!(
+            value_of(store.get(&head)),
+            Some(7.0),
+            "what is drawn is the map"
+        );
+        assert!(
+            store.own(&head).is_none(),
+            "but it is not the scan's own values"
+        );
+        let before = store.put(id(FINE_SCAN), volume(2.0));
+        assert!(
+            before.is_none(),
+            "a map is not handed back as its series' slices"
+        );
+        assert_eq!(value_of(store.own(&id(FINE_SCAN))), Some(2.0));
+        assert!(
+            !store.drop_map(),
+            "a series' own volume is not a map to give up"
+        );
+        store.put_map(head.clone(), volume(7.0));
+        assert!(store.drop_map() && store.get(&head).is_none());
+    }
+
     use volsa_core::{Affine, Grid, Volume};
     use volsa_render::MAX_VOLUME_BYTES;
 

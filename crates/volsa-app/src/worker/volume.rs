@@ -286,7 +286,7 @@ impl Shared {
 
 /// A copy of a volume halved as often as the device needs it to be to hold it, and how
 /// often; `None` when it holds the volume whole, or the volume cannot be halved.
-fn for_the_card(held: &HeldVolume, room: &CardRoom) -> Option<(Arc<HeldVolume>, u32)> {
+pub(super) fn for_the_card(held: &HeldVolume, room: &CardRoom) -> Option<(Arc<HeldVolume>, u32)> {
     let halvings = room.halvings(held.dims());
     if halvings == 0 {
         return None;

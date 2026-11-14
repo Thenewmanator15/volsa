@@ -58,8 +58,9 @@ const ACTIVE_BORDER: f32 = 2.0;
 /// What one viewport keeps between frames.
 pub struct Gpu {
     pipeline: Arc<Mutex<SlicePipeline>>,
-    /// The slice that is uploaded now, so it is uploaded once and not every frame.
-    uploaded: Option<(SeriesId, usize)>,
+    /// The slice that is uploaded now, so it is uploaded once and not every frame, and whether
+    /// it was of a susceptibility map shown in place of its series.
+    uploaded: Option<(SeriesId, usize, bool)>,
     /// That slice as a picture in its own colours, when it is stored in colour.
     coloured: Option<egui::TextureHandle>,
     /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
@@ -303,7 +304,8 @@ fn slice(
         gpu.uploaded = None;
         return false;
     };
-    let wanted = (series.clone(), viewport.slice);
+    let map = crate::susceptibility::shown(pane.state, series);
+    let wanted = (series.clone(), viewport.slice, map);
     let mut pipeline = gpu.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
     if gpu.uploaded.as_ref() != Some(&wanted) {
         let cached = frames(series, viewport.slice);

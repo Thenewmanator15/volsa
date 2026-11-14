@@ -319,6 +319,9 @@ fn written_over(ui: &Ui, area: Rect, state: &AppState) -> Vec<Rect> {
         captions(spacing, scene.halved)
     };
     said.splice(0..0, captions::preview_text(scene));
+    // A map shown in place of the scan says so first.
+    let map = crate::susceptibility::in_the_scene(state);
+    said.splice(0..0, map.then(|| crate::susceptibility::NOTE.to_owned()));
     said.extend(tools::said(state).into_iter().map(str::to_owned));
     let said = said.join("\n");
     let (down, room) = captions::caption_room(inside.width());
