@@ -8,6 +8,8 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-15
+
 ### Added
 
 - **Segmentations stored in DICOM (SEG)** are listed among an export's documents as

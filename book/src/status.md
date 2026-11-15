@@ -1,6 +1,11 @@
 # Status
 
-**Version 0.7.1, the first download.** 0.7.0's release build stopped at its checks, so 0.7.0 was
+**Version 0.8.0, the first download.** It adds plugins (models you add yourself), a highlight
+of the veins on a scan of their kind, a map from a phase scan, DICOM SEG labels, sliders for
+brightness, contrast, slice and speed, opening where you left off, dragging a scan onto a view,
+a menu on each slice, a Settings window, and tidier tabs with the seldom-used under More.
+
+0.7.1 was made ready and never published. 0.7.0's release build stopped at its checks, so 0.7.0 was
 never offered as a download; 0.7.1 is 0.7.0 with those fixed. It has a new window, made so that
 someone who has never seen Volsa can open an export, find the scan and measure on it; it opens
 very large scans faster and in less memory; and it refuses a damaged file nested too deeply
