@@ -92,6 +92,8 @@ pub enum Place {
     Tab(Tab),
     /// The rail of scans at the left: the strip it folds to, and its group of other files.
     Rail,
+    /// The menu a slice opens when it is right-clicked.
+    Slice,
     /// The menu of a scan's card.
     Card,
     /// The line along the bottom of the window.
@@ -119,6 +121,7 @@ impl Place {
             Self::Tab(Tab::Labels) => "In the Labels tab",
             Self::Tab(Tab::Tools) => "In the Tools tab",
             Self::Rail => "Beside the scans",
+            Self::Slice => "In the menu of a slice: right-click the picture",
             Self::Card => "In the menu of a scan's card",
             Self::Line => "In the line along the bottom",
             Self::About => "In the About window",

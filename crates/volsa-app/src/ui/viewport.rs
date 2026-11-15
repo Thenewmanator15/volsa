@@ -14,18 +14,22 @@ use super::theme;
 use crate::action::Action;
 use crate::measuring::SliceValues;
 use crate::state::{AppState, Layout};
+use crate::ui::commands::Request;
 pub use dropped::Carried;
 
 mod annotate;
 mod by_keys;
 mod colour;
 mod dropped;
+mod menu;
 mod mouse;
+mod picture;
 mod said;
 mod tools;
 mod value;
 
 pub(super) use mouse::turned as wheel_turned;
+pub use picture::save as save_slice;
 pub use tools::Drafts;
 
 /// Where a viewport gets a decoded slice from, by series and place: `None` until it is there.
@@ -191,7 +195,8 @@ fn narrowed(value: f64) -> f32 {
 /// active one shows. `held` is what each viewport keeps between frames: what is on the
 /// graphics device, and what is being drawn on its slice. With no `area`, the arrangement
 /// shown has no viewports: nothing is drawn, and what was being drawn on a slice is given up,
-/// not kept for when the slices are shown again.
+/// not kept for when the slices are shown again. Gives what the menu of a slice asks of the
+/// window.
 pub fn show(
     ui: &mut Ui,
     area: Option<Rect>,
@@ -200,14 +205,15 @@ pub fn show(
     (gpus, drafts): (&mut [Gpu], &mut Drafts),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
-) {
+) -> Vec<Request> {
     let Some(area) = area else {
         drafts.give_up();
-        return;
+        return Vec::new();
     };
     dropped::follow_pointer(ui);
     let cancel = ui.input(|i| i.key_pressed(egui::Key::Escape));
     drafts.keep_up(state, cancel);
+    let mut asked = Vec::new();
     for (at, cell) in grid(area, state.layout).into_iter().enumerate() {
         let Some(viewport) = state.viewports.get(at) else {
             continue;
@@ -246,7 +252,9 @@ pub fn show(
         let input = mouse::gather(ui, &response, cell, viewport.wl.width, part_notch);
         let input = mouse::for_tool(input, state.tool);
         actions.extend(overlay::input_to_actions(at, &input));
+        menu::offer(&response, state, actions, &mut asked);
     }
+    asked
 }
 
 /// Viewport `at` of `state` being drawn in `cell` this frame, with the view its slice is drawn
@@ -351,6 +359,10 @@ mod dropped_tests;
 mod in_hand_tests;
 #[cfg(test)]
 mod labels_tests;
+#[cfg(test)]
+mod menu_tests;
+#[cfg(test)]
+mod picture_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]

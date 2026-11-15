@@ -75,6 +75,13 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   computer alone: a hash for each series and study and a few numbers, for at most 500 series,
   with no name, identifier, path or date. There is nothing to switch on and nothing new in
   the window.
+- **A slice's own menu**: right-click a slice (without dragging) for Fit, Mirror across, Mirror
+  down, Turn, **Reset view**, Auto brightness, **Save this slice as a picture…** and Show tags.
+  Dragging with the right button still sets the brightness. **Reset view** puts the picture back
+  as it was first shown: fitted, not mirrored, not turned, with Auto brightness; it is in the
+  search too. **Save this slice as a picture…** saves the whole slice as it is shown (brightness,
+  mirroring and turns) to a PNG file where you choose, with nothing but its pixels: no words and
+  no details of the patient.
 
 ### Security
 

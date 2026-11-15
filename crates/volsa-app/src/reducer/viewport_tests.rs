@@ -3,7 +3,7 @@
 use volsa_core::WindowLevel;
 use volsa_render::ViewTransform;
 
-use super::tests::{frames_around, loaded, showing};
+use super::tests::{frames_around, loaded, showing, windows};
 use super::*;
 use crate::state::Layout;
 use crate::testing::{THICK_SCAN, id};
@@ -218,6 +218,7 @@ fn a_viewport_that_does_not_exist_is_ignored() {
         },
         Action::Rotate { viewport: 4 },
         Action::Fit { viewport: 4 },
+        Action::ResetView(4),
         Action::AdjustWindow {
             viewport: 4,
             d_center: 1.0,
@@ -256,4 +257,50 @@ fn a_viewport_showing_nothing_ignores_movement() {
         assert_eq!(reduce(&mut state, action), Vec::new());
     }
     assert_eq!(state, before);
+}
+
+#[test]
+fn resetting_puts_the_picture_back_fitted_unmirrored_unturned_with_the_automatic_window() {
+    let mut state = showing(THICK_SCAN);
+    let ready = Action::FrameReady {
+        series: id(THICK_SCAN),
+        slice: 15,
+        windows: windows(300.0),
+    };
+    reduce(&mut state, ready);
+    let changes = [
+        Action::Flip {
+            viewport: 0,
+            horizontal: true,
+        },
+        Action::Flip {
+            viewport: 0,
+            horizontal: false,
+        },
+        Action::Rotate { viewport: 0 },
+        Action::Zoom {
+            viewport: 0,
+            factor: 3.0,
+            about: [10.0, 4.0],
+        },
+        Action::SetWindow {
+            viewport: 0,
+            wl: WindowLevel::new(40.0, 80.0),
+        },
+    ];
+    for change in changes {
+        reduce(&mut state, change);
+    }
+    assert_ne!(state.viewports[0].view, ViewTransform::fit());
+    assert!(!state.viewports[0].wl_auto);
+    reduce(&mut state, Action::ResetView(0));
+    let viewport = &state.viewports[0];
+    assert_eq!(viewport.view, ViewTransform::fit());
+    assert_eq!(
+        viewport.wl,
+        WindowLevel::new(300.0, 100.0),
+        "the Auto window"
+    );
+    assert!(viewport.wl_auto && !viewport.wl_pending);
+    assert_eq!(viewport.slice, 15, "the slice shown stays");
 }
