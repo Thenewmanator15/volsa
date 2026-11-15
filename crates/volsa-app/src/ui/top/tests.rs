@@ -154,7 +154,7 @@ fn the_top_bar_keeps_open_search_and_the_menu_at_640() {
             "Open".to_owned(),
             named("search.open"),
             named("help.keys"),
-            named("theme.light"),
+            menus::THEME.name.to_owned(),
             MENU.to_owned(),
         ];
         let places: Vec<Rect> = wanted
@@ -276,63 +276,64 @@ fn the_search_box_asks_for_the_search_and_the_results_hang_under_it() {
 }
 
 #[test]
-fn the_theme_button_shows_the_theme_and_goes_round_system_light_dark() {
-    let mut chosen = Vec::new();
-    for theme in [ThemeChoice::System, ThemeChoice::Light, ThemeChoice::Dark] {
-        let mut bar = Bar::new(SMALLEST, 1.0, AppState::default());
-        bar.theme = theme;
-        let laid = bar.settle();
-        // The button is named for what it does: the choice after the one it shows.
-        let button = named(theme_action(theme.next()));
-        let clicked = bar.click_named(&laid.seen, &button);
-        assert_eq!(clicked.asked.len(), 1, "from {theme:?}");
-        chosen.extend(clicked.asked);
+fn the_theme_button_opens_a_menu_of_the_three_themes_and_each_asks_for_its_own() {
+    for theme in ThemeChoice::ALL {
+        for choice in ThemeChoice::ALL {
+            let mut bar = Bar::new(SMALLEST, 1.0, AppState::default());
+            bar.theme = theme;
+            let laid = bar.settle();
+            let opened = bar.click_named(&laid.seen, menus::THEME.name);
+            let found = menu_items(&laid.seen, &opened.seen);
+            let three = ThemeChoice::ALL.map(|each| named(each.command()));
+            assert_eq!(found, three, "from {theme:?}");
+            let done = bar.click_named(&opened.seen, &named(choice.command()));
+            assert_eq!(done.asked, [Request::Theme(choice)], "from {theme:?}");
+        }
     }
-    let theme = Request::Theme;
-    assert_eq!(
-        chosen,
-        [
-            theme(ThemeChoice::Light),
-            theme(ThemeChoice::Dark),
-            theme(ThemeChoice::System)
-        ]
-    );
+}
+
+/// The names a menu brought, from its top down: what a screen reader is told once it is open
+/// and was not before.
+fn menu_items(closed: &Seen, open: &Seen) -> Vec<String> {
+    let new = |(name, _): &&(String, Rect)| !closed.names.iter().any(|(was, _)| was == name);
+    let mut items: Vec<&(String, Rect)> = open.names.iter().filter(new).collect();
+    items.sort_by(|(_, a), (_, b)| a.top().total_cmp(&b.top()));
+    items.into_iter().map(|(name, _)| name.clone()).collect()
 }
 
 #[test]
-fn the_menu_holds_size_full_screen_the_keys_the_log_and_about() {
+fn the_menu_holds_settings_full_screen_the_log_and_about() {
     let wanted = [
-        ("window.full_screen", Some(Request::FullScreen)),
-        ("help.keys", Some(Request::Help(None))),
-        ("about", Some(Request::About)),
-        ("log.where", Some(Request::WhereTheLogIs)),
+        ("settings.open", Request::Settings),
+        ("window.full_screen", Request::FullScreen),
+        ("log.where", Request::WhereTheLogIs),
+        ("about", Request::About),
     ];
+    let mut bar = Bar::new(SMALLEST, 1.0, named_study());
+    let laid = bar.settle();
+    let opened = bar.click_named(&laid.seen, MENU);
+    // Those four, in that order, and nothing else: the interface size is in Settings, the keys
+    // are under the ? beside it, the scans fold from their own strip, and a file's tags are
+    // shown from its card.
+    let ids = wanted.clone().map(|(id, _)| named(id));
+    assert_eq!(menu_items(&laid.seen, &opened.seen), ids);
+    let all: Vec<&str> = opened.seen.names.iter().map(|(n, _)| n.as_str()).collect();
+    assert!(
+        !all.iter().any(|name| name.starts_with("Interface size")),
+        "{all:?}"
+    );
     for (id, request) in wanted {
         let mut bar = Bar::new(SMALLEST, 1.0, named_study());
         let laid = bar.settle();
         let opened = bar.click_named(&laid.seen, MENU);
-        let size = opened.seen.place_starting("Interface size 100%");
-        assert!(
-            size.is_some(),
-            "the size is in the menu: {:?}",
-            opened.seen.names
-        );
         // Each item gives what the list of actions says it does.
         let done = bar.click_named(&opened.seen, &named(id));
-        assert_eq!(done.asked, request.into_iter().collect::<Vec<_>>(), "{id}");
+        assert_eq!(done.asked, [request], "{id}");
         assert_eq!(
             done.actions,
             [],
             "{id} asks the window, and changes no state"
         );
-    }
-    // The scans fold from their own strip, and a file's tags are shown from its card.
-    let mut bar = Bar::new(SMALLEST, 1.0, named_study());
-    let laid = bar.settle();
-    let opened = bar.click_named(&laid.seen, MENU);
-    for id in ["rail.fold", "tags.show"] {
-        let found = opened.seen.place_of(&named(id));
-        assert_eq!(found, None, "{id} is in the menu: {:?}", opened.seen.names);
     }
 }
 
@@ -346,7 +347,7 @@ fn the_bar_and_its_menu_read_in_both_themes() {
         let said = |(said, _): &(String, Rect)| said == STUDY;
         assert!(laid.seen.words.iter().any(said), "{choice:?}: the study");
         let opened = bar.click_named(&laid.seen, MENU);
-        assert!(opened.seen.place_starting("Interface size").is_some());
+        assert!(opened.seen.place_of(&named("settings.open")).is_some());
         for seen in [&laid.seen, &opened.seen] {
             // The words of the bar are on the panel, or in the box of the search, whose ground
             // is that of a field.

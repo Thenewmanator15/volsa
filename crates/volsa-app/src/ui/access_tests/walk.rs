@@ -131,6 +131,12 @@ fn menu_button(menu: &menus::Menu) -> String {
     menu.spoken(menu.label)
 }
 
+/// The words a screen reader says of the Settings item of the top bar's menu.
+fn settings_item() -> String {
+    let settings = commands::find("settings.open").expect("listed");
+    commands::spoken(settings, "").into_owned()
+}
+
 /// Every state of the window the walk reads, besides the arrangements and the report.
 pub fn extra_windows() -> Vec<Scene> {
     let notices = || with_notices(measured_in_four());
@@ -159,12 +165,14 @@ pub fn extra_windows() -> Vec<Scene> {
             Opened::Clicks(vec![menu_button(&menus::MORE)]),
         ),
         Scene::with(
-            "the interface size menu",
+            "the Settings window",
             measured_in_four(),
-            Opened::Clicks(vec![
-                menu_button(&menus::MORE),
-                "Interface size 100%".to_owned(),
-            ]),
+            Opened::Clicks(vec![menu_button(&menus::MORE), settings_item()]),
+        ),
+        Scene::with(
+            "the theme menu",
+            measured_in_four(),
+            Opened::Clicks(vec![menu_button(&menus::THEME)]),
         ),
         Scene::with(
             "the Views menu",
@@ -234,7 +242,6 @@ pub fn known_names(state: &AppState) -> HashSet<String> {
         names.insert(menu.name.to_owned());
         names.insert(menu.spoken(menu.label));
     }
-    names.insert(menus::SIZE.spoken("Interface size 100%"));
     names.insert(notice_area_name(state));
     // The button egui puts in the title bar of every window that can be closed.
     names.insert("Close window".to_owned());

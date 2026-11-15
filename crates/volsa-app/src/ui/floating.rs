@@ -1,5 +1,5 @@
-//! Windows that float over the pictures: About, the help, a file's tags and the progress of a
-//! turntable being saved.
+//! Windows that float over the pictures: About, Settings, the help, a file's tags and the
+//! progress of a turntable being saved.
 //!
 //! Nothing floats over the column of scans. Each of these windows opens inside the area of
 //! the pictures and is kept there when it is moved, never wider or taller than that area; and
@@ -8,7 +8,7 @@
 use egui::{Context, Id, Key, Modifiers, Rect, Window, vec2};
 
 use super::scene::export;
-use super::{VolsaApp, about, help, typing};
+use super::{VolsaApp, about, help, settings, typing};
 use crate::action::Action;
 
 /// Where the area of the pictures is, which the windows are told each frame.
@@ -57,6 +57,8 @@ enum Which {
     About,
     /// The licences and notices window, which About opens.
     Licences,
+    /// The Settings window.
+    Settings,
     Help,
     Tags,
     /// The window that shows how far a turntable has got; Esc stops the turntable.
@@ -69,6 +71,7 @@ impl Open<'_> {
         match which {
             Which::About => *self.about,
             Which::Licences => about::notices_are_open(ctx),
+            Which::Settings => settings::is_open(ctx),
             Which::Help => *self.help,
             Which::Tags => *self.tags,
             Which::Turntable => export::turntable_is_open(ctx),
@@ -80,6 +83,7 @@ impl Open<'_> {
         match which {
             Which::About => *self.about = false,
             Which::Licences => about::close_notices(ctx),
+            Which::Settings => settings::close(ctx),
             Which::Help => *self.help = false,
             Which::Tags => *self.tags = false,
             Which::Turntable => export::stop_turntable(ctx),
@@ -97,6 +101,7 @@ pub fn close_on_esc(ctx: &Context, mut open: Open<'_>) {
     let all = [
         Which::About,
         Which::Licences,
+        Which::Settings,
         Which::Help,
         Which::Tags,
         Which::Turntable,
@@ -128,6 +133,8 @@ impl VolsaApp {
         close_on_esc(ctx, open);
         let (state, mut asked) = (self.session.state(), Vec::new());
         about::show_in(ctx, state, &mut self.about_open, &mut asked);
+        let theme = self.bars.theme;
+        settings::show(ctx, state, theme, actions, &mut asked);
         help::show(ctx, &mut self.help_open);
         self.tags.show(ctx, state, actions);
         // The card a plugin offered is read on, the warning before a run, and the question

@@ -218,24 +218,15 @@ fn a_short_window_has_its_bars_set_closer() {
 }
 
 #[test]
-fn the_theme_button_goes_from_system_to_light_to_dark_and_round_again() {
-    let mut choice = ThemeChoice::default();
-    assert_eq!(choice, ThemeChoice::System);
-    let seen: Vec<ThemeChoice> = (0..4)
-        .map(|_| {
-            choice = choice.next();
-            choice
-        })
-        .collect();
+fn the_themes_offered_are_the_systems_then_light_then_dark_and_the_systems_comes_first() {
+    assert_eq!(ThemeChoice::default(), ThemeChoice::System);
     assert_eq!(
-        seen,
-        [
-            ThemeChoice::Light,
-            ThemeChoice::Dark,
-            ThemeChoice::System,
-            ThemeChoice::Light
-        ]
+        ThemeChoice::ALL,
+        [ThemeChoice::System, ThemeChoice::Light, ThemeChoice::Dark]
     );
+    for choice in ThemeChoice::ALL {
+        assert_eq!(ThemeChoice::named(choice.name()), Some(choice));
+    }
 }
 
 #[test]

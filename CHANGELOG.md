@@ -17,7 +17,14 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   at half, and a notice says so), from frames that may be oblique or leave out empty slices.
   Compressed masks, unevenly spaced frames, a segmentation of another study and damaged files
   are refused in a sentence.
-- Drag a scan from the list on the left onto any view to show it there.
+- Drag a scan from the list on the left onto any view to show it there. While more than one view
+  is shown, a quiet line above the scans says so, and the help says it too.
+- **Settings…**, in the menu at the right of the top bar or by Ctrl+, : the theme (System, Light
+  or Dark), the interface size (75% to 200%, with Ctrl+=, Ctrl+- and Ctrl+0 noted) and
+  **Patient's left on the right**, all kept from one run to the next.
+- Keys for the tabs: Ctrl+1 View, Ctrl+2 Measure (M still works), Ctrl+3 3D, Ctrl+4 Labels and
+  Ctrl+5 Tools. Keys for the pictures: S for the slices, T for the three planes and D for the 3D
+  view alone. The help lists them all.
 - **Highlight veins**, in the Tools tab under "Part of Volsa": a filter (no trained model) that
   finds thin dark tubes in the scan shown, mostly veins on an SWI or T2* scan, and shows them as
   one more part, "Dark tubes (mostly veins)", marked approximate, on top of any brain labels
@@ -151,6 +158,13 @@ reading. None was reported by anyone using Volsa.
 
 ### Changed
 
+- The theme button in the top bar opens a small menu of System, Light and Dark, with the one in
+  use marked, instead of moving to the next theme at each click.
+- The menu at the right of the top bar holds Settings…, Full screen, Where the log is and About:
+  the interface size moved into Settings, and "Show help" left it, since the **?** beside it
+  does the same.
+- A scan's card menu holds only **Tags**: "Show in the selected view" is gone, as a click on the
+  card does that.
 - Labels now start a little see-through (70%) instead of solid, so that parts inside others show
   in the 3D view. Each part's slider in the Labels tab still makes it solid.
 - A slice is now shown the same way round whatever way its file stores it, by the one

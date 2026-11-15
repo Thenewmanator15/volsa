@@ -13,8 +13,8 @@
 
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{
-    Align, Color32, FontId, Frame, Id, Layout, Margin, Rect, RichText, ScrollArea, Sense, Shape,
-    Stroke, TextStyle, Ui, WidgetInfo, WidgetType, pos2, vec2,
+    Align, Color32, FontId, Frame, Id, Label, Layout, Margin, Rect, RichText, ScrollArea, Sense,
+    Shape, Stroke, TextStyle, Ui, WidgetInfo, WidgetType, pos2, vec2,
 };
 use volsa_dicom::Index;
 
@@ -50,6 +50,8 @@ const OTHER_FILES: &str = "rail.other";
 const ABOVE_OTHER: f32 = 8.0;
 /// What heads the documents of studies that hold no scans.
 const UNPLACED: &str = "Documents of studies without scans";
+/// What the rail says above the scans while more than one view is shown.
+pub const DRAG_HINT: &str = "Drag a scan onto a view to show it there.";
 
 /// What the rail says at its top when an export holds the studies of `count` people.
 pub fn people_said(count: usize) -> String {
@@ -125,12 +127,7 @@ pub fn show(
     rail.follow(state);
     let open = rail.other_open;
     let laid = rail.laid(index, state);
-    if laid.people.len() > 1 {
-        ui.label(
-            RichText::new(people_said(laid.people.len())).color(theme::palette(ui.ctx()).warning),
-        );
-        ui.add_space(4.0);
-    }
+    above_the_list(ui, state, laid);
     let mut asks = card::Asks {
         state,
         actions,
@@ -167,6 +164,30 @@ pub fn show(
         rail.other_open = !rail.other_open;
     }
     requests
+}
+
+/// What is said above the list: with an export of several people, how many there are; and,
+/// while there is a scan to drag and more than one view to drag it to, that it can be.
+fn above_the_list(ui: &mut Ui, state: &AppState, laid: &kept::Laid) {
+    let palette = theme::palette(ui.ctx());
+    if laid.people.len() > 1 {
+        ui.label(RichText::new(people_said(laid.people.len())).color(palette.warning));
+        ui.add_space(4.0);
+    }
+    let a_scan = laid.rows.iter().any(|row| matches!(row, Row::Card { .. }));
+    if a_scan && drag_says_more_than_a_click(state) {
+        let hint = RichText::new(DRAG_HINT).small().color(palette.quiet_text);
+        ui.add(Label::new(hint).wrap());
+        ui.add_space(4.0);
+    }
+}
+
+/// Whether dragging a card onto a view does more than clicking it, which shows its scan in the
+/// selected view: true while more than one view of slices is shown. With one, the hint would
+/// only take room from the list, so it is said only when it helps.
+fn drag_says_more_than_a_click(state: &AppState) -> bool {
+    let pictures = state.pictures.given(&state.scene.status);
+    state.document.is_none() && pictures.has_slices() && state.layout.count() > 1
 }
 
 /// What the rows name by their places, and what they are drawn with.
@@ -351,6 +372,8 @@ fn other_heading(ui: &mut Ui, rect: Rect, count: usize, open: bool) -> bool {
 mod card_tests;
 #[cfg(test)]
 mod documents_tests;
+#[cfg(test)]
+mod hint_tests;
 #[cfg(test)]
 mod open_tests;
 #[cfg(test)]

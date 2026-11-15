@@ -8,6 +8,7 @@
 
 use std::path::PathBuf;
 
+use egui::containers::menu::MenuButton;
 use egui::{Align, Atom, AtomExt, Button, Id, Layout, RichText, Ui, Vec2, vec2};
 use volsa_core::StudyInfo;
 
@@ -56,7 +57,7 @@ const SPARE: f32 = 1.0;
 
 /// Draw the bar: gives what the person asked of the window, in the order of the bar's
 /// buttons, and puts a change of state onto `actions`. `theme` is the theme the window is
-/// drawn in, which the theme button shows and moves on from. The search box tells `search`
+/// drawn in, which the theme button shows and marks in its menu. The search box tells `search`
 /// where it is, so that the results hang under it.
 pub fn show(
     ui: &mut Ui,
@@ -195,15 +196,6 @@ fn find_box(ui: &mut Ui, search: &mut Search, width: f32, route: &mut Route<'_>)
     }
 }
 
-/// The action that draws the window in `choice`.
-const fn theme_action(choice: ThemeChoice) -> &'static str {
-    match choice {
-        ThemeChoice::System => "theme.system",
-        ThemeChoice::Light => "theme.light",
-        ThemeChoice::Dark => "theme.dark",
-    }
-}
-
 /// What the theme button shows for the theme the window is drawn in.
 const fn theme_symbol(choice: ThemeChoice) -> Symbol {
     match choice {
@@ -225,21 +217,29 @@ fn icon_buttons(ui: &mut Ui, theme: ThemeChoice, route: &mut Route<'_>) {
         Button::new(command.label).min_size(vec2(ICON_BUTTON, 0.0))
     });
     route.take(made.and_then(|(_, does)| does));
-    // The button shows the theme now, and does what the choice after it does.
-    let room = Id::new("volsa: the symbol on the theme button");
-    let next = theme_action(theme.next());
-    let made = commands::button_made(ui, next, route.state, "", |_| icon_button(room));
-    if let Some((shown, does)) = made {
-        let colour = ui.style().interact(&shown.response).fg_stroke.color;
-        symbols::paint(
-            ui.painter(),
-            shown.rect(room).unwrap_or(shown.response.rect),
-            theme_symbol(theme),
-            colour,
-        );
-        route.take(does);
-    }
+    theme_menu(ui, theme, route);
     menu::button(ui, route);
+}
+
+/// The theme button: it shows the theme the window is drawn in, and opens a menu of the three
+/// choices with that one marked. A menu, not a button that goes round them, so that the person
+/// sees every choice and which is on before choosing, and never has to guess where a click will
+/// take the window.
+fn theme_menu(ui: &mut Ui, theme: ThemeChoice, route: &mut Route<'_>) {
+    let room = Id::new("volsa: the symbol on the theme button");
+    let (response, _) = MenuButton::from_button(icon_button(room)).ui(ui, |ui| {
+        for choice in ThemeChoice::ALL {
+            let on = Some(choice == theme);
+            if let Some(does) = commands::button(ui, choice.command(), route.state, on) {
+                route.take(Some(does));
+                ui.close();
+            }
+        }
+    });
+    let response = commands::named(ui, &menus::THEME, "", response);
+    let colour = ui.style().interact(&response).fg_stroke.color;
+    let rect = egui::Rect::from_center_size(response.rect.center(), Vec2::splat(symbols::SIZE));
+    symbols::paint(ui.painter(), rect, theme_symbol(theme), colour);
 }
 
 /// What has just been dropped on the window to open, if anything. While something is being

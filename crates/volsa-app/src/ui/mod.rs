@@ -49,6 +49,7 @@ mod scrolled;
 mod search;
 #[cfg(test)]
 mod seen;
+mod settings;
 mod setup;
 mod shares;
 mod size;

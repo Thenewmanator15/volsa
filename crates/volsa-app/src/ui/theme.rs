@@ -68,13 +68,15 @@ pub enum ThemeChoice {
 }
 
 impl ThemeChoice {
-    /// The choice the theme button moves to from this one: the system's, then light, then
-    /// dark, and round again.
-    pub const fn next(self) -> Self {
+    /// The three choices, in the order the theme menu and the Settings window offer them.
+    pub const ALL: [Self; 3] = [Self::System, Self::Light, Self::Dark];
+
+    /// The action of the list of actions that draws the window in this theme.
+    pub const fn command(self) -> &'static str {
         match self {
-            Self::System => Self::Light,
-            Self::Light => Self::Dark,
-            Self::Dark => Self::System,
+            Self::System => "theme.system",
+            Self::Light => "theme.light",
+            Self::Dark => "theme.dark",
         }
     }
 
@@ -89,9 +91,7 @@ impl ThemeChoice {
 
     /// The choice kept under this word; `None` for a word that is not one of the three.
     pub fn named(word: &str) -> Option<Self> {
-        [Self::System, Self::Light, Self::Dark]
-            .into_iter()
-            .find(|choice| choice.name() == word)
+        Self::ALL.into_iter().find(|choice| choice.name() == word)
     }
 
     /// How egui is told to choose between its two looks.

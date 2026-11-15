@@ -1,19 +1,18 @@
-//! The menu at the right of the top bar: the size of the interface, full screen, the keys and
-//! mouse, where the log is, and About.
+//! The menu at the right of the top bar: Settings, full screen, where the log is, and About.
+//! The keys and mouse are under the `?` beside it, and the interface size is in Settings.
 
 use egui::containers::menu::MenuButton;
 use egui::{Atom, Button, Id, Ui, Vec2, vec2};
 
 use super::{ICON_BUTTON, Route};
-use crate::ui::commands::{self, Request, menus};
-use crate::ui::size;
+use crate::ui::commands::{self, menus};
 use crate::ui::symbols::{self, Symbol};
 
 /// The actions the menu lists, in groups. The scans are folded from their own strip and by
 /// B, and a file's tags are shown from its scan's card.
-const GROUPS: [&[&str]; 2] = [
-    &["window.full_screen"],
-    &["help.keys", "log.where", "about"],
+pub(super) const GROUPS: [&[&str]; 2] = [
+    &["settings.open", "window.full_screen"],
+    &["log.where", "about"],
 ];
 
 /// Draw the button that opens the menu, and the menu while it is open.
@@ -28,14 +27,12 @@ pub(super) fn button(ui: &mut Ui, route: &mut Route<'_>) {
     symbols::paint(ui.painter(), rect, Symbol::More, colour);
 }
 
-/// What the menu holds.
+/// What the menu holds: each group of actions, with a line between them.
 fn contents(ui: &mut Ui, route: &mut Route<'_>) {
-    if let Some(size) = size::menu(ui, route.state) {
-        route.asked.push(Request::Size(size));
-        ui.close();
-    }
-    for group in GROUPS {
-        ui.separator();
+    for (number, group) in GROUPS.into_iter().enumerate() {
+        if number > 0 {
+            ui.separator();
+        }
         for id in group {
             let item = commands::button_made(ui, id, route.state, "", |command| {
                 let item = Button::new(command.name);

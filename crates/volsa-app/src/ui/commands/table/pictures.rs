@@ -1,8 +1,11 @@
 //! How the pictures in the middle of the window are arranged: the four arrangements the strip
-//! above them offers. Each but the slices alone shows the 3D view, which a scan may not have.
+//! above them offers, and their keys: S for the slices, T for the three planes and D for 3D.
+//! Each but the slices alone shows the 3D view, which a scan may not have.
+
+use egui::Key;
 
 use super::super::{Command, Does, Place, Why};
-use super::PLAIN;
+use super::{PLAIN, alone};
 use crate::action::Action;
 use crate::pictures::Pictures;
 use crate::scene::SceneStatus;
@@ -49,6 +52,7 @@ pub(super) const COMMANDS: &[Command] = &[
         label: "Slices",
         explains: "One, two or four viewports of the scan's own slices",
         words: &["arrangement", "2D", "stack", "viewports"],
+        key: Some(alone(Key::S, "S")),
         place: Place::Strip,
         does: Does::Act(|_| Some(Action::SetPictures(Pictures::Slices))),
         ..PLAIN
@@ -76,6 +80,7 @@ pub(super) const COMMANDS: &[Command] = &[
             "sagittal",
             "orthogonal",
         ],
+        key: Some(alone(Key::T, "T")),
         place: Place::Strip,
         why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SetPictures(Pictures::Planes))),
@@ -86,6 +91,7 @@ pub(super) const COMMANDS: &[Command] = &[
         name: "Show the 3D view alone",
         label: "3D",
         words: &["arrangement", "3D", "volume", "whole"],
+        key: Some(alone(Key::D, "D")),
         place: Place::Strip,
         why_not: no_3d_view,
         does: Does::Act(|_| Some(Action::SetPictures(Pictures::Scene))),

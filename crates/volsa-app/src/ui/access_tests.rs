@@ -246,10 +246,12 @@ fn the_states_walked_reach_the_buttons_that_used_to_be_drawn_by_hand() {
     );
     seen("the Views menu", Tab::Scene, "Delete Front");
     seen(
-        "the interface size menu",
+        "the Settings window",
         Tab::View,
         "Draw the interface at 150%",
     );
+    seen("the Settings window", Tab::View, "Use the dark theme");
+    seen("the theme menu", Tab::View, "Use the light theme");
     seen("a question", Tab::View, "Keep them");
 }
 

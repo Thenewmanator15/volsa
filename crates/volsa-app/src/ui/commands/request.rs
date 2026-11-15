@@ -17,6 +17,8 @@ pub enum Request {
     Help(Option<&'static str>),
     /// To see the About window.
     About,
+    /// To see the Settings window: the theme, the interface size and the patient's sides.
+    Settings,
     /// To see the window that shows the licences and notices of everything Volsa is built from.
     Licences,
     /// To copy the place of the log to the clipboard.

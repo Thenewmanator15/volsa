@@ -312,7 +312,7 @@ fn a_hint_is_the_name_and_key_then_what_explains_it() {
     assert_eq!(hint_of("open.folder"), "Open a folder of DICOM files");
     assert_eq!(
         hint_of("tab.measure"),
-        "Show the Measure tab (M)\n\
+        "Show the Measure tab (M or Ctrl+2)\n\
          Rulers, angles, regions and markers, and the list of what has been measured"
     );
 }
@@ -373,14 +373,28 @@ fn the_panel_is_folded_by_a_key_as_the_series_list_is_and_each_tab_is_shown_by_i
         Some(Gives::Ask(Request::FoldPanel))
     );
     assert_eq!(on(Key::P, CTRL, &state), None);
-    // M shows the Measure tab, as it always has; no other tab has a key of its own.
-    for tab in Tab::ALL {
+    // Ctrl+1 to Ctrl+5 show the tabs in their order; M still shows the Measure tab, as it
+    // always has, and Ctrl+2 does too.
+    let numbers = [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5];
+    let shown = ["Ctrl+1", "M or Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"];
+    for ((tab, number), shown) in Tab::ALL.into_iter().zip(numbers).zip(shown) {
         let command = find(tab.command()).expect("listed");
-        let key = command.key.map(|key| key.shown);
-        let wanted = (tab == Tab::Measure).then_some("M");
-        assert_eq!(key, wanted, "{}", command.id);
+        assert_eq!(
+            command.key.map(|key| key.shown),
+            Some(shown),
+            "{}",
+            command.id
+        );
         assert_eq!(command.place, Place::Panel);
+        let asked = Some(Gives::Ask(Request::ShowTab(tab)));
+        assert_eq!(on(number, CTRL, &state), asked, "{tab:?}");
     }
     let measure = on(Key::M, NONE, &state);
     assert_eq!(measure, Some(Gives::Ask(Request::ShowTab(Tab::Measure))));
+    // The digits alone still set the viewports, and Ctrl+0 is still egui's.
+    assert_eq!(
+        on(Key::Num2, NONE, &state),
+        Some(Gives::Act(Action::SetLayout(Layout::TwoAcross)))
+    );
+    assert_eq!(on(Key::Num0, CTRL, &state), None);
 }

@@ -176,8 +176,17 @@ pub fn find(id: &str) -> Option<&'static Command> {
 /// Keys that do what another action's key does: Ctrl+Shift+Z redoes, as in many programs, and a
 /// slash searches as Ctrl+K does, with Shift held or not: on a keyboard where a slash needs Shift
 /// (a German one, Shift+7) it is still the slash, and a question mark, which egui reports as
-/// its own key, shows the keys.
-const OTHER_KEYS: [(Key, Held, &str); 3] = [
+/// its own key, shows the keys. Ctrl+2 shows the Measure tab, as Ctrl+1 to Ctrl+5 show the tabs
+/// in their order, besides M.
+const OTHER_KEYS: [(Key, Held, &str); 4] = [
+    (
+        Key::Num2,
+        Held {
+            command: true,
+            shift: false,
+        },
+        "tab.measure",
+    ),
     (
         Key::Z,
         Held {
@@ -258,6 +267,8 @@ pub fn hint(command: &Command) -> String {
 
 #[cfg(test)]
 mod button_tests;
+#[cfg(test)]
+mod keys_tests;
 #[cfg(test)]
 mod table_tests;
 #[cfg(test)]

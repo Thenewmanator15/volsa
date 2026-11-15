@@ -252,7 +252,7 @@ fn a_long_name_is_cut_and_never_widens_the_rail() {
 }
 
 #[test]
-fn a_cards_menu_shows_it_or_its_tags() {
+fn a_cards_menu_shows_its_tags_and_nothing_a_click_does() {
     let (scan, other) = (
         series(1, "MR", "made-up t1", 20),
         series(2, "MR", "made-up t2", 20),
@@ -265,23 +265,29 @@ fn a_cards_menu_shows_it_or_its_tags() {
     (state.layout, state.active) = (Layout::TwoAcross, 1);
     let (ctx, mut rail) = (seen::context(1.0), RailState::default());
     let tags = commands::find("tags.show").expect("listed").name;
-    // By the other button: the menu's two items, each doing what it says.
-    let shown = Action::SelectSeries {
-        viewport: 1,
-        series: scan.id.clone(),
-    };
+    // By the other button: the menu's one item, Tags, which does what it says. Showing the
+    // scan in the selected view is the card's own click, so the menu does not offer it.
+    let closed = pass(&ctx, &state, &mut rail, Vec::new());
+    let (opened, card) = menu_of(&ctx, &state, &mut rail, &scan);
+    let new = |(name, _): &&(String, Rect)| !closed.seen.names.iter().any(|(was, _)| was == name);
+    let items: Vec<_> = opened
+        .seen
+        .names
+        .iter()
+        .filter(new)
+        .map(|(n, _)| n)
+        .collect();
+    assert_eq!(items, [tags], "the menu holds Tags alone");
+    let found = opened.seen.place_of(tags).expect("in the menu");
+    assert!(!card.contains(found.center()), "{found:?} on {card:?}");
+    let chosen = click(&ctx, &state, &mut rail, found);
     let asked = Request::Tags(TagsOf::Series(scan.id.clone()));
-    let items = [
-        (card::SHOW_HERE, (vec![shown], vec![])),
-        (tags, (vec![], vec![asked])),
-    ];
-    for (item, expected) in items {
-        let (opened, card) = menu_of(&ctx, &state, &mut rail, &scan);
-        let found = opened.seen.place_of(item).expect("in the menu");
-        assert!(!card.contains(found.center()), "{found:?} on {card:?}");
-        let chosen = click(&ctx, &state, &mut rail, found);
-        assert_eq!((chosen.actions, chosen.requests), expected, "{item}");
-    }
+    assert_eq!((chosen.actions, chosen.requests), (vec![], vec![asked]));
+    // A click on the card itself shows it in the selected view, as the menu's item used to.
+    let drawn = pass(&ctx, &state, &mut rail, Vec::new());
+    let clicked = click(&ctx, &state, &mut rail, card_at(&drawn.seen, &scan));
+    let (viewport, series) = (1, scan.id.clone());
+    assert_eq!(clicked.actions, [Action::SelectSeries { viewport, series }]);
     // By its ⋯, named for a screen reader by the card's own name.
     let drawn = pass(&ctx, &state, &mut rail, Vec::new());
     let dots = card::dots_name(&card::name_of(&other));
@@ -329,8 +335,9 @@ fn menu_of(
     let _ = pass(ctx, state, rail, press);
     let _ = pass(ctx, state, rail, release);
     let opened = pass(ctx, state, rail, Vec::new());
+    let tags = commands::find("tags.show").expect("listed").name;
     assert!(
-        opened.seen.place_of(card::SHOW_HERE).is_some(),
+        opened.seen.place_of(tags).is_some(),
         "{:?}",
         opened.seen.names
     );

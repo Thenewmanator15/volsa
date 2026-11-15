@@ -32,7 +32,8 @@ pub const TOPICS: [Topic; 7] = [
         ],
         body: "Choose Open at the top of the window, then Folder… to pick a folder, or Zip \
                file or DICOMDIR… to pick a zip file or a DICOMDIR (a file that lists the scans \
-               on a disc). You can also drag a folder or a file onto the window.\n\n\
+               on a disc). You can also drop a folder, a zip file or a DICOMDIR onto the window \
+               to open it.\n\n\
                Scans from a hospital often come on a CD, usually in a folder named DICOM, \
                beside a file named DICOMDIR. Put the CD in, choose Folder… and pick the CD's \
                drive: Volsa looks inside every folder on it, so you need not find the scans \
@@ -58,9 +59,11 @@ pub const TOPICS: [Topic; 7] = [
             "card",
             "mark",
             "plain name",
+            "drag",
+            "view",
         ],
-        body: "A hospital's copy often holds many scans, listed down the left as cards that \
-               you click to show. Each card has a plain name that Volsa makes from what the \
+        body: "A hospital's copy often holds many scans, listed down the left as cards: click \
+               one to show it, or drag it onto a view to show it there. Each card has a plain name that Volsa makes from what the \
                scanner wrote, and the scanner's own name beneath it; if the two seem to \
                disagree, go by the scanner's own. Volsa starts on the largest scan it can show \
                in full, which says nothing about which scan matters.\n\n\
