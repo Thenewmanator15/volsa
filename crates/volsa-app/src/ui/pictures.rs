@@ -118,9 +118,9 @@ impl VolsaApp {
             );
         }
         let held = (&mut self.gpus[..], &mut self.drafts);
-        slices(ui, areas.slices, (&self.session, held), render, actions);
+        let of_a_slice = slices(ui, areas.slices, (&self.session, held), render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
-        for request in asked {
+        for request in asked.into_iter().chain(of_a_slice) {
             self.ask(ui.ctx(), request);
         }
     }
@@ -135,7 +135,7 @@ impl VolsaApp {
         actions: &mut Vec<Action>,
     ) {
         let held = (&mut self.gpus[..], &mut self.drafts);
-        slices(ui, None, (&self.session, held), render, actions);
+        let _ = slices(ui, None, (&self.session, held), render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 
@@ -205,13 +205,14 @@ impl VolsaApp {
 /// Draw the 2D viewports in `area`, reading their slices from the session: whole, to draw
 /// them, and in place, for the value under the pointer and for what is measured on them. With
 /// no area, the arrangement shown has no slices, and what was half drawn on them is given up.
+/// Gives what the menu of a slice asked of the window.
 fn slices(
     ui: &mut egui::Ui,
     area: Option<egui::Rect>,
     (session, held): (&Session, (&mut [viewport::Gpu], &mut viewport::Drafts)),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
-) {
+) -> Vec<super::commands::Request> {
     let frame = |series: &_, slice| session.cached(series, slice);
     let value = |series: &_, slice, pixel| session.value_at(series, slice, pixel);
     let read = |series: &_, slice, with: &mut dyn FnMut(SliceValues<'_>)| {
@@ -222,7 +223,7 @@ fn slices(
         value: &value,
         read: &read,
     };
-    viewport::show(ui, area, session.state(), &slices, held, render, actions);
+    viewport::show(ui, area, session.state(), &slices, held, render, actions)
 }
 
 /// The volume of the scene's series, with what the graphics device is to hold of it (and, while

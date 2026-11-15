@@ -15,6 +15,7 @@ mod scene;
 mod slices;
 mod tools;
 mod top;
+mod viewport_menu;
 mod window;
 
 pub(in crate::ui) use pictures::no_3d_view;
@@ -23,6 +24,7 @@ pub(in crate::ui) use pictures::no_3d_view;
 pub(super) fn all() -> Vec<Command> {
     [
         slices::COMMANDS,
+        viewport_menu::COMMANDS,
         pictures::COMMANDS,
         window::COMMANDS,
         panel::COMMANDS,

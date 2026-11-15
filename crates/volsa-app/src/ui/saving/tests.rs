@@ -75,6 +75,7 @@ fn every_name_offered_for_a_saved_file_is_one_of_volsas_own() {
         ("FILE_NAME", "FILE_NAME"),
         ("PARTS_NAME", "format!(\"{PARTS_NAME}.csv\")"),
         ("SUGGESTED_NAME", "format!(\"{SUGGESTED_NAME}.{ending}\")"),
+        ("SLICE_NAME", "format!(\"{SLICE_NAME}.png\")"),
         (
             "MEASUREMENTS_NAME",
             "format!(\"{MEASUREMENTS_NAME}.{ending}\")",

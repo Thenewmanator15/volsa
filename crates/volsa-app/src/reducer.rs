@@ -49,7 +49,7 @@ const VIEWS: &str = "views";
 pub fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
     // Indexing may have added slices to a series chosen before it ended.
     let rebuild = action == Action::IndexDone;
-    let fit = matches!(action, Action::Fit { .. });
+    let fit = matches!(action, Action::Fit { .. } | Action::ResetView(_));
     let was = state.scene.series.clone();
     let before = link::Before::of(state, &action);
     let left = places::Before::of(state, &action);

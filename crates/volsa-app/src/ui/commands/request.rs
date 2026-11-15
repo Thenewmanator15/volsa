@@ -43,6 +43,8 @@ pub enum Request {
     Smaller,
     /// To save the measurements as this kind of file.
     SaveMeasurements(Save),
+    /// To save the slice the active viewport shows as a picture, where the person chooses.
+    SaveSlice,
     /// To save the 3D scene as a picture or a turntable.
     SaveScene(export::Asked),
     /// To open a file of labels.

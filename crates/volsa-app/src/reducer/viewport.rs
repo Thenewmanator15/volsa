@@ -21,6 +21,10 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
         Action::SetSlice { viewport, slice } => go_to(state, viewport, slice),
         Action::StepVolume { viewport, by } => super::volumes::step(state, viewport, by),
         Action::CineTick { viewport } => tick(state, viewport),
+        Action::ResetView(viewport) => {
+            reset(state, viewport);
+            Vec::new()
+        }
         other => {
             if !(about_the_window(&other) && in_colour(state, &other)) {
                 adjust(state, other);
@@ -242,4 +246,19 @@ fn set_window(viewport: &mut ViewportState, known: Option<PresetWindows>, action
         _ => return,
     };
     (viewport.wl, viewport.wl_auto, viewport.wl_pending) = (by_hand, false, false);
+}
+
+/// Put viewport `at`'s picture back as it is first shown: the whole of it, neither mirrored nor
+/// turned, with the automatic window. A picture in colour has no window and keeps none.
+fn reset(state: &mut AppState, at: usize) {
+    let automatic = Action::ApplyPreset {
+        viewport: at,
+        preset: 0,
+    };
+    if !in_colour(state, &automatic) {
+        adjust(state, automatic);
+    }
+    if let Some(viewport) = state.viewports.get_mut(at) {
+        viewport.view = ViewTransform::fit();
+    }
 }

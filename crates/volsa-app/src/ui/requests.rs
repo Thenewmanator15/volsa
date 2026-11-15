@@ -3,7 +3,7 @@
 //! save.
 
 use super::commands::{Request, Tab};
-use super::{VolsaApp, about, document, help, parts, screen, tabs, top};
+use super::{VolsaApp, about, document, help, parts, screen, tabs, top, viewport};
 use crate::action::{Action, DocumentAction};
 use crate::plugins::PluginAction;
 
@@ -51,6 +51,7 @@ impl VolsaApp {
                     self.dispatch(Action::Post(notice));
                 }
             }
+            Request::SaveSlice => self.save_slice(),
             // Made once the frame has its graphics device in hand.
             Request::SaveScene(asked) => self.scene_asked = Some(asked),
             Request::OpenLabels => self.choose(parts::Asked::OpenLabels),
@@ -103,6 +104,16 @@ impl VolsaApp {
 }
 
 impl VolsaApp {
+    /// Ask where to save the slice the active viewport shows, as it is shown, and save its
+    /// pixels there; nothing is written if the person chooses nowhere.
+    fn save_slice(&mut self) {
+        let session = &self.session;
+        let frames = |series: &_, slice| session.cached(series, slice);
+        if let Some(notice) = viewport::save_slice(session.state(), &frames) {
+            self.dispatch(Action::Post(notice));
+        }
+    }
+
     /// Ask the person for the file `asked` wants chosen, and do what comes of their choice.
     fn choose(&mut self, asked: parts::Asked) {
         let open = &self.session.state().labels;

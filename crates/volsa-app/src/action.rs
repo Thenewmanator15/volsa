@@ -13,7 +13,6 @@ pub use crate::effect::Effect;
 use crate::labels::NamesFrom;
 use crate::pictures::Pictures;
 use crate::state::{Layout, Notice, PresetWindows};
-
 mod document;
 pub use document::DocumentAction;
 
@@ -94,6 +93,8 @@ pub enum Action {
         /// Which viewport.
         viewport: usize,
     },
+    /// Put a viewport's picture back as first shown: fitted, unmirrored, unturned, Auto window.
+    ResetView(usize),
     /// Change the window by dragging.
     AdjustWindow {
         /// Which viewport.
@@ -166,8 +167,7 @@ pub enum Action {
     },
     /// Remove a notice, by its place in the list.
     DismissNotice(usize),
-    /// Tell the person something the window itself has to say, such as how saving a file
-    /// went. A notice with a key takes the place of the last with that key.
+    /// Tell the person something the window has to say; a notice with a key replaces its last.
     Post(Notice),
     /// Arrange the pictures in the middle of the window.
     SetPictures(Pictures),
