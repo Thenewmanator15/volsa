@@ -24,6 +24,7 @@ const NOTICE: &str = "Volsa is not a medical device and is not for diagnostic us
 fn drawn(state: &AppState) -> Seen {
     let (hand, mut tab) = (Hand::new(NARROW, 900.0), MeasureTab::default());
     hand.settle(&mut |ui| {
+        super::super::made_up::open_folds(ui.ctx());
         let _ = show(ui, state, &mut tab, &mut Vec::new());
     })
 }
@@ -33,6 +34,7 @@ fn clicked(state: &AppState) -> Vec<Action> {
     let (hand, mut tab, mut actions) =
         (Hand::new(NARROW, 900.0), MeasureTab::default(), Vec::new());
     hand.click_each(&mut |ui| {
+        super::super::made_up::open_folds(ui.ctx());
         let _ = show(ui, state, &mut tab, &mut actions);
     });
     actions
@@ -94,7 +96,8 @@ fn a_scan_that_cannot_be_measured_says_why_at_the_top_of_the_tab() {
     assert_eq!(clicked(&state), [], "no tool is offered");
     let picture = showing_a_picture(Some([0.5, 0.5]), None);
     assert!(!drawn(&picture).words.iter().any(|word| word == NO_SCALE));
-    let tools = [Tool::Ruler, Tool::Angle, Tool::Region, Tool::Marker].map(Action::SetTool);
+    // The angle and the region are under More, after the rest.
+    let tools = [Tool::Ruler, Tool::Marker, Tool::Angle, Tool::Region].map(Action::SetTool);
     assert_eq!(clicked(&picture), tools, "every tool, on the slice");
 }
 

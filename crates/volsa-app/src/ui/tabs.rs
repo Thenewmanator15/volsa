@@ -12,6 +12,9 @@ use super::{VolsaApp, layout, shares, theme};
 use crate::action::Action;
 use crate::state::AppState;
 
+mod fold;
+#[cfg(test)]
+mod fold_tests;
 mod labels;
 #[cfg(test)]
 pub(super) mod made_up;
@@ -22,6 +25,9 @@ mod themes_tests;
 mod tools;
 mod view;
 
+#[cfg(test)]
+pub use fold::Fold;
+pub use fold::{open_all as open_every_fold, open_for as open_fold_for, said_of};
 pub use measure::{MeasureTab, NOTHING_MEASURED, Save, save as save_measurements};
 pub use scene::{LOOKS, PARTS_HINT, PARTS_NEED_LABELS, VIEWS};
 pub use tools::{LABEL_BUTTON, LABEL_TOOL, MAP_BACK, MAP_BUTTON, VEINS_BUTTON, VEINS_TOOL};
@@ -108,6 +114,13 @@ fn choose_small(
     } else {
         offer_small(ui, id, state, Some(false), (actions, asked));
     }
+}
+
+/// The fold "More" of `tab`, closed until it is opened, with what `add` adds in it while it is
+/// open: the controls a person seldom needs, out of the way of those they do.
+fn more(ui: &mut Ui, tab: Tab, add: impl FnOnce(&mut Ui)) {
+    ui.add_space(6.0);
+    let _ = fold::show(ui, fold::Fold::More(tab), false, add);
 }
 
 /// A row of controls that goes onto the next line, whole, when the panel is too narrow for it.

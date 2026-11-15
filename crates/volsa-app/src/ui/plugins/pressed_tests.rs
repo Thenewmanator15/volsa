@@ -48,7 +48,10 @@ fn pressed_in_the_tab(session: &Session, name: &str) -> (Vec<Action>, Vec<Reques
     let state = session.state();
     let mut kept = tabs::Kept::default();
     let (mut actions, mut requests) = (Vec::new(), Vec::new());
-    let found = Hand::new(300.0, 900.0).click_named(name, &mut |ui: &mut Ui| {
+    // With the fold of the plugins opened, as a person opens it before adding the first.
+    let hand = Hand::new(300.0, 900.0);
+    crate::ui::tabs::Fold::Added.set(&hand.ctx, true);
+    let found = hand.click_named(name, &mut |ui: &mut Ui| {
         requests.extend(tabs::show(ui, Tab::Tools, state, &mut kept, &mut actions));
     });
     assert!(found, "the Tools tab has a button called {name:?}");

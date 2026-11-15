@@ -50,7 +50,8 @@ pub const VARIABLE: &str = "VOLSA_CAPTURE";
 /// - The tab open in the panel at the right: `tab-view`, `tab-measure`, `tab-3d`, `tab-labels`
 ///   or `tab-tools`; or, as earlier pictures ask, `measure` (the Measure tab), `labelling` (the
 ///   Tools tab, with the strip that labels a scan, as it is on a computer that can label) and
-///   `parts` (the Labels tab).
+///   `parts` (the Labels tab). With `more`, the More of every tab, and the Tools tab's "Added by
+///   you", are open.
 /// - How the pictures are arranged: `planes` or `quad` for the three planes with the 3D view,
 ///   `3d` for the 3D view alone and `slices3d` for the slices beside it. With none of these,
 ///   the slices alone, as Volsa opens.

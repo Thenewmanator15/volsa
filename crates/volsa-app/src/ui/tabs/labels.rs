@@ -1,17 +1,20 @@
 //! The Labels tab: the labelled parts of the head. Who made the labels and the model's own
 //! check of them come first, before any part, so that a label never reads as a finding; then
-//! an overview by group; then the list of parts, to search, show, hide, fade and select.
+//! an overview by group; then the list of parts, to search, show, hide, fade and select. Under
+//! More: saving labels Volsa made as a file, another table of names, and how the labels are
+//! drawn over the planes.
 //! Without labels the tab says what they are and the two ways to get some.
 
 use egui::{Align, RichText, ScrollArea, Ui, style::ScrollAnimation};
 use volsa_render::Overlay;
 
-use super::{choose_small, offer, offer_small, row, section};
+use super::{choose_small, more, offer, offer_small, row, section};
 use crate::action::Action;
 use crate::labels::{Labels, LabelsStatus, NamesFrom, on_this_series};
 use crate::state::AppState;
 use crate::ui::access;
 use crate::ui::commands::Request;
+use crate::ui::panel::Tab;
 use crate::ui::parts::{
     self, MADE_ELSEWHERE, PartsView, WHAT_LABELS_ARE, all_shown, labelling, title,
 };
@@ -138,7 +141,8 @@ fn ways_to_get_some(
 }
 
 /// The labels open on the series. In place at the top: what they are and who made them, the
-/// switches that act on all of them, the search box and the part selected. Scrolling beneath
+/// switches that act on all of them, the fold More, the search box and the part selected.
+/// Scrolling beneath
 /// them: the overview by group, and every group with its rows.
 fn list(
     ui: &mut Ui,
@@ -157,6 +161,7 @@ fn list(
     fixed.show(ui, |ui| {
         about(ui, state, (actions, asked));
         switches(ui, state, (actions, asked));
+        more(ui, Tab::Labels, |ui| seldom(ui, state, (actions, asked)));
         let search = egui::TextEdit::singleline(&mut view.search).hint_text("Search parts");
         let search = ui.add(search.desired_width(f32::INFINITY));
         access::call(&search, "Search parts");
@@ -167,7 +172,7 @@ fn list(
     ui.separator();
     scrolling(ui, |ui| {
         section(ui, "Groups");
-        if let Some(group) = overview::show(ui, labels, actions) {
+        if let Some(group) = overview::show(ui, labels) {
             // A group the search leaves out cannot be scrolled to: the search is let go.
             if !parts::rows(labels, &view.search)
                 .iter()
@@ -215,7 +220,7 @@ fn groups(ui: &mut Ui, labels: &Labels, view: &mut PartsView, actions: &mut Vec<
 
 /// What the labels are: what they are of, who made them, where their names came from, and the
 /// labelling model's own check of them; and, beneath that, the button that saves the list as
-/// a table, and for labels that Volsa made, the one that saves them as a file.
+/// a table.
 fn about(ui: &mut Ui, state: &AppState, (actions, asked): (&mut Vec<Action>, &mut Vec<Request>)) {
     let labels = &state.labels;
     if !labels.title.is_empty() {
@@ -240,20 +245,27 @@ fn about(ui: &mut Ui, state: &AppState, (actions, asked): (&mut Vec<Action>, &mu
         labelling::verdict_line(ui, verdict);
     }
     offer_small(ui, "labels.save_csv", state, None, (actions, asked));
-    labelling::save_as(ui, state, (actions, asked));
 }
 
-/// The switches that act on all the labels: show every part, close the labels, choose
-/// another table of names, and how the labels are drawn over the plane views.
+/// The switches that act on all the labels: show every part, and close the labels.
 fn switches(
     ui: &mut Ui,
     state: &AppState,
     (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
 ) {
     ui.horizontal_wrapped(|ui| {
-        for id in ["labels.show_all", "labels.close", "labels.names"] {
+        for id in ["labels.show_all", "labels.close"] {
             offer_small(ui, id, state, None, (actions, asked));
         }
+    });
+}
+
+/// Under More: for labels that Volsa made, the button that saves them as a file; the one that
+/// chooses another table of names; and how the labels are drawn over the plane views.
+fn seldom(ui: &mut Ui, state: &AppState, (actions, asked): (&mut Vec<Action>, &mut Vec<Request>)) {
+    ui.horizontal_wrapped(|ui| {
+        labelling::save_as(ui, state, (actions, asked));
+        offer_small(ui, "labels.names", state, None, (actions, asked));
     });
     ui.horizontal_wrapped(|ui| {
         ui.label(

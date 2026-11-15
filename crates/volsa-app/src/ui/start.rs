@@ -31,6 +31,9 @@ impl VolsaApp {
         if let Some(tab) = capture::tab_asked(&wanted) {
             self.screen.show_tab(tab);
         }
+        if capture::asks_for(&wanted, "more") {
+            super::tabs::open_every_fold(ctx);
+        }
         if let Some(pictures) = capture::arrangement_asked(&wanted) {
             self.dispatch(crate::action::Action::SetPictures(pictures));
         }

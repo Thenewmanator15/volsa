@@ -370,11 +370,15 @@ pub fn holds_keyboard(ctx: &Context) -> bool {
 
 impl VolsaApp {
     /// Show the search while it is open, and do what is chosen in it: a change of state goes
-    /// onto `actions`, and what is asked of the window is done.
+    /// onto `actions`, and what is asked of the window is done. An action drawn in a tab's
+    /// fold opens the fold, for what it did to be in sight in its tab.
     pub(super) fn show_search(&mut self, ctx: &Context, actions: &mut Vec<Action>) {
         let Some(target) = self.search.show(ctx, self.session.state()) else {
             return;
         };
+        if let Target::Command(id) = &target {
+            super::tabs::open_fold_for(ctx, id);
+        }
         if let Some(request) = run::run(&target, self.session.state(), actions) {
             self.ask(ctx, request);
         }

@@ -20,12 +20,13 @@ pub fn heading(ui: &mut Ui, heading: Heading) {
 }
 
 /// The line beneath a result's name, if it has one: why an action cannot be used now, or else
-/// where it lives; a part's group; a scan's own description.
+/// where it lives, with the fold of its tab it is in; a part's group; a scan's own description.
 fn beneath(entry: &Entry, state: &AppState, why_not: Option<&str>) -> Option<String> {
     let text = match &entry.target {
         Target::Command(id) => why_not.map(str::to_owned).or_else(|| {
             let command = commands::find(id)?;
-            command.place.said().map(str::to_owned)
+            let said = command.place.said()?;
+            Some(crate::ui::tabs::said_of(command.id, said))
         }),
         Target::Part(_) => entry.words.first().cloned(),
         Target::Scan(id) => {

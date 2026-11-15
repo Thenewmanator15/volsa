@@ -2,8 +2,7 @@
 //! each, the card a folder offered is shown on before it is added, the warning before a run on
 //! a scan whose description names another contrast, and the question before a plugin is
 //! removed. Every word a plugin's description holds is drawn as plain text, never as a link.
-//! The interface redesign moves the section into its Tools tab; until then the Parts tab draws
-//! it, and these functions draw nothing of the plugins anywhere else.
+//! The Tools tab draws the section, in its fold "Added by you"; nothing else draws it.
 
 use egui::{Id, Modal, RichText, Ui};
 

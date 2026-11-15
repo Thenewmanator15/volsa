@@ -32,11 +32,14 @@ const DRAWN: [(&str, &[&str]); 6] = [
             "Auto",
             "Soft",
             "Hard",
+            "Brightness",
+            "Contrast",
+            "More",
         ],
     ),
     (
         "measure",
-        &["Measure tab", "Ruler", "Angle", "Region", "Marker"],
+        &["Measure tab", "Ruler", "Angle", "Region", "Marker", "More"],
     ),
     (
         "sides",
@@ -70,9 +73,11 @@ const BEGINNING: [(&str, &str, &str); 3] = [
     ),
 ];
 
-/// Every piece of text `tab` draws in `state`.
+/// Every piece of text `tab` draws in `state`, with its More open: the topics name what is in
+/// it, and say it is under More.
 fn tab_words(state: &AppState, tab: Tab) -> Vec<String> {
     let hand = Hand::new(360.0, 2400.0);
+    tabs::Fold::More(tab).set(&hand.ctx, true);
     let seen = hand.settle(&mut |ui: &mut Ui| {
         let _ = tabs::show(ui, tab, state, &mut tabs::Kept::default(), &mut Vec::new());
     });

@@ -1,7 +1,8 @@
 //! The View tab: brightness, which way round the patient is drawn, playing through the slices
-//! and stepping between volumes, mirroring, turning and fitting the picture, and the switches
-//! for smoothing the planes, linking the views and showing the patient's details; and last a
-//! few plain sentences about the kind of scan in the active viewport.
+//! and stepping between volumes, mirroring, turning and fitting the picture, and showing the
+//! patient's details; under More, the window as numbers to type and the switches for smoothing
+//! the planes and linking the views; and last a few plain sentences about the kind of scan in
+//! the active viewport.
 
 use egui::Ui;
 use volsa_core::WindowLevel;
@@ -9,8 +10,9 @@ use volsa_core::WindowLevel;
 use super::super::access;
 use super::super::commands::{self, Request};
 use super::super::overlay::window_number;
+use super::super::panel::Tab;
 use super::super::volumes;
-use super::{offer, row, section};
+use super::{more, offer, row, section};
 use crate::action::Action;
 use crate::naming::{ABOUT_HEADING, about};
 use crate::profile::{Unit, unit_of};
@@ -56,18 +58,20 @@ const PICTURE_IDS: [&str; 4] = [
 ];
 
 /// Draw the View tab: the brightness, the orientation, the slices, mirroring, turning and
-/// fitting the picture, and the switches. Changes of state go onto `actions`; what its buttons
-/// ask of the window is given back.
+/// fitting the picture, and showing the patient's details; under More, the window as numbers
+/// and the switches that smooth the planes and link the views. Changes of state go onto
+/// `actions`; what its buttons ask of the window is given back.
 pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Request> {
     let mut asked = Vec::new();
     section(ui, "Brightness");
     brightness(ui, state, actions, &mut asked);
     section(ui, "Orientation");
+    let radiological = state.radiological;
     switch(
         ui,
         "view.radiological",
         state,
-        state.radiological,
+        radiological,
         actions,
         &mut asked,
     );
@@ -76,30 +80,15 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     section(ui, "Picture");
     picture(ui, state, actions, &mut asked);
     section(ui, "Display");
-    switch(
-        ui,
-        "planes.smooth",
-        state,
-        state.planes.smooth,
-        actions,
-        &mut asked,
-    );
-    switch(
-        ui,
-        "planes.link",
-        state,
-        state.planes.linked,
-        actions,
-        &mut asked,
-    );
-    switch(
-        ui,
-        "view.patient",
-        state,
-        state.show_patient,
-        actions,
-        &mut asked,
-    );
+    let patient = state.show_patient;
+    switch(ui, "view.patient", state, patient, actions, &mut asked);
+    more(ui, Tab::View, |ui| {
+        window_numbers(ui, state, actions);
+        let smooth = state.planes.smooth;
+        switch(ui, "planes.smooth", state, smooth, actions, &mut asked);
+        let linked = state.planes.linked;
+        switch(ui, "planes.link", state, linked, actions, &mut asked);
+    });
     about_the_scan(ui, state);
     asked
 }
@@ -151,16 +140,16 @@ fn field(ui: &mut Ui, number: egui::DragValue<'_>, name: &str, hint: &str) -> bo
     response.changed()
 }
 
-/// The window and level of the active viewport, as numbers that can be typed or dragged, in
-/// Hounsfield units where the scan is in them, and the settings its profile offers.
+/// The brightness and contrast of the active viewport, as sliders, and the settings its
+/// profile offers.
 fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
-    // No numbers to set where no picture is in sight to set them on: say so, once.
+    // No window to set where no picture is in sight to set it on: say so, once.
     let settings = match commands::no_picture(state) {
         Some(why) => {
             ui.weak(why);
             true
         }
-        None => window_and_level(ui, state, actions),
+        None => window_sliders(ui, state, actions),
     };
     if settings {
         row(ui, |ui| {
@@ -171,19 +160,33 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
     }
 }
 
-/// The window and level of the active viewport, as numbers that can be typed or dragged, in
-/// Hounsfield units where the scan is in them. Whether the settings it offers are to be offered
-/// too: not for a picture stored in colour.
-fn window_and_level(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> bool {
+/// The brightness and contrast of the window of the active viewport, as sliders. Whether the
+/// settings it offers are to be offered too: not for a picture stored in colour.
+fn window_sliders(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> bool {
     let viewport = state.active;
     let Some(shown) = state.viewports.get(viewport) else {
         return false;
     };
-    let info = state.shown_info(viewport);
-    if info.is_some_and(|info| info.colour) {
+    if state.shown_info(viewport).is_some_and(|info| info.colour) {
         ui.weak(IN_COLOUR);
         return false;
     }
+    if let Some(wl) = sliders::window(ui, state, shown.wl) {
+        actions.push(Action::SetWindow { viewport, wl });
+    }
+    true
+}
+
+/// The window and level of the active viewport, as numbers that can be typed or dragged, in
+/// Hounsfield units where the scan is in them. Nothing is drawn where there is no picture in
+/// sight, or the picture is stored in colour: the sliders above say why.
+fn window_numbers(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
+    let viewport = state.active;
+    let info = state.shown_info(viewport);
+    let grey = commands::no_picture(state).is_none() && !info.is_some_and(|info| info.colour);
+    let Some(shown) = state.viewports.get(viewport).filter(|_| grey) else {
+        return;
+    };
     let unit = if info.is_some_and(|info| unit_of(info) == Unit::Hu) {
         " HU"
     } else {
@@ -204,23 +207,19 @@ fn window_and_level(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) ->
         .prefix("L ")
         .suffix(unit)
         .custom_formatter(written);
-    let (width_changed, level_changed) = row(ui, |ui| {
+    let changed = row(ui, |ui| {
         let width_hint = "Width: the span of values from black to white";
         let width_changed = field(ui, width_field, "Window width", width_hint);
         let level_hint = "Level: the value shown as mid-grey";
         let level_changed = field(ui, level_field, "Window level", level_hint);
-        (width_changed, level_changed)
+        width_changed || level_changed
     });
-    let slid = sliders::window(ui, state, shown.wl);
-    if width_changed || level_changed {
+    if changed {
         actions.push(Action::SetWindow {
             viewport,
             wl: WindowLevel::new(level, width),
         });
-    } else if let Some(wl) = slid {
-        actions.push(Action::SetWindow { viewport, wl });
     }
-    true
 }
 
 /// The buttons that mirror the picture of the active viewport, turn it, and fit it whole.
@@ -239,23 +238,15 @@ fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut 
     let cine = state.viewports.get(viewport).and_then(|shown| shown.cine);
     let cine = cine.unwrap_or_else(Cine::at_rest);
     let mut fps = cine.fps;
-    let typed = row(ui, |ui| {
-        let label = if cine.playing { "Pause" } else { "Play" };
-        if let Some(does) = commands::button_labelled(ui, "slice.play", label, state, None) {
-            asked.extend(does.run(state, actions));
-        }
-        let speed = egui::DragValue::new(&mut fps)
-            .speed(0.5)
-            .range(Cine::MIN_FPS..=Cine::MAX_FPS)
-            .suffix(" /s");
-        field(ui, speed, "Playback speed", "Slices shown each second")
-    });
+    let label = if cine.playing { "Pause" } else { "Play" };
+    if let Some(does) = commands::button_labelled(ui, "slice.play", label, state, None) {
+        asked.extend(does.run(state, actions));
+    }
     if let Some(slice) = sliders::slice(ui, state) {
         actions.push(Action::SetSlice { viewport, slice });
     }
-    // On a line of its own: beside the button and the number it would not fit a narrow panel.
-    let slid = sliders::speed(ui, &mut fps);
-    if typed || slid {
+    // The slider says the speed it is at: there is no number beside it to say it.
+    if sliders::speed(ui, &mut fps) {
         let looping = cine.looping;
         actions.push(Action::CineSet {
             viewport,

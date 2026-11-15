@@ -295,7 +295,8 @@ fn each_entry_says_what_it_is_and_its_buttons_ask_for_their_actions() {
         plugin_section(ui, &entries, None, HELD, actions)
     });
     let swept = screen.sweep();
-    let (heading, name) = (swept.at("Added by you"), swept.at("Made-up strip 1.2"));
+    // The heading "Added by you" is the fold's, which the Tools tab draws.
+    let (heading, name) = (swept.at("Add a plugin…"), swept.at("Made-up strip 1.2"));
     assert!(heading < name, "{:?}", swept.texts());
     swept.at("Ready.");
     let id = ID.to_owned();

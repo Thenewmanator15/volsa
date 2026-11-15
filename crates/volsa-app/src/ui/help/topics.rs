@@ -92,11 +92,11 @@ pub const TOPICS: [Topic; 7] = [
         body: "Brightness and contrast change how the picture is drawn, not the scan itself. \
                The View tab has a button for each setting: Brain, Soft tissue, Lung, Bone and \
                Auto for a CT scan, and Auto, Soft and Hard for an MRI scan.\n\n\
-               To set it by hand, change the box marked W, the width: how wide a range of the \
-               scan's numbers runs from black to white, so a narrower range gives more \
-               contrast. Change the box marked L, the level, to choose which number is drawn \
-               as middle grey, or drag with the right mouse button over the picture: across \
-               changes the width, down changes the level. The CT buttons suit CT scans \
+               To set it by hand, use the Brightness and Contrast sliders, or drag with the \
+               right mouse button over the picture: across changes the width, down changes \
+               the level. For exact numbers, open More: the box marked W, the width, is how \
+               wide a range of the scan's numbers runs from black to white, and the box marked \
+               L, the level, is the number drawn as middle grey. The CT buttons suit CT scans \
                measured in Hounsfield units, a standard scale of density, so they are greyed \
                out, with the reason, when a scan's numbers are not in that scale. A picture \
                in colour, such as a scanned page, has no brightness to set.",
@@ -120,9 +120,9 @@ pub const TOPICS: [Topic; 7] = [
             "pixel spacing",
             "units",
         ],
-        body: "The Measure tab (or the M key) has a Ruler for lengths, an Angle, a Region (an \
-               ellipse) and a Marker; with one in hand, Tab to a picture, then the arrows move \
-               its point and Enter places it.\n\n\
+        body: "The Measure tab (or the M key) has a Ruler, a Marker, and under More an Angle \
+               and a Region (an ellipse); with one in hand, Tab to a picture, then the arrows \
+               move its point and Enter places it.\n\n\
                Millimetres come only from the scan's files: when they give the size of each \
                dot, or pixel, of the picture (the pixel spacing) and say where each slice lies \
                in the patient, lengths are in the patient's millimetres. When they give the \

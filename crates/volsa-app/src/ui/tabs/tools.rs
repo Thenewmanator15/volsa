@@ -1,9 +1,11 @@
 //! The Tools tab: the tools that work on the scan. Under "Part of Volsa", labelling a brain
-//! scan, with its state, progress and stop; under "Added by you", the plugins the person has
-//! added, and the button that adds one.
+//! scan, with its state, progress and stop; in the fold "Added by you", closed until opened
+//! unless a plugin has been added, the plugins the person has added and the button that adds
+//! one.
 
 use egui::{RichText, Ui};
 
+use super::fold::{self, Fold};
 use super::section;
 use crate::action::Action;
 use crate::plugins::tool_entries;
@@ -103,9 +105,14 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     }
     let entries = tool_entries(&state.plugins);
     let busy = state.plugins.busy.as_deref();
-    // What the window holds of the graphics card is only known with the device in hand: a run
-    // asked for here is told it as the window takes the action in.
-    if plugin_section(ui, &entries, busy, 0, actions) {
+    // Closed until opened, unless a plugin has been added or is being added. What the window
+    // holds of the graphics card is only known with the device in hand: a run asked for here
+    // is told it as the window takes the action in.
+    let any = !entries.is_empty() || busy.is_some();
+    let added = fold::show(ui, Fold::Added, any, |ui| {
+        plugin_section(ui, &entries, busy, 0, actions)
+    });
+    if added == Some(true) {
         asked.push(Request::AddPlugin);
     }
     asked

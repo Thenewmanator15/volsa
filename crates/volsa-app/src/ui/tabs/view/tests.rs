@@ -8,13 +8,23 @@ use crate::state::Layout;
 use crate::testing::{COLOUR, KIND_SCAN, colour_files, id, indexed, showing_a_scan_of};
 use volsa_core::WindowLevel;
 
+/// A window tall enough for the tab, with its More open, so that what is in it is drawn: the
+/// tests of the fold itself are with the other tabs' folds.
+fn with_more_open() -> Hand {
+    let hand = Hand::new(320.0, 900.0);
+    crate::ui::tabs::Fold::More(Tab::View).set(&hand.ctx, true);
+    hand
+}
+
 /// Click all the way down the tab and gather everything that was asked for, once each, in
 /// the order met: the changes of state, and what was asked of the window.
 fn sweep(state: &AppState) -> (Vec<Action>, Vec<Request>) {
     let (mut asked, mut requests) = (Vec::new(), Vec::new());
-    let hand = Hand::new(320.0, 700.0);
+    let hand = with_more_open();
     hand.click_each(&mut |ui| {
         let mut actions = Vec::new();
+        // Held open: its heading is clicked too, on the way down.
+        crate::ui::tabs::Fold::More(Tab::View).set(ui.ctx(), true);
         let more = show(ui, state, &mut actions);
         for action in actions {
             if !asked.contains(&action) {
@@ -58,9 +68,10 @@ fn the_tab_offers_each_thing_once_from_top_to_bottom() {
         },
         Action::Rotate { viewport: 0 },
         Action::Fit { viewport: 0 },
+        Action::TogglePatient,
+        // Under More, at the foot of the tab.
         Action::SetSmooth(true),
         Action::SetLinked(false),
-        Action::TogglePatient,
     ];
     assert_eq!(actions, expected);
     assert_eq!(
@@ -72,16 +83,16 @@ fn the_tab_offers_each_thing_once_from_top_to_bottom() {
 
 #[test]
 fn the_switches_are_said_in_plain_words_and_the_orientation_in_what_it_means() {
-    let hand = Hand::new(320.0, 700.0);
+    let hand = with_more_open();
     let state = AppState::default();
     let seen = hand.settle(&mut |ui| {
         let _ = show(ui, &state, &mut Vec::new());
     });
     let wanted = [
         "Patient's left on the right",
+        "Show patient details",
         "Smooth the planes",
         "Link the views",
-        "Show patient details",
     ];
     let said: Vec<&str> = seen
         .words
@@ -201,7 +212,7 @@ fn sets(viewport: usize, window: usize) -> Action {
 
 /// Every piece of text the tab draws for this state.
 fn words_of(state: &AppState) -> Vec<String> {
-    let hand = Hand::new(320.0, 700.0);
+    let hand = with_more_open();
     let seen = hand.settle(&mut |ui| {
         let _ = show(ui, state, &mut Vec::new());
     });
@@ -229,7 +240,7 @@ fn a_ct_scan_offers_brain_soft_tissue_lung_bone_and_auto() {
 #[test]
 fn pressing_brain_sets_width_80_level_40_on_the_active_viewport() {
     let mut state = showing_in_the_third_viewport("CT", None);
-    let hand = Hand::new(320.0, 700.0);
+    let hand = with_more_open();
     let mut actions = Vec::new();
     let found = hand.click_named("Brain window", &mut |ui| {
         let _ = show(ui, &state, &mut actions);

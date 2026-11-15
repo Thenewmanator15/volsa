@@ -255,8 +255,18 @@ fn the_search_box_is_named_by_the_words_it_shows() {
 
 #[test]
 fn the_fields_of_the_view_tab_say_what_they_set() {
-    let (told, _) = told_of(&thick_scan_ready(), Tab::View);
-    for wanted in ["Window width", "Window level", "Playback speed"] {
+    let state = thick_scan_ready();
+    let (closed, mut window) = told_of(&state, Tab::View);
+    // The speed is a slider that says its speed, with no box beside it.
+    let speed = closed.called("Playback speed").expect("Playback speed");
+    assert_eq!(speed.role, Role::Slider);
+    // The boxes of the window are under More, out of sight until it is opened.
+    for wanted in ["Window width", "Window level"] {
+        assert!(closed.called(wanted).is_none(), "{wanted} with More closed");
+    }
+    crate::ui::tabs::Fold::More(Tab::View).set(&window.ctx, true);
+    let told = window.told(&state);
+    for wanted in ["Window width", "Window level"] {
         let field = told.called(wanted).unwrap_or_else(|| panic!("{wanted}"));
         assert_eq!(field.role, Role::SpinButton, "{wanted}");
     }

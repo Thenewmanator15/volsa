@@ -118,22 +118,23 @@ fn click(state: &AppState, name: &str) -> Vec<Action> {
 }
 
 #[test]
-fn hiding_a_group_from_the_overview_sends_group_show() {
+fn hiding_a_group_from_its_own_box_in_the_list_sends_group_show() {
+    // The overview has no switch of its own for this: one control for one job.
     let mut state = named();
     let group = "Deep brain".to_owned();
     let hide = Action::GroupShow {
         group: group.clone(),
         shown: false,
     };
-    assert_eq!(click(&state, "Hide Deep brain"), [hide]);
-    // With a part of the group hidden the switch shows it again.
+    assert_eq!(click(&state, "Deep brain"), [hide]);
+    // With a part of the group hidden the box shows it again.
     let hidden = Action::PartShow {
         part: 1,
         shown: false,
     };
     reduce(&mut state, hidden);
     let show = Action::GroupShow { group, shown: true };
-    assert_eq!(click(&state, "Show Deep brain"), [show]);
+    assert_eq!(click(&state, "Deep brain"), [show]);
 }
 
 /// The last group of a long list, which is far down it.

@@ -28,7 +28,8 @@ const ROOM_BENEATH: f32 = 140.0;
 /// The least height the entries are given, in points, however short the tab.
 const SHORTEST: f32 = 24.0;
 
-/// Draw the section: its heading and the button that adds a plugin, which waits while the
+/// Draw the section, beneath the heading of the fold it is drawn in: the button that adds a
+/// plugin, which waits while the
 /// workers are `busy` with plugins, saying what they are doing; then an entry for each plugin.
 /// `held` is how many bytes of the graphics card the window draws on it holds, as a run is
 /// told. Pushes what the entries' buttons ask for, and gives whether "Add a plugin…" was
@@ -40,14 +41,9 @@ pub fn plugin_section(
     held: u64,
     actions: &mut Vec<Action>,
 ) -> bool {
-    let add = ui
-        .horizontal(|ui| {
-            ui.label(RichText::new("Added by you").small().strong());
-            let button = Button::new("Add a plugin…").small();
-            let button = ui.add_enabled(busy.is_none(), button);
-            button.on_hover_text(ADD_HINT).clicked()
-        })
-        .inner;
+    let button = Button::new("Add a plugin…").small();
+    let button = ui.add_enabled(busy.is_none(), button);
+    let add = button.on_hover_text(ADD_HINT).clicked();
     if let Some(busy) = busy {
         ui.horizontal_wrapped(|ui| {
             ui.label(quiet(busy));

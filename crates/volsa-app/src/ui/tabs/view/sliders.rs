@@ -1,6 +1,6 @@
-//! Sliders beside the numbers of the View tab: brightness and contrast for the window of the
-//! active viewport, and the speed of playback. Each moves the same setting as the number
-//! beside it, so either can be used.
+//! Sliders of the View tab: brightness and contrast for the window of the active viewport,
+//! which move the same setting as the numbers under More, so either can be used; the slices;
+//! and the speed of playback, which says the speed it is at.
 
 use egui::{Slider, SliderClamping, Ui};
 use volsa_core::WindowLevel;
@@ -65,12 +65,24 @@ pub(super) fn window(ui: &mut Ui, state: &AppState, shown: WindowLevel) -> Optio
     (brighter || sharper).then(|| WindowLevel::new(level, width.max(1.0)))
 }
 
-/// Draw the playback speed as a slider; whether it was moved.
+/// Draw the playback speed as a slider that says the speed it is at, in slices a second,
+/// called "Playback speed" for a screen reader; whether it was moved.
 pub(super) fn speed(ui: &mut Ui, fps: &mut f32) -> bool {
+    let text = format!("Speed {} /s", per_second(*fps));
     let slider = Slider::new(fps, Cine::MIN_FPS..=Cine::MAX_FPS)
-        .text("Speed")
+        .text(text)
+        .step_by(0.5)
         .show_value(false);
-    slid(ui, slider, "Speed", "Slices shown each second")
+    slid(ui, slider, "Playback speed", "Slices shown each second")
+}
+
+/// A speed in slices a second as the slider says it: whole, or to a half.
+pub(super) fn per_second(fps: f32) -> String {
+    if fps.fract().abs() < 0.05 {
+        format!("{fps:.0}")
+    } else {
+        format!("{fps:.1}")
+    }
 }
 
 /// Draw a slider through the slices of the active viewport, counted from 1 as the corner of
@@ -116,6 +128,13 @@ mod tests {
         assert_eq!(reach(around, shown), (-100.0, 2000.0, 5000.0));
         let below = WindowLevel::new(-900.0, 10.0);
         assert_eq!(reach(around, below).0, -900.0);
+    }
+
+    #[test]
+    fn the_speed_is_said_whole_or_to_a_half() {
+        assert_eq!(per_second(12.0), "12");
+        assert_eq!(per_second(7.5), "7.5");
+        assert_eq!(per_second(1.0), "1");
     }
 
     #[test]

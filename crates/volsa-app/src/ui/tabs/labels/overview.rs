@@ -1,13 +1,12 @@
 //! The overview of the Labels tab: one row for each group of parts, with the group's colour,
-//! its name, how many parts it holds, and a switch that shows or hides all of them. A click
-//! on a group's name takes the list to it.
+//! its name and how many parts it holds. A click on a group's name takes the list to it, where
+//! the group's own box shows or hides all of its parts: one control for that, not two.
 
 use egui::{Align, Layout, RichText, Ui};
 
-use crate::action::Action;
 use crate::labels::Labels;
 use crate::ui::access;
-use crate::ui::parts::{self, Group, all_shown, parts_in, title};
+use crate::ui::parts::{self, Group, parts_in, title};
 use crate::ui::theme;
 
 /// How many parts a group holds, in words.
@@ -19,25 +18,14 @@ fn count_in_words(count: usize) -> String {
 }
 
 /// Draw the row of one group. Gives the group's name if its name was clicked.
-fn row(ui: &mut Ui, labels: &Labels, group: &Group, actions: &mut Vec<Action>) -> Option<String> {
+fn row(ui: &mut Ui, labels: &Labels, group: &Group) -> Option<String> {
     let name = title(group);
-    let all = all_shown(labels, group);
     let mut clicked = None;
     ui.horizontal(|ui| {
         if let Some(colour) = parts::colour_of(labels, group) {
             parts::swatch(ui, colour);
         }
         ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let word = if all { "Hide" } else { "Show" };
-            let toggle = ui.small_button(word);
-            access::call(&toggle, format!("{word} {name}"));
-            if toggle
-                .on_hover_text("Show or hide the whole group")
-                .clicked()
-            {
-                let group = group.name.clone();
-                actions.push(Action::GroupShow { group, shown: !all });
-            }
             let count = count_in_words(parts_in(group));
             ui.label(
                 RichText::new(count)
@@ -60,10 +48,10 @@ fn row(ui: &mut Ui, labels: &Labels, group: &Group, actions: &mut Vec<Action>) -
 
 /// Draw the overview: a row for each group of the labels, in the table's order. Gives the name
 /// of the group whose name was clicked, for the list to be taken to it.
-pub fn show(ui: &mut Ui, labels: &Labels, actions: &mut Vec<Action>) -> Option<String> {
+pub fn show(ui: &mut Ui, labels: &Labels) -> Option<String> {
     let mut clicked = None;
     for group in parts::rows(labels, "") {
-        clicked = row(ui, labels, &group, actions).or(clicked);
+        clicked = row(ui, labels, &group).or(clicked);
     }
     clicked
 }

@@ -96,9 +96,18 @@ pub fn named() -> AppState {
 /// what it asked of the window.
 pub type Draw<'a> = dyn FnMut(&mut Ui, &AppState, &mut Vec<Action>) -> Vec<Request> + 'a;
 
-/// The screen the tabs are drawn on.
+/// The screen the tabs are drawn on, with every fold of the tabs open, as a person who has
+/// opened them sees it: what is in a fold is drawn, and found by the sweep. That a fold is
+/// closed until it is opened is the tests of the folds' own.
 pub fn screen() -> Hand {
-    Hand::new(WIDE, 900.0)
+    let hand = Hand::new(WIDE, 900.0);
+    open_folds(&hand.ctx);
+    hand
+}
+
+/// Open every fold of the tabs.
+pub fn open_folds(ctx: &egui::Context) {
+    super::fold::open_all(ctx);
 }
 
 /// Each thing once, in the order first met.
@@ -116,7 +125,11 @@ pub fn once<T: PartialEq>(all: Vec<T>) -> Vec<T> {
 /// that was asked for, each thing once: the changes of state, and what was asked of the window.
 pub fn sweep(state: &AppState, draw: &mut Draw<'_>) -> (Vec<Action>, Vec<Request>) {
     let (mut actions, mut requests) = (Vec::new(), Vec::new());
-    screen().click_each(&mut |ui| requests.extend(draw(ui, state, &mut actions)));
+    // The folds are held open: their headings are clicked too, on the way down.
+    screen().click_each(&mut |ui| {
+        open_folds(ui.ctx());
+        requests.extend(draw(ui, state, &mut actions));
+    });
     (once(actions), once(requests))
 }
 

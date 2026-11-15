@@ -5,7 +5,7 @@ use super::*;
 use crate::labelling::LabellingAction;
 use crate::plugins::PluginEntry;
 use crate::ui::hand::Hand;
-use crate::ui::tabs::made_up::{able, sweep_tools, tools_written};
+use crate::ui::tabs::made_up::{able, open_folds, sweep_tools, tools_written};
 
 /// The least wide a panel's contents are, in points: 260 less its margins and its bar.
 const NARROW: f32 = 236.0;
@@ -28,7 +28,9 @@ fn with_a_plugin(folder: &str, why: &str) -> AppState {
 /// of it, and gather what was asked for.
 fn pressed(state: &AppState, name: &str) -> (Vec<Action>, Vec<Request>) {
     let (mut actions, mut requests) = (Vec::new(), Vec::new());
-    let found = Hand::new(NARROW, 1400.0).click_named(name, &mut |ui| {
+    let hand = Hand::new(NARROW, 1400.0);
+    open_folds(&hand.ctx);
+    let found = hand.click_named(name, &mut |ui| {
         requests.extend(show(ui, state, &mut actions));
     });
     assert!(found, "there is a button called {name:?}");

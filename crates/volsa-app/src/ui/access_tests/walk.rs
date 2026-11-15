@@ -16,6 +16,7 @@ use crate::state::{AppState, Notice, NoticeKind};
 use crate::ui::commands::{self, Confirm, menus};
 use crate::ui::panel::Tab;
 use crate::ui::parts::{self, labelling, title};
+use crate::ui::tabs::Fold;
 use crate::ui::tabs::made_up::{able, labelled_by};
 use crate::ui::top;
 
@@ -184,10 +185,13 @@ pub fn extra_windows() -> Vec<Scene> {
     ]
 }
 
-/// The window for a scene with this tab open, as a screen reader is told of it.
+/// The window for a scene with this tab open, and its folds open, as a screen reader is told
+/// of it: the walk is to reach every control, those under More too.
 pub fn told_in(scene: &Scene, tab: Tab) -> (Told, Window) {
     let mut window = Window::new();
     window.panel.tab = tab;
+    Fold::More(tab).set(&window.ctx, true);
+    Fold::Added.set(&window.ctx, true);
     match &scene.opened {
         Opened::Nothing | Opened::Clicks(_) => {}
         Opened::About => window.about = true,
@@ -238,6 +242,10 @@ pub fn known_names(state: &AppState) -> HashSet<String> {
     names.insert(notice_area_name(state));
     // The button egui puts in the title bar of every window that can be closed.
     names.insert("Close window".to_owned());
+    // The headings that open and close the folds of the tabs.
+    for fold in [Fold::More(Tab::View), Fold::Added] {
+        names.insert(fold.title().to_owned());
+    }
     names.extend(rows_of(state));
     names
 }

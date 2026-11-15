@@ -46,8 +46,10 @@ pub(super) struct Kept {
 }
 
 impl Kept {
-    /// Draw the tab for `state` in `ui`, and keep what it gave.
+    /// Draw the tab for `state` in `ui`, with its More held open, and keep what it gave. That
+    /// More is closed until it is opened is the tests of the folds' own.
     pub(super) fn draw(&mut self, ui: &mut Ui, state: &AppState) {
+        super::super::made_up::open_folds(ui.ctx());
         let asked = show(ui, state, &mut self.tab, &mut self.actions);
         self.requests.extend(asked);
         self.bottom = ui.min_rect().bottom();
@@ -139,7 +141,8 @@ fn what_was_taken_back_can_be_done_again() {
 fn with_nothing_measured_there_is_nothing_to_save_clear_or_take_back() {
     let state = thick_scan_ready();
     let (actions, requests) = sweep(&state);
-    let tools = [Tool::Ruler, Tool::Angle, Tool::Region, Tool::Marker].map(Action::SetTool);
+    // The angle and the region are under More, after the rest.
+    let tools = [Tool::Ruler, Tool::Marker, Tool::Angle, Tool::Region].map(Action::SetTool);
     assert_eq!(actions, tools, "the tools, and nothing else");
     assert_eq!(requests, []);
     let (hand, mut kept) = (Hand::new(NARROW, 900.0), Kept::default());

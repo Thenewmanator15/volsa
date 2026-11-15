@@ -1,5 +1,6 @@
 //! The Measure tab: the tools, undo and redo, the list of what has been measured on the series
-//! in the scene, and saving it. Its buttons are those of the list of actions, so their words
+//! in the scene, and saving it; under More, the angle and region tools and saving the list as
+//! JSON. Its buttons are those of the list of actions, so their words
 //! and hints are written there and nowhere else.
 
 use egui::{Align, Button, Layout, RichText, TextEdit, Ui};
@@ -7,9 +8,10 @@ use volsa_core::Point;
 
 use super::super::access;
 use super::super::commands::{self, Request};
+use super::super::panel::Tab;
 use super::super::scene::export::said;
 use super::super::theme;
-use super::{offer, row, section};
+use super::{more, offer, row, section};
 use crate::action::Action;
 use crate::annotations::{Annotation, MAX_LABEL, Tool, measured};
 use crate::export::write;
@@ -27,16 +29,22 @@ pub const NOTHING_MEASURED: &str = "Nothing has been measured on this series yet
 const TOOLS: [(Tool, &str); 5] = [
     (Tool::Navigate, "measure.move"),
     (Tool::Ruler, "measure.ruler"),
+    (Tool::Marker, "measure.marker"),
     (Tool::Angle, "measure.angle"),
     (Tool::Region, "measure.region"),
-    (Tool::Marker, "measure.marker"),
 ];
+
+/// How many of the tools are drawn at the top of the tab; the rest are under More.
+const IN_SIGHT: usize = 3;
 
 /// The actions that take back the last change to the list and do it again.
 const STEPS: [&str; 2] = ["measure.undo", "measure.redo"];
 
-/// The actions along the bottom: the two ways to save the list, and clearing it.
-const KEEPING: [&str; 3] = ["measure.save_csv", "measure.save_json", "measure.clear"];
+/// The actions along the bottom: saving the list as a table, and clearing it.
+const KEEPING: [&str; 2] = ["measure.save_csv", "measure.clear"];
+
+/// The action under More that saves the list for another program.
+const SAVE_JSON: &str = "measure.save_json";
 
 /// Which kind of file the measurements are to be saved as.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -68,7 +76,7 @@ pub fn show(
         ui.label(RichText::new(why).color(theme::palette(ui.ctx()).quiet_text));
     }
     section(ui, "Tools");
-    tools(ui, state, actions, &mut asked);
+    tools(ui, &TOOLS[..IN_SIGHT], state, (actions, &mut asked));
     how_to_draw(ui, state);
     row(ui, |ui| {
         for id in STEPS {
@@ -102,14 +110,23 @@ pub fn show(
             offer(ui, id, state, None, actions, &mut asked);
         }
     });
+    more(ui, Tab::Measure, |ui| {
+        tools(ui, &TOOLS[IN_SIGHT..], state, (actions, &mut asked));
+        offer(ui, SAVE_JSON, state, None, actions, &mut asked);
+    });
     asked
 }
 
-/// The buttons of the tools, the one in hand drawn pressed. The tool in hand is not asked
+/// The buttons of these tools, the one in hand drawn pressed. The tool in hand is not asked
 /// for again.
-fn tools(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
+fn tools(
+    ui: &mut Ui,
+    these: &[(Tool, &str)],
+    state: &AppState,
+    (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
+) {
     row(ui, |ui| {
-        for (tool, id) in TOOLS {
+        for &(tool, id) in these {
             let in_hand = state.tool == tool;
             let pressed = commands::button(ui, id, state, Some(in_hand));
             if let Some(does) = pressed.filter(|_| !in_hand) {
