@@ -24,17 +24,16 @@ fn the_top_bar_names_its_buttons_for_a_screen_reader() {
         update.nodes.iter().any(is_it)
     };
     // A button is named by its action's name in plain words, whatever its label says. The
-    // theme button is named for what it does: the choice after the one it shows.
-    let ids = ["help.keys", "theme.light"];
-    for id in ids {
-        let command = super::commands::find(id).expect("listed");
-        assert!(named(command.name), "nothing is named {}", command.name);
-        assert!(
-            !named(command.label),
-            "{} is named by its label",
-            command.id
-        );
-    }
+    // theme button opens a menu of the three themes, and is named by that menu.
+    let command = super::commands::find("help.keys").expect("listed");
+    assert!(named(command.name), "nothing is named {}", command.name);
+    assert!(
+        !named(command.label),
+        "{} is named by its label",
+        command.id
+    );
+    let theme = super::commands::menus::THEME.name;
+    assert!(named(theme), "nothing is named {theme}");
     // The search box writes "Find a tool or part" on itself, so that is what its name begins
     // with, for a person who speaks the words they see.
     let search = super::commands::find("search.open").expect("listed");

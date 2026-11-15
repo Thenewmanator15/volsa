@@ -330,7 +330,7 @@ holds no scan data of its own: the pictures read their slices and volumes from t
 
 | Part | Where | What it holds |
 |---|---|---|
-| Top bar | `top.rs`, `top/menu.rs`, `bars.rs` | **Open**, the study's name and date, the search box, help, the theme and the menu (interface size, full screen, the keys and mouse, where the log is, About), on one line; in a narrow window the study's name goes first, then the search box shortens |
+| Top bar | `top.rs`, `top/menu.rs`, `bars.rs` | **Open**, the study's name and date, the search box, help, the theme (a menu of System, Light and Dark) and the menu (Settings, full screen, where the log is, About), on one line; Settings is `settings.rs`; in a narrow window the study's name goes first, then the search box shortens |
 | Bottom line | `notices.rs`, `bars.rs` | The disclaimer, word for word, and the notice area: the newest notice, how many there are, and a list of all of them with **Dismiss** |
 | Rail of scans | `rail.rs` and `rail/` | A card for each scan under each person's and study's heading, then **Other files** (closed until opened); only the cards in sight are laid out, from rows kept between frames; folds to a strip |
 | Strip and pictures | `strip.rs`, `layout.rs`, `pictures.rs`, `viewport.rs`, `planes.rs`, `scene.rs` | The strip chooses **Slices** (1, 2 or 4 viewports), **Slices + 3D**, **Planes** or **3D**; beneath it the 2D viewports, the three planes and the 3D scene as the arrangement shows them; in a narrow middle the strip's buttons fold into one menu |

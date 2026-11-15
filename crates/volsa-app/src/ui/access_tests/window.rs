@@ -16,7 +16,8 @@ use crate::ui::panel::{self, PanelState};
 use crate::ui::rail::{self, RailState};
 use crate::ui::search::Search;
 use crate::ui::{
-    about, bars, confirm, keys, layout, planes, scene, seen, strip, tabs, viewport, welcome,
+    about, bars, confirm, keys, layout, planes, scene, seen, settings, strip, tabs, viewport,
+    welcome,
 };
 
 /// How wide the window is in these passes, in points.
@@ -185,7 +186,10 @@ impl Window {
         let (mut rail_at, mut asked) = (Rect::NOTHING, Vec::new());
         let told = pass(&ctx, SIZE, events, &mut |ui| {
             let mut actions = Vec::new();
-            let (_, line) = bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
+            let (bar, line) = bars::show(ui, state, &mut self.search, &mut self.bars, &mut actions);
+            if bar.contains(&Request::Settings) {
+                settings::open(ui.ctx());
+            }
             let thumbnails = Thumbnails::default();
             let rail = rail::column(
                 ui,
@@ -215,6 +219,8 @@ impl Window {
             if self.about {
                 about::show_in(ui.ctx(), state, &mut self.about, &mut wanted);
             }
+            let theme = self.bars.theme;
+            settings::show(ui.ctx(), state, theme, &mut actions, &mut wanted);
             actions.extend(confirm::show(ui.ctx(), state, &mut self.confirming));
             crate::ui::typing::note_the_pass(ui.ctx());
             let _: Vec<Request> = wanted;

@@ -3,7 +3,7 @@
 use egui::Key;
 
 use super::super::{Command, Does, Place, Request, Shortcut, Tab};
-use super::{PLAIN, alone};
+use super::{PLAIN, alone, ctrl};
 
 /// The entry that shows `tab`, named by `name`, found by `words` as well, and shown by `key` if
 /// it has one.
@@ -33,14 +33,14 @@ pub(super) const COMMANDS: &[Command] = &[
         Tab::View,
         "Show the View tab",
         "Brightness, which way round the patient is drawn, the slices and how they are shown",
-        None,
+        Some(ctrl(Key::Num1, "Ctrl+1")),
         &["view", "tab", "panel", "brightness"],
     ),
     show(
         Tab::Measure,
         "Show the Measure tab",
         "Rulers, angles, regions and markers, and the list of what has been measured",
-        Some(alone(Key::M, "M")),
+        Some(alone(Key::M, "M or Ctrl+2")),
         &[
             "measure",
             "measurements",
@@ -55,21 +55,21 @@ pub(super) const COMMANDS: &[Command] = &[
         Tab::Scene,
         "Show the 3D tab",
         "The looks of the 3D scene, the sides it is seen from, its cuts and saving it",
-        None,
+        Some(ctrl(Key::Num3, "Ctrl+3")),
         &["tab", "panel", "scene"],
     ),
     show(
         Tab::Labels,
         "Show the Labels tab",
         "The labelled parts of the scan",
-        None,
+        Some(ctrl(Key::Num4, "Ctrl+4")),
         &["tab", "panel", "parts"],
     ),
     show(
         Tab::Tools,
         "Show the Tools tab",
         "Tools that work on the scan, such as labelling it",
-        None,
+        Some(ctrl(Key::Num5, "Ctrl+5")),
         &["tab", "panel", "labelling"],
     ),
     Command {

@@ -56,17 +56,20 @@ pictures in the middle and, at the right, a panel of tabs: **View**, **Measure**
 **Labels** and **Tools**. Along the bottom are the disclaimer and the notices. The search box,
 which Ctrl+K or `/` opens, finds the actions by their names and by other words for them, and
 also the parts of open labels, the scans of the export and the help topics. **?** opens the
-help: seven short topics, then every key.
+help: seven short topics, then every key. **Settings…**, in the **⋯** menu or by Ctrl+, , holds
+the theme, the interface size and which side the patient's left is drawn on.
 
 An export opens on its slices. The strip above the pictures arranges them: **Slices** (with one,
 two or four viewports), **Slices + 3D**, **Planes** (the three planes and the 3D view, two by
-two) or **3D** alone. **B** folds the rail of scans to a strip, and **P** the tab panel, as do
-the **«** at the top of the rail and the **»** at the top of the panel; a click on a strip
-opens it again. The rail starts folded in a window under 960 points across; under 760 both
-fold, and no more than one is open at a time, so that the pictures keep their room. The edge of
-the rail and the edge of the panel can be dragged to give either more of the width. **F11** is
-full screen, and **Size** in the **⋯** menu draws the words and buttons larger or smaller, as do
-Ctrl+= and Ctrl+- (Ctrl+0 puts them back).
+two) or **3D** alone; **S**, **T** and **D** choose the slices, the planes and 3D alone from the
+keyboard, and Ctrl+1 to Ctrl+5 show the tabs in their order. A scan can be dragged from the rail
+onto any view to show it there. **B** folds the rail of scans to a strip, and **P** the tab
+panel, as do the **«** at the top of the rail and the **»** at the top of the panel; a click on
+a strip opens it again. The rail starts folded in a window under 960 points across; under 760
+both fold, and no more than one is open at a time, so that the pictures keep their room. The
+edge of the rail and the edge of the panel can be dragged to give either more of the width.
+**F11** is full screen, and **Interface size** in **Settings…** draws the words and buttons
+larger or smaller, as do Ctrl+= and Ctrl+- (Ctrl+0 puts them back).
 
 Volsa remembers the window's size, the size of the words and buttons, how wide you dragged the
 rail and the panel, which of them you folded, which tab is open and the theme (light, dark or

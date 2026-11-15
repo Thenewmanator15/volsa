@@ -1,6 +1,7 @@
 //! The card of one series in the rail: its small picture, its plain name, the scanner's own
 //! description beneath it, a line of facts, a mark when something stops the series being shown
-//! in full, and a menu that shows it in the selected view or shows its file's tags.
+//! in full, and a menu that shows its file's tags. A click shows it in the selected view, and
+//! dragging it onto a view shows it there.
 //!
 //! The words on a card are cut short with an ellipsis to fit; resting the pointer on it shows
 //! them whole. Words from the files are drawn without the characters that would turn, hide or
@@ -34,8 +35,6 @@ const MARK: f32 = 16.0;
 /// What a screen reader calls the mark of a series that cannot be shown in full. It is said after
 /// the series' name, so it says what Volsa can do with the series and nothing of the body in it.
 pub const NOT_SHOWN_IN_FULL: &str = "cannot be shown in full";
-/// The item of a card's menu that shows its series in the active viewport.
-pub const SHOW_HERE: &str = "Show in the selected view";
 
 /// What a card shows.
 pub struct Card<'a> {
@@ -315,12 +314,9 @@ pub(super) fn dots_button(ui: &mut Ui, rect: Rect, card: Id, name: &str) -> Resp
     response.on_hover_text(said)
 }
 
-/// A card's menu: show its series in the selected view, or show the tags of its first file.
+/// A card's menu: show the tags of its first file. Showing the series is the card's own click,
+/// or dragging it onto a view, so the menu does not offer it again.
 fn menu(ui: &mut Ui, series: &SeriesId, asks: &mut Asks<'_>) {
-    if ui.button(SHOW_HERE).clicked() {
-        asks.actions.push(select(asks.state, series));
-        ui.close();
-    }
     let tags = commands::button_made(ui, "tags.show", asks.state, "", |command| {
         Button::new(command.name)
     });

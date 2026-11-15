@@ -9,7 +9,7 @@ use egui::{InnerResponse, Response, Ui};
 pub struct Menu {
     /// What a screen reader calls the button, in plain words.
     pub name: &'static str,
-    /// What its button shows; the interface size menu adds the size now.
+    /// What its button shows.
     pub label: &'static str,
     /// More about it, shown under its name when the pointer rests on its button.
     pub explains: &'static str,
@@ -25,14 +25,13 @@ pub const OPEN: Menu = Menu {
 pub const MORE: Menu = Menu {
     name: "More",
     label: "⋯",
-    explains: "The size of the interface, full screen, the keys and mouse, where the log is, and About",
+    explains: "Settings, full screen, where the log is, and About",
 };
-/// The menu that chooses the size of the interface.
-pub const SIZE: Menu = Menu {
-    name: "Interface size",
-    label: "Interface size",
-    explains: "How large the interface is drawn: its words, buttons and lists. Ctrl+= and Ctrl+- \
-               make it larger and smaller, and Ctrl+0 puts it back to its usual size.",
+/// The menu of the top bar's theme button, which shows the theme the window is drawn in.
+pub const THEME: Menu = Menu {
+    name: "Theme",
+    label: "Theme",
+    explains: "Draw the window light or dark, or as the system is set",
 };
 /// The menu of the saved views of the 3D scene.
 pub const VIEWS: Menu = Menu {
@@ -56,7 +55,7 @@ pub const OPTIONS: Menu = Menu {
 
 /// Every menu button, for the test that walks the window and names each by this table.
 #[cfg(test)]
-pub const MENUS: [Menu; 6] = [OPEN, MORE, SIZE, VIEWS, EXPORT, OPTIONS];
+pub const MENUS: [Menu; 6] = [OPEN, MORE, THEME, VIEWS, EXPORT, OPTIONS];
 
 impl Menu {
     /// What a screen reader calls the button when it writes `written` on itself: the menu's name
@@ -134,7 +133,11 @@ mod tests {
         assert_eq!(OPEN.spoken("Open"), "Open");
         assert_eq!(OPTIONS.spoken("options"), "Labelling options");
         // The words hold the name: the words, which say more, as the size now.
-        assert_eq!(SIZE.spoken("Interface size 125%"), "Interface size 125%");
+        let sized = Menu {
+            name: "Interface size",
+            ..VIEWS
+        };
+        assert_eq!(sized.spoken("Interface size 125%"), "Interface size 125%");
         // A mark that is no word is a picture, and the name stands alone.
         assert_eq!(MORE.spoken("⋯"), "More");
         assert_eq!(MORE.spoken(""), "More");

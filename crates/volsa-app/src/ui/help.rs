@@ -191,7 +191,7 @@ fn key(ui: &egui::Ui, input: &str) -> RichText {
 fn side_by_side(ui: &mut egui::Ui) {
     egui::Grid::new("shortcuts")
         .num_columns(2)
-        .spacing([24.0, 6.0])
+        .spacing([24.0, 5.0])
         .show(ui, |ui| {
             for (input, does) in listed() {
                 ui.label(key(ui, input));
@@ -263,7 +263,7 @@ mod tests {
         // No renderer is behind this pass to take the font texture.
         output.textures_delta.clear();
         assert!(open);
-        assert_eq!(keys_listed().len() + MOUSE.len(), 43);
+        assert_eq!(keys_listed().len() + MOUSE.len(), 51);
         let parts = MOUSE
             .iter()
             .find(|(input, _)| input.contains("labelled part"));
@@ -294,7 +294,11 @@ mod tests {
         for key in [
             "Ctrl+Z",
             "Ctrl+Y or Ctrl+Shift+Z",
-            "M",
+            "M or Ctrl+2",
+            "Ctrl+,",
+            "Ctrl+1",
+            "D",
+            "T",
             "B",
             "F11",
             "?",

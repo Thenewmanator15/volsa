@@ -8,7 +8,7 @@ use egui::{
 use super::theme;
 
 /// The narrowest the series list is, in points: a card's picture and a few words beside it.
-const LIST_LEAST: f32 = 220.0;
+pub(super) const LIST_LEAST: f32 = 220.0;
 /// The widest the series list is, in points: wider than this its cards are only empty.
 const LIST_MOST: f32 = 360.0;
 /// The most of the window's width the series list takes, however wide it was dragged.

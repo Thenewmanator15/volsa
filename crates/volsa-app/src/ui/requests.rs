@@ -3,7 +3,7 @@
 //! save.
 
 use super::commands::{Request, Tab};
-use super::{VolsaApp, about, document, help, parts, screen, tabs, top, viewport};
+use super::{VolsaApp, about, document, help, parts, screen, settings, tabs, top, viewport};
 use crate::action::{Action, DocumentAction};
 use crate::plugins::PluginAction;
 
@@ -28,6 +28,7 @@ impl VolsaApp {
             }
             Request::Help(topic) => help::ask(ctx, &mut self.help_open, topic),
             Request::About => self.about_open = true,
+            Request::Settings => settings::open(ctx),
             Request::Licences => about::open_notices(ctx),
             Request::CopyTheLog => {
                 if let Some(log) = crate::log::path() {

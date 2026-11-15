@@ -12,6 +12,7 @@ mod measure;
 mod panel;
 mod pictures;
 mod scene;
+mod settings;
 mod slices;
 mod tools;
 mod top;
@@ -33,6 +34,7 @@ pub(super) fn all() -> Vec<Command> {
         labels::COMMANDS,
         tools::COMMANDS,
         top::COMMANDS,
+        settings::COMMANDS,
     ]
     .concat()
 }
