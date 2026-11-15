@@ -165,6 +165,8 @@ reading. None was reported by anyone using Volsa.
 
 ### Changed
 
+- The side panel uses its width: sliders stretch across it, and rows of buttons share it evenly
+  in tidy lines.
 - Tidier tabs: what is seldom needed is now under a **More** fold near the foot of the View,
   Measure and Labels tabs, closed until you open it. In the View tab: the W and L number boxes
   and the Smooth the planes and Link the views switches. In the Measure tab: the Angle and

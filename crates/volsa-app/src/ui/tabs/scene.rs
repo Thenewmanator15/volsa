@@ -87,13 +87,17 @@ const UNCUT_IDS: [&str; MAX_CUTS] = ["scene.uncut.1", "scene.uncut.2", "scene.un
 /// The looks to choose between. The look in use is not asked for again.
 fn looks(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
     let drawn = look_drawn(state);
-    for (look, id) in LOOK_IDS {
+    let ids = LOOK_IDS.map(|(_, id)| id);
+    super::even::buttons(ui, &ids, state, |ui, id| {
+        let Some(&(look, _)) = LOOK_IDS.iter().find(|(_, each)| *each == id) else {
+            return;
+        };
         let chosen = drawn == look;
         let pressed = commands::button(ui, id, state, Some(chosen));
         if let Some(does) = pressed.filter(|_| !chosen) {
             asked.extend(does.run(state, actions));
         }
-    }
+    });
 }
 
 /// Draw the 3D tab: the looks, the sides to see the patient from, the cuts, whether the slice
@@ -114,12 +118,10 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
         ui.label(RichText::new(said).small().color(quiet));
     }
     section(ui, "Look");
-    row(ui, |ui| looks(ui, state, actions, &mut asked));
+    looks(ui, state, actions, &mut asked);
     section(ui, "Seen from");
-    row(ui, |ui| {
-        for id in SIDE_IDS {
-            offer(ui, id, state, None, actions, &mut asked);
-        }
+    super::even::buttons(ui, &SIDE_IDS, state, |ui, id| {
+        offer(ui, id, state, None, actions, &mut asked);
     });
     section(ui, "Cuts");
     row(ui, |ui| {

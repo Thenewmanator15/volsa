@@ -117,7 +117,9 @@ fn switch(
     let Some(command) = commands::find(id) else {
         return;
     };
-    let pressed = commands::button_labelled(ui, id, command.name, state, Some(on));
+    let pressed = super::even::whole_width(ui, |ui| {
+        commands::button_labelled(ui, id, command.name, state, Some(on))
+    });
     if let Some(does) = pressed {
         asked.extend(does.run(state, actions));
     }
@@ -152,10 +154,8 @@ fn brightness(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &
         None => window_sliders(ui, state, actions),
     };
     if settings {
-        row(ui, |ui| {
-            for id in WINDOW_IDS {
-                offer(ui, id, state, None, actions, asked);
-            }
+        super::even::buttons(ui, &WINDOW_IDS, state, |ui, id| {
+            offer(ui, id, state, None, actions, asked);
         });
     }
 }
@@ -224,10 +224,8 @@ fn window_numbers(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) {
 
 /// The buttons that mirror the picture of the active viewport, turn it, and fit it whole.
 fn picture(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut Vec<Request>) {
-    row(ui, |ui| {
-        for id in PICTURE_IDS {
-            offer(ui, id, state, None, actions, asked);
-        }
+    super::even::buttons(ui, &PICTURE_IDS, state, |ui, id| {
+        offer(ui, id, state, None, actions, asked);
     });
 }
 
@@ -239,7 +237,10 @@ fn slices(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>, asked: &mut 
     let cine = cine.unwrap_or_else(Cine::at_rest);
     let mut fps = cine.fps;
     let label = if cine.playing { "Pause" } else { "Play" };
-    if let Some(does) = commands::button_labelled(ui, "slice.play", label, state, None) {
+    let play = super::even::whole_width(ui, |ui| {
+        commands::button_labelled(ui, "slice.play", label, state, None)
+    });
+    if let Some(does) = play {
         asked.extend(does.run(state, actions));
     }
     if let Some(slice) = sliders::slice(ui, state) {

@@ -12,6 +12,7 @@ use super::{VolsaApp, layout, shares, theme};
 use crate::action::Action;
 use crate::state::AppState;
 
+mod even;
 mod fold;
 #[cfg(test)]
 mod fold_tests;
@@ -80,6 +81,7 @@ pub fn show(
     kept: &mut Kept,
     actions: &mut Vec<Action>,
 ) -> Vec<Request> {
+    even::widen_sliders(ui);
     match tab {
         Tab::View => view::show(ui, state, actions),
         Tab::Scene => scene::show(ui, state, actions),

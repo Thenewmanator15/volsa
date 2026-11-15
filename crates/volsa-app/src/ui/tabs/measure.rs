@@ -78,10 +78,8 @@ pub fn show(
     section(ui, "Tools");
     tools(ui, &TOOLS[..IN_SIGHT], state, (actions, &mut asked));
     how_to_draw(ui, state);
-    row(ui, |ui| {
-        for id in STEPS {
-            offer(ui, id, state, None, actions, &mut asked);
-        }
+    super::even::buttons(ui, &STEPS, state, |ui, id| {
+        offer(ui, id, state, None, actions, &mut asked);
     });
     section(ui, "On this series");
     if let Some(note) = plain_stack_note(state) {
@@ -125,13 +123,15 @@ fn tools(
     state: &AppState,
     (actions, asked): (&mut Vec<Action>, &mut Vec<Request>),
 ) {
-    row(ui, |ui| {
-        for &(tool, id) in these {
-            let in_hand = state.tool == tool;
-            let pressed = commands::button(ui, id, state, Some(in_hand));
-            if let Some(does) = pressed.filter(|_| !in_hand) {
-                asked.extend(does.run(state, actions));
-            }
+    let ids: Vec<&str> = these.iter().map(|&(_, id)| id).collect();
+    super::even::buttons(ui, &ids, state, |ui, id| {
+        let Some(&(tool, _)) = these.iter().find(|(_, each)| *each == id) else {
+            return;
+        };
+        let in_hand = state.tool == tool;
+        let pressed = commands::button(ui, id, state, Some(in_hand));
+        if let Some(does) = pressed.filter(|_| !in_hand) {
+            asked.extend(does.run(state, actions));
         }
     });
 }
