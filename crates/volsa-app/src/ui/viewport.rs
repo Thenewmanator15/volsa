@@ -21,6 +21,7 @@ mod annotate;
 mod by_keys;
 mod colour;
 mod dropped;
+mod from_card;
 mod menu;
 mod mouse;
 mod picture;
@@ -57,6 +58,9 @@ pub struct Slices<'a> {
     /// The labels open, as the graphics device holds them, to draw over the slices of their
     /// study.
     pub labels: Option<&'a LabelsOnDevice>,
+    /// The scene's volume, once the whole of it is on the card: the slices of its series are
+    /// drawn from it, with no copy of their own.
+    pub volume: Option<&'a volsa_render::VolumePipeline>,
 }
 
 /// Space between neighbouring viewports, in points.
@@ -72,6 +76,10 @@ pub struct Gpu {
     uploaded: Option<(SeriesId, usize, bool)>,
     /// That slice as a picture in its own colours, when it is stored in colour.
     coloured: Option<egui::TextureHandle>,
+    /// Draws the slice from the scan's volume on the card, when it is there.
+    plane: super::planes::PlaneGpu,
+    /// Whether the slice was last drawn so.
+    from_card: bool,
     /// Part of a wheel notch scrolled on a touchpad and not yet acted on.
     part_notch: f32,
 }
@@ -84,13 +92,15 @@ impl Gpu {
             pipeline: Arc::new(Mutex::new(pipeline)),
             uploaded: None,
             coloured: None,
+            plane: super::planes::PlaneGpu::new(render),
+            from_card: false,
             part_notch: 0.0,
         }
     }
 
     /// Whether a slice has been uploaded, so there is something to see.
     pub fn has_picture(&self) -> bool {
-        self.uploaded.is_some()
+        self.from_card || self.uploaded.is_some()
     }
 }
 
@@ -233,9 +243,7 @@ pub fn show(
         let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
-            (Some(gpu), Some(render)) => {
-                slice(ui, &pane, (slices.frame, slices.labels), gpu, render)
-            }
+            (Some(gpu), Some(render)) => slice(ui, &pane, slices, gpu, render),
             _ => false,
         };
         if drawn {
@@ -310,7 +318,7 @@ fn written_over(ui: &Ui, pane: &Pane<'_>, drawn: bool) {
 fn slice(
     ui: &Ui,
     pane: &Pane<'_>,
-    (frames, labels): (&Frames<'_>, Option<&LabelsOnDevice>),
+    slices: &Slices<'_>,
     gpu: &mut Gpu,
     render: &RenderState,
 ) -> bool {
@@ -321,11 +329,15 @@ fn slice(
         gpu.uploaded = None;
         return false;
     };
+    gpu.from_card = from_card::draw(ui, pane, (slices.volume, slices.labels), &gpu.plane, render);
+    if gpu.from_card {
+        return true;
+    }
     let map = crate::susceptibility::shown(pane.state, series);
     let wanted = (series.clone(), viewport.slice, map);
     let mut pipeline = gpu.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
     if gpu.uploaded.as_ref() != Some(&wanted) {
-        let cached = frames(series, viewport.slice);
+        let cached = (slices.frame)(series, viewport.slice);
         let Some(frame) = cached else {
             return false;
         };
@@ -347,7 +359,9 @@ fn slice(
         colour::draw(ui, pane.cell, &pane.shown, picture, aspect);
         return true;
     }
-    let labels = labels.filter(|_| crate::labels::on_study(pane.state, series));
+    let labels = slices
+        .labels
+        .filter(|_| crate::labels::on_study(pane.state, series));
     let place = pane
         .series()
         .and_then(|(info, _)| info.voxel_to_patient.as_ref());

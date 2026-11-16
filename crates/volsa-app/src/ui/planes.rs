@@ -28,6 +28,7 @@ mod shapes;
 mod tools;
 
 pub use curve::Smoothing;
+pub(super) use gpu::PlaneGpu;
 pub use mouse::{PlaneInput, plane_input_to_actions};
 pub use overlay::{
     Room, crosshair, crossing, interpolated_note, panel_note, plane_caption, plane_colour,

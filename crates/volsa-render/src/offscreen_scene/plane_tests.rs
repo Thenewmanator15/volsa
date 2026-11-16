@@ -195,3 +195,28 @@ fn with_no_volume_a_plane_is_black_and_a_new_volume_takes_the_place_of_the_old()
         "{no_size:?}"
     );
 }
+
+#[test]
+fn a_plane_given_in_the_patient_is_drawn_as_the_same_plane_given_as_a_view() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let volume = ball();
+    gpu.upload(&volume).expect("uploads");
+    let view = view(&volume, PlaneKind::Axial, BEAD, true, 1.3);
+    let panel = [SIDE as f32; 2];
+    let corner = view.screen_to_patient(panel, [0.0, 0.0]);
+    let step = |to: Point<Patient>| [to.x - corner.x, to.y - corner.y, to.z - corner.z];
+    let sides = [
+        step(view.screen_to_patient(panel, [1.0, 0.0])),
+        step(view.screen_to_patient(panel, [0.0, 1.0])),
+    ];
+    let through = gpu
+        .render_through((corner, sides), ball_window(), [SIDE, SIDE])
+        .expect("renders");
+    assert_eq!(
+        through,
+        drawn(&mut gpu, &view),
+        "the same picture, pixel for pixel"
+    );
+}

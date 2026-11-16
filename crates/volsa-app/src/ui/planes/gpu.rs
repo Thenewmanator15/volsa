@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 
 use egui::{Rect, Ui};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
-use volsa_core::WindowLevel;
+use volsa_core::{Patient, Point, WindowLevel};
 use volsa_render::{
     LabelsOnDevice, Overlay, PlanePipeline, PlaneView, SmoothedTexture, VolumePipeline,
 };
@@ -59,6 +59,33 @@ impl PlaneGpu {
             return false;
         }
         pipeline.set_params(&render.queue, view, [cell.width(), cell.height()], window);
+        let draw = DrawPlane(Arc::clone(&self.pipeline));
+        ui.painter()
+            .add(egui_wgpu::Callback::new_paint_callback(cell, draw));
+        true
+    }
+}
+
+impl PlaneGpu {
+    /// Queue the drawing of a slice of the scan into `cell` from the volume the scene holds,
+    /// the plane given in the patient as [`PlanePipeline::set_through`] takes it. False, with
+    /// nothing queued, unless that volume is on the device whole, `whole` (columns, rows,
+    /// slices) as the scan is: not halved to fit, and not a preview.
+    pub fn draw_slice(
+        &self,
+        (ui, cell): (&Ui, Rect),
+        (render, volume): (&RenderState, &VolumePipeline),
+        whole: [u32; 3],
+        (corner, sides): (Point<Patient>, [[f64; 3]; 2]),
+        window: WindowLevel,
+    ) -> bool {
+        let mut pipeline = self.pipeline.lock().unwrap_or_else(PoisonError::into_inner);
+        pipeline.show(&render.device, volume);
+        if pipeline.volume_dims() != Some(whole) {
+            return false;
+        }
+        let size = [cell.width(), cell.height()];
+        pipeline.set_through(&render.queue, corner, sides, size, window);
         let draw = DrawPlane(Arc::clone(&self.pipeline));
         ui.painter()
             .add(egui_wgpu::Callback::new_paint_callback(cell, draw));

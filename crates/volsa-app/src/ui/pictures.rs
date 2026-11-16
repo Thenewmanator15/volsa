@@ -117,11 +117,12 @@ impl VolsaApp {
                 actions,
             );
         }
+        let on_card = (self.held.on_device(), whole_on_card(&self.scene, volume));
         let held = (&mut self.gpus[..], &mut self.drafts);
         let of_a_slice = slices(
             ui,
             areas.slices,
-            (&self.session, held, self.held.on_device()),
+            (&self.session, held, on_card),
             render,
             actions,
         );
@@ -141,7 +142,13 @@ impl VolsaApp {
         actions: &mut Vec<Action>,
     ) {
         let held = (&mut self.gpus[..], &mut self.drafts);
-        let _ = slices(ui, None, (&self.session, held, None), render, actions);
+        let _ = slices(
+            ui,
+            None,
+            (&self.session, held, (None, None)),
+            render,
+            actions,
+        );
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 
@@ -208,6 +215,24 @@ impl VolsaApp {
     }
 }
 
+/// What the graphics card holds for the slices to draw from: the labels open, and the scene's
+/// volume once the whole of it is there.
+type OnCard<'a> = (
+    Option<&'a volsa_render::LabelsOnDevice>,
+    Option<&'a volsa_render::VolumePipeline>,
+);
+
+/// The scene's volume on the card, once the whole of `volume` is there, for the slices of its
+/// series to be drawn from with no copy of their own.
+fn whole_on_card<'a>(
+    scene: &'a scene::SceneView,
+    volume: Option<&Arc<HeldVolume>>,
+) -> Option<&'a volsa_render::VolumePipeline> {
+    volume
+        .filter(|volume| !scene.needs(volume) && !scene.is_uploading())
+        .and(scene.volume_pipeline())
+}
+
 /// Draw the 2D viewports in `area`, reading their slices from the session: whole, to draw
 /// them, and in place, for the value under the pointer and for what is measured on them. With
 /// no area, the arrangement shown has no slices, and what was half drawn on them is given up.
@@ -215,10 +240,10 @@ impl VolsaApp {
 fn slices(
     ui: &mut egui::Ui,
     area: Option<egui::Rect>,
-    (session, held, labels): (
+    (session, held, (labels, volume)): (
         &Session,
         (&mut [viewport::Gpu], &mut viewport::Drafts),
-        Option<&volsa_render::LabelsOnDevice>,
+        OnCard<'_>,
     ),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
@@ -233,6 +258,7 @@ fn slices(
         value: &value,
         read: &read,
         labels,
+        volume,
     };
     viewport::show(ui, area, session.state(), &slices, held, render, actions)
 }

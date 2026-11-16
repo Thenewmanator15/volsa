@@ -8,6 +8,12 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+### Changed
+
+- **Stepping through slices costs almost nothing once the 3D view is ready.** A slice of the
+  series in the 3D view is drawn from the copy of the scan already on the graphics card, as the
+  plane views are: nothing is decoded, copied or sent to the card for each slice.
+
 ### Added
 
 - A plugin's entry in the Tools tab now has a **Show on the scan** switch and a **Strength** slider while

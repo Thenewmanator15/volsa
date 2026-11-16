@@ -323,6 +323,27 @@ impl HeadlessScene {
         let drawn = Gpu::on(device, queue).picture(size, |pass| self.plane.draw(pass));
         self.gpu.reported(drawn)
     }
+
+    /// Draw the plane given in the patient as [`PlanePipeline::set_through`] takes it, as a
+    /// slice viewport draws one from the volume; otherwise as [`HeadlessScene::render_plane`].
+    ///
+    /// # Errors
+    ///
+    /// As [`HeadlessScene::render`].
+    pub fn render_through(
+        &mut self,
+        (corner, sides): (volsa_core::Point<volsa_core::Patient>, [[f64; 3]; 2]),
+        window: WindowLevel,
+        size: [u32; 2],
+    ) -> Result<Vec<u8>, RenderError> {
+        let viewport = size.map(|side| side as f32);
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        self.plane.show(device, &self.pipeline);
+        self.plane
+            .set_through(queue, corner, sides, viewport, window);
+        let drawn = Gpu::on(device, queue).picture(size, |pass| self.plane.draw(pass));
+        self.gpu.reported(drawn)
+    }
 }
 
 #[cfg(test)]

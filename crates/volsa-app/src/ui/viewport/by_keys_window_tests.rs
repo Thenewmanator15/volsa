@@ -41,6 +41,7 @@ fn window(tool: Tool, tab: bool, passes: Vec<Vec<Event>>) -> Vec<Action> {
                 value: &value,
                 read: &read,
                 labels: None,
+                volume: None,
             };
             show(
                 ui,

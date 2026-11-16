@@ -4,7 +4,7 @@
 
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
-use volsa_core::WindowLevel;
+use volsa_core::{Patient, Point, WindowLevel};
 
 use crate::labels::{FILL, LabelsOnDevice, Overlay};
 use crate::plane_view::PlaneView;
@@ -251,6 +251,12 @@ impl PlanePipeline {
         self.shown.is_some()
     }
 
+    /// Columns, rows and slices of the volume drawn from, as it is on the device: fewer than
+    /// the scan's when it was halved to fit, or is a preview. `None` while there is none.
+    pub fn volume_dims(&self) -> Option<[u32; 3]> {
+        self.shown.as_ref().map(|shown| shown.dims)
+    }
+
     /// Set what the next picture shows: the plane, in a panel of `viewport` (width, height)
     /// pixels, through `window`. Does nothing while there is no volume.
     pub fn set_params(
@@ -260,11 +266,28 @@ impl PlanePipeline {
         viewport: [f32; 2],
         window: WindowLevel,
     ) {
+        let per_pixel = |side: [f64; 3]| side.map(|part| part * view.mm_per_px);
+        let corner = view.screen_to_patient(viewport, [0.0, 0.0]);
+        let sides = [per_pixel(view.plane.across), per_pixel(view.plane.down)];
+        self.set_through(queue, corner, sides, viewport, window);
+    }
+
+    /// Set what the next picture shows: the plane whose top left pixel shows `corner` of the
+    /// patient, each pixel right and each down a step of `across` and `down`, in millimetres,
+    /// in a panel of `viewport` (width, height) pixels, through `window`. A slice of the scan
+    /// is drawn so from the volume, with no copy of it made. Does nothing while there is no
+    /// volume.
+    pub fn set_through(
+        &self,
+        queue: &wgpu::Queue,
+        corner: Point<Patient>,
+        [across, down]: [[f64; 3]; 2],
+        viewport: [f32; 2],
+        window: WindowLevel,
+    ) {
         let Some(shown) = &self.shown else {
             return;
         };
-        let per_pixel = |side: [f64; 3]| four(side.map(|part| part * view.mm_per_px));
-        let corner = view.screen_to_patient(viewport, [0.0, 0.0]);
         let [to_u, to_v, to_w] = shown.rows;
         let [wide, high] = viewport;
         let black = (window.low() - shown.smallest) / shown.span;
@@ -274,8 +297,8 @@ impl PlanePipeline {
         let [label_u, label_v, label_w, label_grid, label_how] = self.label_params(shown);
         let (slabs, depths) = shown.slabs;
         let params = Params {
-            across: per_pixel(view.plane.across),
-            down: per_pixel(view.plane.down),
+            across: four(across),
+            down: four(down),
             top_left: four([corner.x, corner.y, corner.z]),
             to_u,
             to_v,
