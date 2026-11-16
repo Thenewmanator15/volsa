@@ -248,7 +248,7 @@ fn window(state: &mut AppState, action: Action) {
         Action::SetPictures(pictures) => state.pictures = pictures,
         Action::Post(notice) => match notice.key {
             Some(key) => post(state, key, Some(notice)),
-            None => state.notices.push(notice),
+            None => state.note(notice),
         },
         Action::DismissNotice(at) if at < state.notices.len() => {
             state.notices.remove(at);

@@ -321,3 +321,19 @@ fn a_notice_posted_from_the_window_takes_the_place_of_the_last_with_its_key() {
         .collect();
     assert_eq!(texts, ["Something else", "Saved two"]);
 }
+
+#[test]
+fn notices_with_no_key_are_kept_to_the_newest_fifty() {
+    let mut state = AppState::default();
+    let said = |text: String| Notice {
+        kind: NoticeKind::Info,
+        text,
+        details: Vec::new(),
+        key: None,
+    };
+    for at in 0..=crate::state::MOST_NOTICES {
+        reduce(&mut state, Action::Post(said(format!("notice {at}"))));
+    }
+    assert_eq!(state.notices.len(), crate::state::MOST_NOTICES);
+    assert_eq!(state.notices[0].text, "notice 1", "the oldest went");
+}

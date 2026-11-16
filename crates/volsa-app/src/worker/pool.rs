@@ -2,13 +2,30 @@
 
 use volsa_dicom::READING_STACK_BYTES;
 
+/// How many cores building a volume leaves to the rest: the window's thread, and the slice a
+/// viewport asks for while the volume builds, which would otherwise wait for a core.
+const LEFT_BESIDE_A_BUILD: usize = 2;
+
 /// A pool of threads named `{name}-0`, `{name}-1` and so on, one for each core, each with the
 /// stack a reader of DICOM files is given; `None` when the system would not make them.
 ///
 /// Every file is read on these threads, never on the window's: its stack is smaller still,
 /// and a thread that runs out of stack stops the whole program.
 pub(super) fn reading(name: &'static str) -> Option<rayon::ThreadPool> {
+    of(name, 0)
+}
+
+/// A pool as [`reading`] makes, for building volumes: as many threads as there are cores
+/// less [`LEFT_BESIDE_A_BUILD`], and one at least.
+pub(super) fn building(name: &'static str) -> Option<rayon::ThreadPool> {
+    let cores = std::thread::available_parallelism().map_or(1, std::num::NonZero::get);
+    of(name, cores.saturating_sub(LEFT_BESIDE_A_BUILD).max(1))
+}
+
+/// A pool of `threads` threads, or one for each core with 0.
+fn of(name: &'static str, threads: usize) -> Option<rayon::ThreadPool> {
     rayon::ThreadPoolBuilder::new()
+        .num_threads(threads)
         .thread_name(move |n| format!("{name}-{n}"))
         .stack_size(READING_STACK_BYTES)
         .build()

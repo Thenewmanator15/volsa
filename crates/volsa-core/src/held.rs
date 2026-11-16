@@ -286,6 +286,30 @@ impl HeldVolume {
         Volume::new(dims, values, placed)
     }
 
+    /// The value of one voxel read where it lies: from memory, or, where its slab is put away,
+    /// that one number from the store, the slab left where it is. For the window's thread,
+    /// which reads the value under the pointer and must not wait for a slab to come back.
+    pub fn value_in_place(&self, col: u32, row: u32, slice: u32) -> Option<f32> {
+        let (slab, at) = self.place_of(col, row, slice)?;
+        let rescale = self.rescale;
+        self.read_part(slab, at..at + 1, |raw| match raw {
+            SlabRaw::Unsigned(numbers) => numbers.first().map(|n| rescale.value(i32::from(*n))),
+            SlabRaw::Signed(numbers) => numbers.first().map(|n| rescale.value(i32::from(*n))),
+            SlabRaw::Float(numbers) => numbers.first().copied(),
+        })?
+    }
+
+    /// The slab a voxel is in, and its place in that slab. `None` outside the volume.
+    fn place_of(&self, col: u32, row: u32, slice: u32) -> Option<(usize, usize)> {
+        let [cols, rows, slices] = self.dims;
+        if col >= cols || row >= rows || slice >= slices {
+            return None;
+        }
+        let within = (slice % self.per_slab) as usize * self.in_slice();
+        let at = within + row as usize * cols as usize + col as usize;
+        Some(((slice / self.per_slab) as usize, at))
+    }
+
     /// The bytes of the slabs made so far that are in memory, and not put away.
     pub fn bytes_held(&self) -> usize {
         self.held_bytes.load(Ordering::SeqCst)
@@ -306,13 +330,7 @@ impl Grid for HeldVolume {
     }
 
     fn value(&self, col: u32, row: u32, slice: u32) -> Option<f32> {
-        let [cols, rows, slices] = self.dims;
-        if col >= cols || row >= rows || slice >= slices {
-            return None;
-        }
-        let within = (slice % self.per_slab) as usize * self.in_slice();
-        let at = within + row as usize * cols as usize + col as usize;
-        let slab = (slice / self.per_slab) as usize;
+        let (slab, at) = self.place_of(col, row, slice)?;
         self.read_slab(slab, |values| values.value(at, self.rescale))?
     }
 }

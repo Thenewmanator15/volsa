@@ -10,11 +10,24 @@ use egui_wgpu::wgpu;
 /// The variable that asks for the system's software graphics.
 const ADAPTER: &str = "VOLSA_ADAPTER";
 
-/// Set the window's graphics options to ask for what volumes need.
+/// The variable wgpu reads to be told which backends to look on.
+const BACKENDS: &str = "WGPU_BACKEND";
+
+/// Set the window's graphics options to ask for what volumes need. On Windows and Linux,
+/// where a card answers on Vulkan, the window looks on Vulkan alone, the backend it chose
+/// among them all: looking on the others too loads every card's DirectX or OpenGL driver, on
+/// Windows about 85 MB with two cards, for devices that are never chosen (see
+/// [`volsa_render::has_a_vulkan_card`]). `WGPU_BACKEND`, when set, has the last word.
 pub(crate) fn ask_for_what_volumes_need(options: &mut egui_wgpu::WgpuConfiguration) {
     if let egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_setup {
         setup.device_descriptor = Arc::new(descriptor);
-        if std::env::var(ADAPTER).is_ok_and(|asked| asked == "software") {
+        let software = std::env::var(ADAPTER).is_ok_and(|asked| asked == "software");
+        let chosen = std::env::var_os(BACKENDS).is_some();
+        let near = cfg!(any(windows, target_os = "linux"));
+        if near && !software && !chosen && volsa_render::has_a_vulkan_card() {
+            setup.instance_descriptor.backends = wgpu::Backends::VULKAN;
+        }
+        if software {
             setup.native_adapter_selector = Some(Arc::new(|adapters, _| {
                 let software = |adapter: &&wgpu::Adapter| {
                     adapter.get_info().device_type == wgpu::DeviceType::Cpu

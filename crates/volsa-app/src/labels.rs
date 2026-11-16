@@ -99,12 +99,18 @@ impl Labels {
     /// which is not at all for a part that is hidden. The veins found are drawn through the
     /// other solids in 3D, so that those inside the brain are seen.
     pub fn looks(&self) -> Vec<PartLook> {
+        self.each_look().collect()
+    }
+
+    /// How each part is to look, as [`Labels::looks`] says, one after another: for comparing
+    /// with the looks sent before, each frame, with nothing made.
+    pub fn each_look(&self) -> impl Iterator<Item = PartLook> + Clone + '_ {
         let look = |(part, how): (&Part, &PartShown)| PartLook {
             colour: part.colour,
             opacity: if how.shown { how.opacity } else { 0.0 },
             through: part.name == volsa_segment::VEINS_PART,
         };
-        self.parts.iter().zip(&self.shown).map(look).collect()
+        self.parts.iter().zip(&self.shown).map(look)
     }
 
     /// Whether a part is there and shown.

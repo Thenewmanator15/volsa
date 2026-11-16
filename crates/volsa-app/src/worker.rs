@@ -180,7 +180,7 @@ impl Workers {
         // Every thread that opens files has the stack a reader of DICOM files is given.
         Self {
             pool: pool::reading("volsa-worker"),
-            builds: pool::reading("volsa-build"),
+            builds: pool::building("volsa-build"),
             shared,
         }
     }

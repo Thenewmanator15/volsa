@@ -11,6 +11,9 @@ use crate::lost::{self, DeviceWatch};
 use crate::slice_pipeline::RenderError;
 
 mod found;
+mod vulkan;
+
+pub use vulkan::has_a_vulkan_card;
 
 /// The format of the picture drawn: 8-bit red, green, blue and alpha, with no gamma curve, so
 /// the grey read back is the grey the shader wrote.

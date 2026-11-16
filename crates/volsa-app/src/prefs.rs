@@ -303,16 +303,25 @@ impl Kept {
         &self.last
     }
 
+    /// Whether keeping `now` would write nothing: it is what is kept, or nothing is kept.
+    pub fn holds(&self, now: &Prefs) -> bool {
+        self.folder.is_none() || self.with_what_is_read(now) == self.last
+    }
+
+    /// `now`, with what the window cannot set yet as it was read.
+    fn with_what_is_read(&self, now: &Prefs) -> Prefs {
+        Prefs {
+            memory_mib: now.memory_mib.or(self.last.memory_mib),
+            ..now.clone()
+        }
+    }
+
     /// Keep `now` if it differs from what is kept. True when it was written.
     pub fn keep(&mut self, now: &Prefs) -> bool {
         let Some(folder) = &self.folder else {
             return false;
         };
-        // What the window cannot set yet is kept as it was read.
-        let now = &Prefs {
-            memory_mib: now.memory_mib.or(self.last.memory_mib),
-            ..now.clone()
-        };
+        let now = &self.with_what_is_read(now);
         if *now == self.last {
             return false;
         }

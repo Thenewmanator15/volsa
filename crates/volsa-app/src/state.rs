@@ -242,7 +242,22 @@ impl Default for AppState {
     }
 }
 
+/// The most notices with no key that are kept at once. Past it the oldest of them goes, so a
+/// long session does not gather them without end: every action looks over them all.
+pub const MOST_NOTICES: usize = 50;
+
 impl AppState {
+    /// Add a notice with no key, letting the oldest with no key go past [`MOST_NOTICES`].
+    pub(crate) fn note(&mut self, notice: Notice) {
+        self.notices.push(notice);
+        let unkeyed = self.notices.iter().filter(|each| each.key.is_none());
+        if unkeyed.count() > MOST_NOTICES
+            && let Some(oldest) = self.notices.iter().position(|each| each.key.is_none())
+        {
+            self.notices.remove(oldest);
+        }
+    }
+
     /// The series with this identifier in the open source.
     pub fn series(&self, id: &SeriesId) -> Option<&IndexedSeries> {
         self.index

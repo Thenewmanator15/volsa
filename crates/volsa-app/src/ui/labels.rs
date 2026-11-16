@@ -123,12 +123,19 @@ impl Opening {
 type Looks = (Vec<PartLook>, Option<usize>);
 
 /// Whether these looks differ from the ones last sent to the device. They are kept as the
-/// ones sent, so the same looks asked about twice are fresh once.
-fn fresh(sent: &mut Option<Looks>, now: Looks) -> bool {
-    if sent.as_ref() == Some(&now) {
+/// ones sent, so the same looks asked about twice are fresh once. Asked every frame, and
+/// nothing is made unless they differ.
+fn fresh<I>(sent: &mut Option<Looks>, (looks, selected): (I, Option<usize>)) -> bool
+where
+    I: IntoIterator<Item = PartLook>,
+    I::IntoIter: Clone,
+{
+    let looks = looks.into_iter();
+    let same = |(was, chosen): &Looks| *chosen == selected && was.iter().copied().eq(looks.clone());
+    if sent.as_ref().is_some_and(same) {
         return false;
     }
-    *sent = Some(now);
+    *sent = Some((looks.collect(), selected));
     true
 }
 
@@ -185,7 +192,7 @@ impl Held {
             self.placed = placed.map(|placed| (Arc::clone(set), placed));
             self.sent = None;
         }
-        let looks = (state.labels.looks(), state.labels.selected);
+        let looks = (state.labels.each_look(), state.labels.selected);
         if let Some((_, placed)) = &self.placed
             && fresh(&mut self.sent, looks)
             && let Some((looks, selected)) = &self.sent

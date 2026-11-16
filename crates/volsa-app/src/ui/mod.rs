@@ -143,8 +143,10 @@ impl eframe::App for VolsaApp {
             .refresh(self.session.state(), self.session.workers(), ctx);
     }
 
-    /// The window is closing: where each series shown was left is kept for the next time.
+    /// The window is closing: where each series shown was left is kept for the next time, and
+    /// the preferences changed in the last moment before it.
     fn on_exit(&mut self) {
+        self.kept.keep_now();
         self.session.leave();
     }
 

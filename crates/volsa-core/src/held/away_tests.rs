@@ -203,3 +203,18 @@ fn reading_a_slice_or_a_slab_put_away_reads_the_disk_and_leaves_it_there() {
     assert!(held.is_away(away), "still on disk");
     assert_eq!(held.bytes_held(), 32, "and not in memory");
 }
+
+#[test]
+fn a_value_read_in_place_leaves_its_slab_away() {
+    let held = three_slabs();
+    let before = every_value(&held);
+    held.keep_away_in(Arc::new(Kept::default()));
+    assert_eq!(held.put_away_least_used().expect("put"), 16);
+    let in_place: Vec<_> = (0..6)
+        .flat_map(|s| (0..4).map(move |i| (i % 2, i / 2, s)))
+        .map(|(col, row, slice)| held.value_in_place(col, row, slice))
+        .collect();
+    assert_eq!(in_place, before, "the same values");
+    assert_eq!(held.bytes_held(), 32, "with the slab still away");
+    assert_eq!(held.value_in_place(2, 0, 0), None, "and none outside");
+}

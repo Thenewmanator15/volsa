@@ -152,8 +152,9 @@ impl Session {
     /// The value of one pixel, as its column and row, of a slice, read where it lies as
     /// [`Session::read_slice`] reads it, so that it can be asked for each time the pointer
     /// moves: from the decoded slice if the cache holds it, and otherwise the one voxel of the
-    /// kept volume, with no slice turned or copied. `None` when the slice is not there to read,
-    /// the pixel is not in it, or it is a picture in colour.
+    /// kept volume, with no slice turned or copied, and none of it brought back from disk.
+    /// `None` when the slice is not there to read, the pixel is not in it, or it is a picture
+    /// in colour.
     pub fn value_at(&self, series: &SeriesId, slice: usize, pixel: (usize, usize)) -> Option<f32> {
         let cached = self
             .cache
@@ -166,7 +167,7 @@ impl Session {
         }
         let volume = self.volume(series)?;
         let place = |at: usize| u32::try_from(at).ok();
-        volume.value(place(pixel.0)?, place(pixel.1)?, place(slice)?)
+        volume.value_in_place(place(pixel.0)?, place(pixel.1)?, place(slice)?)
     }
 
     /// The volume built for a series, if it is the one kept for the 3D scene.
