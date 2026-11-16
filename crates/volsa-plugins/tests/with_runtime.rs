@@ -67,6 +67,7 @@ fn job(folder: &Path, device: Where, block: [usize; 3]) -> OpenJob {
             },
             from: None,
             keep_largest_piece: false,
+            see_through: false,
             names: vec![Name {
                 id: 1,
                 name: "Bright".to_owned(),

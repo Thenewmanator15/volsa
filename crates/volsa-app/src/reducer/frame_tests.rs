@@ -20,7 +20,8 @@ fn grown(times: f64) -> [Point<Patient>; 8] {
     })
 }
 
-/// The scan ready, with labels read on it whose box is `of`.
+/// The scan ready, with labels read on it whose box is `of`, and the scene put back on the
+/// look of the scan, which taking the labels in left.
 fn labelled(of: [Point<Patient>; 8]) -> AppState {
     let mut state = ready();
     let open = Action::OpenLabels {
@@ -38,6 +39,7 @@ fn labelled(of: [Point<Patient>; 8]) -> AppState {
         run: None,
     };
     reduce(&mut state, read);
+    reduce(&mut state, Action::SceneLook(Look::Surface));
     state
 }
 

@@ -6,7 +6,7 @@ use egui::{Button, RichText, ScrollArea, Ui};
 
 use super::{named, origin, quiet};
 use crate::action::Action;
-use crate::plugins::{PluginAction, ToolEntry};
+use crate::plugins::{PluginAction, ResultShown, ToolEntry};
 use crate::ui::theme;
 
 /// Said when a person points at the button that adds a plugin.
@@ -20,6 +20,10 @@ const RUN_HINT: &str = "Run this plugin on the scan in the 3D view";
 const SHOW_HINT: &str = "Open the labels this plugin made for this scan";
 /// Said when a person points at the button that deletes a plugin's result.
 const DELETE_HINT: &str = "Delete the labels this plugin made for this scan";
+/// What the switch that shows or hides a plugin's labels on the scan says.
+pub const SHOW_ON_SCAN: &str = "Show on the scan";
+/// What the slider that sets how strongly they show says.
+pub const STRENGTH: &str = "Strength";
 /// Said when a person points at the button that removes a plugin.
 const REMOVE_HINT: &str = "Remove this plugin from Volsa; you are asked first";
 /// The height the entries leave beneath them, in points, before they scroll: room for
@@ -82,6 +86,9 @@ fn one(ui: &mut Ui, tool: &ToolEntry, held: u64, actions: &mut Vec<Action>) {
     };
     ui.label(RichText::new(&tool.state).small().color(colour));
     ui.horizontal_wrapped(|ui| buttons(ui, tool, held, actions));
+    if let Some(result) = tool.result {
+        shown_as(ui, result, actions);
+    }
     if entry.checked.is_ok() {
         ui.label(quiet(&origin(
             &entry.made_by,
@@ -93,6 +100,22 @@ fn one(ui: &mut Ui, tool: &ToolEntry, held: u64, actions: &mut Vec<Action>) {
             entry.accepts_words, entry.returns, entry.runs_on
         );
         ui.label(quiet(&what));
+    }
+}
+
+/// The switch that shows or hides the labels a plugin made, open on this series, and the
+/// slider that sets how strongly they show, as for the veins.
+fn shown_as(ui: &mut Ui, result: ResultShown, actions: &mut Vec<Action>) {
+    let mut shown = result.shown;
+    if ui.checkbox(&mut shown, SHOW_ON_SCAN).changed() {
+        actions.extend(result.show(shown));
+    }
+    let mut opacity = result.opacity;
+    let slider = egui::Slider::new(&mut opacity, crate::labels::FAINTEST..=1.0)
+        .text(STRENGTH)
+        .show_value(false);
+    if ui.add_enabled(shown, slider).changed() {
+        actions.extend(result.strength(opacity));
     }
 }
 

@@ -93,6 +93,7 @@ fn job(folder: &Path, bytes: &[u8], sha256: Option<String>) -> OpenJob {
             },
             from: None,
             keep_largest_piece: false,
+            see_through: false,
             names: vec![name],
         },
     }

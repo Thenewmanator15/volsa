@@ -43,6 +43,7 @@ fn entry() -> PluginEntry {
         accepts_words: "MR scans, any contrast, of the head".to_owned(),
         returns: "Labels: 1 named part.".to_owned(),
         runs_on: "the processor only".to_owned(),
+        see_through: false,
     }
 }
 

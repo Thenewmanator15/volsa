@@ -103,7 +103,10 @@ pub fn show(ui: &mut Ui, state: &AppState, actions: &mut Vec<Action>) -> Vec<Req
     if susceptibility(ui, state, actions, &mut asked) {
         ui.add_space(8.0);
     }
-    let entries = tool_entries(&state.plugins);
+    let mut entries = tool_entries(&state.plugins);
+    for tool in &mut entries {
+        tool.result = crate::plugins::ResultShown::of(state, &tool.entry.id);
+    }
     let busy = state.plugins.busy.as_deref();
     // Closed until opened, unless a plugin has been added or is being added. What the window
     // holds of the graphics card is only known with the device in hand: a run asked for here

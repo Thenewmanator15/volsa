@@ -68,3 +68,42 @@ fn a_fainter_part_drawn_through_shows_less_strongly() {
     let [_, _, faint] = middle(&drawn(&mut gpu, NamedView::Left));
     assert!(faint + 20 < strong, "faint {faint} against strong {strong}");
 }
+
+#[test]
+fn several_parts_can_be_drawn_through_the_rest_at_once() {
+    let Some(mut gpu) = headless_scene() else {
+        return;
+    };
+    let set = ball_labels([0.0; 3]);
+    assert!(gpu.label(Some(&set)), "there is room");
+    let greens = |rgba: &[u8]| {
+        rgba.chunks(4)
+            .filter(|pixel| pixel[1] > 60 && pixel[1] > pixel[0] && pixel[1] > pixel[2])
+            .count()
+    };
+    // From behind, the bead, green, at the front of the left half, red, is hidden by it.
+    let hidden = greens(&drawn(&mut gpu, NamedView::Posterior));
+    let both = |at: usize| at == 1 || at == 2;
+    let looks: Vec<PartLook> = set
+        .parts
+        .iter()
+        .enumerate()
+        .map(|(at, part)| PartLook {
+            colour: part.colour,
+            opacity: 1.0,
+            through: both(at),
+        })
+        .collect();
+    gpu.set_looks(&looks, None);
+    let [red, _, blue] = middle(&drawn(&mut gpu, NamedView::Left));
+    assert!(
+        blue > red,
+        "the right half is seen through: red {red}, blue {blue}"
+    );
+    let rgba = drawn(&mut gpu, NamedView::Posterior);
+    assert!(
+        greens(&rgba) > hidden + 20,
+        "and the bead too: {} green pixels against {hidden}",
+        greens(&rgba)
+    );
+}

@@ -92,12 +92,16 @@ pub struct Labels {
     pub names_from: NamesFrom,
     /// Who made the labels, when their table says; `None` for labels made elsewhere.
     pub made: Option<Made>,
+    /// Whether every part is drawn through the other solids in 3D, as the plugin that made
+    /// them asks.
+    pub see_through: bool,
 }
 
 impl Labels {
     /// How each part is to look on the graphics device: its colour, and how solid it is,
     /// which is not at all for a part that is hidden. The veins found are drawn through the
-    /// other solids in 3D, so that those inside the brain are seen.
+    /// other solids in 3D, so that those inside the brain are seen, and so are all the parts
+    /// of labels whose plugin asks for it.
     pub fn looks(&self) -> Vec<PartLook> {
         self.each_look().collect()
     }
@@ -108,7 +112,7 @@ impl Labels {
         let look = |(part, how): (&Part, &PartShown)| PartLook {
             colour: part.colour,
             opacity: if how.shown { how.opacity } else { 0.0 },
-            through: part.name == volsa_segment::VEINS_PART,
+            through: self.see_through || part.name == volsa_segment::VEINS_PART,
         };
         self.parts.iter().zip(&self.shown).map(look)
     }
@@ -117,6 +121,13 @@ impl Labels {
     pub fn is_shown(&self, part: usize) -> bool {
         self.shown.get(part).is_some_and(|how| how.shown)
     }
+}
+
+/// The plugin that made the labels on this series, as its identity, when one the person
+/// added did.
+pub fn made_by_plugin(state: &AppState) -> Option<&str> {
+    let made = on_this_series(state).then_some(state.labels.made.as_ref())??;
+    made.added.as_ref().map(|added| added.id.as_str())
 }
 
 /// Whether a file is opened as labels, by its name: a NIfTI file, plain or gzipped, whatever

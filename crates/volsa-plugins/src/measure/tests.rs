@@ -254,6 +254,7 @@ fn measuring_runs_one_made_up_block_and_reports_the_jobs_peak() {
             },
             from: None,
             keep_largest_piece: false,
+            see_through: false,
             names: vec![crate::Name {
                 id: 1,
                 name: "Part".to_owned(),
@@ -288,6 +289,7 @@ fn measuring_ends_at_once_when_stopped() {
             gives: crate::Gives::Labels,
             from: None,
             keep_largest_piece: false,
+            see_through: false,
             names: Vec::new(),
         },
     };

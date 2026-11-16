@@ -66,6 +66,8 @@ fn the_parts_look_is_offered_when_there_are_labels_on_this_series_and_only_then(
     let (unlabelled, _) = sweep(&AppState::default());
     assert!(!unlabelled.contains(&parts), "nothing to draw as solids");
     let (mut state, _) = crate::testing::labelled_head();
+    // Back on the scan, which taking the labels in turned to its solids.
+    crate::reducer::reduce(&mut state, Action::SceneLook(Look::Surface));
     let scans = [Look::Surface, Look::Vr, Look::Mip].map(Action::SceneLook);
     let (asked, _) = sweep(&state);
     let offered = [&scans[1..], std::slice::from_ref(&parts)].concat();

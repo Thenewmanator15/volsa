@@ -40,13 +40,21 @@ fn labels(group: &Obj) -> Result<LabelOutput, DescribeError> {
     };
     let from = from(group)?;
     let keep_largest_piece = group.flag("keep_largest_piece")?;
-    let mut known = vec!["gives", "from", "keep_largest_piece", "names"];
+    let see_through = group.maybe_flag("see_through")?;
+    let mut known = vec![
+        "gives",
+        "from",
+        "keep_largest_piece",
+        "see_through",
+        "names",
+    ];
     known.extend_from_slice(keys);
     group.only(&known)?;
     Ok(LabelOutput {
         gives,
         from,
         keep_largest_piece,
+        see_through,
         names,
     })
 }
@@ -211,6 +219,11 @@ pub struct LabelOutput {
     pub from: Option<String>,
     /// Whether only the largest connected piece of everything labelled is kept.
     pub keep_largest_piece: bool,
+    /// Whether what it finds is drawn through the other solids in the 3D view, as Volsa's own
+    /// veins are: for thin things, such as vessels, that lie inside others. False when the
+    /// description leaves it out.
+    #[serde(default)]
+    pub see_through: bool,
     /// Every label that can appear, with its name.
     pub names: Vec<Name>,
 }
