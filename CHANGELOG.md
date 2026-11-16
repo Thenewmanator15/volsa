@@ -14,6 +14,8 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   and the parts of a brain showed on the planes and in 3D but not on a slice. They are now drawn
   over every slice of their study, as on the planes, by the graphics card from the labels it
   already holds.
+- **Veins, brain labels and plugin results show in 3D at once.** When they arrive, the 3D view
+  turns to its solids look, so they are not hidden inside the surface of the head.
 
 ## [0.8.0] - 2026-11-15
 
