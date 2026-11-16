@@ -13,6 +13,9 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 - **Stepping through slices costs almost nothing once the 3D view is ready.** A slice of the
   series in the 3D view is drawn from the copy of the scan already on the graphics card, as the
   plane views are: nothing is decoded, copied or sent to the card for each slice.
+- **Starts with less work on the graphics card.** The slice and plane shaders are compiled once
+  and shared by every viewport and plane panel, not once for each, and their settings are sent
+  to the card only when they change.
 
 ### Added
 

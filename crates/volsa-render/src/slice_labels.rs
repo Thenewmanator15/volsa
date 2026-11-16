@@ -7,6 +7,7 @@ use egui_wgpu::wgpu;
 use volsa_core::{Affine, Patient, Voxel};
 
 use crate::labels::{FILL, LabelsOnDevice, Overlay};
+use crate::slice_shader::SliceShader;
 
 /// The labels bound for the slice shader, and where the slice lies among them.
 pub(crate) struct SliceLabels {
@@ -23,10 +24,10 @@ pub(crate) struct SliceLabels {
 }
 
 impl SliceLabels {
-    /// No labels, with the layout the slice shader reads them through as its second group.
-    pub(crate) fn new(device: &wgpu::Device) -> Self {
-        let layout = layout(device);
-        let none = crate::plane_pipeline::no_labels(device);
+    /// No labels, bound as `shader` reads them, its second group.
+    pub(crate) fn new(device: &wgpu::Device, shader: &SliceShader) -> Self {
+        let layout = shader.labels_layout.clone();
+        let none = shader.no_labels.clone();
         let bound = bind(device, &layout, &none.0, &none.1);
         Self {
             layout,
@@ -37,11 +38,6 @@ impl SliceLabels {
             overlay: Overlay::Off,
             to_label: None,
         }
-    }
-
-    /// The layout of the group, for the pipeline.
-    pub(crate) fn layout(&self) -> &wgpu::BindGroupLayout {
-        &self.layout
     }
 
     /// The group, for drawing.
@@ -133,7 +129,7 @@ fn bind(
 
 /// The layout of the group: a volume of whole numbers and a table of colours, read texel by
 /// texel.
-fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+pub(crate) fn layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     let entry = |binding, sample_type, view_dimension| wgpu::BindGroupLayoutEntry {
         binding,
         visibility: wgpu::ShaderStages::FRAGMENT,

@@ -17,7 +17,7 @@ pub struct PlaneGpu {
 impl PlaneGpu {
     /// A pipeline drawing into the window's own format, with no volume to draw from yet.
     pub fn new(render: &RenderState) -> Self {
-        let pipeline = PlanePipeline::new(&render.device, render.target_format);
+        let pipeline = PlanePipeline::of(&render.device, &crate::ui::shaders::plane(render));
         Self {
             pipeline: Arc::new(Mutex::new(pipeline)),
         }

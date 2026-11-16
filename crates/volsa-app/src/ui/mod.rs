@@ -51,6 +51,7 @@ mod search;
 mod seen;
 mod settings;
 mod setup;
+mod shaders;
 mod shares;
 mod size;
 mod start;

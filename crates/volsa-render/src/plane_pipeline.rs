@@ -2,6 +2,8 @@
 //! scene's own texture, so a plane view costs no second copy of the volume and moving through
 //! its layers decodes nothing.
 
+use std::cell::Cell;
+
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
 use volsa_core::{Patient, Point, WindowLevel};
@@ -11,10 +13,11 @@ use crate::plane_view::PlaneView;
 use crate::smoothed::SmoothedTexture;
 use crate::volume_params::{MIN_WINDOW, texture_rows};
 use crate::volume_pipeline::VolumePipeline;
-use crate::volume_texture::{Placed, shader_reading_slabs};
+use crate::volume_texture::Placed;
 
 mod layout;
-use layout::bindings;
+mod shader;
+pub use shader::PlaneShader;
 
 /// What the shader needs besides the volume; the layout matches `View` in `plane.wgsl`.
 #[repr(C)]
@@ -56,55 +59,30 @@ struct Shown {
     slabs: ([f32; 4], [f32; 4]),
 }
 
-/// Draws one plane through a volume. Each panel has its own, as each has its own plane.
+/// Draws one plane through a volume. Each panel has its own, as each has its own plane, and
+/// all draw with one shader.
 pub struct PlanePipeline {
-    pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
+    shader: PlaneShader,
     params: wgpu::Buffer,
-    blended: wgpu::Sampler,
-    /// Reads beyond a face what lies as far inside it, as the curve's coefficients suppose.
-    mirrored: wgpu::Sampler,
+    /// The numbers last written to the device, so the same are not written again.
+    written: Cell<Option<Params>>,
     /// The curve through the volume, when planes are to be drawn smooth.
     curve: Option<SmoothedTexture>,
     /// The labels drawn over the planes, and how, when there are any.
     labels: Option<LabelsOnDevice>,
     overlay: Overlay,
-    /// What the shader is given to read when there are no labels: one voxel of nothing.
-    no_labels: (wgpu::TextureView, wgpu::TextureView),
     shown: Option<Shown>,
 }
 
 impl PlanePipeline {
-    /// Build the pipeline for drawing into a target of the given format.
+    /// Build the pipeline for drawing into a target of the given format, with a shader of its
+    /// own. Where several planes are drawn, [`Self::of`] shares one.
     pub fn new(device: &wgpu::Device, target: wgpu::TextureFormat) -> Self {
-        let shader = shader_reading_slabs(device, "volsa plane", include_str!("plane.wgsl"));
-        let layout = bindings(device);
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("volsa plane"),
-            bind_group_layouts: &[Some(&layout)],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("volsa plane"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(target.into())],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        Self::of(device, &PlaneShader::new(device, target))
+    }
+
+    /// A pipeline drawing with `shader`, compiled once for every plane drawn.
+    pub fn of(device: &wgpu::Device, shader: &PlaneShader) -> Self {
         let params = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("volsa plane parameters"),
             size: size_of::<Params>() as wgpu::BufferAddress,
@@ -112,15 +90,12 @@ impl PlanePipeline {
             mapped_at_creation: false,
         });
         Self {
-            pipeline,
-            layout,
+            shader: shader.clone(),
             params,
-            blended: sampler(device, wgpu::AddressMode::ClampToEdge),
-            mirrored: sampler(device, wgpu::AddressMode::MirrorRepeat),
+            written: Cell::new(None),
             curve: None,
             labels: None,
             overlay: Overlay::Off,
-            no_labels: no_labels(device),
             shown: None,
         }
     }
@@ -190,7 +165,7 @@ impl PlanePipeline {
         volume: &Placed,
         coefficients: &wgpu::TextureView,
     ) -> wgpu::BindGroup {
-        let (no_parts, no_looks) = &self.no_labels;
+        let (no_parts, no_looks) = &self.shader.no_labels;
         let labels = self.labels.as_ref();
         let parts = labels.map_or(no_parts, LabelsOnDevice::parts_view);
         let looks = labels.map_or(no_looks, LabelsOnDevice::looks_view);
@@ -198,9 +173,9 @@ impl PlanePipeline {
         let resources = [
             self.params.as_entire_binding(),
             view(volume.view()),
-            wgpu::BindingResource::Sampler(&self.blended),
+            wgpu::BindingResource::Sampler(&self.shader.blended),
             view(coefficients),
-            wgpu::BindingResource::Sampler(&self.mirrored),
+            wgpu::BindingResource::Sampler(&self.shader.mirrored),
             view(parts),
             view(looks),
         ];
@@ -211,7 +186,7 @@ impl PlanePipeline {
             .collect();
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("volsa plane"),
-            layout: &self.layout,
+            layout: &self.shader.layout,
             entries: &entries,
         })
     }
@@ -313,7 +288,11 @@ impl PlanePipeline {
             slabs,
             depths,
         };
-        queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
+        let same = |written: &Params| bytemuck::bytes_of(written) == bytemuck::bytes_of(&params);
+        if !self.written.get().as_ref().is_some_and(same) {
+            queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
+            self.written.set(Some(params));
+        }
     }
 
     /// Draw the plane over the whole of the pass's viewport. Draws nothing while there is no
@@ -322,7 +301,7 @@ impl PlanePipeline {
         let Some(shown) = &self.shown else {
             return;
         };
-        pass.set_pipeline(&self.pipeline);
+        pass.set_pipeline(&self.shader.pipeline);
         pass.set_bind_group(0, &shown.bind_group, &[]);
         pass.draw(0..3, 0..1);
     }
@@ -353,19 +332,6 @@ pub(crate) fn no_labels(device: &wgpu::Device) -> (wgpu::TextureView, wgpu::Text
         made(wgpu::TextureDimension::D3, wgpu::TextureFormat::R16Uint),
         made(wgpu::TextureDimension::D2, wgpu::TextureFormat::Rgba8Unorm),
     )
-}
-
-/// A sampler that blends the values round a place, reading beyond a face as `beyond` says.
-fn sampler(device: &wgpu::Device, beyond: wgpu::AddressMode) -> wgpu::Sampler {
-    device.create_sampler(&wgpu::SamplerDescriptor {
-        label: Some("volsa plane"),
-        address_mode_u: beyond,
-        address_mode_v: beyond,
-        address_mode_w: beyond,
-        mag_filter: wgpu::FilterMode::Linear,
-        min_filter: wgpu::FilterMode::Linear,
-        ..Default::default()
-    })
 }
 
 /// Three numbers as the four the shader keeps them in, at the precision it works in.

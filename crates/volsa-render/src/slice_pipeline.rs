@@ -6,6 +6,7 @@ use volsa_core::{Affine, Patient, Voxel, WindowLevel};
 
 use crate::labels::{LabelsOnDevice, Overlay};
 use crate::slice_labels::SliceLabels;
+use crate::slice_shader::SliceShader;
 use crate::view::ViewTransform;
 
 /// Why a slice could not be drawn.
@@ -81,9 +82,10 @@ struct Uploaded {
 /// window, level and view are a small block of numbers the shader reads, so changing them
 /// never uploads the image again.
 pub struct SlicePipeline {
-    pipeline: wgpu::RenderPipeline,
-    layout: wgpu::BindGroupLayout,
+    shader: SliceShader,
     params: wgpu::Buffer,
+    /// The numbers last written to the device, so the same are not written again.
+    written: Option<Params>,
     uploaded: Option<Uploaded>,
     /// The labels drawn over the slice, read where the device already holds them.
     labels: SliceLabels,
@@ -92,37 +94,15 @@ pub struct SlicePipeline {
 }
 
 impl SlicePipeline {
-    /// Build the pipeline for drawing into a target of the given format.
+    /// Build the pipeline for drawing into a target of the given format, with a shader of its
+    /// own. Where several slices are drawn, [`Self::of`] shares one.
     pub fn new(device: &wgpu::Device, target: wgpu::TextureFormat) -> Self {
-        let shader = device.create_shader_module(wgpu::include_wgsl!("slice.wgsl"));
-        let layout = bindings(device);
-        let labels = SliceLabels::new(device);
-        let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("volsa slice"),
-            bind_group_layouts: &[Some(&layout), Some(labels.layout())],
-            immediate_size: 0,
-        });
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("volsa slice"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &shader,
-                entry_point: Some("vertex"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                buffers: &[],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: None,
-            multisample: wgpu::MultisampleState::default(),
-            fragment: Some(wgpu::FragmentState {
-                module: &shader,
-                entry_point: Some("fragment"),
-                compilation_options: wgpu::PipelineCompilationOptions::default(),
-                targets: &[Some(target.into())],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
+        Self::of(device, &SliceShader::new(device, target))
+    }
+
+    /// A pipeline drawing with `shader`, compiled once for every slice drawn.
+    pub fn of(device: &wgpu::Device, shader: &SliceShader) -> Self {
+        let labels = SliceLabels::new(device, shader);
         let params = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("volsa slice parameters"),
             size: size_of::<Params>() as wgpu::BufferAddress,
@@ -130,9 +110,9 @@ impl SlicePipeline {
             mapped_at_creation: false,
         });
         Self {
-            pipeline,
-            layout,
+            shader: shader.clone(),
             params,
+            written: None,
             uploaded: None,
             labels,
             slice: 0.0,
@@ -242,7 +222,11 @@ impl SlicePipeline {
             label_grid,
             label_how,
         };
-        queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
+        let same = |written: &Params| bytemuck::bytes_of(written) == bytemuck::bytes_of(&params);
+        if !self.written.as_ref().is_some_and(same) {
+            queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
+            self.written = Some(params);
+        }
     }
 
     /// Draw the uploaded image over the whole of the pass's viewport. Draws nothing until an
@@ -251,7 +235,7 @@ impl SlicePipeline {
         let Some(uploaded) = &self.uploaded else {
             return;
         };
-        pass.set_pipeline(&self.pipeline);
+        pass.set_pipeline(&self.shader.pipeline);
         pass.set_bind_group(0, &uploaded.bind_group, &[]);
         pass.set_bind_group(1, self.labels.bound(), &[]);
         pass.draw(0..3, 0..1);
@@ -276,7 +260,7 @@ impl SlicePipeline {
         let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("volsa slice"),
-            layout: &self.layout,
+            layout: &self.shader.layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
@@ -295,32 +279,6 @@ impl SlicePipeline {
             cols,
         }
     }
-}
-
-/// What the shader is given: the parameters, then the image as a texture it reads value by
-/// value (floating-point textures cannot be blended by the device itself everywhere, so the
-/// shader blends).
-fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-    let entry = |binding, ty| wgpu::BindGroupLayoutEntry {
-        binding,
-        visibility: wgpu::ShaderStages::FRAGMENT,
-        ty,
-        count: None,
-    };
-    let parameters = wgpu::BindingType::Buffer {
-        ty: wgpu::BufferBindingType::Uniform,
-        has_dynamic_offset: false,
-        min_binding_size: None,
-    };
-    let image = wgpu::BindingType::Texture {
-        sample_type: wgpu::TextureSampleType::Float { filterable: false },
-        view_dimension: wgpu::TextureViewDimension::D2,
-        multisampled: false,
-    };
-    device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-        label: Some("volsa slice"),
-        entries: &[entry(0, parameters), entry(1, image)],
-    })
 }
 
 /// A coordinate as the single-precision number the shader works in.

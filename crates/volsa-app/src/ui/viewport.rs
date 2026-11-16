@@ -87,7 +87,7 @@ pub struct Gpu {
 impl Gpu {
     /// A pipeline drawing into the window's own format, with nothing uploaded yet.
     pub fn new(render: &RenderState) -> Self {
-        let pipeline = SlicePipeline::new(&render.device, render.target_format);
+        let pipeline = SlicePipeline::of(&render.device, &super::shaders::slice(render));
         Self {
             pipeline: Arc::new(Mutex::new(pipeline)),
             uploaded: None,

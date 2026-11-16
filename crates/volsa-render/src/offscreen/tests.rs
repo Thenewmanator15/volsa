@@ -285,3 +285,29 @@ fn labels_turned_off_leave_a_slice_untouched() {
             .all(|px| px[..3] == [0, 0, 0])
     );
 }
+
+#[test]
+fn slices_sharing_one_shader_each_show_their_own_image_and_numbers() {
+    let Some(mut gpu) = headless() else { return };
+    let shader = crate::slice_shader::SliceShader::new(&gpu.gpu.device, TARGET);
+    gpu.pipeline = SlicePipeline::of(&gpu.gpu.device, &shader);
+    let mut other = SlicePipeline::of(&gpu.gpu.device, &shader);
+    gpu.upload(4, 4, &ramp()).expect("uploads");
+    let white = vec![15.0; 16];
+    let (device, queue) = (&gpu.gpu.device, &gpu.gpu.queue);
+    other.upload(device, queue, 4, 4, &white).expect("uploads");
+    let (wl, fit) = (WindowLevel::new(7.5, 16.0), ViewTransform::fit());
+    let ramp_drawn = drawn(&mut gpu, wl, &fit);
+    std::mem::swap(&mut gpu.pipeline, &mut other);
+    let white_drawn = drawn(&mut gpu, WindowLevel::new(7.5, 1.0), &fit);
+    std::mem::swap(&mut gpu.pipeline, &mut other);
+    // Drawn again with the same numbers, which are then not written again.
+    let again = drawn(&mut gpu, wl, &fit);
+    assert_eq!(ramp_drawn, again, "the first slice is as it was");
+    assert!(centre(&ramp_drawn, 0, 0) < 20, "the ramp starts dark");
+    assert_eq!(
+        centre(&white_drawn, 0, 0),
+        255,
+        "the other slice is its own"
+    );
+}
