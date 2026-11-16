@@ -197,10 +197,11 @@ impl PartsPipeline {
         let params = Params {
             across,
             along,
-            // The fourth number is the part drawn through the rest, 0 for none.
+            // The fourth number is the row from which the table says which parts are drawn
+            // through the rest, 0 when none is.
             forward: {
                 let [x, y, z, _] = forward;
-                [x, y, z, labels.through() as f32]
+                [x, y, z, labels.through_from() as f32]
             },
             top_left: {
                 // The fourth number says whether to step over the blocks that hold no part.

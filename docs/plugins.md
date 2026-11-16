@@ -177,6 +177,9 @@ scan whose values are all the same is refused: there is nothing in it for a mode
   than one.
 - `"keep_largest_piece"`: `true` keeps only the largest connected piece of all labelled voxels
   together, `false` keeps every piece. Required.
+- `"see_through"`: `true` draws what the plugin finds through the other solids in the 3D
+  view, as Volsa's own veins are: for thin things, such as vessels, that lie inside others.
+  Optional; `false` when left out.
 - `"names"`: for each label that can appear (1 to 65 535), its `id`, `name`, `side` (`"left"`,
   `"right"` or `"midline"`) and `group`, and optionally a `colour` of three numbers from 0 to
   255. Every label the network can give must be named, and no two entries may share an `id`, or

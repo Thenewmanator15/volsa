@@ -95,6 +95,9 @@ pub fn settings_lines(input: &Input, output: &LabelOutput) -> Vec<String> {
     } else {
         "Every labelled piece is kept.".to_owned()
     });
+    if output.see_through {
+        lines.push("What it finds is shown through the brain in 3D.".to_owned());
+    }
     lines
 }
 

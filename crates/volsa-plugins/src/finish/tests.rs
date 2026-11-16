@@ -18,6 +18,7 @@ fn output(gives: Gives) -> LabelOutput {
         gives,
         from: None,
         keep_largest_piece: false,
+        see_through: false,
         names: vec![name(1), name(2)],
     }
 }

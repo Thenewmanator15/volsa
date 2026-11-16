@@ -192,6 +192,13 @@ pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId
             crate::labels::PARTS_AT_FIRST
         },
     };
+    let added = made.as_ref().and_then(|made| made.added.as_ref());
+    let see_through = added.is_some_and(|added| {
+        let entries = state.plugins.entries.iter();
+        entries
+            .filter(|entry| entry.id == added.id)
+            .any(|entry| entry.see_through)
+    });
     state.labels = Labels {
         status: LabelsStatus::Ready,
         title,
@@ -204,6 +211,7 @@ pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId
         corners: Some(corners),
         names_from,
         made,
+        see_through,
     };
     Vec::new()
 }

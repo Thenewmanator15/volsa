@@ -8,8 +8,10 @@ use volsa_core::SeriesId;
 use volsa_models::RunsOn;
 use volsa_plugins::{Accepts, Contrasts, Description, Installed, Offered, Output, Stage};
 
+mod result;
 mod store;
 mod words;
+pub use result::ResultShown;
 
 pub(crate) use store::{add, folder, list, remove, same_id};
 pub use words::settings_lines;
@@ -48,6 +50,9 @@ pub struct PluginEntry {
     pub returns: String,
     /// Where it can run, as a phrase.
     pub runs_on: String,
+    /// Whether what it finds is drawn through the other solids in 3D, as its description
+    /// asks.
+    pub see_through: bool,
 }
 
 impl PluginEntry {
@@ -67,6 +72,10 @@ impl PluginEntry {
             accepts_words: words::accepts(&description.accepts),
             returns: words::returns(&description.output),
             runs_on: runs_on.to_owned(),
+            see_through: matches!(
+                &description.output,
+                volsa_plugins::Output::Labels(output) if output.see_through
+            ),
         }
     }
 
@@ -102,6 +111,7 @@ impl PluginEntry {
             accepts_words: String::new(),
             returns: String::new(),
             runs_on: String::new(),
+            see_through: false,
         }
     }
 }
@@ -328,6 +338,8 @@ pub struct ToolEntry {
     pub delete: String,
     /// The action that removes it.
     pub remove: String,
+    /// How its labels are shown, while labels it made are open on this series.
+    pub result: Option<ResultShown>,
 }
 
 /// The action that offers a folder: `plugins.add`.
@@ -355,6 +367,7 @@ pub fn tool_entries(plugins: &Plugins) -> Vec<ToolEntry> {
                 show: action("show"),
                 delete: action("delete"),
                 remove: action("remove"),
+                result: None,
             }
         })
         .collect()

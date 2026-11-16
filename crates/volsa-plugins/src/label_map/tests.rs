@@ -23,6 +23,7 @@ fn named(count: u16, keep_largest_piece: bool) -> LabelOutput {
         gives: Gives::Labels,
         from: None,
         keep_largest_piece,
+        see_through: false,
         names,
     }
 }

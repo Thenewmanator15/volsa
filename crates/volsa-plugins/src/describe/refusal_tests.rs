@@ -243,3 +243,17 @@ fn a_kind_needs_its_own_output() {
     let said = refused(|value| value["kind"] = json!("number"));
     assert_eq!(said, "The description's output.name is missing.");
 }
+
+#[test]
+fn see_through_is_false_when_left_out_true_when_said_and_must_be_true_or_false() {
+    let output = |value: &Value| match read(value).expect("reads").output {
+        crate::Output::Labels(output) => output.see_through,
+        _ => panic!("a label map gives labels"),
+    };
+    assert!(!output(&example()), "left out");
+    let mut said = example();
+    said["output"]["see_through"] = Value::Bool(true);
+    assert!(output(&said));
+    let why = refused(|value| value["output"]["see_through"] = Value::from("yes"));
+    assert!(why.contains("see_through"), "{why}");
+}

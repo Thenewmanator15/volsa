@@ -1,14 +1,16 @@
 // Draws labelled parts as lit solids by following a line of sight through a label volume for
 // every pixel of the picture. The volume holds a part number at every voxel, on its own grid
 // (0 is nothing); a small table holds each part's colour, with how solid it is as its alpha.
-// One part may be drawn through the rest, as if they were glass: the line of sight goes on
-// past the other solids to find it, and it is laid over them, fainter where it is behind.
+// Parts may be drawn through the rest, as if they were glass: the line of sight goes on past
+// the other solids to find the nearest of them, and it is laid over them, fainter where it
+// is behind. A second half of the table of looks says which parts are drawn so.
 
 struct Scene {
     // The screen pixel (x, y), z millimetres beyond the camera's target, lies in the patient
     // at top_left + x * across + y * along + z * forward, in millimetres. The fourth number
     // of top_left is 1 when blocks that hold no part are to be stepped over. The fourth
-    // number of forward is the part drawn through the rest, 0 for none.
+    // number of forward is the row from which the table of looks says which parts are
+    // drawn through the rest, 0 when none is.
     across: vec4<f32>,
     along: vec4<f32>,
     forward: vec4<f32>,
@@ -111,11 +113,21 @@ fn look_of(part: u32) -> vec4<f32> {
     return textureLoad(looks, vec2<i32>(i32(part % 256u), i32(part / 256u)), 0);
 }
 
+// Whether a part is drawn through the rest.
+fn is_through(part: u32) -> bool {
+    let flags_row = u32(scene.forward.w);
+    if flags_row == 0u || part == 0u {
+        return false;
+    }
+    let at = vec2<i32>(i32(part % 256u), i32(flags_row + part / 256u));
+    return textureLoad(looks, at, 0).r > 0.5;
+}
+
 // 1 where a voxel holds a part that is shown and is among those `only` picks, 0 where not:
-// with `only` 0, any part but the one drawn through the rest; otherwise that part alone.
+// with `only` 0, any part not drawn through the rest; otherwise that part alone.
 fn shown(voxel: vec3<i32>, only: u32) -> f32 {
     let part = part_of(voxel);
-    let picked = select(part != u32(scene.forward.w), part == only, only != 0u);
+    let picked = select(!is_through(part), part == only, only != 0u);
     return select(0.0, 1.0, picked && look_of(part).a > 0.0);
 }
 
@@ -200,16 +212,15 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
     let stride = max(scene.view.z, (leave - enter) / MAX_STEPS);
     let steps = i32(ceil((leave - enter) / stride));
     let chosen = u32(scene.view.w);
-    let through = u32(scene.forward.w);
     let stepping_over = scene.top_left.w > 0.5;
     var light = vec3<f32>(0.0);
     var stopped = 0.0;
-    // The part drawn through the rest, where the line first meets it, and how strongly.
+    // The nearest part drawn through the rest, where the line first meets it, and how strongly.
     var seen_through = vec3<f32>(0.0);
     var through_strength = 0.0;
-    var found = through == 0u;
+    var found = scene.forward.w < 0.5;
     // The part the line was last in, so that a part is drawn once where the line enters it.
-    // The part drawn through the rest is passed over here: a line that goes through it from
+    // A part drawn through the rest is passed over here: a line that goes through it from
     // one part back into the same is taken as never having left.
     var within = 0u;
     for (var i = 0; i < steps; i++) {
@@ -245,13 +256,13 @@ fn fragment(corner: Corner) -> @location(0) vec4<f32> {
         }
         let first_on_a_cut = on_a_cut && i == 0;
         let outside = max(along - stride, enter);
-        if part == through {
+        if is_through(part) {
             if !found {
                 // Lit by its own surface alone, and fainter the more is in front of it.
                 found = true;
                 var shade = 1.0;
                 if !first_on_a_cut {
-                    shade = lit(start, step, outside, along, through);
+                    shade = lit(start, step, outside, along, part);
                 }
                 var colour = look.rgb;
                 if part == chosen {

@@ -8,6 +8,13 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+### Added
+
+- A plugin's entry in the Tools tab now has a **Show on the scan** switch and a **Strength** slider while
+  the labels it made are open, as the veins have. A plugin can ask in its `plugin.json` for what it
+  finds to be drawn through the brain in 3D (`"see_through": true` in its `output`), for thin
+  things such as vessels.
+
 ## [0.8.0] - 2026-11-15
 
 ### Added

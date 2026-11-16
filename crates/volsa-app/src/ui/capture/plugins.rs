@@ -91,6 +91,7 @@ fn entry(runs_on: &str) -> PluginEntry {
         accepts_words: "MR scans, T1-weighted, of the head".to_owned(),
         returns: "Labels: 1 named part.".to_owned(),
         runs_on: runs_on.to_owned(),
+        see_through: false,
     }
 }
 

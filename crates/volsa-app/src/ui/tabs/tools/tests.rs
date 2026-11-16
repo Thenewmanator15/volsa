@@ -212,3 +212,32 @@ fn while_the_map_is_shown_its_button_goes_back_to_the_phase() {
     let back = Action::Labelling(LabellingAction::BackToPhase);
     assert!(actions.contains(&back), "{actions:?}");
 }
+
+#[test]
+fn a_plugins_entry_shows_and_hides_every_part_it_made_while_they_are_open() {
+    let (mut state, _) = crate::testing::labelled_head();
+    let mut entry = PluginEntry::broken("example.vessels", String::new());
+    entry.id = "example.vessels".to_owned();
+    entry.checked = Ok(());
+    state.plugins.entries = vec![entry];
+    let written = tools_written(&state);
+    assert!(
+        !written.contains("Show on the scan"),
+        "not another's labels: {written}"
+    );
+    let added = volsa_labels::Added {
+        id: "example.vessels".to_owned(),
+        ..volsa_labels::Added::default()
+    };
+    state.labels.made = Some(volsa_labels::Made {
+        added: Some(added),
+        ..volsa_labels::Made::default()
+    });
+    let parts = state.labels.parts.len();
+    let (actions, _) = pressed(&state, "Show on the scan");
+    let hidden: Vec<Action> = (0..parts)
+        .map(|part| Action::PartShow { part, shown: false })
+        .collect();
+    assert_eq!(actions, hidden);
+    assert!(tools_written(&state).contains("Strength"));
+}

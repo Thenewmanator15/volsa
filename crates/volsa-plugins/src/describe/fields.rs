@@ -141,6 +141,14 @@ impl<'a> Obj<'a> {
         flag.ok_or_else(|| self.wrong(key, "is not true or false"))
     }
 
+    /// A field that is true or false and may be left out, when it is false.
+    pub(super) fn maybe_flag(&self, key: &str) -> Result<bool, DescribeError> {
+        match self.get(key) {
+            None => Ok(false),
+            Some(_) => self.flag(key),
+        }
+    }
+
     /// A field that is a list.
     pub(super) fn list(&self, key: &str) -> Result<&'a Vec<Value>, DescribeError> {
         let list = self.value(key)?.as_array();

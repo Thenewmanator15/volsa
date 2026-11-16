@@ -379,6 +379,8 @@ mod places_tests;
 #[cfg(test)]
 mod planes_tests;
 #[cfg(test)]
+mod plugin_shown_tests;
+#[cfg(test)]
 mod plugins_tests;
 #[cfg(test)]
 mod scene_camera_tests;

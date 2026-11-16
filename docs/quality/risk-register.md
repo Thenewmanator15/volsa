@@ -102,6 +102,7 @@ section PL.
 | R-PL-11 | Labels near block edges differ from the model's own program's, and a small structure there is judged absent. | minor / possible | Said on the result when blocks were used. | `volsa-plugins/src/run/tests.rs::a_block_run_gives_the_same_labels_and_the_blocks_note`. | minor / possible |
 | R-PL-12 | A result made by an older version, or by a removed plugin, is taken for the newer one's. | minor / possible | Version and sum on every result (PL-17, PL-18); a result is kept under the plugin's sum, so a new version does not open an old one's result. | `volsa-labels/src/made/added_tests.rs::added_by_you_round_trips_through_a_written_table`; `volsa-app/src/worker/plugins_run_tests.rs::a_run_is_kept_for_its_series_and_plugin_and_found_again`. | minor / rare |
 | R-PL-13 | Pixels of a scan are left on disk by a plugin run. | serious / possible | Pipes only, nothing written (PL-21). | PL-21's tests, and reading `volsa-plugins/src/run.rs` and `helper/`. | serious / rare |
+| R-PL-14 | A plugin's labels drawn through the brain in 3D are taken to lie on its surface, or a plugin's description asks for it where it misleads (a large part drawn over everything). | minor / possible | Only the plugin's own description asks, and its card says so ("What it finds is shown through the brain in 3D."); parts behind others are fainter (VN-06); the switch and Strength slider on its entry hide or fade them; the planes show where each lies. | PL-25's tests. | minor / rare |
 
 ## EX: saying what kind of scan it is (12 November 2026)
 

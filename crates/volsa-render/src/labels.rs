@@ -28,8 +28,8 @@ pub struct PartLook {
     /// How solid it is, from 0, hidden, to 1.
     pub opacity: f32,
     /// Whether it is drawn through the other solids in 3D, as if they were glass, as strong
-    /// as its opacity where it is in front of them and fainter where it is behind. Only the
-    /// first part that asks for it is drawn so.
+    /// as its opacity where it is in front of them and fainter where it is behind. Where a line
+    /// of sight meets several parts drawn so, the nearest is shown.
     pub through: bool,
 }
 
@@ -53,8 +53,8 @@ struct Held {
     looks_view: wgpu::TextureView,
     /// The number of the part selected, counted from 1; 0 when none is.
     selected: AtomicU32,
-    /// The number of the part drawn through the rest, counted from 1; 0 when none is.
-    through: AtomicU32,
+    /// Whether any part is drawn through the rest.
+    through: std::sync::atomic::AtomicBool,
 }
 
 impl Drop for Held {
@@ -86,7 +86,8 @@ impl LabelsOnDevice {
         if set.dims.iter().any(|side| *side == 0 || *side > longest) {
             return None;
         }
-        let rows = u32::try_from(set.parts.len()).ok()? / LOOKS_ACROSS + 1;
+        // The rows of looks, then as many rows that say which parts are drawn through the rest.
+        let rows = 2 * (u32::try_from(set.parts.len()).ok()? / LOOKS_ACROSS + 1);
         // Watched for running out of room, as the volume itself is.
         let room = crate::lost::RoomWatch::on(device);
         let kind = wgpu::TextureFormat::R16Uint;
@@ -119,7 +120,7 @@ impl LabelsOnDevice {
                 parts,
                 looks,
                 selected: AtomicU32::new(0),
-                through: AtomicU32::new(0),
+                through: std::sync::atomic::AtomicBool::new(false),
             }),
             dims: set.dims,
             patient_to_voxel,
@@ -145,7 +146,15 @@ impl LabelsOnDevice {
         // The first texel is for "no part" and stays clear.
         let mut bytes = vec![0_u8; count * 4];
         let (texels, _) = bytes.as_chunks_mut::<4>();
-        let slots = texels.iter_mut().skip(1).take(self.parts);
+        let flags_from = (LOOKS_ACROSS * rows / 2) as usize;
+        let (looks_part, flags) = texels.split_at_mut(flags_from.min(texels.len()));
+        let marks = flags.iter_mut().skip(1).take(self.parts);
+        for (mark, look) in marks.zip(looks) {
+            if look.through {
+                *mark = [255, 0, 0, 255];
+            }
+        }
+        let slots = looks_part.iter_mut().skip(1).take(self.parts);
         for (slot, look) in slots.zip(looks) {
             let [red, green, blue] = look.colour;
             let opacity = if look.opacity.is_finite() {
@@ -170,16 +179,18 @@ impl LabelsOnDevice {
         self.held
             .selected
             .store(number.unwrap_or(0), Ordering::Relaxed);
-        let through = looks.iter().take(self.parts).position(|look| look.through);
-        let number = through.and_then(|part| u32::try_from(part + 1).ok());
-        self.held
-            .through
-            .store(number.unwrap_or(0), Ordering::Relaxed);
+        let any = looks.iter().take(self.parts).any(|look| look.through);
+        self.held.through.store(any, Ordering::Relaxed);
     }
 
-    /// The number of the part drawn through the rest, counted from 1; 0 when none is.
-    pub(crate) fn through(&self) -> u32 {
-        self.held.through.load(Ordering::Relaxed)
+    /// The row of the table of looks from which it says which parts are drawn through the
+    /// rest; 0 when none is.
+    pub(crate) fn through_from(&self) -> u32 {
+        if self.held.through.load(Ordering::Relaxed) {
+            self.held.looks.height() / 2
+        } else {
+            0
+        }
     }
 
     /// The part at each voxel, as a shader reads it.
