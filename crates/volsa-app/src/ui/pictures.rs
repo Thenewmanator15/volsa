@@ -118,7 +118,13 @@ impl VolsaApp {
             );
         }
         let held = (&mut self.gpus[..], &mut self.drafts);
-        let of_a_slice = slices(ui, areas.slices, (&self.session, held), render, actions);
+        let of_a_slice = slices(
+            ui,
+            areas.slices,
+            (&self.session, held, self.held.on_device()),
+            render,
+            actions,
+        );
         ui.allocate_rect(whole, egui::Sense::hover());
         for request in asked.into_iter().chain(of_a_slice) {
             self.ask(ui.ctx(), request);
@@ -135,7 +141,7 @@ impl VolsaApp {
         actions: &mut Vec<Action>,
     ) {
         let held = (&mut self.gpus[..], &mut self.drafts);
-        let _ = slices(ui, None, (&self.session, held), render, actions);
+        let _ = slices(ui, None, (&self.session, held, None), render, actions);
         ui.allocate_rect(whole, egui::Sense::hover());
     }
 
@@ -209,7 +215,11 @@ impl VolsaApp {
 fn slices(
     ui: &mut egui::Ui,
     area: Option<egui::Rect>,
-    (session, held): (&Session, (&mut [viewport::Gpu], &mut viewport::Drafts)),
+    (session, held, labels): (
+        &Session,
+        (&mut [viewport::Gpu], &mut viewport::Drafts),
+        Option<&volsa_render::LabelsOnDevice>,
+    ),
     render: Option<&RenderState>,
     actions: &mut Vec<Action>,
 ) -> Vec<super::commands::Request> {
@@ -222,6 +232,7 @@ fn slices(
         frame: &frame,
         value: &value,
         read: &read,
+        labels,
     };
     viewport::show(ui, area, session.state(), &slices, held, render, actions)
 }

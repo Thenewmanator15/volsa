@@ -37,6 +37,7 @@ impl Window {
             frame: &frame,
             value: &value,
             read: &read,
+            labels: None,
         };
         let area = Rect::from_min_size(Pos2::ZERO, vec2(SIZE, SIZE));
         let held = (&mut [][..], &mut self.drafts);

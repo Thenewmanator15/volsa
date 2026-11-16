@@ -8,6 +8,13 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Labels and veins show on the slices too.** The Slices layout drew no labels: the veins found
+  and the parts of a brain showed on the planes and in 3D but not on a slice. They are now drawn
+  over every slice of their study, as on the planes, by the graphics card from the labels it
+  already holds.
+
 ## [0.8.0] - 2026-11-15
 
 ### Added

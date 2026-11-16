@@ -1,8 +1,10 @@
 //! Drawing a slice without a window, for tests and thumbnails.
 
-use volsa_core::WindowLevel;
+use volsa_core::{Affine, Patient, Voxel, WindowLevel};
+use volsa_labels::LabelSet;
 
 use crate::gpu::{Gpu, TARGET};
+use crate::labels::{LabelsOnDevice, Overlay};
 use crate::slice_pipeline::{RenderError, SlicePipeline};
 use crate::view::ViewTransform;
 
@@ -38,6 +40,22 @@ impl Headless {
         }
         self.pipeline
             .upload(&self.gpu.device, &self.gpu.queue, rows, cols, values)
+    }
+
+    /// Draw `set` over the slice in the way `overlay` says, the slice being number `slice` of a
+    /// series laid out by `place`; no labels with `None`. Whether there are labels to draw.
+    pub fn label(
+        &mut self,
+        set: Option<&LabelSet>,
+        overlay: Overlay,
+        (place, slice): (&Affine<Voxel, Patient>, usize),
+    ) -> bool {
+        let (device, queue) = (&self.gpu.device, &self.gpu.queue);
+        let labels = set.and_then(|set| LabelsOnDevice::put(device, queue, set));
+        let place = Some((place, slice));
+        self.pipeline
+            .labels(device, labels.as_ref(), overlay, place);
+        labels.is_some()
     }
 
     /// Draw the uploaded image into a picture `size` (width, height) pixels large and return

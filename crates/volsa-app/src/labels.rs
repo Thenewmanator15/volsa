@@ -153,6 +153,14 @@ pub fn on_this_series(state: &AppState) -> bool {
     state.labels.status == LabelsStatus::Ready && study.is_some() && study == state.labels.study
 }
 
+/// Whether the labels open are shown on `series`: they are ready, and it is of the study they
+/// were opened on. As on the planes and in the scene, so on the slices.
+pub fn on_study(state: &AppState, series: &SeriesId) -> bool {
+    state.labels.status == LabelsStatus::Ready
+        && state.labels.study.is_some()
+        && study_of(state, series) == state.labels.study
+}
+
 /// Whether the thin dark tubes of the scan in the scene can be highlighted now; if not, why.
 /// They can when the scene shows a series whose volume is built, and no labels are being read
 /// or made.

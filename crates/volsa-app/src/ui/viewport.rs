@@ -7,7 +7,7 @@ use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, vec2};
 use egui_wgpu::{CallbackResources, CallbackTrait, RenderState, wgpu};
 use volsa_core::{SeriesId, SeriesInfo, StudyInfo};
 use volsa_dicom::Frame;
-use volsa_render::{SlicePipeline, ViewTransform};
+use volsa_render::{LabelsOnDevice, SlicePipeline, ViewTransform};
 
 use super::overlay;
 use super::theme;
@@ -54,6 +54,9 @@ pub struct Slices<'a> {
     pub value: &'a ValueAt<'a>,
     /// A slice's values, where they lie.
     pub read: &'a ReadSlice<'a>,
+    /// The labels open, as the graphics device holds them, to draw over the slices of their
+    /// study.
+    pub labels: Option<&'a LabelsOnDevice>,
 }
 
 /// Space between neighbouring viewports, in points.
@@ -230,7 +233,9 @@ pub fn show(
         let pane = pane(state, at, cell);
         let mut gpu = gpus.get_mut(at);
         let drawn = match (gpu.as_deref_mut(), render) {
-            (Some(gpu), Some(render)) => slice(ui, &pane, slices.frame, gpu, render),
+            (Some(gpu), Some(render)) => {
+                slice(ui, &pane, (slices.frame, slices.labels), gpu, render)
+            }
             _ => false,
         };
         if drawn {
@@ -305,7 +310,7 @@ fn written_over(ui: &Ui, pane: &Pane<'_>, drawn: bool) {
 fn slice(
     ui: &Ui,
     pane: &Pane<'_>,
-    frames: &Frames<'_>,
+    (frames, labels): (&Frames<'_>, Option<&LabelsOnDevice>),
     gpu: &mut Gpu,
     render: &RenderState,
 ) -> bool {
@@ -342,6 +347,12 @@ fn slice(
         colour::draw(ui, pane.cell, &pane.shown, picture, aspect);
         return true;
     }
+    let labels = labels.filter(|_| crate::labels::on_study(pane.state, series));
+    let place = pane
+        .series()
+        .and_then(|(info, _)| info.voxel_to_patient.as_ref());
+    let place = place.map(|place| (place, viewport.slice));
+    pipeline.labels(&render.device, labels, pane.state.labels.overlay, place);
     pipeline.set_params(&render.queue, viewport.wl, &pane.shown, size, aspect);
     let draw = DrawSlice(Arc::clone(&gpu.pipeline));
     ui.painter()

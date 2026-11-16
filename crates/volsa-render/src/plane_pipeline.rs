@@ -307,7 +307,7 @@ impl PlanePipeline {
 
 /// What the shader reads in place of labels when there are none: a label volume of one
 /// voxel that holds nothing, and a table of looks with one clear entry.
-fn no_labels(device: &wgpu::Device) -> (wgpu::TextureView, wgpu::TextureView) {
+pub(crate) fn no_labels(device: &wgpu::Device) -> (wgpu::TextureView, wgpu::TextureView) {
     let one = wgpu::Extent3d {
         width: 1,
         height: 1,

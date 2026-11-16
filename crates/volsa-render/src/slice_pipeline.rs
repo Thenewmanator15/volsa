@@ -2,8 +2,10 @@
 
 use bytemuck::{Pod, Zeroable};
 use egui_wgpu::wgpu;
-use volsa_core::WindowLevel;
+use volsa_core::{Affine, Patient, Voxel, WindowLevel};
 
+use crate::labels::{LabelsOnDevice, Overlay};
+use crate::slice_labels::SliceLabels;
 use crate::view::ViewTransform;
 
 /// Why a slice could not be drawn.
@@ -60,6 +62,11 @@ struct Params {
     to_row: [f32; 4],
     sizes: [f32; 4],
     window: [f32; 4],
+    label_u: [f32; 4],
+    label_v: [f32; 4],
+    label_w: [f32; 4],
+    label_grid: [f32; 4],
+    label_how: [f32; 4],
 }
 
 /// The image now on the graphics device.
@@ -78,6 +85,10 @@ pub struct SlicePipeline {
     layout: wgpu::BindGroupLayout,
     params: wgpu::Buffer,
     uploaded: Option<Uploaded>,
+    /// The labels drawn over the slice, read where the device already holds them.
+    labels: SliceLabels,
+    /// Which slice of its series the image is, for finding it among the labels.
+    slice: f64,
 }
 
 impl SlicePipeline {
@@ -85,9 +96,10 @@ impl SlicePipeline {
     pub fn new(device: &wgpu::Device, target: wgpu::TextureFormat) -> Self {
         let shader = device.create_shader_module(wgpu::include_wgsl!("slice.wgsl"));
         let layout = bindings(device);
+        let labels = SliceLabels::new(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("volsa slice"),
-            bind_group_layouts: &[Some(&layout)],
+            bind_group_layouts: &[Some(&layout), Some(labels.layout())],
             immediate_size: 0,
         });
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -122,7 +134,27 @@ impl SlicePipeline {
             layout,
             params,
             uploaded: None,
+            labels,
+            slice: 0.0,
         }
+    }
+
+    /// Draw `with` over the slice in the way `overlay` says, or no labels with `None`. The
+    /// slice is number `slice` of a series laid out in the patient by `place`, which takes
+    /// column, row and slice; labels on a grid of their own are drawn where they lie. Takes
+    /// effect at the next [`Self::set_params`].
+    pub fn labels(
+        &mut self,
+        device: &wgpu::Device,
+        with: Option<&LabelsOnDevice>,
+        overlay: Overlay,
+        place: Option<(&Affine<Voxel, Patient>, usize)>,
+    ) {
+        self.labels
+            .set(device, with, overlay, place.map(|(place, _)| place));
+        self.slice = place.map_or(0.0, |(_, slice)| {
+            f64::from(u32::try_from(slice).unwrap_or(u32::MAX))
+        });
     }
 
     /// Put an image on the graphics device, replacing any image already there.
@@ -198,11 +230,17 @@ impl SlicePipeline {
         let [[col_x, row_x, _], [col_y, row_y, _], _] = to_image.columns();
         let [col_0, row_0, _] = to_image.origin();
         let [wide, high] = viewport;
+        let [label_u, label_v, label_w, label_grid, label_how] = self.labels.params(self.slice);
         let params = Params {
             to_col: [single(col_x), single(col_y), single(col_0), 0.0],
             to_row: [single(row_x), single(row_y), single(row_0), 0.0],
             sizes: [wide, high, uploaded.cols as f32, uploaded.rows as f32],
             window: [wl.low(), wl.width.max(f32::MIN_POSITIVE), 0.0, 0.0],
+            label_u,
+            label_v,
+            label_w,
+            label_grid,
+            label_how,
         };
         queue.write_buffer(&self.params, 0, bytemuck::bytes_of(&params));
     }
@@ -215,6 +253,7 @@ impl SlicePipeline {
         };
         pass.set_pipeline(&self.pipeline);
         pass.set_bind_group(0, &uploaded.bind_group, &[]);
+        pass.set_bind_group(1, self.labels.bound(), &[]);
         pass.draw(0..3, 0..1);
     }
 
