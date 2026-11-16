@@ -321,6 +321,7 @@ fn slices(
         frame: &frame,
         value: &value,
         read: &read,
+        labels: None,
     };
     viewport::show(ui, area, state, &held, (&mut [], drafts), None, actions);
 }

@@ -27,6 +27,7 @@ mod plane_view;
 mod prepared;
 mod scene;
 mod section;
+mod slice_labels;
 mod slice_pipeline;
 mod smoothed;
 #[cfg(test)]

@@ -202,3 +202,86 @@ fn errors_read_as_plain_sentences() {
         "The image has 15 values but its size is 4 × 4."
     );
 }
+
+/// Labels one voxel to a pixel of the 4 × 4 image: a red square of four in its middle.
+fn red_square() -> volsa_labels::LabelSet {
+    use volsa_labels::{LabelSet, Part, Side, Trust};
+    let part = Part {
+        name: "square".to_owned(),
+        group: "Squares".to_owned(),
+        side: Side::Midline,
+        colour: [255, 0, 0],
+        trust: Trust::Model,
+        voxels: 4,
+        ml: 1.0,
+    };
+    #[rustfmt::skip]
+    let numbers = vec![
+        0, 0, 0, 0,
+        0, 1, 1, 0,
+        0, 1, 1, 0,
+        0, 0, 0, 0,
+    ];
+    LabelSet {
+        dims: [4, 4, 1],
+        numbers,
+        placement: Affine::identity(),
+        parts: vec![part],
+        title: String::new(),
+        verdict: None,
+        made: None,
+    }
+}
+
+/// The colour of the screen pixel at `x`, `y` of a 60 × 60 picture.
+fn at(rgba: &[u8], x: usize, y: usize) -> [u8; 3] {
+    let start = (y * 60 + x) * 4;
+    [rgba[start], rgba[start + 1], rgba[start + 2]]
+}
+
+/// A black 4 × 4 slice with [`red_square`] drawn over it as `overlay` says.
+fn labelled_slice(overlay: Overlay) -> Option<Vec<u8>> {
+    let mut gpu = headless()?;
+    gpu.upload(4, 4, &[0.0; 16]).expect("uploads");
+    let place = Affine::identity();
+    assert!(gpu.label(Some(&red_square()), overlay, (&place, 0)));
+    Some(drawn(
+        &mut gpu,
+        WindowLevel::new(100.0, 10.0),
+        &ViewTransform::fit(),
+    ))
+}
+
+#[test]
+fn labels_open_are_outlined_on_a_slice_with_the_inside_left_as_it_is() {
+    let Some(rgba) = labelled_slice(Overlay::Outline) else {
+        return;
+    };
+    // The square starts half way across the second cell's left neighbour, at x = 15.
+    assert_eq!(at(&rgba, 14, 22), [255, 0, 0], "the line round the part");
+    assert_eq!(at(&rgba, 22, 22), [0, 0, 0], "inside the part");
+    assert_eq!(at(&rgba, 52, 52), [0, 0, 0], "outside it");
+}
+
+#[test]
+fn labels_filled_tint_the_inside_of_the_part_on_a_slice() {
+    let Some(rgba) = labelled_slice(Overlay::Filled) else {
+        return;
+    };
+    let [red, green, blue] = at(&rgba, 22, 22);
+    assert!((80..=90).contains(&red), "a third of the way to red: {red}");
+    assert_eq!((green, blue), (0, 0));
+}
+
+#[test]
+fn labels_turned_off_leave_a_slice_untouched() {
+    let Some(rgba) = labelled_slice(Overlay::Off) else {
+        return;
+    };
+    assert!(
+        rgba.as_chunks::<4>()
+            .0
+            .iter()
+            .all(|px| px[..3] == [0, 0, 0])
+    );
+}

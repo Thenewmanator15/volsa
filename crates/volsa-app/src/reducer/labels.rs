@@ -199,6 +199,9 @@ pub(super) fn taken_in(state: &mut AppState, read: Action, study: Option<StudyId
             .filter(|entry| entry.id == added.id)
             .any(|entry| entry.see_through)
     });
+    // What was found, made by a plugin, or read is then seen in 3D at once, as solids, and
+    // not hidden inside the surface of the head: the same for every kind of labels.
+    state.scene.look = volsa_render::Look::Parts;
     state.labels = Labels {
         status: LabelsStatus::Ready,
         title,

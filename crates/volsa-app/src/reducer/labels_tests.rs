@@ -63,6 +63,12 @@ fn labelled() -> AppState {
     state
 }
 
+#[test]
+fn labels_taken_in_turn_the_3d_view_to_its_solids_so_they_are_seen() {
+    assert_eq!(ready().scene.look, Look::Surface);
+    assert_eq!(look_drawn(&labelled()), Look::Parts);
+}
+
 fn shown(state: &AppState) -> Vec<bool> {
     state.labels.shown.iter().map(|part| part.shown).collect()
 }

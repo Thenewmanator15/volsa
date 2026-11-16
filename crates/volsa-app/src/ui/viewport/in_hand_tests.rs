@@ -28,6 +28,7 @@ fn drawn(
         frame: &frame,
         value: &value,
         read: &read,
+        labels: None,
     };
     show(ui, area, state, &slices, (&mut [], drafts), None, actions);
 }
