@@ -117,7 +117,7 @@ mod tests {
         let frame = Frame {
             rows: 1,
             cols: 2,
-            values: vec![0.0; 2],
+            values: vec![0.0; 2].into(),
             colour: Some(colours),
         };
         let image = picture(&frame).expect("in colour");

@@ -97,10 +97,11 @@ impl Rig {
         let cell = self.cell;
         let (drafts, actions, reads) = (&mut self.drafts, &mut self.actions, &self.reads);
         let (wants, has) = (std::mem::take(&mut self.wants_keys), &mut self.has_keys);
+        let sevens = volsa_dicom::Values::from(SEVENS.to_vec());
         let read = |_: &SeriesId, _: usize, with: &mut dyn FnMut(SliceValues<'_>)| {
             reads.set(reads.get() + 1);
             with(SliceValues {
-                values: &SEVENS,
+                values: &sevens,
                 size: [4, 4],
             });
         };

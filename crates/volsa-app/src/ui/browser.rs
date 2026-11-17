@@ -45,7 +45,7 @@ pub fn thumbnail(frame: &Frame, wl: WindowLevel, size: u32) -> ColorImage {
         let (mut sum, mut count) = (0.0_f32, 0.0_f32);
         for row in block(y, high, rows) {
             for col in block(x, wide, cols) {
-                sum += frame.values.get(row * cols + col).copied().unwrap_or(0.0);
+                sum += frame.values.get(row * cols + col).unwrap_or(0.0);
                 count += 1.0;
             }
         }

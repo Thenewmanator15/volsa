@@ -163,7 +163,10 @@ fn every_slice_is_decoded_and_the_one_asked_for_comes_first() {
     let Action::FrameReady { windows, .. } = &reports[0] else {
         unreachable!()
     };
-    assert_eq!(*windows, PRESETS.map(|preset| preset.window(&frame.values)));
+    assert_eq!(
+        *windows,
+        PRESETS.map(|preset| preset.window(&frame.values.floats()))
+    );
     assert!(bench.is_quiet());
 }
 

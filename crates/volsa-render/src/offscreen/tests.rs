@@ -311,3 +311,30 @@ fn slices_sharing_one_shader_each_show_their_own_image_and_numbers() {
         "the other slice is its own"
     );
 }
+
+#[test]
+fn whole_numbers_with_their_rescale_draw_as_their_values_do() {
+    let Some(mut gpu) = headless() else { return };
+    let (wl, fit) = (WindowLevel::new(7.5, 16.0), ViewTransform::fit());
+    gpu.upload(4, 4, &ramp()).expect("uploads");
+    let from_values = drawn(&mut gpu, wl, &fit);
+    let whole = |gpu: &mut Headless, numbers: &[u16], signed, [slope, intercept]: [f64; 2]| {
+        let numbers = crate::SliceNumbers::Whole {
+            numbers,
+            signed,
+            slope,
+            intercept,
+        };
+        let on = (&gpu.gpu.device, &gpu.gpu.queue);
+        gpu.pipeline
+            .upload_numbers(on, 4, 4, numbers)
+            .expect("uploads");
+        drawn(gpu, wl, &fit)
+    };
+    // Each value is half its number, less 3.
+    let unsigned: Vec<u16> = (0..16u16).map(|value| 2 * (value + 3)).collect();
+    assert_eq!(whole(&mut gpu, &unsigned, false, [0.5, -3.0]), from_values);
+    // Each value is its number, from -8, and 8.
+    let signed: Vec<u16> = (-8..8i16).map(i16::cast_unsigned).collect();
+    assert_eq!(whole(&mut gpu, &signed, true, [1.0, 8.0]), from_values);
+}

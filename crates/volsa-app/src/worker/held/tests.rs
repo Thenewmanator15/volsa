@@ -35,7 +35,11 @@ pub(super) fn reads_as_decoded(bench: &Bench, files: &[(String, Vec<u8>)]) {
         let at = u32::try_from(slice).expect("small");
         let values = held.slice_values(at).expect("a slice");
         let bits = |values: &[f32]| values.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
-        assert_eq!(bits(&values), bits(&decoded.values), "slice {slice}");
+        assert_eq!(
+            bits(&values),
+            bits(&decoded.values.floats()),
+            "slice {slice}"
+        );
     }
 }
 

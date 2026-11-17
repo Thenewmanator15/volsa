@@ -19,7 +19,7 @@ fn frame(cols: u32, values: &[f32]) -> Frame {
     Frame {
         rows,
         cols,
-        values: values.to_vec(),
+        values: values.to_vec().into(),
         colour: None,
     }
 }

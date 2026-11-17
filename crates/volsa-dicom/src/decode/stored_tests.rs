@@ -26,7 +26,7 @@ fn read_the_same(bytes: &[u8], frame: Option<u32>) -> StoredFrame {
             .map(|value| value.to_bits())
             .collect::<Vec<_>>()
     };
-    assert_eq!(bits(&new.values()), bits(&old.values));
+    assert_eq!(bits(&new.values()), bits(&old.values.floats()));
     new
 }
 

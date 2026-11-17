@@ -346,7 +346,12 @@ fn slice(
         let grey = gpu.coloured.is_none();
         if grey
             && pipeline
-                .upload(device, queue, frame.rows, frame.cols, &frame.values)
+                .upload_numbers(
+                    (device, queue),
+                    frame.rows,
+                    frame.cols,
+                    picture::numbers(&frame.values),
+                )
                 .is_err()
         {
             return false;

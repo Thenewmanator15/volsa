@@ -179,7 +179,7 @@ impl Shared {
             let cached = lock(&self.cache).get(series, *slice);
             let at = u32::try_from(*slice).unwrap_or(u32::MAX);
             let put = cached
-                .and_then(|cached| from_values(held, at, &cached.values))
+                .and_then(|cached| from_values(held, at, &cached.values.floats()))
                 .unwrap_or_else(|| {
                     let many = file.many_frames();
                     let image = opened.get_or_insert_with(|| self.open(&file.entry, many));

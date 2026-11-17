@@ -1,6 +1,7 @@
-// Draws one slice. The image values are in a single-channel floating-point texture; this
-// shader finds which part of the image lies under each screen pixel, blends the four nearest
-// values, and turns the result into grey through the window.
+// Draws one slice. The image values are in a single-channel texture: the values themselves, or
+// the whole numbers the file stores with what makes them values. This shader finds which part
+// of the image lies under each screen pixel, blends the four nearest values, and turns the
+// result into grey through the window.
 
 struct Params {
     // Image column = dot(to_col.xyz, (screen x, screen y, 1)); likewise the row.
@@ -20,10 +21,15 @@ struct Params {
     label_grid: vec4<f32>,
     // The number of the part selected (0 for none), and how far the inside is tinted.
     label_how: vec4<f32>,
+    // Where the image holds the whole numbers the file stores: what each step is worth, the
+    // value of 0, 1 when they are signed, and 1 to read them (0 to read `frame`).
+    stored: vec4<f32>,
 }
 
 @group(0) @binding(0) var<uniform> params: Params;
 @group(0) @binding(1) var frame: texture_2d<f32>;
+// The whole numbers, as 16 bits each; a signed one is read back from its bits.
+@group(0) @binding(2) var numbers: texture_2d<u32>;
 // The part at every voxel of the labels open, on their own grid (0 is nothing), and a table of
 // each part's colour with how solid it is as alpha, 256 parts to a row: the very textures the
 // planes draw from.
@@ -48,6 +54,11 @@ fn vertex(@builtin(vertex_index) index: u32) -> Corner {
 
 fn value_at(col: i32, row: i32, last: vec2<i32>) -> f32 {
     let at = clamp(vec2<i32>(col, row), vec2<i32>(0, 0), last);
+    if params.stored.w > 0.5 {
+        let raw = i32(textureLoad(numbers, at, 0).r);
+        let number = select(raw, raw - 65536, params.stored.z > 0.5 && raw >= 32768);
+        return f32(number) * params.stored.x + params.stored.y;
+    }
     return textureLoad(frame, at, 0).r;
 }
 

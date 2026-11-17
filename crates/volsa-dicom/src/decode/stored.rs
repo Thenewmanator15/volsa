@@ -74,13 +74,15 @@ impl ImageFile {
         Ok(StoredFrame {
             rows: values.rows,
             cols: values.cols,
-            samples: StoredSamples::Float(values.values),
+            samples: values.values.into_kept(),
         })
     }
 }
 
 /// The frame's whole numbers and rescale; `None` when the frame is not one that has them.
-fn whole_numbers(decoded: &DecodedPixelData<'_>) -> Option<Result<StoredFrame, VolsaError>> {
+pub(super) fn whole_numbers(
+    decoded: &DecodedPixelData<'_>,
+) -> Option<Result<StoredFrame, VolsaError>> {
     let grey = *decoded.photometric_interpretation() == PhotometricInterpretation::Monochrome2
         && decoded.samples_per_pixel() == 1;
     let bits = decoded.bits_allocated();

@@ -108,7 +108,10 @@ fn a_volume_that_gives_way_to_another_leaves_its_slices_in_the_cache() {
     // The new volume is said to be ready first; then the old one's slices are put by.
     bench.until(|bench| held_in_the_cache(bench, THICK_SCAN, 30) == 30);
     let last = bench.cached(THICK_SCAN, 29).expect("held");
-    assert_eq!((last.rows, last.cols, last.values[1]), (4, 4, 465.0));
+    assert_eq!(
+        (last.rows, last.cols, last.values.get(1)),
+        (4, 4, Some(465.0))
+    );
     // Going back builds from the cache, with nothing decoded again.
     build(&bench, &index, THICK_SCAN);
     let again = until_the_volume_ends(&bench);
@@ -144,7 +147,7 @@ fn slices_decoded_for_a_volume_that_failed_are_kept_for_the_viewport() {
     // the slice shown is ready, with the windows of what the cache holds.
     let after = bench.frames(&index, THICK_SCAN, 0, 2);
     let shown = bench.cached(THICK_SCAN, 0).expect("held");
-    let windows = PRESETS.map(|preset| preset.window(&shown.values));
+    let windows = PRESETS.map(|preset| preset.window(&shown.values.floats()));
     let ready = Action::FrameReady {
         series: id(THICK_SCAN),
         slice: 0,

@@ -59,7 +59,7 @@ pub use plane_view::{MAX_PLANE_ZOOM, MIN_PLANE_ZOOM, PlaneView};
 pub use prepared::{MAX_VOLUME_BYTES, Prepared};
 pub use scene::{CutPlane, Look, MAX_CUTS, SceneParams, SlicePlane};
 pub use section::{box_section, position_cross};
-pub use slice_pipeline::{RenderError, SlicePipeline};
+pub use slice_pipeline::{RenderError, SliceNumbers, SlicePipeline};
 pub use slice_shader::SliceShader;
 pub use smoothed::{Smoothed, SmoothedTexture};
 pub use timing::timed_submit;

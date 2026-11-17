@@ -35,7 +35,7 @@ impl Shared {
         let series = request.series.clone();
         let report = match decoded {
             Ok(frame) => {
-                let windows = PRESETS.map(|preset| preset.window(&frame.values));
+                let windows = PRESETS.map(|preset| preset.window(&frame.values.floats()));
                 let frame = Arc::new(frame);
                 if !self.hold(
                     &series,

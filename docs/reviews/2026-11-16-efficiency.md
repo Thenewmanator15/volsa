@@ -208,3 +208,22 @@ memory on the welcome screen (was about 285 MB), on Vulkan. Gate green: 2,546 te
 One oddity, not looked into: windows started from the PowerShell tool with no backend set
 stopped with "Failed to create surface for any enabled backend: {}". That happened with the
 old build as well. Started from bash, or with `WGPU_BACKEND` set, they opened normally.
+
+## Done on 17 November
+
+- **9:** one slice shader and one plane shader are compiled for the window's device and kept
+  with its renderer; every viewport, plane panel and slice drawn from the card shares them
+  (eleven pipelines before). Each pane keeps its own uniform buffer and writes it only when
+  its numbers change.
+- **3b:** `Frame::values` is now `Values`: the 16-bit numbers the file stores with their
+  rescale where it stores them, else 32-bit values. The frame cache counts half the bytes for
+  such slices, and the viewport sends them to the card as `R16Uint`; the slice shader turns
+  them into values. Values read on the processor are the same to the bit. Slices the cache
+  takes from a held volume stay 16-bit too (`HeldVolume::read_slice`).
+- **11:** once the scene reports its volume on the card whole (not halved), the workers put
+  every whole slab of it in the spill file. Volumes under 64 MiB are left in memory. The value
+  under the pointer reads one number from disk; measuring and labelling bring back what they
+  read. Not yet measured in the window on a large scan: the 2024 study's series are small.
+- On the 2024 study's first series, private memory after opening went from 357 MB to 316 MB.
+  A capture of the SWAN series in Slices and 3D is pixel-identical apart from the value under
+  the pointer, which differs from run to run with either build.

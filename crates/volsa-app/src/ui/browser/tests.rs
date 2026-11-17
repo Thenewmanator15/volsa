@@ -32,14 +32,14 @@ fn a_thumbnail_keeps_the_shape_of_the_frame() {
     let wide = Frame {
         rows: 4,
         cols: 8,
-        values: vec![1.0; 32],
+        values: vec![1.0; 32].into(),
         colour: None,
     };
     assert_eq!(thumbnail(&wide, WindowLevel::new(0.5, 1.0), 4).size, [4, 2]);
     let tall = Frame {
         rows: 9,
         cols: 3,
-        values: vec![1.0; 27],
+        values: vec![1.0; 27].into(),
         colour: None,
     };
     assert_eq!(thumbnail(&tall, WindowLevel::new(0.5, 1.0), 3).size, [1, 3]);
@@ -50,7 +50,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
     let empty = Frame {
         rows: 0,
         cols: 0,
-        values: Vec::new(),
+        values: Vec::new().into(),
         colour: None,
     };
     let image = thumbnail(&empty, WindowLevel::new(0.0, 1.0), 64);
@@ -61,7 +61,7 @@ fn a_frame_with_nothing_in_it_gives_one_black_pixel() {
     let lying = Frame {
         rows: 4,
         cols: 4,
-        values: vec![1.0; 3],
+        values: vec![1.0; 3].into(),
         colour: None,
     };
     assert_eq!(
@@ -219,7 +219,7 @@ fn the_small_picture_of_a_frame_in_colour_keeps_its_colours() {
     let frame = Frame {
         rows: 2,
         cols: 2,
-        values: vec![0.0; 4],
+        values: vec![0.0; 4].into(),
         colour: Some(colours.clone()),
     };
     let image = thumbnail(&frame, WindowLevel::new(0.0, 1.0), 2);

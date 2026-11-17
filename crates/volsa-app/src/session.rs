@@ -5,7 +5,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
-use volsa_core::{Grid, HeldVolume, SeriesId};
+use volsa_core::{HeldVolume, SeriesId};
 use volsa_dicom::Frame;
 use volsa_labels::LabelSet;
 use volsa_render::Smoothed;
@@ -102,17 +102,10 @@ impl Session {
                 return None;
             }
             let volume = self.volume(series)?;
-            let [cols, rows, _] = volume.dims();
-            let values = volume.slice_values(u32::try_from(slice).ok()?)?;
-            let colour = None;
+            let frame = crate::cache::held_slice(&volume, u32::try_from(slice).ok()?)?;
             #[cfg(test)]
             SLICES_COPIED.with(|copied| copied.set(copied.get() + 1));
-            Some(Arc::new(Frame {
-                rows,
-                cols,
-                values,
-                colour,
-            }))
+            Some(Arc::new(frame))
         })
     }
 
@@ -141,12 +134,8 @@ impl Session {
                 .then(|| read(SliceValues::from(&*frame)));
         }
         let volume = self.volume(series)?;
-        let [cols, rows, _] = volume.dims();
-        let values = volume.slice_values(u32::try_from(slice).ok()?)?;
-        Some(read(SliceValues {
-            values: &values,
-            size: [cols, rows],
-        }))
+        let frame = crate::cache::held_slice(&volume, u32::try_from(slice).ok()?)?;
+        Some(read(SliceValues::from(&frame)))
     }
 
     /// The value of one pixel, as its column and row, of a slice, read where it lies as

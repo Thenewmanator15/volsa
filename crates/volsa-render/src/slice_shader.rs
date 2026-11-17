@@ -12,6 +12,8 @@ pub struct SliceShader {
     pub(crate) labels_layout: wgpu::BindGroupLayout,
     /// One voxel of nothing, bound where there are no labels.
     pub(crate) no_labels: (wgpu::TextureView, wgpu::TextureView),
+    /// One value and one whole number of nothing, bound where the image is of the other kind.
+    pub(crate) blank: (wgpu::TextureView, wgpu::TextureView),
 }
 
 impl SliceShader {
@@ -51,6 +53,7 @@ impl SliceShader {
             layout,
             labels_layout,
             no_labels: crate::plane_pipeline::no_labels(device),
+            blank: blank(device),
         }
     }
 }
@@ -75,8 +78,38 @@ fn bindings(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         view_dimension: wgpu::TextureViewDimension::D2,
         multisampled: false,
     };
+    let numbers = wgpu::BindingType::Texture {
+        sample_type: wgpu::TextureSampleType::Uint,
+        view_dimension: wgpu::TextureViewDimension::D2,
+        multisampled: false,
+    };
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("volsa slice"),
-        entries: &[entry(0, parameters), entry(1, image)],
+        entries: &[entry(0, parameters), entry(1, image), entry(2, numbers)],
     })
+}
+
+/// One texel of each kind of image, holding nothing.
+fn blank(device: &wgpu::Device) -> (wgpu::TextureView, wgpu::TextureView) {
+    let one = |format| {
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("volsa no slice"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING,
+            view_formats: &[],
+        });
+        texture.create_view(&wgpu::TextureViewDescriptor::default())
+    };
+    (
+        one(wgpu::TextureFormat::R32Float),
+        one(wgpu::TextureFormat::R16Uint),
+    )
 }

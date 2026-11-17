@@ -3,8 +3,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::sync::Arc;
 
-use volsa_core::SeriesId;
-use volsa_dicom::Frame;
+use volsa_core::{Grid, HeldVolume, SeriesId, SlabRaw};
+use volsa_dicom::{Frame, StoredSamples};
 
 /// Decoded slices, kept until their memory is needed for slices nearer the one being shown.
 #[derive(Debug)]
@@ -165,9 +165,27 @@ impl FrameCache {
     }
 }
 
+/// Slice `slice` of `volume` as a frame cache holds it: the whole numbers the volume holds, with
+/// its rescale, at the size they are kept there. `None` when it has not been put.
+pub fn held_slice(volume: &HeldVolume, slice: u32) -> Option<Frame> {
+    let rescale = volume.rescale();
+    let samples = volume.read_slice(slice, |raw| match raw {
+        SlabRaw::Unsigned(numbers) => StoredSamples::Unsigned(numbers.to_vec(), rescale),
+        SlabRaw::Signed(numbers) => StoredSamples::Signed(numbers.to_vec(), rescale),
+        SlabRaw::Float(values) => StoredSamples::Float(values.to_vec()),
+    })?;
+    let [cols, rows, _] = volume.dims();
+    Some(Frame {
+        rows,
+        cols,
+        values: samples.into(),
+        colour: None,
+    })
+}
+
 /// The memory one frame's values take.
 fn size_of(frame: &Frame) -> usize {
-    std::mem::size_of_val(frame.values.as_slice())
+    frame.values.bytes()
 }
 
 #[cfg(test)]
@@ -182,7 +200,7 @@ mod tests {
         Arc::new(Frame {
             rows: 4,
             cols: 4,
-            values: vec![marker; 16],
+            values: vec![marker; 16].into(),
             colour: None,
         })
     }
@@ -204,7 +222,7 @@ mod tests {
         );
         let first = cache
             .take_unannounced(&id("a"), 1)
-            .map(|frame| frame.values[0]);
+            .and_then(|frame| frame.values.get(0));
         assert_eq!(first, Some(2.0));
         assert!(cache.take_unannounced(&id("a"), 1).is_none(), "once only");
         assert!(cache.contains(&id("a"), 1), "and it is still held");
@@ -327,5 +345,24 @@ mod tests {
         cache.insert(&id("a"), 0, frame(1.0), 0);
         cache.clear();
         assert_eq!((cache.bytes(), cache.get(&id("a"), 0)), (0, None));
+    }
+
+    #[test]
+    fn a_slice_kept_as_its_whole_numbers_counts_half_the_bytes_of_its_values() {
+        let mut cache = FrameCache::new(10 * ONE);
+        let rescale = volsa_core::Rescale {
+            slope: 1.0,
+            intercept: 0.0,
+        };
+        let whole = Frame {
+            rows: 4,
+            cols: 4,
+            values: StoredSamples::Unsigned(vec![7; 16], rescale).into(),
+            colour: None,
+        };
+        cache.insert(&id("a"), 0, Arc::new(whole), 0);
+        assert_eq!(cache.bytes(), ONE / 2);
+        let read = cache.get(&id("a"), 0).and_then(|frame| frame.values.get(5));
+        assert_eq!(read, Some(7.0));
     }
 }

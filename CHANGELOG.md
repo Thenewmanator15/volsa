@@ -20,6 +20,9 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
   in 3D, Volsa's own copy in memory is put on disk, and only what is read again (the value
   under the pointer, a region measured, labelling) comes back. Scans under 64 MB stay as they
   are.
+- **Slices take half the memory.** A slice decoded for a viewport is kept as the 16-bit numbers
+  the file stores, not as 32-bit values, and sent to the graphics card so, which turns them
+  into values as it draws. Measurements read the same values as before, to the bit.
 
 ### Added
 

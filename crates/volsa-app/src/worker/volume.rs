@@ -208,17 +208,11 @@ impl Shared {
     /// into the frame cache, as many as it has room for, so that going back to its series
     /// decodes nothing again. Slices it does not hold are passed over.
     fn keep_slices(&self, series: &SeriesId, volume: &HeldVolume, opened: u64) {
-        let [cols, rows, slices] = volume.dims();
+        let [_, _, slices] = volume.dims();
         let middle = slices as usize / 2;
         for slice in 0..slices {
-            let Some(values) = volume.slice_values(slice) else {
+            let Some(frame) = crate::cache::held_slice(volume, slice) else {
                 continue;
-            };
-            let frame = Frame {
-                rows,
-                cols,
-                values,
-                colour: None,
             };
             let frame = Arc::new(frame);
             if !self.hold(series, slice as usize, frame, (middle, opened), false) {

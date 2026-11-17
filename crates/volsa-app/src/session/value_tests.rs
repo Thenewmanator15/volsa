@@ -3,6 +3,7 @@
 
 use std::sync::Arc;
 
+use volsa_core::Grid;
 use volsa_dicom::Frame;
 
 use super::SLICES_COPIED;
@@ -115,16 +116,20 @@ fn a_slice_is_read_where_it_lies_whether_decoded_or_in_a_kept_volume() {
     let before = copied();
     // The kept volume holds its values as stored: they are turned into values to be read,
     // and nothing is copied into the frame cache.
-    let read = session.read_slice(&series, 31, |values| (values.values.to_vec(), values.size));
+    let read = session.read_slice(&series, 31, |values| {
+        (values.values.floats().into_owned(), values.size)
+    });
     let kept = volume.slice_values(31).expect("in the volume");
     assert_eq!(read, Some((kept, [8, 8])), "the volume's own values");
     let decoded = slice_of_places(false);
-    let at = decoded.values.as_ptr();
+    let at = std::ptr::from_ref(&decoded.values);
     let grey = id("1.1");
     let mut cache = session.cache().lock().expect("no worker panicked");
     cache.insert(&grey, 2, decoded, 4);
     drop(cache);
-    let read = session.read_slice(&grey, 2, |values| (values.values.as_ptr(), values.size));
+    let read = session.read_slice(&grey, 2, |values| {
+        (std::ptr::from_ref(values.values), values.size)
+    });
     assert_eq!(read, Some((at, [3, 2])), "the decoded slice's own values");
     assert_eq!(copied(), before, "and nothing was copied");
     assert_eq!(session.read_slice(&grey, 3, |_| ()), None, "not decoded");

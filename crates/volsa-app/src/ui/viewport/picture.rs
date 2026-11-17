@@ -5,9 +5,9 @@
 
 use std::path::{Path, PathBuf};
 
-use volsa_core::{Point, WindowLevel};
-use volsa_dicom::Frame;
-use volsa_render::ViewTransform;
+use volsa_core::{Point, Rescale, WindowLevel};
+use volsa_dicom::{Frame, StoredSamples, Values};
+use volsa_render::{SliceNumbers, ViewTransform};
 
 use super::super::overlay;
 use super::super::scene::export;
@@ -49,7 +49,7 @@ pub fn drawn(frame: &Frame, wl: WindowLevel, view: &ViewTransform) -> Option<Pic
         let at = to_screen.apply(Point::new(whole(col), whole(row), 0.0));
         let (x, y) = (pixel(at.x, size[0]), pixel(at.y, size[1]));
         let colour = frame.colour.as_ref().and_then(|all| all.get(from).copied());
-        let [red, green, blue] = colour.unwrap_or([grey(*value, wl); 3]);
+        let [red, green, blue] = colour.unwrap_or([grey(value, wl); 3]);
         let to = (y * to_index(size[0]) + x) * 4;
         if let Some(place) = rgba.get_mut(to..to + 4) {
             place.copy_from_slice(&[red, green, blue, u8::MAX]);
@@ -145,4 +145,22 @@ fn whole(at: usize) -> f64 {
 /// A count of pixels as an index.
 fn to_index(count: u32) -> usize {
     usize::try_from(count).unwrap_or(usize::MAX)
+}
+
+/// A slice's values as the graphics card is given them: the whole numbers the file stores,
+/// 2 bytes each, where they are kept so.
+pub(super) fn numbers(values: &Values) -> SliceNumbers<'_> {
+    let whole = |numbers, signed, rescale: Rescale| SliceNumbers::Whole {
+        numbers,
+        signed,
+        slope: rescale.slope,
+        intercept: rescale.intercept,
+    };
+    match values.kept() {
+        StoredSamples::Unsigned(numbers, rescale) => whole(numbers, false, *rescale),
+        StoredSamples::Signed(numbers, rescale) => {
+            whole(bytemuck::cast_slice(numbers), true, *rescale)
+        }
+        StoredSamples::Float(values) => SliceNumbers::Values(values),
+    }
 }

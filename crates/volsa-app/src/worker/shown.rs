@@ -35,7 +35,7 @@ impl Workers {
                     .ok()
                     .and_then(|at| volume.slice_values(at))
                     .map(Cow::Owned),
-                (None, Some(frame)) => Some(Cow::Borrowed(frame.values.as_slice())),
+                (None, Some(frame)) => Some(frame.values.floats()),
                 (None, None) => None,
             };
             if let Some(values) = values {

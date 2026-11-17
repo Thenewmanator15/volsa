@@ -24,7 +24,7 @@ mod tags;
 #[cfg(any(test, feature = "testkit"))]
 pub mod testkit;
 
-pub use decode::{Frame, ImageFile, StoredFrame, StoredSamples, decode_slice};
+pub use decode::{Frame, ImageFile, StoredFrame, StoredSamples, Values, decode_slice};
 pub use document::{
     DocumentKind, IndexedDocument, MAX_REPORT_CHARS, MAX_REPORT_DEPTH, MAX_REPORT_LINES, Report,
     ReportLine, pdf_bytes, read_report,

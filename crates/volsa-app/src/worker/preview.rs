@@ -53,8 +53,9 @@ impl Shared {
                     let image = image.as_ref().ok()?;
                     Some(image.decode(*frame).ok()?.values)
                 });
-                let small = values
-                    .map(|values| volsa_volume::reduced(&values, [cols, rows], PREVIEW_ACROSS));
+                let small = values.map(|values| {
+                    volsa_volume::reduced(&values.floats(), [cols, rows], PREVIEW_ACROSS)
+                });
                 lock(&reduced).push((u32::try_from(*slice).ok(), small));
             }
         });

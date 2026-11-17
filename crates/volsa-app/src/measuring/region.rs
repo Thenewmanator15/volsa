@@ -16,7 +16,7 @@ const MOST_ACROSS: f64 = 1024.0;
 #[derive(Debug, Clone, Copy)]
 pub struct SliceValues<'a> {
     /// The values, row by row.
-    pub values: &'a [f32],
+    pub values: &'a volsa_dicom::Values,
     /// How many columns and rows the slice has.
     pub size: [u32; 2],
 }
@@ -37,9 +37,7 @@ impl SliceValues<'_> {
         if col >= cols || row >= rows {
             return None;
         }
-        self.values
-            .get(row.checked_mul(cols)?.checked_add(col)?)
-            .copied()
+        self.values.get(row.checked_mul(cols)?.checked_add(col)?)
     }
 
     /// The value of the pixel a place on the slice lies in, the place given as a column and a

@@ -15,8 +15,10 @@ use crate::source::SeriesSource;
 mod colour;
 mod declared;
 mod stored;
+mod values;
 
 pub use stored::{StoredFrame, StoredSamples};
+pub use values::Values;
 
 use declared::Declared;
 
@@ -27,8 +29,9 @@ pub struct Frame {
     pub rows: u32,
     /// Columns in the slice.
     pub cols: u32,
-    /// `rows × cols` values: the one at row `r`, column `c` is `values[r * cols + c]`.
-    pub values: Vec<f32>,
+    /// `rows × cols` values: the one at row `r`, column `c` is `values.get(r * cols + c)`,
+    /// kept as the whole numbers the file stores where it stores them.
+    pub values: Values,
     /// For a picture stored in colour, the red, green and blue of each pixel, in the same
     /// order; `values` then holds how bright each pixel is. `None` for a grey image.
     pub colour: Option<Vec<[u8; 3]>>,
@@ -104,6 +107,15 @@ impl ImageFile {
         if decoded.samples_per_pixel() == 3 {
             return colour::frame(&decoded);
         }
+        if let Some(stored) = stored::whole_numbers(&decoded) {
+            let stored = stored?;
+            return Ok(Frame {
+                rows: stored.rows,
+                cols: stored.cols,
+                values: stored.samples.into(),
+                colour: None,
+            });
+        }
         let mut values: Vec<f32> = decoded.to_vec_frame(0).map_err(|error| damaged(&error))?;
         let (rows, cols) = (decoded.rows(), decoded.columns());
         if values.len() != rows as usize * cols as usize {
@@ -117,7 +129,7 @@ impl ImageFile {
         Ok(Frame {
             rows,
             cols,
-            values,
+            values: values.into(),
             colour: None,
         })
     }

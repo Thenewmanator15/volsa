@@ -20,6 +20,7 @@ rayon.workspace = true
 rfd.workspace = true
 # `accesskit` describes the interface to screen readers.
 eframe = { workspace = true, features = ["accesskit", "wgpu", "default_fonts", "x11", "wayland"] }
+bytemuck.workspace = true
 image.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true

@@ -94,7 +94,7 @@ fn decode_inverts_monochrome1_so_the_brightest_stored_pixel_has_the_smallest_val
         .map(|s| 1550.0 + 50.0 - f32::from(*s))
         .collect();
     assert_eq!(frame.values, expected);
-    assert_eq!(frame.values.last().copied(), Some(50.0));
+    assert_eq!(frame.values.iter().last(), Some(50.0));
 }
 
 #[test]

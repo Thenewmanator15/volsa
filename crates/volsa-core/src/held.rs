@@ -223,6 +223,18 @@ impl HeldVolume {
         Some(values)
     }
 
+    /// Read a slice that has been put, row by row, with `read`, as the volume holds it: whole
+    /// numbers, made values by [`HeldVolume::rescale`], or the values. `None` when it has not
+    /// been put.
+    pub fn read_slice<T>(&self, slice: u32, read: impl FnOnce(SlabRaw<'_>) -> T) -> Option<T> {
+        if !self.has_slice(slice) {
+            return None;
+        }
+        let first = (slice % self.per_slab) as usize * self.in_slice();
+        let range = first..first + self.in_slice();
+        self.read_part((slice / self.per_slab) as usize, range, read)
+    }
+
     /// Put the values of a slice that has been put on the end of `into`, a whole slice at a
     /// time. `None`, with nothing put, when it has not been put.
     fn extend_with_slice(&self, slice: u32, into: &mut Vec<f32>) -> Option<()> {

@@ -136,7 +136,7 @@ fn slice_with_a_dip() -> Frame {
     Frame {
         rows: 4,
         cols: 4,
-        values,
+        values: values.into(),
         colour: None,
     }
 }
@@ -172,7 +172,7 @@ fn bottom_left(state: &AppState, value: Option<f32>) -> Vec<String> {
 /// Where the one value the hover asks for is read from in these tests: the 4 x 4 slice with a
 /// dip, as a lookup of a single value.
 fn from_the_dip(_: &SeriesId, _: usize, (col, row): (usize, usize)) -> Option<f32> {
-    slice_with_a_dip().values.get(row * 4 + col).copied()
+    slice_with_a_dip().values.get(row * 4 + col)
 }
 
 /// Where the pointer is when it is over column `col` of row `row` of the 4 x 4 slice.

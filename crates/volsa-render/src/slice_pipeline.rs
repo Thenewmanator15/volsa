@@ -9,6 +9,9 @@ use crate::slice_labels::SliceLabels;
 use crate::slice_shader::SliceShader;
 use crate::view::ViewTransform;
 
+mod upload;
+pub use upload::SliceNumbers;
+
 /// Why a slice could not be drawn.
 #[derive(Debug, PartialEq, Eq, thiserror::Error)]
 pub enum RenderError {
@@ -68,6 +71,7 @@ struct Params {
     label_w: [f32; 4],
     label_grid: [f32; 4],
     label_how: [f32; 4],
+    stored: [f32; 4],
 }
 
 /// The image now on the graphics device.
@@ -76,6 +80,8 @@ struct Uploaded {
     bind_group: wgpu::BindGroup,
     rows: u32,
     cols: u32,
+    /// How the shader makes values of the numbers, as `stored` in `slice.wgsl`.
+    stored: [f32; 4],
 }
 
 /// Draws one slice. The image is uploaded once as a single-channel floating-point texture;
@@ -137,57 +143,6 @@ impl SlicePipeline {
         });
     }
 
-    /// Put an image on the graphics device, replacing any image already there.
-    /// `values[r * cols + c]` is the value at row `r`, column `c`.
-    ///
-    /// # Errors
-    ///
-    /// [`RenderError::FrameSize`] when the number of values is not `rows × cols` or the image
-    /// has no size, and [`RenderError::TooLarge`] when a side is longer than the device
-    /// accepts. The image already uploaded, if any, stays in place.
-    pub fn upload(
-        &mut self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        rows: u32,
-        cols: u32,
-        values: &[f32],
-    ) -> Result<(), RenderError> {
-        let expected = u64::from(rows) * u64::from(cols);
-        if expected == 0 || values.len() as u64 != expected {
-            return Err(RenderError::FrameSize {
-                rows,
-                cols,
-                values: values.len(),
-            });
-        }
-        let limit = device.limits().max_texture_dimension_2d;
-        if rows > limit || cols > limit {
-            return Err(RenderError::TooLarge { rows, cols, limit });
-        }
-        let reusable = self
-            .uploaded
-            .take()
-            .filter(|old| (old.rows, old.cols) == (rows, cols));
-        let uploaded = reusable.unwrap_or_else(|| self.texture(device, rows, cols));
-        queue.write_texture(
-            uploaded.texture.as_image_copy(),
-            bytemuck::cast_slice(values),
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(cols * 4),
-                rows_per_image: Some(rows),
-            },
-            wgpu::Extent3d {
-                width: cols,
-                height: rows,
-                depth_or_array_layers: 1,
-            },
-        );
-        self.uploaded = Some(uploaded);
-        Ok(())
-    }
-
     /// Set the window, level and view for the next draw. `viewport` is the width and height,
     /// in screen pixels, of the area drawn into; `pixel_aspect` is how many times taller than
     /// wide one pixel of the image is. Does nothing until an image has been uploaded.
@@ -221,6 +176,7 @@ impl SlicePipeline {
             label_w,
             label_grid,
             label_how,
+            stored: uploaded.stored,
         };
         let same = |written: &Params| bytemuck::bytes_of(written) == bytemuck::bytes_of(&params);
         if !self.written.as_ref().is_some_and(same) {
@@ -239,45 +195,6 @@ impl SlicePipeline {
         pass.set_bind_group(0, &uploaded.bind_group, &[]);
         pass.set_bind_group(1, self.labels.bound(), &[]);
         pass.draw(0..3, 0..1);
-    }
-
-    /// A texture of the given size and the bindings that show it.
-    fn texture(&self, device: &wgpu::Device, rows: u32, cols: u32) -> Uploaded {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("volsa slice values"),
-            size: wgpu::Extent3d {
-                width: cols,
-                height: rows,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::R32Float,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
-        let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("volsa slice"),
-            layout: &self.shader.layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: self.params.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&view),
-                },
-            ],
-        });
-        Uploaded {
-            texture,
-            bind_group,
-            rows,
-            cols,
-        }
     }
 }
 
