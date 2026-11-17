@@ -296,3 +296,12 @@ fn a_volume_that_could_not_be_built_says_why() {
     );
     assert_eq!(state.scene.status, SceneStatus::Unavailable(vec![reason]));
 }
+
+#[test]
+fn a_volume_whole_on_the_card_has_its_values_put_away_and_a_halved_one_keeps_them() {
+    let mut state = ready();
+    let series = state.scene.series.clone().expect("a series in 3D");
+    let whole = reduce(&mut state, Action::SceneUploaded { halved: 0 });
+    assert_eq!(whole, [Effect::PutAwayOnCard { series }]);
+    assert_eq!(reduce(&mut state, Action::SceneUploaded { halved: 1 }), []);
+}

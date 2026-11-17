@@ -78,6 +78,12 @@ pub enum Effect {
     },
     /// Give up the curve, and any being worked out.
     DropSmooth,
+    /// The graphics card holds the whole of this series' kept volume: put its values away on
+    /// disk, to be brought back only where something reads them.
+    PutAwayOnCard {
+        /// The series whose volume is on the card.
+        series: SeriesId,
+    },
     /// Read a file of labels, with the table that names its parts if one was chosen.
     ReadLabels {
         /// The label volume.

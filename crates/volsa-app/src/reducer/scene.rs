@@ -24,7 +24,15 @@ pub(super) fn reduce(state: &mut AppState, action: Action) -> Vec<Effect> {
             move_camera(scene, |_| facing);
         }
         Action::SceneLook(look) => scene.look = look,
-        Action::SceneUploaded { halved } => scene.halved = halved,
+        Action::SceneUploaded { halved } => {
+            scene.halved = halved;
+            // Whole on the card, the slices are drawn from there: the values wait on disk.
+            let whole = scene.series.clone().filter(|_| halved == 0);
+            return whole
+                .map(|series| Effect::PutAwayOnCard { series })
+                .into_iter()
+                .collect();
+        }
         Action::ShowSliceInScene(shown) => scene.slice_shown = shown,
         Action::CutAdd if scene.cuts.len() < MAX_CUTS => {
             scene.cuts.push(CutPlane::facing(&scene.camera));

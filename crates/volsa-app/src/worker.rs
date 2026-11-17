@@ -213,6 +213,7 @@ impl Workers {
             }
             Effect::BuildSmooth { series } => self.build_smooth(series),
             Effect::DropSmooth => lock(&self.shared.volumes).want_smoothed(false),
+            Effect::PutAwayOnCard { series } => self.put_away_on_card(series),
             Effect::LoadViews { series } => self.load_views(series),
             Effect::StoreViews { series, views } => self.store_views(&series, views),
             Effect::LoadAnnotations { series } => self.load_annotations(series),

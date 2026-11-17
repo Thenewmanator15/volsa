@@ -85,3 +85,17 @@ fn when_the_spill_file_cannot_be_made_the_volume_stays_and_a_notice_says_so() {
     assert_eq!(held.bytes_held(), 6 * SLAB, "all of it in memory");
     reads_as_decoded(&bench, &files);
 }
+
+#[test]
+fn a_volume_whole_on_the_card_is_put_away_and_reads_the_same_values() {
+    let local = tempfile::tempdir().expect("a temporary folder");
+    let (bench, files, _) = built_in(1 << 20, local.path());
+    let series = volsa_core::SeriesId(THICK_SCAN.to_owned());
+    bench
+        .workers
+        .run(crate::action::Effect::PutAwayOnCard { series }, None);
+    let held = stored(&bench, THICK_SCAN).expect("kept");
+    bench.until(|_| (0..held.slab_count()).all(|slab| held.is_away(slab)));
+    assert_eq!(held.bytes_held(), 0, "none of it in memory");
+    reads_as_decoded(&bench, &files);
+}

@@ -4,7 +4,7 @@
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Weak};
 
-use volsa_core::HeldVolume;
+use volsa_core::{HeldVolume, SeriesId};
 
 use super::{Shared, Workers, lock};
 use crate::action::Action;
@@ -123,6 +123,28 @@ impl Shared {
                 key: Some("spill"),
             }));
         }
+    }
+}
+
+/// The smallest volume put away once the graphics card holds it: a smaller one costs too
+/// little memory to be worth the writing.
+const SMALLEST_PUT_AWAY: usize = if cfg!(test) { 1 } else { 64 << 20 };
+
+impl Workers {
+    /// The graphics card holds the whole of `series`' kept volume, and the slices of it are
+    /// drawn from there: put the values away on disk, on a worker, so that the scan is not
+    /// held twice. What reads them later (the value under the pointer, a region measured,
+    /// labelling) brings back only what it reads. A small volume, or another series', is left.
+    pub(super) fn put_away_on_card(&self, series: SeriesId) {
+        let shared = Arc::clone(&self.shared);
+        self.spawn(move || {
+            let held = lock(&shared.volumes).get(&series);
+            let Some(held) = held.filter(|held| held.bytes_held() >= SMALLEST_PUT_AWAY) else {
+                return;
+            };
+            while shared.make_room(&held) {}
+            shared.share_the_budget();
+        });
     }
 }
 

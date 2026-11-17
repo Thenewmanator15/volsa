@@ -16,6 +16,10 @@ Volsa was earlier called Voxa: the entries before 0.7.0 keep that name.
 - **Starts with less work on the graphics card.** The slice and plane shaders are compiled once
   and shared by every viewport and plane panel, not once for each, and their settings are sent
   to the card only when they change.
+- **Holds a scan once, not twice.** Once the graphics card holds the whole of the scan shown
+  in 3D, Volsa's own copy in memory is put on disk, and only what is read again (the value
+  under the pointer, a region measured, labelling) comes back. Scans under 64 MB stay as they
+  are.
 
 ### Added
 
